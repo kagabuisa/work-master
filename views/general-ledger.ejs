@@ -1,0 +1,114 @@
+<!doctype html>
+<% const glFilterOptions = filterOptions || { accounts: [], parties: [], voucher_types: [] }; %>
+<html lang="en">
+<head>
+  <title>General Ledger</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'General Ledger' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'report' }) %>
+      </nav>
+    </header>
+
+    <section class="metrics">
+      <article><span>Debits</span><strong><%= money(report.summary.debit) %></strong></article>
+      <article><span>Credits</span><strong><%= money(report.summary.credit) %></strong></article>
+      <article><span>Net</span><strong><%= money(report.summary.balance) %></strong></article>
+    </section>
+
+    <form class="report-filters general-ledger-filters" method="get">
+      <datalist id="general-ledger-accounts">
+        <% glFilterOptions.accounts.forEach((account) => { %>
+          <option value="<%= account.value %>"></option>
+        <% }) %>
+      </datalist>
+      <datalist id="general-ledger-parties">
+        <% glFilterOptions.parties.forEach((party) => { %>
+          <option value="<%= party.value %>"></option>
+        <% }) %>
+      </datalist>
+      <label>
+        Search
+        <input name="q" value="<%= report.filters.search %>" placeholder="Search general ledger" autocomplete="off">
+      </label>
+      <label>
+        Account
+        <input name="account" value="<%= report.filters.account %>" placeholder="Code or name" list="general-ledger-accounts" autocomplete="off">
+      </label>
+      <label>
+        Party
+        <input name="party" value="<%= report.filters.party %>" placeholder="Customer, supplier, employee" list="general-ledger-parties" autocomplete="off">
+      </label>
+      <label>
+        Voucher
+        <select name="voucher_type">
+          <option value="">All</option>
+          <% glFilterOptions.voucher_types.forEach((voucher) => { %>
+            <option value="<%= voucher.value %>" <%= report.filters.voucher_type === voucher.value ? 'selected' : '' %>><%= voucher.label %></option>
+          <% }) %>
+          <% if (report.filters.voucher_type && !glFilterOptions.voucher_types.some((voucher) => voucher.value === report.filters.voucher_type)) { %>
+            <option value="<%= report.filters.voucher_type %>" selected><%= report.filters.voucher_type %></option>
+          <% } %>
+        </select>
+      </label>
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/reports/general-ledger">Reset</a>
+      </div>
+    </form>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Account</th>
+            <th>Party</th>
+            <th>Voucher</th>
+            <th>Remarks</th>
+            <th>Debit</th>
+            <th>Credit</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!report.rows.length) { %>
+            <tr><td colspan="8" class="empty">No general ledger entries found.</td></tr>
+          <% } %>
+          <% report.rows.forEach((row) => { %>
+            <tr>
+              <td><%= row.posting_date %></td>
+              <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
+              <td><%= row.party_name || row.party_id || '' %></td>
+              <td>
+                <% if (row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
+                  <a href="/invoices/<%= row.voucher_id %>"><%= row.voucher_no || row.voucher_type %></a>
+                <% } else if (['cash_receipt', 'payment_journal', 'journal_entry'].includes(row.voucher_type) && row.voucher_id) { %>
+                  <a href="/journals/<%= row.voucher_id %>"><%= row.voucher_no || row.voucher_type %></a>
+                <% } else if (row.voucher_type && row.voucher_type.startsWith('stock_') && row.voucher_id) { %>
+                  <a href="/stock/entries/<%= row.voucher_id %>"><%= row.voucher_no || row.voucher_type %></a>
+                <% } else { %>
+                  <%= row.voucher_no || row.voucher_type %>
+                <% } %>
+              </td>
+              <td><%= row.remarks || '' %></td>
+              <td><%= row.debit ? money(row.debit) : '' %></td>
+              <td><%= row.credit ? money(row.credit) : '' %></td>
+              <td><strong><%= money(row.running_balance) %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

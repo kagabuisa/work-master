@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Profit and Loss</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Profit and Loss' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'report' }) %>
+      </nav>
+    </header>
+
+    <section class="metrics">
+      <article><span>Income</span><strong><%= money(report.summary.total_income) %></strong></article>
+      <article><span>Gross Profit</span><strong><%= money(report.summary.gross_profit) %></strong></article>
+      <article><span>Net Profit</span><strong><%= money(report.summary.net_profit) %></strong></article>
+    </section>
+
+    <form class="report-filters" method="get">
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/reports/profit-and-loss">Reset</a>
+      </div>
+    </form>
+
+    <section class="grid">
+      <div>
+        <div class="section-title">
+          <h2>Income</h2>
+          <strong><%= money(report.summary.total_income) %></strong>
+        </div>
+        <table>
+          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% if (!report.income.length) { %>
+              <tr><td colspan="2" class="empty">No income entries found.</td></tr>
+            <% } %>
+            <% report.income.forEach((row) => { %>
+              <tr>
+                <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
+                <td><%= money(row.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot><tr><th>Total Income</th><th><%= money(report.summary.total_income) %></th></tr></tfoot>
+        </table>
+      </div>
+
+      <div>
+        <div class="section-title">
+          <h2>Expenses</h2>
+          <strong><%= money(report.summary.total_expenses) %></strong>
+        </div>
+        <table>
+          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% if (!report.expenses.length) { %>
+              <tr><td colspan="2" class="empty">No expense entries found.</td></tr>
+            <% } %>
+            <% report.expenses.forEach((row) => { %>
+              <tr>
+                <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
+                <td><%= money(row.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr><th>Cost of Goods Sold</th><th><%= money(report.summary.cost_of_goods_sold) %></th></tr>
+            <tr><th>Total Expenses</th><th><%= money(report.summary.total_expenses) %></th></tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="invoice-card report-section">
+      <table>
+        <tbody>
+          <tr><th>Income</th><td><%= money(report.summary.total_income) %></td></tr>
+          <tr><th>Cost of Goods Sold</th><td><%= money(report.summary.cost_of_goods_sold) %></td></tr>
+          <tr><th>Gross Profit</th><td><strong><%= money(report.summary.gross_profit) %></strong></td></tr>
+          <tr><th>Total Expenses</th><td><%= money(report.summary.total_expenses) %></td></tr>
+          <tr><th>Net Profit</th><td><strong><%= money(report.summary.net_profit) %></strong></td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

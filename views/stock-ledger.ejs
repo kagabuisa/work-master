@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Stock Ledger</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Ledger' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: report.filters.entry_type === 'purchase' ? 'purchases' : 'report' }) %>
+        <a class="button" href="/stock/entries/new">New Stock Entry</a>
+      </nav>
+    </header>
+    <form class="report-filters stock-ledger-filters" method="get">
+      <datalist id="stock-report-warehouses"></datalist>
+      <label>
+        Item
+        <input name="q" value="<%= report.filters.search %>" placeholder="Search stock ledger" autocomplete="off" data-stock-report-item>
+        <div class="results stock-report-item-results"></div>
+      </label>
+      <label>
+        Warehouse
+        <input name="warehouse" value="<%= report.filters.warehouse %>" placeholder="Warehouse" list="stock-report-warehouses" autocomplete="off">
+      </label>
+      <label>
+        Type
+        <select name="entry_type">
+          <option value="">All</option>
+          <option value="opening" <%= report.filters.entry_type === 'opening' ? 'selected' : '' %>>Opening Stock</option>
+          <option value="purchase" <%= report.filters.entry_type === 'purchase' ? 'selected' : '' %>>Purchase Receipt</option>
+          <option value="transfer" <%= report.filters.entry_type === 'transfer' ? 'selected' : '' %>>Transfer</option>
+          <option value="adjustment" <%= report.filters.entry_type === 'adjustment' ? 'selected' : '' %>>Adjustment</option>
+          <option value="cancel" <%= report.filters.entry_type === 'cancel' ? 'selected' : '' %>>Cancel Entry</option>
+        </select>
+      </label>
+      <label>
+        Status
+        <select name="status">
+          <option value="posted" <%= report.filters.status === 'posted' ? 'selected' : '' %>>Posted</option>
+          <option value="submitted" <%= report.filters.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
+          <option value="draft" <%= report.filters.status === 'draft' ? 'selected' : '' %>>Draft</option>
+          <option value="cancelled" <%= report.filters.status === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+        </select>
+      </label>
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/reports/stock-ledger">Reset</a>
+      </div>
+    </form>
+    <script src="/stock-report-filters.js"></script>
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th>Type</th><th>Status</th><th>Voucher</th><th>Reversal Ref</th><th>Qty</th><th>In Rate</th><th>Out Rate</th><th>Value</th><th>Balance Qty</th><th>Balance Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!report.rows.length) { %><tr><td colspan="13" class="empty">No stock ledger entries found.</td></tr><% } %>
+          <% report.rows.forEach((row) => { %>
+            <tr class="<%= row.stock_entry_status === 'cancelled' || row.is_reversal ? 'ledger-cancelled-row' : '' %>">
+              <td><%= row.posting_date %></td>
+              <td class="item-code-col"><strong><%= row.item_code %></strong></td>
+              <td class="warehouse-col"><%= row.warehouse %></td>
+              <td><%= row.stock_entry_type || '' %></td>
+              <td><%= row.stock_entry_status || '' %><%= row.is_reversal ? ' reversal' : '' %></td>
+              <td>
+                <% if (row.voucher_id) { %>
+                  <button
+                    type="button"
+                    class="voucher-link"
+                    data-voucher-type="<%= row.voucher_type %>"
+                    data-voucher-id="<%= row.voucher_id %>"
+                  ><%= row.voucher_no || row.voucher_type %></button>
+                <% } else { %>
+                  <%= row.voucher_no || row.voucher_type %>
+                <% } %>
+              </td>
+              <td><%= row.reversal_of_voucher_no || '' %></td>
+              <td><%= Number(row.qty_change || 0).toLocaleString() %></td>
+              <td><%= row.incoming_rate ? money(row.incoming_rate) : '' %></td>
+              <td><%= row.outgoing_rate ? money(row.outgoing_rate) : '' %></td>
+              <td><%= money(row.stock_value_change) %></td>
+              <td><%= Number(row.qty_after_transaction || 0).toLocaleString() %></td>
+              <td><strong><%= money(row.stock_value_after_transaction) %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+  <dialog class="voucher-dialog" id="voucher-dialog" aria-labelledby="voucher-dialog-title">
+    <div class="voucher-dialog-header">
+      <h2 id="voucher-dialog-title">Voucher Details</h2>
+      <button type="button" class="button-light" data-voucher-close>Close</button>
+    </div>
+    <div class="voucher-dialog-body" data-voucher-body></div>
+  </dialog>
+  <script src="/stock-ledger.js"></script>
+</body>
+</html>

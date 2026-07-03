@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>New Account</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'New Account' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'accounts' }) %>
+      </nav>
+    </header>
+
+    <% if (error) { %>
+      <section class="notice warning"><strong><%= error %></strong></section>
+    <% } %>
+
+    <form method="post" action="/accounts" class="invoice-form">
+      <section class="form-grid">
+        <label>
+          Account Code
+          <input name="account_code" value="<%= account.account_code || '' %>" placeholder="5200" required>
+        </label>
+        <label>
+          Account Name
+          <input name="account_name" value="<%= account.account_name || '' %>" placeholder="Bank Charges" required>
+        </label>
+        <label>
+          Type
+          <select name="account_type" required>
+            <option value="asset" <%= account.account_type === 'asset' ? 'selected' : '' %>>Asset</option>
+            <option value="liability" <%= account.account_type === 'liability' ? 'selected' : '' %>>Liability</option>
+            <option value="equity" <%= account.account_type === 'equity' ? 'selected' : '' %>>Equity</option>
+            <option value="income" <%= account.account_type === 'income' ? 'selected' : '' %>>Income</option>
+            <option value="expense" <%= account.account_type === 'expense' ? 'selected' : '' %>>Expense</option>
+          </select>
+        </label>
+        <label>
+          Normal Balance
+          <select name="normal_balance" required>
+            <option value="debit" <%= account.normal_balance === 'debit' ? 'selected' : '' %>>Debit</option>
+            <option value="credit" <%= account.normal_balance === 'credit' ? 'selected' : '' %>>Credit</option>
+          </select>
+        </label>
+      </section>
+      <div class="actions">
+        <a class="button button-light" href="/accounts">Cancel</a>
+        <button type="submit">Create Account</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

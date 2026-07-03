@@ -1,0 +1,136 @@
+<!doctype html>
+<% const journalReadOnly = Boolean(readOnly); %>
+<% const journalLines = Array.isArray(journal.lines) && journal.lines.length ? journal.lines : [{}, {}]; %>
+<html lang="en">
+<head>
+  <title><%= journalReadOnly ? journal.journal_no : 'New Journal' %></title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Journals', href: '/journals' }, { label: journalReadOnly ? journal.journal_no : 'New Journal' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'accounts' }) %>
+      </nav>
+    </header>
+
+    <% if (error) { %>
+      <section class="notice warning"><strong><%= error %></strong></section>
+    <% } %>
+
+    <form method="post" action="/journals" class="invoice-form" id="journal-entry-form">
+      <section class="form-grid">
+        <label>
+          Type
+          <select name="journal_type" id="journal-type" required <%= journalReadOnly ? 'disabled' : '' %>>
+            <option value="cash_receipt" <%= journal.journal_type === 'cash_receipt' ? 'selected' : '' %>>Cash Receipt</option>
+            <option value="payment_journal" <%= journal.journal_type === 'payment_journal' ? 'selected' : '' %>>Payment Journal</option>
+            <option value="journal_entry" <%= journal.journal_type === 'journal_entry' ? 'selected' : '' %>>Journal Entry</option>
+          </select>
+        </label>
+        <label>
+          Posting Date
+          <input type="date" name="posting_date" value="<%= journal.posting_date || today %>" required <%= journalReadOnly ? 'readonly' : '' %>>
+        </label>
+        <label>
+          Party Type
+          <select name="party_type" id="party-type" <%= journalReadOnly ? 'disabled' : '' %>>
+            <option value="" <%= !journal.party_type ? 'selected' : '' %>>None</option>
+            <option value="customer" <%= journal.party_type === 'customer' ? 'selected' : '' %>>Customer</option>
+            <option value="supplier" <%= journal.party_type === 'supplier' ? 'selected' : '' %>>Supplier</option>
+            <option value="employee" <%= journal.party_type === 'employee' ? 'selected' : '' %>>Employee</option>
+          </select>
+        </label>
+        <% if (journalReadOnly) { %>
+          <label>
+            Party ID
+            <input name="party_id" value="<%= journal.party_id || '' %>" readonly>
+          </label>
+        <% } else { %>
+          <label class="lookup-field">
+            Party ID
+            <input id="party-search" autocomplete="off" placeholder="Choose a party type first" value="<%= journal.party_id || '' %>">
+            <input type="hidden" name="party_id" id="party-id" value="<%= journal.party_id || '' %>">
+            <div id="party-results" class="results"></div>
+          </label>
+        <% } %>
+        <label>
+          Party Name
+          <input name="party_name" id="party-name" value="<%= journal.party_name || '' %>" readonly>
+        </label>
+        <% if (journalReadOnly) { %>
+          <label>
+            Reference
+            <input name="reference_no" value="<%= journal.reference_no || '' %>" readonly>
+          </label>
+        <% } else { %>
+          <label class="lookup-field">
+            Reference
+            <input name="reference_no" id="reference-search" autocomplete="off" placeholder="Select a party first" value="<%= journal.reference_no || '' %>">
+            <div id="reference-results" class="results"></div>
+          </label>
+        <% } %>
+        <label class="wide">
+          Remarks
+          <input name="remarks" value="<%= journal.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>>
+        </label>
+      </section>
+
+      <table class="editable" id="journal-lines">
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Debit</th>
+            <th>Credit</th>
+            <th>Line Remarks</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% journalLines.forEach((line) => { %>
+            <tr>
+              <td>
+                <select name="account_id" required <%= journalReadOnly ? 'disabled' : '' %>>
+                  <option value="">Choose account</option>
+                  <% accounts.forEach((account) => { %>
+                    <option value="<%= account.id %>" <%= Number(line.account_id || 0) === Number(account.id) ? 'selected' : '' %>><%= account.account_code %> - <%= account.account_name %></option>
+                  <% }) %>
+                </select>
+              </td>
+              <td><input class="journal-money" name="debit" type="number" step="1" min="0" value="<%= line.debit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
+              <td><input class="journal-money" name="credit" type="number" step="1" min="0" value="<%= line.credit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
+              <td><input name="line_remarks" value="<%= line.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
+              <td><button type="button" class="button-light" data-remove-journal-row <%= journalReadOnly ? 'hidden' : '' %>>Remove</button></td>
+            </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th id="journal-total-debit"><%= money(journal.total_debit || 0) %></th>
+            <th id="journal-total-credit"><%= money(journal.total_credit || 0) %></th>
+            <th id="journal-balance-status" colspan="2"></th>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="actions">
+        <% if (!journalReadOnly) { %>
+          <button type="button" class="button-light" id="add-journal-row">Add Row</button>
+          <button type="submit">Post Journal</button>
+        <% } %>
+        <% if (journalReadOnly) { %>
+          <a class="button" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a>
+        <% } %>
+      </div>
+    </form>
+  </main>
+  <% if (!journalReadOnly) { %>
+    <script src="/journal-entry.js"></script>
+  <% } %>
+</body>
+</html>

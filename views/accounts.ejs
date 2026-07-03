@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Chart of Accounts</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Accounts' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'accounts' }) %>
+        <a class="button" href="/accounts/new">New Account</a>
+      </nav>
+    </header>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Account</th>
+            <th>Type</th>
+            <th>Normal Balance</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!accounts.length) { %>
+            <tr><td colspan="5" class="empty">No accounts found.</td></tr>
+          <% } %>
+          <% accounts.forEach((account) => { %>
+            <tr>
+              <td><strong><%= account.account_code %></strong></td>
+              <td><%= account.account_name %></td>
+              <td><%= account.account_type %></td>
+              <td><%= account.normal_balance %></td>
+              <td><span class="badge <%= account.is_active ? 'submitted' : 'draft' %>"><%= account.is_active ? 'Active' : 'Inactive' %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

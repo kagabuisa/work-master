@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Trial Balance</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Trial Balance' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'report' }) %>
+      </nav>
+    </header>
+
+    <section class="metrics">
+      <article><span>Closing Debit</span><strong><%= money(report.summary.closing_debit) %></strong></article>
+      <article><span>Closing Credit</span><strong><%= money(report.summary.closing_credit) %></strong></article>
+      <article><span>Status</span><strong><%= report.is_balanced ? 'Balanced' : 'Unbalanced' %></strong></article>
+    </section>
+
+    <form class="report-filters" method="get">
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/reports/trial-balance">Reset</a>
+      </div>
+    </form>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Type</th>
+            <th>Opening Dr</th>
+            <th>Opening Cr</th>
+            <th>Period Dr</th>
+            <th>Period Cr</th>
+            <th>Closing Dr</th>
+            <th>Closing Cr</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!report.rows.length) { %>
+            <tr><td colspan="8" class="empty">No trial balance rows found.</td></tr>
+          <% } %>
+          <% report.rows.forEach((row) => { %>
+            <tr>
+              <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
+              <td><%= row.account_type %></td>
+              <td><%= row.opening_debit ? money(row.opening_debit) : '' %></td>
+              <td><%= row.opening_credit ? money(row.opening_credit) : '' %></td>
+              <td><%= row.period_debit ? money(row.period_debit) : '' %></td>
+              <td><%= row.period_credit ? money(row.period_credit) : '' %></td>
+              <td><strong><%= row.closing_debit ? money(row.closing_debit) : '' %></strong></td>
+              <td><strong><%= row.closing_credit ? money(row.closing_credit) : '' %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="2">Total</th>
+            <th><%= money(report.summary.opening_debit) %></th>
+            <th><%= money(report.summary.opening_credit) %></th>
+            <th><%= money(report.summary.period_debit) %></th>
+            <th><%= money(report.summary.period_credit) %></th>
+            <th><%= money(report.summary.closing_debit) %></th>
+            <th><%= money(report.summary.closing_credit) %></th>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

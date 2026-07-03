@@ -1,0 +1,30 @@
+services:
+  invoice-app:
+    build: .
+    container_name: invoice-app
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-3020}:${PORT:-3020}"
+    volumes:
+      - invoice-data:/app/data
+    restart: unless-stopped
+  postgres:
+    image: postgres:16-alpine
+    container_name: invoice-postgres
+    environment:
+     POSTGRES_DB: invoice_app
+     POSTGRES_USER: invoice_user
+     POSTGRES_PASSWORD: invoice_password
+    ports:
+      - "5432:5432"
+  volumes:
+    - postgres-data:/var/lib/postgresql/data
+  restart: unless-stopped
+
+  volumes:
+    invoice-data:
+    postgres-data:
+
+volumes:
+  invoice-data:

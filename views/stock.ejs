@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Stock Balance</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock Balance' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'stock' }) %>
+        <a class="button" href="/stock/entries/new">New Stock Entry</a>
+      </nav>
+    </header>
+    <section class="metrics">
+      <article>
+        <span>Items In Stock</span>
+        <strong><%= summary.item_count %></strong>
+      </article>
+      <article>
+        <span>Total Quantity</span>
+        <strong><%= Number(summary.total_quantity || 0).toLocaleString() %></strong>
+      </article>
+      <article>
+        <span>Stock Value</span>
+        <strong><%= money(summary.stock_value) %></strong>
+      </article>
+    </section>
+
+    <form class="report-filters" method="get">
+      <datalist id="stock-report-warehouses"></datalist>
+      <label>
+        Item
+        <input name="q" value="<%= filters.search %>" placeholder="Search stock balances" autocomplete="off" data-stock-report-item>
+        <div class="results stock-report-item-results"></div>
+      </label>
+      <label>
+        Warehouse
+        <input name="warehouse" value="<%= filters.warehouse %>" placeholder="Warehouse" list="stock-report-warehouses" autocomplete="off">
+      </label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/stock">Reset</a>
+      </div>
+    </form>
+    <script src="/stock-report-filters.js"></script>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th class="item-code-col">Item</th>
+            <th class="warehouse-col">Warehouse</th>
+            <th>Quantity</th>
+            <th>Valuation Rate</th>
+            <th>Stock Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!balances.length) { %>
+            <tr><td colspan="5" class="empty">No local stock balances found.</td></tr>
+          <% } %>
+          <% balances.forEach((row) => { %>
+            <tr>
+              <td class="item-code-col"><strong><%= row.item_code %></strong></td>
+              <td class="warehouse-col"><%= row.warehouse %></td>
+              <td><%= Number(row.quantity || 0).toLocaleString() %></td>
+              <td><%= money(row.valuation_rate) %></td>
+              <td><strong><%= money(row.stock_value) %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

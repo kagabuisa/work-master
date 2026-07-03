@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Invoices</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Sales</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Invoices' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'sales' }) %>
+      </nav>
+    </header>
+    <form class="search" method="get">
+      <input name="q" value="<%= search %>" placeholder="Search invoices">
+      <button type="submit">Search</button>
+    </form>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Total</th>
+            <th>Paid</th>
+            <th>Document</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!invoices.length) { %>
+            <tr><td colspan="7" class="empty">No invoices found.</td></tr>
+          <% } %>
+          <% invoices.forEach((invoice) => { %>
+            <% const docstatus = invoice.docstatus || 'submitted'; %>
+            <tr>
+              <td><a href="/invoices/<%= invoice.id %>"><%= invoice.invoice_no %></a></td>
+              <td><%= invoice.invoice_date %></td>
+              <td><%= invoice.customer_name %></td>
+              <td><%= money(invoice.total) %></td>
+              <td><%= money(invoice.amount_paid) %></td>
+              <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : 'Submitted' %></span></td>
+              <td><span class="badge <%= invoice.status %>"><%= invoice.status %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

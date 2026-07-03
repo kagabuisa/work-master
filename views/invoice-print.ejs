@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Print <%= invoice.invoice_no %></title>
+  <%- include('partials-head') %>
+</head>
+<body class="print-page">
+  <main class="print-sheet">
+    <header class="print-header">
+      <div>
+        <h1>Invoice</h1>
+        <p><%= invoice.invoice_no %></p>
+      </div>
+      <button class="no-print" onclick="window.print()">Print</button>
+    </header>
+
+    <section class="invoice-meta">
+      <div>
+        <span>Bill To</span>
+        <strong><%= invoice.customer_name %></strong>
+        <% if (invoice.customer_phone) { %><p><%= invoice.customer_phone %></p><% } %>
+      </div>
+      <div>
+        <span>Invoice Date</span>
+        <strong><%= invoice.invoice_date %></strong>
+        <% if (invoice.due_date) { %><p>Due <%= invoice.due_date %></p><% } %>
+      </div>
+    </section>
+
+    <table class="print-invoice-table">
+      <thead>
+        <tr>
+          <th class="item-code-col">Item</th>
+          <th>Qty</th>
+          <th>Unit Price</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach((item) => { %>
+          <tr>
+            <td class="item-code-col"><%= item.item_name %></td>
+            <td><%= Number(item.quantity).toLocaleString() %></td>
+            <td><%= money(item.unit_price) %></td>
+            <td><%= money(item.line_total) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="3">Subtotal</th>
+          <td><%= money(invoice.subtotal) %></td>
+        </tr>
+        <tr>
+          <th colspan="3">Discount</th>
+          <td><%= money(invoice.discount_amount) %></td>
+        </tr>
+        <tr>
+          <th colspan="3">Tax</th>
+          <td><%= money(invoice.tax_amount) %></td>
+        </tr>
+        <tr class="grand">
+          <th colspan="3">Total</th>
+          <td><%= money(invoice.total) %></td>
+        </tr>
+        <tr>
+          <th colspan="3">Paid</th>
+          <td><%= money(invoice.amount_paid) %></td>
+        </tr>
+        <tr>
+          <th colspan="3">Balance</th>
+          <td><%= money(invoice.total - invoice.amount_paid) %></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <% if (invoice.notes) { %>
+      <p class="notes"><%= invoice.notes %></p>
+    <% } %>
+
+    <% const payments = Array.isArray(invoice.payments) ? invoice.payments : []; %>
+    <% if (payments.length) { %>
+      <section class="print-payments">
+        <h2>Payments</h2>
+        <table class="print-invoice-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Reference</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% payments.forEach((payment) => { %>
+              <tr>
+                <td><%= payment.payment_date %></td>
+                <td><%= payment.method %></td>
+                <td><%= payment.reference || '' %></td>
+                <td><%= money(payment.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </section>
+    <% } %>
+  </main>
+</body>
+</html>
