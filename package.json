@@ -1,0 +1,23 @@
+{
+  "name": "work-master",
+  "version": "1.0.0",
+  "description": "Sales invoice app with MySQL catalog reads and optional Postgres invoice storage",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "backfill:accounting": "node scripts/backfill-accounting-gl.js",
+    "verify:accounting": "node scripts/verify-accounting.js",
+    "seed:accounting-samples": "node scripts/seed-accounting-samples.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "mysql2": "^3.22.5",
+    "pg": "^8.22.0"
+  }
+}

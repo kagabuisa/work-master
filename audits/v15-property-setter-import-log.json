@@ -1,0 +1,1944 @@
+{
+  "generated_at": "2026-06-24T11:40:42.506Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_property_setters": 310,
+    "attempted_create": 50,
+    "attempted_update": 13,
+    "created": 50,
+    "updated": 13,
+    "skipped_existing_same_value": 32,
+    "skipped_missing_doctype": 3,
+    "skipped_missing_field": 5,
+    "skipped_obsolete_property": 199,
+    "skipped_empty_value": 5,
+    "deferred_until_print_formats": 3,
+    "failed": 0
+  },
+  "renamed_field_targets": [],
+  "results": [
+    {
+      "doc_type": "Account",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Account",
+      "property": "sort_order",
+      "status": "created",
+      "value": "ASC"
+    },
+    {
+      "doc_type": "Approved Discounts",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Approved Discounts",
+      "field_name": "item_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Area",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Asset Register",
+      "field_name": null,
+      "property": "default_print_format",
+      "status": "deferred_until_print_formats"
+    },
+    {
+      "doc_type": "Asset Register",
+      "field_name": "asset_description",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Attendance",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Audit Report",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Audit Report",
+      "field_name": "label",
+      "property": "hidden",
+      "status": "created",
+      "value": "0"
+    },
+    {
+      "doc_type": "Audit Report",
+      "field_name": "rating",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Bin",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Bin",
+      "field_name": "warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Charges on Salary",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Charges on Salary",
+      "field_name": "charge_name",
+      "property": "options",
+      "status": "created",
+      "value": "\nStock shrink\nUnder pricing\nCash recovery\nMissing reports\nFixed asset recovery\nTraining fees recovery\nOperational loss recovery\nOther Charges"
+    },
+    {
+      "doc_type": "Container",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Cost Center",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Cost Center",
+      "property": "sort_order",
+      "status": "created",
+      "value": "ASC"
+    },
+    {
+      "doc_type": "CPU Daily Delivery Report",
+      "field_name": "manager_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Customer",
+      "property": "sort_field",
+      "status": "created",
+      "value": "modified"
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": "customer_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": "default_price_list",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "banked",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "cost center",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "do_you_have_any_delivery_differences",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "expense",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "expense details",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "item_not_received_or_excess_items_received",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "naming_series",
+      "property": "default",
+      "status": "skipped_empty_value"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "naming_series",
+      "property": "options",
+      "status": "created",
+      "value": "DAR-.######"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "packages_received",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "sales",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "stock_entry_number",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "unit_type",
+      "property": "reqd",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Deduction Type",
+      "field_name": "description",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Delivery Details",
+      "field_name": "packages",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Delivery Details",
+      "field_name": "remarks",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Delivery Details",
+      "field_name": "shop",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Delivery Details",
+      "field_name": "status",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Delivery Details",
+      "field_name": "transporter",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "designation",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "employee_number",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "employee_number",
+      "property": "reqd",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "accountant",
+      "property": "permlevel",
+      "status": "created",
+      "value": "2"
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "links_cpu",
+      "property": "depends_on",
+      "status": "skipped_empty_value"
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "links_cpu",
+      "property": "options",
+      "status": "created",
+      "value": "<p></p><p><a href=\"http://3.70.155.255/ZenjjiMetabaseStart\" rel=\"noopener noreferrer\" target=\"_blank\"> Start zenjji.com and bi.zenjji.com</a><br>\n\n</p><p></p><p><a href=\"http://3.70.155.255/ZenjjiMetabaseStop\" rel=\"noopener noreferrer\" target=\"_blank\"> Stop zenjji.com and bi.zenjji.com</a><br>\n\n</p><p></p><p><a href=\"https://bi.zenjji.com/public/question/aed3757d-fa96-41a9-96dd-d28bf8fb61c9\" rel=\"noopener noreferrer\" target=\"_blank\">NEW ORDER PREPARATION META 16-08-2021 Click here...</a><br>\n\n</p><p></p><p><a href=\"https://bi.zenjji###.com/public/question/4bbb89a7-b597-4d4e-9c1a-0bcfa4429850\" rel=\"noopener noreferrer\" target=\"_blank\">MARKET PURCHASE LIST Click here...</a><br>\n\n</p><p></p><p><a href=\"https://bi.zenjji.com/public/question/7dd79cb1-1eaa-496b-a132-b3d3d7db1d17\" rel=\"noopener noreferrer\" target=\"_blank\">STOCK ENTRY Click here...</a><br>\n\n</p><p><a href=\"https://bi.zenjji.com/public/question/021ae59c-9903-4d78-8e71-a01942d05a5a\" rel=\"noopener noreferrer\" target=\"_blank\">Excess items on shop orders. Click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/9522ec96-eb5d-4565-b3f5-5062ddf000c7\">Items missing from Shop Orders. click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/593ea916-7a6a-4f14-8c5b-a088f1e293e2?EntryNo=%25%25\" rel=\"noopener noreferrer\" target=\"_blank\">Shop order sequence. click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/9a7ea6c9-4702-46c4-a26a-9a6de05e6748?item_code=%25%25\" rel=\"noopener noreferrer\" target=\"_blank\">CPU Stock Balance check. click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/bc41a01c-7885-4b32-aaeb-70832d9ec036?UnderStock=1000000\" rel=\"noopener noreferrer\" target=\"_blank\">Warehouse stock balance check. click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/68d84187-53f4-4b90-8c03-549fd7958c84\" rel=\"noopener noreferrer\" target=\"_blank\">Taff Kampala Stock check. click here...</a><br>\n</p>\n<a href=\"https://bi.zenjji.com/public/question/f1534c54-72c1-462b-bc77-60898a08c0e8\" rel=\"noopener noreferrer\" target=\"_blank\">CPU Bulk Order List. click here...</a><br>\n<p></p>\n<a href=\"https://bi.zenjji.com/public/question/314971d5-8ee5-4da4-8008-bb81fd90e62e\" rel=\"noopener noreferrer\" target=\"_blank\">Submitted Order Summary for Level of Service Computation. click here...</a><br>\n<p></p>\n<p></p>\n<a href=\"https://bi.zenjji.com/public/question/3be28891-754c-41d1-809c-a63116534907\" rel=\"noopener noreferrer\" target=\"_blank\">Stock balances for Audit Review purposes. Click here...</a><br>\n<p></p>\n<a href=\"http://www.gpstrackerxy.com/Login.aspx?Server=2\" rel=\"noopener noreferrer\" target=\"_blank\">Motor Vehicle tracking. Click here...</a><br>\n<p></p>\n\n<a href=\"https://bi.zenjji.com/public/question/3fb9937e-86ba-4de7-b45f-542ac2b9c074\" rel=\"noopener noreferrer\" target=\"_blank\">To Check Items weight for a given stock entry to determine if the truck is not overloaded . Click here...</a><br>\n<p></p>\n\n<a href=\"https://bi.zenjji.com/public/question/8b83903a-84de-42ea-92df-3ac9db093967\" rel=\"noopener noreferrer\" target=\"_blank\">To Check Total quantity of Items in stock across all warehouse. Click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/3be28891-754c-41d1-809c-a63116534907?warehouse=%25%20%25\" rel=\"noopener noreferrer\" target=\"_blank\">Photo Count. Click here...</a><br>\n\n<a href=\"https://bi.zenjji.com/public/question/ff792de5-f903-468c-ada1-80fbf7946bfe\" rel=\"noopener noreferrer\" target=\"_blank\">Cash Balance. Click here...</a><br>\n<p></p>\n"
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "user",
+      "property": "permlevel",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "File",
+      "field_name": "file_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Gate  Pass",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Gate  Pass",
+      "field_name": "activity",
+      "property": "options",
+      "status": "created",
+      "value": "\nDelivery\nSales and Marketing\nService\nRepairs\nFueling\nOther"
+    },
+    {
+      "doc_type": "Gate  Pass",
+      "field_name": "vehicle",
+      "property": "options",
+      "status": "created",
+      "value": "\nUBH-740P\nUBE-089Y\nUBJ-443Z\nUBM-936C\nUEM-234Y\nUEG-161Q\nUBF-268L\nUFL-809F"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "abc_analysis",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "attributes",
+      "property": "hidden",
+      "status": "created",
+      "value": "0"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "brand",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "cbm_per_carton",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "cost",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "default_supplier",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "default_warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "description",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "fob",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "import_supplier",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "is_sales_item",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_category",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "label",
+      "status": "created",
+      "value": "Item Code(Item Name)"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "reqd",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_group",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "lead_item",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "net_weight",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "part_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "photocount_id",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "product_line_item",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "qty_per_carton",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "rrp",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "rwp",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "source",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "system_category",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "property": "sort_field",
+      "status": "created",
+      "value": "modified"
+    },
+    {
+      "doc_type": "Item Price",
+      "property": "sort_order",
+      "status": "created",
+      "value": "ASC"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "cost_center",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "currency",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "item_category",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "item_description",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "margin",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "new_price",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "old_price",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "price_list",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "price_list_rate",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "price_type",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "price_update",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "price_update_on",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "stock_balance",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Item Price",
+      "field_name": "unit_cost",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": null,
+      "property": "default_print_format",
+      "status": "deferred_until_print_formats"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "property": "title_field",
+      "status": "created",
+      "value": "cost_center"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "cheque_no",
+      "property": "in_list_view",
+      "status": "created",
+      "value": "0"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "cheque_no",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "clearance_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "company",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "cost_center",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "entry_category",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "is_opening",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "posting_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "sales_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "total_credit",
+      "property": "precision",
+      "status": "created",
+      "value": "2"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "total_debit",
+      "property": "precision",
+      "status": "created",
+      "value": "2"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "total_debit",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "user_remark",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "voucher_type",
+      "property": "options",
+      "status": "created",
+      "value": "Journal Entry\nExpense Entry\nPurchase Entry\nBank Entry\nCash Entry\nCredit Card Entry\nDebit Note\nCredit Note\nContra Entry\nExcise Entry\nWrite Off Entry\nOpening Entry\nFixed Asset Entry"
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "voucher_type",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "property": "sort_field",
+      "status": "created",
+      "value": "modified"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "property": "sort_order",
+      "status": "created",
+      "value": "DESC"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "account",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "credit_in_account_currency",
+      "property": "precision",
+      "status": "created",
+      "value": "2"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "credit_in_account_currency",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "debit_in_account_currency",
+      "property": "precision",
+      "status": "created",
+      "value": "2"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "debit_in_account_currency",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "party",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "col_break123",
+      "property": "label",
+      "status": "skipped_empty_value"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "company_name",
+      "property": "label",
+      "status": "created",
+      "value": "Company Name"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "lead_name",
+      "property": "label",
+      "status": "created",
+      "value": "Owner's Name(John Egalu-0701324234-KUMI)"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "lead_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "lead_owner",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "source",
+      "property": "options",
+      "status": "created",
+      "value": "\nShop Visit\nAdvertisement\nBlog Post\nCampaign\nCall\nCustomer\nExhibition\nSupplier\nWebsite\nEmail"
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "source",
+      "property": "reqd",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Lead Followup",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Leave Application",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Leave Application",
+      "field_name": "status",
+      "property": "options",
+      "status": "created",
+      "value": "Open\nApproved\nApproved by SUP\nRejected"
+    },
+    {
+      "doc_type": "maximum stock",
+      "field_name": "item_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Order Report",
+      "field_name": "packages_sent",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Order Report",
+      "field_name": "shop",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "POS Profile",
+      "field_name": "user",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Price List",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Price List",
+      "property": "sort_order",
+      "status": "created",
+      "value": "ASC"
+    },
+    {
+      "doc_type": "Pricing Rule",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Pricing Rule",
+      "field_name": "apply_on",
+      "property": "options",
+      "status": "created",
+      "value": "\nItem Code\nItem Group\nItem Category\nBrand"
+    },
+    {
+      "doc_type": "Purchase Invoice",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Invoice",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Purchase Invoice",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "contact_person",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "reference",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "supplier_address",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "transaction_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Order Item",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "company",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "contact_person",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "grand_total",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "posting_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "receipt_no",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "supplier",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "supplier_address",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Purchase Receipt Item",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "arrear_amount",
+      "property": "hidden",
+      "status": "skipped_missing_field"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "branch",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "column_break_25",
+      "property": "hidden",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "column_break_26",
+      "property": "hidden",
+      "status": "skipped_missing_field"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "company",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "department",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "designation",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "employee",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "employee_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "fiscal_year",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "leave_encashment_amount",
+      "property": "hidden",
+      "status": "skipped_missing_field"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "leave_without_pay",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "margin",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "month",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip Earning",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Slip Earning",
+      "field_name": null,
+      "property": "sort_field",
+      "status": "skipped_missing_doctype"
+    },
+    {
+      "doc_type": "Salary Slip Earning",
+      "field_name": null,
+      "property": "sort_order",
+      "status": "skipped_missing_doctype"
+    },
+    {
+      "doc_type": "Salary Slip Earning",
+      "field_name": "e_modified_amount",
+      "property": "reqd",
+      "status": "skipped_missing_doctype"
+    },
+    {
+      "doc_type": "Salary Structure",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Salary Structure",
+      "field_name": "branch",
+      "property": "in_list_view",
+      "status": "skipped_missing_field"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "apply_discount_on",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "base_grand_total",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "company",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "contact_display",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "customer",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "customer_group",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "debit_to",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "due_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "grand_total",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "is_pos",
+      "property": "default",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "mode_of_payment",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "naming_series",
+      "property": "options",
+      "status": "updated",
+      "old_value": "ACC-SINV-.YYYY.-\nACC-SINV-RET-.YYYY.-",
+      "value": "SINV-\nSINV-RET-"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "naming_series",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "posting_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "project",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "selling_price_list",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "shipping_address_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "territory",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "update_stock",
+      "property": "default",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "update_stock",
+      "property": "reqd",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "amount",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "cost_center",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "description",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "discount_percentage",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "item_name",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "price_list_rate",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "qty",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "rate",
+      "property": "precision",
+      "status": "created",
+      "value": "5"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "rate",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "status": "updated",
+      "old_value": "0",
+      "value": "1"
+    },
+    {
+      "doc_type": "Sales report",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Sales report",
+      "field_name": "table_3",
+      "property": "label",
+      "status": "created",
+      "value": "Shop Sales Report"
+    },
+    {
+      "doc_type": "Sales Team",
+      "field_name": "sales_person",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Shop Visit Details",
+      "field_name": "issue",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Shop Visit Details",
+      "field_name": "issue_type",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": null,
+      "property": "default_print_format",
+      "status": "deferred_until_print_formats"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "property": "title_field",
+      "status": "created",
+      "value": "cost_center"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "cost_center",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "customer",
+      "property": "depends_on",
+      "status": "skipped_missing_field"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "from_warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "production_order",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "project",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "default",
+      "status": "created",
+      "value": "Material Transfer"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "in_list_view",
+      "status": "created",
+      "value": "0"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "options",
+      "status": "created",
+      "value": "\nMaterial Transfer\nMaterial Issue\nMaterial Receipt\nMaterial Transfer for Manufacture\nManufacture\nRepack\nSubcontract"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "read_only",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "section_break_12",
+      "property": "label",
+      "status": "skipped_empty_value"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "to_warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry Detail",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Entry Detail",
+      "property": "sort_order",
+      "status": "created",
+      "value": "ASC"
+    },
+    {
+      "doc_type": "Stock Entry Detail",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "batch_no",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "company",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "item_code",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "posting_date",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "serial_no",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "voucher_no",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Ledger Entry",
+      "field_name": "voucher_type",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "property": "title_field",
+      "status": "created",
+      "value": "warehouse"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "difference_amount",
+      "property": "in_list_view",
+      "status": "created",
+      "value": "1"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "difference_amount",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "posting_date",
+      "property": "in_list_view",
+      "status": "created",
+      "value": "0"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "posting_time",
+      "property": "in_list_view",
+      "status": "created",
+      "value": "0"
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Reconciliation Item",
+      "field_name": "current_qty",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Reconciliation Item",
+      "field_name": "qty",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Stock Reconciliation Item",
+      "field_name": "warehouse",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Supplier",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Supplier",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Supplier",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Supplier Quotation",
+      "field_name": "in_words",
+      "property": "hidden",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Supplier Quotation",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "status": "skipped_existing_same_value"
+    },
+    {
+      "doc_type": "Top3AVGSales",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Top3AVGSales",
+      "field_name": "item",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Vehicle Log Details",
+      "field_name": "arrival_time",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Vehicle Log Details",
+      "field_name": "depart_from",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Vehicle Log Details",
+      "field_name": "departure_time",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Vehicle Log Details",
+      "field_name": "km_departure",
+      "property": "width",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Warehouse",
+      "field_name": null,
+      "property": "read_only_onload",
+      "status": "skipped_obsolete_property"
+    },
+    {
+      "doc_type": "Warehouse",
+      "property": "sort_field",
+      "status": "created",
+      "value": "modified"
+    },
+    {
+      "doc_type": "Warehouse",
+      "property": "sort_order",
+      "status": "created",
+      "value": "ASC"
+    },
+    {
+      "doc_type": "Warehouse",
+      "field_name": "column_break0",
+      "property": "label",
+      "status": "skipped_empty_value"
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title><%= invoice ? `Edit ${invoice.invoice_no}` : 'New Invoice' %></title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Sales</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Invoices', href: '/invoices' }, { label: invoice ? 'Edit' : 'New' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'sales' }) %>
+      </nav>
+    </header>
+    <% if (typeof stockWarning !== 'undefined' && stockWarning) { %>
+      <section class="notice warning">
+        <strong>Adjust quantity before submitting.</strong>
+        <p>
+          <%= stockWarning.item_name %> requested quantity is
+          <%= Number(stockWarning.requested).toLocaleString() %>, but only
+          <%= Number(stockWarning.available).toLocaleString() %> is available in
+          <%= stockWarning.warehouse %>.
+        </p>
+      </section>
+    <% } %>
+
+    <form id="invoice-form" method="post" action="<%= invoice ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form">
+      <section class="form-grid">
+        <label>
+          Invoice Date
+          <input type="date" name="invoice_date" value="<%= invoice ? invoice.invoice_date : today %>" required>
+        </label>
+        <label>
+          Due Date
+          <input type="date" name="due_date" value="<%= invoice && invoice.due_date ? invoice.due_date : '' %>">
+        </label>
+        <label class="wide">
+          Customer
+          <input id="customer-search" name="customer_name" autocomplete="off" placeholder="Search and select customer" value="<%= invoice ? invoice.customer_name : '' %>" required>
+          <input type="hidden" name="customer_id" id="customer-id" value="<%= invoice && invoice.customer_id ? invoice.customer_id : '' %>">
+          <div id="customer-results" class="results"></div>
+        </label>
+        <label>
+          Phone
+          <input name="customer_phone" placeholder="Optional" value="<%= invoice && invoice.customer_phone ? invoice.customer_phone : '' %>">
+        </label>
+      </section>
+
+      <section class="item-picker">
+        <label>
+          Invoice From Warehouse
+          <select id="warehouse-select" name="warehouse" required>
+            <option value="">Loading warehouses...</option>
+          </select>
+        </label>
+        <label>
+          Add Item From MySQL
+          <input id="item-search" autocomplete="off" placeholder="Choose a warehouse first" disabled>
+          <div id="item-results" class="results"></div>
+        </label>
+      </section>
+
+      <table id="invoice-items" class="editable">
+        <thead>
+          <tr>
+            <th class="item-code-col">Item</th>
+            <th>Stock</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="empty-row"><td colspan="6" class="empty">Search and add items to begin.</td></tr>
+        </tbody>
+      </table>
+
+      <section class="form-grid totals-form">
+        <label>
+          Discount
+          <input type="number" min="0" step="1" name="discount_amount" value="<%= invoice ? invoice.discount_amount : 0 %>">
+        </label>
+        <label>
+          Tax
+          <input type="number" min="0" step="1" name="tax_amount" value="<%= invoice ? invoice.tax_amount : 0 %>">
+        </label>
+        <div class="live-total">
+          <span>Total</span>
+          <strong id="grand-total">UGX 0</strong>
+        </div>
+        <div class="live-total">
+          <span>Paid</span>
+          <strong id="paid-total">UGX 0</strong>
+        </div>
+        <div class="live-total">
+          <span>Balance</span>
+          <strong id="balance-total">UGX 0</strong>
+        </div>
+        <div class="live-total">
+          <span>Status</span>
+          <strong id="payment-status">Unpaid</strong>
+        </div>
+        <label class="wide">
+          Notes
+          <textarea name="notes" rows="3" placeholder="Payment terms or delivery note"><%= invoice && invoice.notes ? invoice.notes : '' %></textarea>
+        </label>
+      </section>
+
+      <section class="payments-entry">
+        <div class="section-title">
+          <h2>Payments</h2>
+        </div>
+        <table id="invoice-payments" class="editable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Reference</th>
+              <th>Notes</th>
+              <th>Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="empty-row"><td colspan="6" class="empty">No payments added.</td></tr>
+          </tbody>
+        </table>
+        <div class="payment-form invoice-payment-form">
+          <label>
+            Payment Date
+            <input type="date" id="payment-date" value="<%= today %>">
+          </label>
+          <label>
+            Amount
+            <input type="number" min="1" step="1" id="payment-amount">
+          </label>
+          <label>
+            Method
+            <select id="payment-method">
+              <option value="cash">Cash</option>
+              <option value="mobile_money">Mobile Money</option>
+              <option value="bank">Bank</option>
+              <option value="card">Card</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Reference
+            <input id="payment-reference" placeholder="Optional">
+          </label>
+          <label class="wide">
+            Notes
+            <input id="payment-notes" placeholder="Optional">
+          </label>
+          <div class="payment-submit">
+            <button type="button" id="add-payment">Add Payment</button>
+          </div>
+        </div>
+      </section>
+
+      <input type="hidden" name="items_json" id="items-json">
+      <input type="hidden" name="payments_json" id="payments-json">
+      <div class="actions">
+        <button type="submit"><%= invoice ? 'Save Changes' : 'Save Draft' %></button>
+      </div>
+    </form>
+  </main>
+  <script>
+    window.invoiceInitial = <%- JSON.stringify({
+      invoice,
+      items,
+      warehouse: items[0] ? items[0].warehouse : '',
+    }).replace(/</g, '\\u003c') %>;
+  </script>
+  <script src="/invoice.js"></script>
+</body>
+</html>

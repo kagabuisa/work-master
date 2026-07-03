@@ -1,0 +1,12 @@
+<% if (typeof breadcrumbs !== 'undefined' && Array.isArray(breadcrumbs) && breadcrumbs.length) { %>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <% breadcrumbs.forEach((crumb, index) => { %>
+      <% const isLast = index === breadcrumbs.length - 1; %>
+      <% if (!isLast && crumb.href) { %>
+        <a href="<%= crumb.href %>"><%= crumb.label %></a>
+      <% } else { %>
+        <span class="<%= isLast ? 'breadcrumb-current' : '' %>"><%= crumb.label %></span>
+      <% } %>
+    <% }) %>
+  </nav>
+<% } %>

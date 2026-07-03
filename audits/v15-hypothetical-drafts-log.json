@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-06-26T11:42:39.864Z",
+  "target": "https://new.zenjji.com",
+  "before_counts": {
+    "Sales Invoice": 4,
+    "Purchase Invoice": 2,
+    "Stock Entry": 0,
+    "Payment Entry": 0
+  },
+  "after_counts": {
+    "Sales Invoice": 5,
+    "Purchase Invoice": 3,
+    "Stock Entry": 1,
+    "Payment Entry": 1
+  },
+  "context": {
+    "company": "SUPERTEX APA CO LTD",
+    "customer": "Test-0702436427",
+    "supplier": "QINGDAO HUADA IND PCL",
+    "item": "12N 6.5L ACID YAYE",
+    "warehouse": "Abiriga AS W/Hse - SACL",
+    "employee": "HR-EMP-00001",
+    "cost_center": "Abiriga Auto Spares(AAS) CTC - SACL",
+    "receivable_account": "1310 - Debtors - SACL",
+    "cash_or_bank_account": "Airtel Money 0702-436427 - SACL"
+  },
+  "results": [
+    {
+      "step": "Sales Invoice draft",
+      "status": "created_draft",
+      "doctype": "Sales Invoice",
+      "name": "SINV-00001",
+      "docstatus": 0
+    },
+    {
+      "step": "Purchase Invoice draft",
+      "status": "created_draft",
+      "doctype": "Purchase Invoice",
+      "name": "ACC-PINV-2026-00003",
+      "docstatus": 0
+    },
+    {
+      "step": "Stock Entry draft",
+      "status": "created_draft",
+      "doctype": "Stock Entry",
+      "name": "MAT-STE-2026-00001",
+      "docstatus": 0
+    },
+    {
+      "step": "Payment Entry draft",
+      "status": "created_draft",
+      "doctype": "Payment Entry",
+      "name": "ACC-PAY-2026-00001",
+      "docstatus": 0
+    }
+  ]
+}

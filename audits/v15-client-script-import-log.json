@@ -1,0 +1,210 @@
+{
+  "generated_at": "2026-06-24T11:51:46.810Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_custom_scripts": 33,
+    "attempted_create": 32,
+    "attempted_update": 0,
+    "created": 32,
+    "updated": 0,
+    "skipped_same_script": 0,
+    "skipped_missing_doctype": 0,
+    "skipped_syntax_error": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "name": "Migrated - Approved Discounts - List",
+      "dt": "Approved Discounts",
+      "view": "List",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Area - Form",
+      "dt": "Area",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Asset Register - Form",
+      "dt": "Asset Register",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Audit Report - Form",
+      "dt": "Audit Report",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - CPU Daily Delivery Report - Form",
+      "dt": "CPU Daily Delivery Report",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Customer - Form",
+      "dt": "Customer",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Daily Activity Report - Form",
+      "dt": "Daily Activity Report",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Gate  Pass - Form",
+      "dt": "Gate  Pass",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Handler Worksheet - Form",
+      "dt": "Handler Worksheet",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Item Price - Form",
+      "dt": "Item Price",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Items Cost - Form",
+      "dt": "Items Cost",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Journal Entry - Form",
+      "dt": "Journal Entry",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Lead - Form",
+      "dt": "Lead",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Lead Followup - Form",
+      "dt": "Lead Followup",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Payment Voucher - Form",
+      "dt": "Payment Voucher",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Payslip - Form",
+      "dt": "Payslip",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Pending Payments - Form",
+      "dt": "Pending Payments",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Performance charges - Form",
+      "dt": "Performance charges",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Purchase Receipt - Form",
+      "dt": "Purchase Receipt",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - receipt - Form",
+      "dt": "receipt",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Salary Slip - Form",
+      "dt": "Salary Slip",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Sales Invoice - Form",
+      "dt": "Sales Invoice",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Sales Invoice Item - Form",
+      "dt": "Sales Invoice Item",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Sales invoiced - Form",
+      "dt": "Sales invoiced",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Sales report - Form",
+      "dt": "Sales report",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Shop visit - Form",
+      "dt": "Shop visit",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Shop Visit Details - Form",
+      "dt": "Shop Visit Details",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Stock Entry - Form",
+      "dt": "Stock Entry",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Towns - Form",
+      "dt": "Towns",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Vehicle Log - Form",
+      "dt": "Vehicle Log",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Vehicle Log Book - Form",
+      "dt": "Vehicle Log Book",
+      "view": "Form",
+      "status": "created"
+    },
+    {
+      "name": "Migrated - Warehouse Maximum Stock - Form",
+      "dt": "Warehouse Maximum Stock",
+      "view": "Form",
+      "status": "created"
+    }
+  ]
+}

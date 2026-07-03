@@ -1,0 +1,30 @@
+<form class="report-filters" method="get">
+  <datalist id="stock-report-items"></datalist>
+  <datalist id="stock-report-warehouses"></datalist>
+  <label>
+    Item
+    <input name="q" value="<%= report.filters.search %>" placeholder="<%= typeof itemPlaceholder !== 'undefined' ? itemPlaceholder : 'Search item' %>" autocomplete="off" data-stock-report-item>
+    <div class="results stock-report-item-results"></div>
+  </label>
+  <% if (typeof hideWarehouse === 'undefined' || !hideWarehouse) { %>
+    <label>
+      Warehouse
+      <input name="warehouse" value="<%= report.filters.warehouse %>" placeholder="Warehouse" list="stock-report-warehouses" autocomplete="off">
+    </label>
+  <% } %>
+  <% if (typeof hideDates === 'undefined' || !hideDates) { %>
+    <label>
+      From
+      <input type="date" name="from" value="<%= report.filters.from %>">
+    </label>
+    <label>
+      To
+      <input type="date" name="to" value="<%= report.filters.to %>">
+    </label>
+  <% } %>
+  <div class="report-filter-actions">
+    <button type="submit">Apply</button>
+    <a class="button button-light" href="<%= resetHref %>">Reset</a>
+  </div>
+</form>
+<script src="/stock-report-filters.js"></script>

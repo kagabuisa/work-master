@@ -1,0 +1,144 @@
+<!doctype html>
+<% const stockEntryReadOnly = Boolean(typeof readOnly !== 'undefined' && readOnly); %>
+<html lang="en">
+<head>
+  <title><%= stockEntryReadOnly && entry ? 'Stock Entry' : entry ? 'Edit Stock Entry' : 'New Stock Entry' %></title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: stockEntryReadOnly && entry ? entry.entry_no : entry ? 'Edit Entry' : 'New Entry' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: entry && entry.entry_type === 'purchase' ? 'purchases' : 'stock' }) %>
+      </nav>
+    </header>
+    <% if (error) { %>
+      <section class="notice warning"><strong><%= error %></strong></section>
+    <% } %>
+    <% if (stockEntryReadOnly && entry) { %>
+      <section class="notice"><strong><%= entry.entry_no %></strong> is <%= entry.docstatus || 'submitted' %>.</section>
+    <% } %>
+
+    <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form" id="stock-entry-form">
+      <datalist id="stock-warehouses"></datalist>
+      <section class="form-grid">
+        <label>
+          Type
+          <select name="entry_type" id="entry-type" required>
+            <option value="opening" <%= entry && entry.entry_type === 'opening' ? 'selected' : '' %>>Opening Stock</option>
+            <option value="purchase" <%= entry && entry.entry_type === 'purchase' ? 'selected' : '' %>>Purchase Receipt</option>
+            <option value="transfer" <%= entry && entry.entry_type === 'transfer' ? 'selected' : '' %>>Transfer</option>
+            <option value="adjustment" <%= entry && entry.entry_type === 'adjustment' ? 'selected' : '' %>>Adjustment</option>
+            <option value="cancel" <%= entry && entry.entry_type === 'cancel' ? 'selected' : '' %>>Cancel Entry</option>
+          </select>
+        </label>
+        <label id="cancel-entry-source-wrapper" hidden>
+          Entry to Cancel
+          <input id="cancel-entry-source" name="cancel_entry_source" autocomplete="off" placeholder="STK-000001">
+          <div class="results stock-entry-source-results"></div>
+          <span class="field-hint" id="cancel-entry-source-status"></span>
+        </label>
+        <label id="stock-entry-posting-wrapper">
+          Posting Date
+          <input type="date" name="posting_date" value="<%= entry ? entry.posting_date : today %>" required>
+        </label>
+        <label class="wide" id="stock-entry-remarks-wrapper">
+          <span class="label-row">
+            Remarks
+            <button type="button" class="inline-link" id="adjust-supplier-info" hidden>Adjust supplier info</button>
+          </span>
+          <input name="remarks" value="<%= entry ? entry.remarks || '' : '' %>" placeholder="Optional">
+        </label>
+      </section>
+      <input type="hidden" name="supplier_name" id="supplier-name" value="<%= entry ? entry.supplier_name || '' : '' %>">
+      <input type="hidden" name="supplier_contact" id="supplier-contact" value="<%= entry ? entry.supplier_contact || '' : '' %>">
+      <input type="hidden" name="supplier_phone" id="supplier-phone" value="<%= entry ? entry.supplier_phone || '' : '' %>">
+      <input type="hidden" name="supplier_reference" id="supplier-reference" value="<%= entry ? entry.supplier_reference || '' : '' %>">
+
+      <table class="editable" id="stock-entry-items">
+        <thead>
+          <tr>
+            <th class="item-code-col">Item Code</th>
+            <th class="warehouse-col">Warehouse</th>
+            <th class="warehouse-col">Target Warehouse</th>
+            <th>Qty</th>
+            <th class="rate-col">Rate</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="item-code-col">
+              <input name="item_code" autocomplete="off" required>
+              <input type="hidden" name="item_name">
+              <div class="results stock-item-results"></div>
+            </td>
+            <td class="warehouse-col">
+              <div class="warehouse-balance-pair">
+                <input name="warehouse" list="stock-warehouses" autocomplete="off" required>
+                <div class="stock-balance-field" data-balance-field="warehouse_balance">Balance: 0</div>
+              </div>
+            </td>
+            <td class="warehouse-col">
+              <div class="warehouse-balance-pair">
+                <input name="target_warehouse" list="stock-warehouses" autocomplete="off">
+                <div class="stock-balance-field" data-balance-field="target_warehouse_balance">Balance: 0</div>
+              </div>
+            </td>
+            <td><input name="quantity" type="number" step="0.001" required></td>
+            <td class="rate-col"><input class="rate-input" name="valuation_rate" type="number" step="1" value="0"></td>
+            <td><button type="button" class="button-light" data-remove-row>Remove</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="actions">
+        <button type="button" class="button-light" id="add-stock-row">Add Row</button>
+        <% if (!stockEntryReadOnly) { %>
+          <button type="submit" class="button-light" name="action" value="save_draft">Save Stock Entry</button>
+          <button type="submit" name="action" value="submit">Submit</button>
+        <% } %>
+        <button type="button" class="button-light" id="cancel-entry-button" hidden disabled>Cancel Stock Entry</button>
+      </div>
+    </form>
+  </main>
+  <% if (!stockEntryReadOnly) { %>
+    <dialog class="voucher-dialog supplier-dialog" id="supplier-dialog" aria-labelledby="supplier-dialog-title">
+    <div class="voucher-dialog-header">
+      <h2 id="supplier-dialog-title">Supplier Information</h2>
+      <button type="button" class="button-light" data-supplier-cancel>Close</button>
+    </div>
+    <form class="voucher-dialog-body supplier-form" method="dialog" id="supplier-form">
+      <label>
+        Supplier Name
+        <input name="supplier_name" autocomplete="organization">
+      </label>
+      <label>
+        Contact Person
+        <input name="supplier_contact" autocomplete="name">
+      </label>
+      <label>
+        Phone
+        <input name="supplier_phone" autocomplete="tel">
+      </label>
+      <label>
+        Receipt / Invoice Reference
+        <input name="supplier_reference">
+      </label>
+      <div class="actions">
+        <button type="button" class="button-light" data-supplier-cancel>Cancel</button>
+        <button type="submit">Save Supplier Info</button>
+      </div>
+    </form>
+    </dialog>
+  <% } %>
+  <script>
+    window.STOCK_ENTRY_INITIAL = <%- JSON.stringify({ entry: entry || null, items: items || [], readOnly: stockEntryReadOnly }) %>;
+  </script>
+  <script src="/stock-entry.js"></script>
+</body>
+</html>

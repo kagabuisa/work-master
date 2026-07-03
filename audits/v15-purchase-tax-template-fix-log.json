@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-06-25T18:56:37.659Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "accounts": {
+    "source": 2,
+    "skipped_existing": 0,
+    "dry_run_create": 0,
+    "created": 2,
+    "failed": 0
+  },
+  "templates": {
+    "source": 2,
+    "skipped_existing": 0,
+    "dry_run_create": 0,
+    "created": 2,
+    "failed": 0
+  },
+  "results": [
+    {
+      "doctype": "Account",
+      "name": "VAT18 - SACL",
+      "status": "created",
+      "target": "VAT18 - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "WITHOLDING TAX6 - SACL",
+      "status": "created",
+      "target": "WITHOLDING TAX6 - SACL"
+    },
+    {
+      "doctype": "Purchase Taxes and Charges Template",
+      "name": "VAT18 - SACL",
+      "status": "created",
+      "target": "VAT18 - SACL - SACL"
+    },
+    {
+      "doctype": "Purchase Taxes and Charges Template",
+      "name": "WITHOLDING TAX6 - SACL",
+      "status": "created",
+      "target": "WITHOLDING TAX6 - SACL - SACL"
+    }
+  ]
+}

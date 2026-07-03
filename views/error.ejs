@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Error</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell narrow">
+    <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Error' }] }) %>
+    <h1><%= status %></h1>
+    <p><%= message %></p>
+    <a class="button" href="/" onclick="if (history.length > 1) { history.back(); return false; }">Go back</a>
+  </main>
+</body>
+</html>

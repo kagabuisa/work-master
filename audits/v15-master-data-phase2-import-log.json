@@ -1,0 +1,356 @@
+{
+  "generated_at": "2026-06-25T06:35:33.084Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "Department": {
+      "source": 14,
+      "skipped_existing": 14,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Designation": {
+      "source": 30,
+      "skipped_existing": 30,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Employment Type": {
+      "source": 9,
+      "skipped_existing": 9,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Holiday List": {
+      "source": 1,
+      "skipped_existing": 1,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Territory": {
+      "source": 17,
+      "skipped_existing": 17,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Customer Group": {
+      "source": 40,
+      "skipped_existing": 40,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Supplier Group": {
+      "source": 15,
+      "skipped_existing": 15,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Terms and Conditions": {
+      "source": 1,
+      "skipped_existing": 1,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Purchase Taxes and Charges Template": {
+      "source": 3,
+      "skipped_existing": 0,
+      "dry_run_create": 0,
+      "created": 1,
+      "failed": 2
+    },
+    "Mode of Payment": {
+      "source": 39,
+      "skipped_existing": 5,
+      "dry_run_create": 0,
+      "created": 34,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "doctype": "Purchase Taxes and Charges Template",
+      "name": "INCOME TAX30 - SACL",
+      "status": "created",
+      "target": "INCOME TAX30 - SACL - SACL"
+    },
+    {
+      "doctype": "Purchase Taxes and Charges Template",
+      "name": "VAT18 - SACL",
+      "status": "failed",
+      "error": "POST /api/resource/Purchase%20Taxes%20and%20Charges%20Template failed 417",
+      "response": {
+        "exception": "frappe.exceptions.ValidationError: Row 1:  Account <strong>VAT18 - SACL</strong> does not belong to Company <strong>SUPERTEX APA CO LTD</strong>",
+        "exc_type": "ValidationError",
+        "_exc_source": "erpnext (app)",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 309, in insert\\n    self.run_before_save_methods()\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1145, in run_before_save_methods\\n    self.run_method(\\\"validate\\\")\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1016, in run_method\\n    out = Document.hook(fn)(self, *args, **kwargs)\\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1376, in composer\\n    return composed(self, method, *args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1358, in runner\\n    add_to_return_value(self, fn(self, *args, **kwargs))\\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1013, in fn\\n    return method_object(*args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/erpnext/erpnext/accounts/doctype/purchase_taxes_and_charges_template/purchase_taxes_and_charges_template.py\\\", line 35, in validate\\n    valdiate_taxes_and_charges_template(self)\\n  File \\\"apps/erpnext/erpnext/accounts/doctype/sales_taxes_and_charges_template/sales_taxes_and_charges_template.py\\\", line 72, in valdiate_taxes_and_charges_template\\n    validate_account_head(tax.idx, tax.account_head, doc.company)\\n  File \\\"apps/erpnext/erpnext/controllers/accounts_controller.py\\\", line 3196, in validate_account_head\\n    frappe.throw(\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 616, in throw\\n    msgprint(\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 581, in msgprint\\n    _raise_exception()\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 532, in _raise_exception\\n    raise exc\\nfrappe.exceptions.ValidationError: Row 1:  Account <strong>VAT18 - SACL</strong> does not belong to Company <strong>SUPERTEX APA CO LTD</strong>\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Row 1:  Account <strong>VAT18 - SACL</strong> does not belong to Company <strong>SUPERTEX APA CO LTD</strong>\\\", \\\"title\\\": \\\"Invalid Account\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1, \\\"__frappe_exc_id\\\": \\\"35aeb0999cb87b8c9021464e1e1909062c11f01db88895cf6f75ee07\\\"}\"]"
+      },
+      "payload": {
+        "doctype": "Purchase Taxes and Charges Template",
+        "title": "VAT18 - SACL",
+        "is_default": 0,
+        "disabled": 1,
+        "company": "SUPERTEX APA CO LTD",
+        "taxes": [
+          {
+            "doctype": "Purchase Taxes and Charges",
+            "charge_type": "On Net Total",
+            "account_head": "VAT18 - SACL",
+            "description": "VAT18 @ 18.0",
+            "rate": "18.000000",
+            "cost_center": "Main CTC - SACL",
+            "included_in_print_rate": 0,
+            "category": "Valuation and Total",
+            "add_deduct_tax": "Add"
+          }
+        ]
+      }
+    },
+    {
+      "doctype": "Purchase Taxes and Charges Template",
+      "name": "WITHOLDING TAX6 - SACL",
+      "status": "failed",
+      "error": "POST /api/resource/Purchase%20Taxes%20and%20Charges%20Template failed 417",
+      "response": {
+        "exception": "frappe.exceptions.ValidationError: Row 1:  Account <strong>WITHOLDING TAX6 - SACL</strong> does not belong to Company <strong>SUPERTEX APA CO LTD</strong>",
+        "exc_type": "ValidationError",
+        "_exc_source": "erpnext (app)",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 309, in insert\\n    self.run_before_save_methods()\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1145, in run_before_save_methods\\n    self.run_method(\\\"validate\\\")\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1016, in run_method\\n    out = Document.hook(fn)(self, *args, **kwargs)\\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1376, in composer\\n    return composed(self, method, *args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1358, in runner\\n    add_to_return_value(self, fn(self, *args, **kwargs))\\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1013, in fn\\n    return method_object(*args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/erpnext/erpnext/accounts/doctype/purchase_taxes_and_charges_template/purchase_taxes_and_charges_template.py\\\", line 35, in validate\\n    valdiate_taxes_and_charges_template(self)\\n  File \\\"apps/erpnext/erpnext/accounts/doctype/sales_taxes_and_charges_template/sales_taxes_and_charges_template.py\\\", line 72, in valdiate_taxes_and_charges_template\\n    validate_account_head(tax.idx, tax.account_head, doc.company)\\n  File \\\"apps/erpnext/erpnext/controllers/accounts_controller.py\\\", line 3196, in validate_account_head\\n    frappe.throw(\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 616, in throw\\n    msgprint(\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 581, in msgprint\\n    _raise_exception()\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 532, in _raise_exception\\n    raise exc\\nfrappe.exceptions.ValidationError: Row 1:  Account <strong>WITHOLDING TAX6 - SACL</strong> does not belong to Company <strong>SUPERTEX APA CO LTD</strong>\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Row 1:  Account <strong>WITHOLDING TAX6 - SACL</strong> does not belong to Company <strong>SUPERTEX APA CO LTD</strong>\\\", \\\"title\\\": \\\"Invalid Account\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1, \\\"__frappe_exc_id\\\": \\\"1317a608a6be4b088b4f4ba52ac22159ca5913d50ffb9ae12b47532c\\\"}\"]"
+      },
+      "payload": {
+        "doctype": "Purchase Taxes and Charges Template",
+        "title": "WITHOLDING TAX6 - SACL",
+        "is_default": 0,
+        "disabled": 0,
+        "company": "SUPERTEX APA CO LTD",
+        "taxes": [
+          {
+            "doctype": "Purchase Taxes and Charges",
+            "charge_type": "On Net Total",
+            "account_head": "WITHOLDING TAX6 - SACL",
+            "description": "WITHOLDING TAX6 @ 6.0",
+            "rate": "6.000000",
+            "cost_center": "Main CTC - SACL",
+            "included_in_print_rate": 0,
+            "category": "Valuation and Total",
+            "add_deduct_tax": "Add"
+          }
+        ]
+      }
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Abiriga AS MOP",
+      "status": "created",
+      "target": "Abiriga MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Alpha AS MOP",
+      "status": "created",
+      "target": "Alpha AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Baiga AS MOP",
+      "status": "created",
+      "target": "Baiga MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "BCBundibugyo MOP",
+      "status": "created",
+      "target": "BCB MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "BCNebbi MOP",
+      "status": "created",
+      "target": "BCNebbi MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "BCPaidha MOP",
+      "status": "created",
+      "target": "BC Paidha MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Galaxy Ent MOP",
+      "status": "created",
+      "target": "Galaxy Ent MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Giant AS MOP",
+      "status": "created",
+      "target": "Giant AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Gold AS MOP",
+      "status": "created",
+      "target": "Gold AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Japa Q. Spares MOP",
+      "status": "created",
+      "target": "Japa Q. Spares MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Kyenjojo TRDZ MOP",
+      "status": "created",
+      "target": "Kyenjojo TRDZ MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Masaba AG MOP",
+      "status": "created",
+      "target": "Masaba AG MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Masereka AS MOP",
+      "status": "created",
+      "target": "Masereka AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Mobile Three MOP",
+      "status": "created",
+      "target": "Mobile Three MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Mobile West MOP",
+      "status": "created",
+      "target": "Mobile West MOD"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Multiple Tradex MOP",
+      "status": "created",
+      "target": "Multiple Tradex MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Mwesigwa AP MOP",
+      "status": "created",
+      "target": "Mwesigwa AP MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Nile TX MOP",
+      "status": "created",
+      "target": "Nile TX MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Ogwang AS MOP",
+      "status": "created",
+      "target": "Cash Ogwang"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "OK Extra Traders MOP",
+      "status": "created",
+      "target": "OK Extra Traders MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Okiror Vita MOP",
+      "status": "created",
+      "target": "Okiror Vita MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Sales-Sky Traders MOP",
+      "status": "created",
+      "target": "Sales-Sky Traders MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "SKY TRDZ MOP",
+      "status": "created",
+      "target": "SKY TRDZ MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Superb Kse MOP",
+      "status": "created",
+      "target": "Superb Kse MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Arua MOP",
+      "status": "created",
+      "target": "Taff Arua MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Bunia MOP",
+      "status": "created",
+      "target": "TAFF KUDIA MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff KLA MOP",
+      "status": "created",
+      "target": "Taff KLA MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Mbale MOP",
+      "status": "created",
+      "target": "Taff Mbale MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Mobile Five MOP",
+      "status": "created",
+      "target": "Taff Mobile Five"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Mobile Four MOP",
+      "status": "created",
+      "target": "Taff Mobile Four MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Mobile One MOP",
+      "status": "created",
+      "target": "Taff Mobile One MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Taff Mobile Two MOP",
+      "status": "created",
+      "target": "Taff Mobile Two MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Tambo GT MOP",
+      "status": "created",
+      "target": "Tambo GT MOP"
+    },
+    {
+      "doctype": "Mode of Payment",
+      "name": "Teso RS MOP",
+      "status": "created",
+      "target": "Teso RS MOP"
+    }
+  ],
+  "company": "SUPERTEX APA CO LTD"
+}

@@ -1,0 +1,847 @@
+{
+  "generated_at": "2026-06-25T06:30:46.063Z",
+  "source": {
+    "database": "1bd3e0294d",
+    "version": "10.0.25-MariaDB-1~trusty"
+  },
+  "lists": [
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Company",
+      "priority": "must_have",
+      "count": 1,
+      "exists": true,
+      "sample": [
+        "SUPERTEX APA CO. LTD"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Fiscal Year",
+      "priority": "must_have",
+      "count": 15,
+      "exists": true,
+      "sample": [
+        "2026",
+        "2025",
+        "2030",
+        "2029",
+        "2028"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Currency",
+      "priority": "must_have",
+      "count": 139,
+      "exists": true,
+      "sample": [
+        "UGX",
+        "CONGOLESE FRANC",
+        "CNY",
+        "KES",
+        "INR"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Account",
+      "priority": "must_have",
+      "count": 261,
+      "exists": true,
+      "sample": [
+        "NSP2026 - SACL",
+        "P2021 - SACL",
+        "Accomodation Expense - SACL",
+        "Accounting and Audit Fees - SACL",
+        "Withholding Tax - SACL"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Cost Center",
+      "priority": "must_have",
+      "count": 38,
+      "exists": true,
+      "sample": [
+        "Mobile Five CTC - SACL",
+        "SUPERTEX APA CO. LTD - SACL",
+        "Mobile Three CTC - SACL",
+        "Mobile Four CTC - SACL",
+        "Taff Kampala(TAK) CTC - SACL"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Mode of Payment",
+      "priority": "must_have",
+      "count": 39,
+      "exists": true,
+      "sample": [
+        "Taff Mobile Five MOP",
+        "Taff Mobile Four MOP",
+        "Mobile Three MOP",
+        "Mobile West MOP",
+        "Taff Mobile One MOP"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Mode of Payment Account",
+      "priority": "child",
+      "count": 35,
+      "exists": true,
+      "sample": [
+        "b1decd0bfa",
+        "e2dc1267bf",
+        "0826f902a4",
+        "c576326831",
+        "e53a08d5e6"
+      ]
+    },
+    {
+      "category": "Core company/accounting structure",
+      "doctype": "Bank Account",
+      "priority": "useful_if_present",
+      "count": null,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Warehouse Type",
+      "priority": "must_have",
+      "count": 6,
+      "exists": true,
+      "sample": [
+        "Others",
+        "Transit",
+        "Distribution Center",
+        "Shop",
+        "Wholesale"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Warehouse",
+      "priority": "must_have",
+      "count": 51,
+      "exists": true,
+      "sample": [
+        "Ordering Shop2Shop W/Hse - SACL",
+        "Mobile Five W/Hse - SACL",
+        "SKY Traders W/Hse - SACL",
+        "BC Paidha W/Hse - SACL",
+        "Baiga AS WHse - SACL"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "UOM",
+      "priority": "must_have",
+      "count": 13,
+      "exists": true,
+      "sample": [
+        "57",
+        "Oz",
+        "Lb",
+        "G",
+        "Ltr"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Brand",
+      "priority": "must_have",
+      "count": 28,
+      "exists": true,
+      "sample": [
+        "TITAN",
+        "Exella",
+        "TRDA",
+        "GEM",
+        "CROCODILE"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Item Group",
+      "priority": "must_have",
+      "count": 15,
+      "exists": true,
+      "sample": [
+        "Wires",
+        "All Item Groups",
+        "Products",
+        "Computers",
+        "Consumable"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Item",
+      "priority": "must_have",
+      "count": 2152,
+      "exists": true,
+      "sample": [
+        "CC PETROL SAE50 API SF 5X6",
+        "CC DIESEL SAE50 API SF 5X6",
+        "CC 2T SAE30 API SF 5X6",
+        "CONTROL SWITCH(R)-HJ125",
+        "CC 2.75-18 F/B FR/BL-TYRE"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Item Price",
+      "priority": "must_have",
+      "count": 70287,
+      "exists": true,
+      "sample": [
+        "ITEM-PRICE-61840",
+        "ITEM-PRICE-60558",
+        "ITEM-PRICE-63234",
+        "ITEM-PRICE-60543",
+        "ITEM-PRICE-63229"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Item Default",
+      "priority": "child_v15",
+      "count": null,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "UOM Conversion Detail",
+      "priority": "child",
+      "count": 2152,
+      "exists": true,
+      "sample": [
+        "076441cf0f",
+        "0883bd2a78",
+        "50f97e7915",
+        "f97cb0748d",
+        "d2e94e7dfd"
+      ]
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Item Reorder",
+      "priority": "child",
+      "count": 0,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Stock/catalog setup",
+      "doctype": "Item Supplier",
+      "priority": "child",
+      "count": 1,
+      "exists": true,
+      "sample": [
+        "a79dd35bd1"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Customer Group",
+      "priority": "must_have",
+      "count": 40,
+      "exists": true,
+      "sample": [
+        "Taff Mobile Five CSTG",
+        "All Customer Groups",
+        "Taff Mobile Two CTSG",
+        "Mobile West CSTG",
+        "Mobile Three CSTG"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Territory",
+      "priority": "must_have",
+      "count": 17,
+      "exists": true,
+      "sample": [
+        "Central",
+        "Mbale",
+        "Eastern",
+        "Bunia DRC",
+        "DR CONGO"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Customer",
+      "priority": "must_have",
+      "count": 2808,
+      "exists": true,
+      "sample": [
+        "HALIMA-0757306767-KIBUYE",
+        "GIDEON SPARES -0756500375-HOIMA",
+        "CALTON 148R- 0777352024- KAMPALA",
+        "EmpCustomerOtimOscar-0762780658 / 0790249144",
+        "PETER KASENGE 0779396367"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Sales Person",
+      "priority": "should_have",
+      "count": 6,
+      "exists": true,
+      "sample": [
+        "Mambasa Japhale",
+        "Sales Team",
+        "Mugabi Junior",
+        "Ijosia Toha",
+        "Okello Patrick"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Sales Partner",
+      "priority": "useful_if_present",
+      "count": 0,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Lead",
+      "priority": "optional_history",
+      "count": 3405,
+      "exists": true,
+      "sample": [
+        "LEAD-03410",
+        "LEAD-03409",
+        "LEAD-03408",
+        "LEAD-03407",
+        "LEAD-03406"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Contact",
+      "priority": "should_have_if_present",
+      "count": 2002,
+      "exists": true,
+      "sample": [
+        "HALIMA-0757306767-KIBUYE-HALIMA-0757306767-KIBUYE",
+        "GIDEON SPARES -0756500375-HOIMA-GIDEON SPARES -0756500375-HOIMA",
+        "CALTON 148R- 0777352024- KAMPALA-CALTON 148R- 0777352024- KAMPALA",
+        "BYARUGABA MOTOR SPARES-BYARUGABA MOTOR SPARES",
+        "ROBERT OWUKOT-0778030307-SOROTI-ROBERT OWUKOT-0778030307-SOROTI"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Address",
+      "priority": "should_have_if_present",
+      "count": 60,
+      "exists": true,
+      "sample": [
+        "SNB SPARE PARTS P.O BOX 605 KAMPALA, TEL 0772417661,0774276376,0702473484,0701045484.-Billing",
+        "ORYX OIL (U) LTD Phone 25641257066, 25631262120. FAX 25631262121.-Billing",
+        "VIVO ENERGY-Billing",
+        "MAYFARE COMPANY LTD-Billing",
+        "ADYEERI-KASUSU-Billing"
+      ]
+    },
+    {
+      "category": "Customers/sales setup",
+      "doctype": "Price List",
+      "priority": "must_have",
+      "count": 59,
+      "exists": true,
+      "sample": [
+        "PLST MOBILE UNITS",
+        "PLST Taff Mbale WHSL",
+        "PLST Taff Kampala HQ",
+        "PLST BUNIA BUYING",
+        "PLST VIP TAFF BUNIA"
+      ]
+    },
+    {
+      "category": "Suppliers/purchasing setup",
+      "doctype": "Supplier Type",
+      "priority": "v6_to_supplier_group",
+      "count": 15,
+      "exists": true,
+      "sample": [
+        "Importer",
+        "Indigenous Holding Company",
+        "Employees",
+        "Transporter",
+        "CLEARING & FORWARDING"
+      ]
+    },
+    {
+      "category": "Suppliers/purchasing setup",
+      "doctype": "Supplier Group",
+      "priority": "v15_required",
+      "count": null,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Suppliers/purchasing setup",
+      "doctype": "Supplier",
+      "priority": "must_have",
+      "count": 534,
+      "exists": true,
+      "sample": [
+        "QINGDAO HUADA IND PCL",
+        "GUANGZHOU JONASSON IMPEX",
+        "LR LUCKY AUTO SPARE PARTS CENTER - 0701100567",
+        "CHAMAKAH INVESTMENTS LIMITED 4 OLD PORT BELL ROOD NOOR HOUSE INDUSTRIAL AREA  KAMPALA TEL; 0706686400 / 0703742895 /  0394824613",
+        "PRINT 'N' CARTON UGANDA LIMITED  P.O BOX 33980, KLA UG, 6 MILES GAYAZA ROAD"
+      ]
+    },
+    {
+      "category": "Suppliers/purchasing setup",
+      "doctype": "Manufacturer",
+      "priority": "useful_if_present",
+      "count": 0,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "HR setup",
+      "doctype": "Employee",
+      "priority": "should_have",
+      "count": 178,
+      "exists": true,
+      "sample": [
+        "EMP/0172",
+        "EMP/0179",
+        "EMP/0178",
+        "EMP/0177",
+        "EMP/0176"
+      ]
+    },
+    {
+      "category": "HR setup",
+      "doctype": "Department",
+      "priority": "should_have",
+      "count": 14,
+      "exists": true,
+      "sample": [
+        "Stores",
+        "Legal",
+        "Research & Development",
+        "Quality Management",
+        "Management"
+      ]
+    },
+    {
+      "category": "HR setup",
+      "doctype": "Designation",
+      "priority": "should_have",
+      "count": 30,
+      "exists": true,
+      "sample": [
+        "Support Logistics Officer",
+        "Trading Officer",
+        "Logistic Manager",
+        "Audit Assistant",
+        "Accounts Assistant"
+      ]
+    },
+    {
+      "category": "HR setup",
+      "doctype": "Employment Type",
+      "priority": "useful_if_present",
+      "count": 9,
+      "exists": true,
+      "sample": [
+        "Company Driver",
+        "Apprentice",
+        "Intern",
+        "Piecework",
+        "Commission"
+      ]
+    },
+    {
+      "category": "HR setup",
+      "doctype": "Branch",
+      "priority": "should_have",
+      "count": 28,
+      "exists": true,
+      "sample": [
+        "Taff Bunia Branch",
+        "OK Extra Traders Branch",
+        "Taff Arua Branch",
+        "Taff Mbale Branch",
+        "Giant Auto Spares Branch"
+      ]
+    },
+    {
+      "category": "HR setup",
+      "doctype": "Holiday List",
+      "priority": "should_have",
+      "count": 1,
+      "exists": true,
+      "sample": [
+        "Holidays"
+      ]
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Sales Taxes and Charges Template",
+      "priority": "must_have_if_taxed",
+      "count": 0,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Sales Taxes and Charges",
+      "priority": "child",
+      "count": 0,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Purchase Taxes and Charges Template",
+      "priority": "must_have_if_taxed",
+      "count": 3,
+      "exists": true,
+      "sample": [
+        "VAT18 - SACL",
+        "WITHOLDING TAX6 - SACL",
+        "INCOME TAX30 - SACL"
+      ]
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Purchase Taxes and Charges",
+      "priority": "child",
+      "count": 3,
+      "exists": true,
+      "sample": [
+        "7a8304f8c2",
+        "f50ddf759e",
+        "f95246806d"
+      ]
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Terms and Conditions",
+      "priority": "should_have",
+      "count": 1,
+      "exists": true,
+      "sample": [
+        "Terms on sale"
+      ]
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Letter Head",
+      "priority": "should_have",
+      "count": 3,
+      "exists": true,
+      "sample": [
+        "Standard.",
+        "st",
+        "Standard"
+      ]
+    },
+    {
+      "category": "Taxes/terms/templates",
+      "doctype": "Print Format",
+      "priority": "already_customizations",
+      "count": 18,
+      "exists": true,
+      "sample": [
+        "metaTest",
+        "New Format 20-12-2025",
+        "PrintTemp",
+        "Purchase Order",
+        "Delivery note"
+      ]
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "System Settings",
+      "priority": "settings",
+      "count": 23,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "Global Defaults",
+      "priority": "settings",
+      "count": 17,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "Accounts Settings",
+      "priority": "settings",
+      "count": 15,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "Stock Settings",
+      "priority": "settings",
+      "count": 23,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "Selling Settings",
+      "priority": "settings",
+      "count": 21,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "Buying Settings",
+      "priority": "settings",
+      "count": 17,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "Print Settings",
+      "priority": "settings",
+      "count": 17,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Settings/singles",
+      "doctype": "HR Settings",
+      "priority": "settings",
+      "count": 13,
+      "exists": true,
+      "sample": []
+    },
+    {
+      "category": "Users/security",
+      "doctype": "User",
+      "priority": "manual_review",
+      "count": 77,
+      "exists": true,
+      "sample": [
+        "danielomoding@gmail.com",
+        "cpustores@gmail.com",
+        "bouhani2004@yahoo.fr",
+        "kagabuisa@gmail.com",
+        "alphaautospares@gmail.com"
+      ]
+    },
+    {
+      "category": "Users/security",
+      "doctype": "Role",
+      "priority": "already_customizations",
+      "count": 50,
+      "exists": true,
+      "sample": [
+        "Emergency",
+        "Fields Sales",
+        "Shop Manager",
+        "Business Development Manager",
+        "Accountant"
+      ]
+    },
+    {
+      "category": "Users/security",
+      "doctype": "UserRole",
+      "priority": "manual_review",
+      "count": 601,
+      "exists": true,
+      "sample": [
+        "3a46fdea2e",
+        "0f38f0a178",
+        "5132478fa6",
+        "0bc63ccec5",
+        "1e02902120"
+      ]
+    },
+    {
+      "category": "Users/security",
+      "doctype": "User Permission",
+      "priority": "should_have_if_used",
+      "count": null,
+      "exists": false,
+      "sample": []
+    },
+    {
+      "category": "Users/security",
+      "doctype": "DocPerm",
+      "priority": "already_customizations",
+      "count": 717,
+      "exists": true,
+      "sample": [
+        "4a384e27c4",
+        "ade7348299",
+        "7ce69964b7",
+        "02913efd07",
+        "22899cf860"
+      ]
+    }
+  ],
+  "singleton_settings": [
+    {
+      "doctype": "About Us Settings",
+      "fields": 14
+    },
+    {
+      "doctype": "Accounts Settings",
+      "fields": 15
+    },
+    {
+      "doctype": "Authorization Control",
+      "fields": 10
+    },
+    {
+      "doctype": "Bank Reconciliation",
+      "fields": 16
+    },
+    {
+      "doctype": "Blog Settings",
+      "fields": 13
+    },
+    {
+      "doctype": "BOM Replace Tool",
+      "fields": 12
+    },
+    {
+      "doctype": "Buying Settings",
+      "fields": 17
+    },
+    {
+      "doctype": "Contact Us Settings",
+      "fields": 21
+    },
+    {
+      "doctype": "Dropbox Backup",
+      "fields": 16
+    },
+    {
+      "doctype": "Employee Attendance Tool",
+      "fields": 14
+    },
+    {
+      "doctype": "Features Setup",
+      "fields": 31
+    },
+    {
+      "doctype": "Global Defaults",
+      "fields": 17
+    },
+    {
+      "doctype": "HR Settings",
+      "fields": 13
+    },
+    {
+      "doctype": "Hub Settings",
+      "fields": 21
+    },
+    {
+      "doctype": "Leave Control Panel",
+      "fields": 19
+    },
+    {
+      "doctype": "Manufacturing Settings",
+      "fields": 19
+    },
+    {
+      "doctype": "Naming Series",
+      "fields": 15
+    },
+    {
+      "doctype": "Notification Control",
+      "fields": 27
+    },
+    {
+      "doctype": "Payment Reconciliation",
+      "fields": 19
+    },
+    {
+      "doctype": "Payment Tool",
+      "fields": 23
+    },
+    {
+      "doctype": "Print Settings",
+      "fields": 17
+    },
+    {
+      "doctype": "Process Payroll",
+      "fields": 17
+    },
+    {
+      "doctype": "Production Planning Tool",
+      "fields": 20
+    },
+    {
+      "doctype": "Purchase Common",
+      "fields": 10
+    },
+    {
+      "doctype": "Rename Tool",
+      "fields": 12
+    },
+    {
+      "doctype": "Selling Settings",
+      "fields": 21
+    },
+    {
+      "doctype": "Shopify Settings",
+      "fields": 32
+    },
+    {
+      "doctype": "Shopping Cart Settings",
+      "fields": 18
+    },
+    {
+      "doctype": "SMS Center",
+      "fields": 20
+    },
+    {
+      "doctype": "SMS Settings",
+      "fields": 14
+    },
+    {
+      "doctype": "Social Login Keys",
+      "fields": 16
+    },
+    {
+      "doctype": "Stock Settings",
+      "fields": 23
+    },
+    {
+      "doctype": "System Settings",
+      "fields": 23
+    },
+    {
+      "doctype": "Test Gate Pass",
+      "fields": 17
+    },
+    {
+      "doctype": "Upload Attendance",
+      "fields": 12
+    },
+    {
+      "doctype": "Website Script",
+      "fields": 11
+    },
+    {
+      "doctype": "Website Settings",
+      "fields": 31
+    }
+  ]
+}

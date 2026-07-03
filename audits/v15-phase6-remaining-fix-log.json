@@ -1,0 +1,664 @@
+{
+  "generated_at": "2026-06-26T10:15:49.575Z",
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "Mode of Payment Account": {
+      "created": 0,
+      "skipped_existing": 35,
+      "skipped_missing_link": 0,
+      "failed": 0
+    },
+    "Product Bundle": {
+      "created": 0,
+      "skipped_existing": 1,
+      "skipped_missing_link": 0,
+      "failed": 0
+    },
+    "POS Profile": {
+      "created": 0,
+      "skipped_existing": 40,
+      "skipped_missing_link": 0,
+      "failed": 0
+    },
+    "Container": {
+      "created": 22,
+      "skipped_existing": 7,
+      "skipped_missing_link": 0,
+      "failed": 0
+    },
+    "Driver": {
+      "created": 8,
+      "skipped_existing": 0,
+      "skipped_missing_link": 0,
+      "failed": 0
+    },
+    "Vehicle": {
+      "created": 0,
+      "skipped_existing": 4,
+      "skipped_missing_link": 0,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "0826f902a4",
+      "status": "skipped_existing",
+      "mode": "Mobile Three MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "0a0510c99b",
+      "status": "skipped_existing",
+      "mode": "Superb Kse MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "10ca9498f9",
+      "status": "skipped_existing",
+      "mode": "Alpha AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "12e8c24c20",
+      "status": "skipped_existing",
+      "mode": "Taff KLA MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "18dd7edb8e",
+      "status": "skipped_existing",
+      "mode": "Kyenjojo TRDZ MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "20a4b067c1",
+      "status": "skipped_existing",
+      "mode": "Taff Mbale MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "251c1cf993",
+      "status": "skipped_existing",
+      "mode": "Teso RS MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "2f29086544",
+      "status": "skipped_existing",
+      "mode": "Abiriga MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "404429be06",
+      "status": "skipped_existing",
+      "mode": "Galaxy Ent MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "4180057e33",
+      "status": "skipped_existing",
+      "mode": "Giant AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "56bbb14fdd",
+      "status": "skipped_existing",
+      "mode": "Cash"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "5dc5f1bbeb",
+      "status": "skipped_existing",
+      "mode": "Masaba AG MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "602288b5bb",
+      "status": "skipped_existing",
+      "mode": "BC Paidha MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "61f84d7f7b",
+      "status": "skipped_existing",
+      "mode": "Sales-Sky Traders MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "73e1eb69e6",
+      "status": "skipped_existing",
+      "mode": "Japa Q. Spares MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "867bb07425",
+      "status": "skipped_existing",
+      "mode": "Baiga MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "8d4f105eb2",
+      "status": "skipped_existing",
+      "mode": "BCNebbi MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "99513fb690",
+      "status": "skipped_existing",
+      "mode": "Nile TX MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "b1decd0bfa",
+      "status": "skipped_existing",
+      "mode": "Taff Mobile Five"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "be8ab7750f",
+      "status": "skipped_existing",
+      "mode": "Cash Ogwang"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "c11bbdd04f",
+      "status": "skipped_existing",
+      "mode": "OK Extra Traders MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "c576326831",
+      "status": "skipped_existing",
+      "mode": "Mobile West MOD"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "cd16242d55",
+      "status": "skipped_existing",
+      "mode": "Masereka AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "cf75316312",
+      "status": "skipped_existing",
+      "mode": "Tambo GT MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "d06ae4ebaa",
+      "status": "skipped_existing",
+      "mode": "BCB MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "de57603df8",
+      "status": "skipped_existing",
+      "mode": "TAFF KUDIA MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e00b68fdd0",
+      "status": "skipped_existing",
+      "mode": "Taff Mobile Two MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e0c16913cb",
+      "status": "skipped_existing",
+      "mode": "Mwesigwa AP MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e2dc1267bf",
+      "status": "skipped_existing",
+      "mode": "Taff Mobile Four MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e53a08d5e6",
+      "status": "skipped_existing",
+      "mode": "Taff Mobile One MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e5b4d6c6f9",
+      "status": "skipped_existing",
+      "mode": "Multiple Tradex MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e6798355de",
+      "status": "skipped_existing",
+      "mode": "SKY TRDZ MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "e901c989f6",
+      "status": "skipped_existing",
+      "mode": "Gold AS MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "fd24efc462",
+      "status": "skipped_existing",
+      "mode": "Okiror Vita MOP"
+    },
+    {
+      "doctype": "Mode of Payment Account",
+      "name": "fdde9500f6",
+      "status": "skipped_existing",
+      "mode": "Taff Arua MOP"
+    },
+    {
+      "doctype": "Product Bundle",
+      "name": "Shell HX3 Carton",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "1893566506",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "1cbcfb8d11",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "22b46d194a",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "2553be7959",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "2710770bba",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "2c2a458753",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "304252a67a",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "31c0a64ac8",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "320a0d7e9c",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "3b56db81be",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "41e94858a5",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "442ad799e6",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "4c54a6f2fb",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "5792ab7ad8",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "5c1c48c471",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "64701af7b1",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "6850912660",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "6c663cc4df",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "7211eefd71",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "7370c9b8ec",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "73e6c9a90f",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "7a71ad7a64",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "83921639bf",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "92dd482496",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "a12d0eedd2",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "a29b528a4e",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "a9f7556180",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "b5d174fd3a",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "bf04d4bc1b",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "c02529a45f",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "c208892f2a",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "c3b28d8d96",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "d2e0c3d63b",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "dc2a27d678",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "dcb7c7ff91",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "de5b57686f",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "de933182c6",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "e6782bc3bd",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "eb1212c5df",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "POS Profile",
+      "name": "f1776910c5",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "114b73d879",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000001",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000002",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000003",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000004",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000005",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000006",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000007",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000008",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000009",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-000010",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "CTR-0019",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "CXDU2121091",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "DFSU6379847",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "e921918399",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "eaec93f475",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "GESU5808721",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "MRKU2955707",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "MRKU5447417",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "MRKU5814153",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "MRKU5898597(GROUPAGE)",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "MSKU9699126",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "PCIU8472739",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "PCIU8481160",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "PCIU8741777",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "PCIU8966705",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "PCIU9036684",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "PONU7777030",
+      "status": "created"
+    },
+    {
+      "doctype": "Container",
+      "name": "TCNU5966482",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "2a0a4f6ee3",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "Akello Judith",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "Bagenda William",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "d087a2cc51",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "James Rwatoro",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "Kagabu Isa",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "Okello Patrick",
+      "status": "created"
+    },
+    {
+      "doctype": "Driver",
+      "name": "Twesigye Paul",
+      "status": "created"
+    },
+    {
+      "doctype": "Vehicle",
+      "name": "UAT-939Y",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle",
+      "name": "UAU-615A",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle",
+      "name": "UBE-089Y",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle",
+      "name": "UFL 809F",
+      "status": "skipped_existing"
+    }
+  ]
+}

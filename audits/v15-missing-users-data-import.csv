@@ -1,0 +1,13 @@
+email,first_name,middle_name,last_name,enabled,user_type,language,time_zone,send_welcome_email,send_password_update_notification
+superbkasese@gmail.com,Superb,,Kasese,0,System User,en,Africa/Kampala,0,0
+taffdrc02@gmail.com,Taff,,DRC(Kudia Matabaro Bruno Blanc),0,System User,fr,Africa/Kampala,0,0
+taffdrc19@gmail.com,Taff,,DRC(Mambasa Japhale),0,System User,en,Africa/Kampala,0,0
+taffkampala@gmail.com,Taff ,,Kampala,1,System User,en,Africa/Kampala,0,0
+taffmbale@gmail.com,Okiror,Taff,Mbale,1,System User,en,Africa/Kampala,0,0
+taffmobilefive@gmail.com,Eric,,Kabaale,1,System User,en,Africa/Kampala,0,0
+taffmobilefour@gmail.com,Eric,,Kabaale,0,System User,en,Africa/Kampala,0,0
+taffmobileone@gmail.com,Nana ,,Rafat,1,System User,en,Africa/Kampala,0,0
+taffmobiletwo@gmail.com,taffmobile,,two,1,System User,en,Africa/Kampala,0,0
+tambogeneraltraders@gmail.com,Tambo,,General Traders,0,System User,en,Africa/Kampala,0,0
+titanrubbertt@gmail.com,Mobile,,Three,1,System User,en,Africa/Kampala,0,0
+uwonge.mg16@gmail.com,godfrey,,,1,Website User,en,Africa/Kampala,0,0

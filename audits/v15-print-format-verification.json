@@ -1,0 +1,116 @@
+{
+  "generated_at": "2026-06-24T12:01:09.480Z",
+  "target": "https://new.zenjji.com",
+  "expected_count": 12,
+  "verified_count": 12,
+  "missing_count": 0,
+  "missing": [],
+  "default_print_format_setters": [
+    {
+      "doc_type": "Asset Register",
+      "rows": [
+        {
+          "name": "Asset Register-main-default_print_format",
+          "doc_type": "Asset Register",
+          "value": "Asset Register print"
+        }
+      ]
+    },
+    {
+      "doc_type": "Stock Entry",
+      "rows": [
+        {
+          "name": "Stock Entry-main-default_print_format",
+          "doc_type": "Stock Entry",
+          "value": "STOCK ENTRY"
+        }
+      ]
+    }
+  ],
+  "verified": [
+    {
+      "name": "Asset Register print",
+      "doc_type": "Asset Register",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "Custom Audit report",
+      "doc_type": "Audit Report",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "Purchase Order",
+      "doc_type": "Purchase Order",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "metaTest",
+      "doc_type": "Sales Invoice",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "New Format 20-12-2025",
+      "doc_type": "Sales Invoice",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "PrintTemp",
+      "doc_type": "Sales Invoice",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "Sales Invoice Print",
+      "doc_type": "Sales Invoice",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "Delivery note",
+      "doc_type": "Stock Entry",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "DLN Mobile",
+      "doc_type": "Stock Entry",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "STOCK ENTRY",
+      "doc_type": "Stock Entry",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "Stock Entry - Invoice",
+      "doc_type": "Stock Entry",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    },
+    {
+      "name": "test",
+      "doc_type": "Stock Entry",
+      "standard": "No",
+      "disabled": 0,
+      "print_format_type": "Jinja"
+    }
+  ]
+}

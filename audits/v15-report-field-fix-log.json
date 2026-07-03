@@ -1,0 +1,218 @@
+{
+  "generated_at": "2026-06-24T11:57:47.855Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "reports_checked": 12,
+  "reports_changed": 12,
+  "reports_updated": 12,
+  "failed": 0,
+  "changes": [
+    {
+      "report": "Pending Payments",
+      "action": "rename",
+      "type": "column",
+      "doctype": "Pending Payments",
+      "old_field": "pending_amount",
+      "new_field": "pending_payment"
+    },
+    {
+      "report": "Price-Rules",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Pricing Rule",
+      "field": "item_code"
+    },
+    {
+      "report": "Price-Rules",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Pricing Rule",
+      "field": "price"
+    },
+    {
+      "report": "Sales Invoice 29012020",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Sales Invoice Month range",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Sales invoice report",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Sales Invoice Summary 28-04-2023",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "SALES SUMMARY BY PERIOD AND SELLING UNIT",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "action": "rename",
+      "type": "filter",
+      "doctype": "Salary Slip",
+      "old_field": "month",
+      "new_field": "month2"
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "action": "rename",
+      "type": "column",
+      "doctype": "Salary Slip",
+      "old_field": "month",
+      "new_field": "month2"
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Salary Slip",
+      "field": "fiscal_year"
+    },
+    {
+      "report": "Group Item List",
+      "action": "rename",
+      "type": "column",
+      "doctype": "Item",
+      "old_field": "category",
+      "new_field": "item_category"
+    },
+    {
+      "report": "Group Item List",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Item",
+      "field": "is_service_item"
+    },
+    {
+      "report": "Group Item List",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Item",
+      "field": "default_warehouse"
+    },
+    {
+      "report": "Group Item List",
+      "action": "rename_sort",
+      "doctype": "Item",
+      "old_field": "category",
+      "new_field": "item_category"
+    },
+    {
+      "report": "Itemlist Import",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Item",
+      "field": "net_weight"
+    },
+    {
+      "report": "Itemlist Import",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Item",
+      "field": "default_warehouse"
+    },
+    {
+      "report": "ItemList-Item Code",
+      "action": "rename",
+      "type": "column",
+      "doctype": "Item",
+      "old_field": "category",
+      "new_field": "item_category"
+    },
+    {
+      "report": "ItemList-Item Code",
+      "action": "drop",
+      "type": "column",
+      "doctype": "Item",
+      "field": "is_service_item"
+    },
+    {
+      "report": "Product-Line Report",
+      "action": "drop",
+      "type": "column",
+      "doctype": "maximum stock",
+      "field": "remark"
+    }
+  ],
+  "results": [
+    {
+      "report": "Pending Payments",
+      "status": "updated",
+      "changes": 1
+    },
+    {
+      "report": "Price-Rules",
+      "status": "updated",
+      "changes": 2
+    },
+    {
+      "report": "Sales Invoice 29012020",
+      "status": "updated",
+      "changes": 1
+    },
+    {
+      "report": "Sales Invoice Month range",
+      "status": "updated",
+      "changes": 1
+    },
+    {
+      "report": "Sales invoice report",
+      "status": "updated",
+      "changes": 1
+    },
+    {
+      "report": "Sales Invoice Summary 28-04-2023",
+      "status": "updated",
+      "changes": 1
+    },
+    {
+      "report": "SALES SUMMARY BY PERIOD AND SELLING UNIT",
+      "status": "updated",
+      "changes": 1
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "status": "updated",
+      "changes": 3
+    },
+    {
+      "report": "Group Item List",
+      "status": "updated",
+      "changes": 4
+    },
+    {
+      "report": "Itemlist Import",
+      "status": "updated",
+      "changes": 2
+    },
+    {
+      "report": "ItemList-Item Code",
+      "status": "updated",
+      "changes": 2
+    },
+    {
+      "report": "Product-Line Report",
+      "status": "updated",
+      "changes": 1
+    }
+  ]
+}

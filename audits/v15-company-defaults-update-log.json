@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-06-25T19:06:55.752Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "updates": [
+    {
+      "company": "SUPERTEX APA CO LTD",
+      "fields": {
+        "cost_center": "CPU CTC - SACL",
+        "round_off_account": "Top Up - SACL"
+      },
+      "dry_run": false
+    }
+  ],
+  "skipped": [],
+  "failed": []
+}

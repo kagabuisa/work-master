@@ -1,0 +1,107 @@
+<% const currentModule = typeof activeModule !== 'undefined' ? activeModule : ''; %>
+<div class="module-nav" aria-label="Primary navigation" data-module-nav>
+  <div class="module-nav-group">
+    <a class="module-nav-primary <%= currentModule === 'accounts' ? 'active' : '' %>" href="/accounts">Accounts</a>
+    <div class="module-nav-menu">
+      <a href="/journals/new">New Journal</a>
+      <a href="/reports/balance-sheet">Balance Sheet</a>
+      <a href="/accounts">Chart of Accounts</a>
+      <a href="/reports/general-ledger">General Ledger</a>
+      <a href="/journals">Journals</a>
+      <a href="/reports/profit-and-loss">P&amp;L</a>
+      <a href="/reports/trial-balance">Trial Balance</a>
+    </div>
+  </div>
+  <div class="module-nav-group">
+    <a class="module-nav-primary <%= currentModule === 'stock' ? 'active' : '' %>" href="/stock">Stock</a>
+    <div class="module-nav-menu">
+      <a href="/stock/entries/new">New Stock Entry</a>
+      <a href="/reports/gross-profit">Gross Profit</a>
+      <a href="/reports/stock-movement">Movement</a>
+      <a href="/stock">Stock Balance</a>
+      <a href="/reports/stock-ledger">Stock Ledger</a>
+    </div>
+  </div>
+  <div class="module-nav-group">
+    <a class="module-nav-primary <%= currentModule === 'sales' ? 'active' : '' %>" href="/invoices">Sales</a>
+    <div class="module-nav-menu">
+      <a href="/invoices/new">New Invoice</a>
+      <a href="/reports/debtors">Debtors</a>
+      <a href="/reports/gross-profit">Gross Profit</a>
+      <a href="/invoices">Invoices</a>
+    </div>
+  </div>
+  <div class="module-nav-group">
+    <a class="module-nav-primary <%= currentModule === 'purchases' ? 'active' : '' %>" href="/purchases">Purchases</a>
+    <div class="module-nav-menu">
+      <a href="/stock/entries/new">New Purchase Receipt</a>
+      <a href="/purchases">Purchase Ledger</a>
+      <a href="/reports/stock-ledger?entry_type=purchase">Purchase Receipts</a>
+    </div>
+  </div>
+  <div class="module-nav-group">
+    <a class="module-nav-primary <%= currentModule === 'report' ? 'active' : '' %>" href="/reports/general-ledger">Report</a>
+    <div class="module-nav-menu">
+      <a href="/reports/balance-sheet">Balance Sheet</a>
+      <a href="/reports/debtors">Debtors</a>
+      <a href="/reports/general-ledger">General Ledger</a>
+      <a href="/reports/gross-profit">Gross Profit</a>
+      <a href="/reports/profit-and-loss">P&amp;L</a>
+      <a href="/reports/stock-ledger">Stock Ledger</a>
+      <a href="/reports/stock-movement">Stock Movement</a>
+      <a href="/reports/trial-balance">Trial Balance</a>
+    </div>
+  </div>
+  <div class="module-nav-group">
+    <a class="module-nav-primary <%= currentModule === 'settings' ? 'active' : '' %>" href="/settings">Settings</a>
+    <div class="module-nav-menu">
+      <a href="/settings">Application Settings</a>
+    </div>
+  </div>
+  <a class="button module-nav-action" href="/invoices/new">New Invoice</a>
+  <a class="button module-nav-action" href="/journals/new">New Journal</a>
+  <a class="button module-nav-action" href="/stock/entries/new">New Stock Entry</a>
+  <% if (currentModule === 'accounts') { %>
+    <div class="module-section-submenu" aria-label="Accounts links">
+      <a href="/reports/balance-sheet">Balance Sheet</a>
+      <a href="/accounts">Chart of Accounts</a>
+      <a href="/reports/general-ledger">General Ledger</a>
+      <a href="/journals">Journals</a>
+      <a href="/reports/profit-and-loss">P&amp;L</a>
+      <a href="/reports/trial-balance">Trial Balance</a>
+    </div>
+  <% } else if (currentModule === 'stock') { %>
+    <div class="module-section-submenu" aria-label="Stock links">
+      <a href="/reports/gross-profit">Gross Profit</a>
+      <a href="/reports/stock-movement">Movement</a>
+      <a href="/stock">Stock Balance</a>
+      <a href="/reports/stock-ledger">Stock Ledger</a>
+    </div>
+  <% } else if (currentModule === 'sales') { %>
+    <div class="module-section-submenu" aria-label="Sales links">
+      <a href="/reports/debtors">Debtors</a>
+      <a href="/reports/gross-profit">Gross Profit</a>
+      <a href="/invoices">Invoices</a>
+    </div>
+  <% } else if (currentModule === 'purchases') { %>
+    <div class="module-section-submenu" aria-label="Purchases links">
+      <a href="/purchases">Purchase Ledger</a>
+      <a href="/reports/stock-ledger?entry_type=purchase">Purchase Receipts</a>
+    </div>
+  <% } else if (currentModule === 'report') { %>
+    <div class="module-section-submenu" aria-label="Report links">
+      <a href="/reports/balance-sheet">Balance Sheet</a>
+      <a href="/reports/debtors">Debtors</a>
+      <a href="/reports/general-ledger">General Ledger</a>
+      <a href="/reports/gross-profit">Gross Profit</a>
+      <a href="/reports/profit-and-loss">P&amp;L</a>
+      <a href="/reports/stock-ledger">Stock Ledger</a>
+      <a href="/reports/stock-movement">Stock Movement</a>
+      <a href="/reports/trial-balance">Trial Balance</a>
+    </div>
+  <% } else if (currentModule === 'settings') { %>
+    <div class="module-section-submenu" aria-label="Settings links">
+      <a href="/settings">Application Settings</a>
+    </div>
+  <% } %>
+</div>

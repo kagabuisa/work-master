@@ -1,0 +1,819 @@
+{
+  "generated_at": "2026-06-26T12:36:03.970Z",
+  "source_audit": "audits/v6-v15-other-master-lists-audit.json",
+  "users": {
+    "old_non_system": 75,
+    "v15_total": 75,
+    "missing_non_system": 0,
+    "role_rows_from_v6": 550,
+    "data_import": "User Import on 2026-06-26 15:34:08.746574"
+  },
+  "matched_setup_lists": [
+    {
+      "name": "Activity Type",
+      "old_count": 5,
+      "v15_exists": true,
+      "v15_count": 5,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Address Template",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 6,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Budget Set",
+      "old_count": 18,
+      "v15_exists": true,
+      "v15_count": 18,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Expense Claim Type",
+      "old_count": 5,
+      "v15_exists": true,
+      "v15_count": 5,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Industry Type",
+      "old_count": 51,
+      "v15_exists": true,
+      "v15_count": 51,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Item Attribute",
+      "old_count": 4,
+      "v15_exists": true,
+      "v15_count": 4,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Leave Type",
+      "old_count": 8,
+      "v15_exists": true,
+      "v15_count": 8,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Letter Head",
+      "old_count": 3,
+      "v15_exists": true,
+      "v15_count": 3,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Offer Term",
+      "old_count": 12,
+      "v15_exists": true,
+      "v15_count": 12,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "POS Profile",
+      "old_count": 40,
+      "v15_exists": true,
+      "v15_count": 40,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Performance charges",
+      "old_count": 3,
+      "v15_exists": true,
+      "v15_count": 3,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Price Change Request",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 1,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Print Heading",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 2,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Product Bundle",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 1,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Salary Structure",
+      "old_count": 216,
+      "v15_exists": true,
+      "v15_count": 216,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Sales Person",
+      "old_count": 6,
+      "v15_exists": true,
+      "v15_count": 6,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Supply Report",
+      "old_count": 1152,
+      "v15_exists": true,
+      "v15_count": 1152,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Vehicle",
+      "old_count": 4,
+      "v15_exists": true,
+      "v15_count": 4,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Warehouse Maximum Stock",
+      "old_count": 7,
+      "v15_exists": true,
+      "v15_count": 7,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    },
+    {
+      "name": "Website Theme",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 1,
+      "status": "records_match_by_name",
+      "missing_count": 0,
+      "sample_missing": []
+    }
+  ],
+  "optional_not_required_now": [
+    {
+      "name": "Monthly Distribution",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "Budget 2016"
+      ],
+      "reason": "Optional budgeting distribution; old has one 2016 budget record. Not required to start sales/purchase/stock/accounting."
+    },
+    {
+      "name": "Email Account",
+      "old_count": 6,
+      "v15_exists": true,
+      "v15_count": 2,
+      "status": "records_missing_by_name",
+      "missing_count": 5,
+      "sample_missing": [
+        "Kagabu Isa",
+        "Notifications",
+        "Replies",
+        "Sales",
+        "Support"
+      ],
+      "reason": "Notification setup only. Old email passwords/secrets should not be copied; configure fresh accounts in v15 if notifications are needed."
+    },
+    {
+      "name": "Email Digest",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "Default Weekly Digest - SUPERTEX APA CO. LTD",
+        "Scheduler Errors"
+      ],
+      "reason": "Optional digest subscriptions; configure fresh after email accounts are set."
+    },
+    {
+      "name": "Job Opening",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "Jobs",
+        "management-trainee"
+      ],
+      "reason": "Recruitment website content, not ERP operating master data."
+    },
+    {
+      "name": "Blog Category",
+      "old_count": 6,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 6,
+      "sample_missing": [
+        "Audit & Internal Review",
+        "Finance",
+        "general",
+        "Inventory Management",
+        "Order Management"
+      ],
+      "reason": "Website/blog content, not ERP operating master data."
+    },
+    {
+      "name": "Blog Post",
+      "old_count": 10,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 10,
+      "sample_missing": [
+        "audit-review",
+        "cpu-bulk-order",
+        "edited-analysed-shop-orders",
+        "excess-items-on-order",
+        "inventory-management"
+      ],
+      "reason": "Website/blog content, not ERP operating master data."
+    },
+    {
+      "name": "Blogger",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "isa"
+      ],
+      "reason": "Website/blog author profile, not ERP operating master data."
+    },
+    {
+      "name": "Web Page",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "supertex-apa-co-ltd",
+        "zenjji_bi"
+      ],
+      "reason": "Website content, not ERP operating master data."
+    },
+    {
+      "name": "Website Slideshow",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "Parts"
+      ],
+      "reason": "Website content, not ERP operating master data."
+    }
+  ],
+  "legacy_or_replaced": [
+    {
+      "name": "Deduction Type",
+      "old_count": 21,
+      "v15_exists": false,
+      "v15_count": null,
+      "status": "doctype_missing_in_v15",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "Legacy payroll doctype absent in v15; covered by migrated Salary Component / Salary Structure setup."
+    },
+    {
+      "name": "Earning Type",
+      "old_count": 10,
+      "v15_exists": false,
+      "v15_count": null,
+      "status": "doctype_missing_in_v15",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "Legacy payroll doctype absent in v15; covered by migrated Salary Component / Salary Structure setup."
+    },
+    {
+      "name": "Newsletter List",
+      "old_count": 1,
+      "v15_exists": false,
+      "v15_count": null,
+      "status": "doctype_missing_in_v15",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "Legacy newsletter doctype absent in v15; not needed for ERP operations."
+    },
+    {
+      "name": "Bulk Email",
+      "old_count": 1014,
+      "v15_exists": false,
+      "v15_count": null,
+      "status": "doctype_missing_in_v15",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "Legacy email history/marketing doctype absent in v15; excluded."
+    },
+    {
+      "name": "Email Alert",
+      "old_count": 1,
+      "v15_exists": false,
+      "v15_count": null,
+      "status": "doctype_missing_in_v15",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "Legacy notification doctype absent in v15; v15 uses newer Notification setup."
+    },
+    {
+      "name": "Country",
+      "old_count": 249,
+      "v15_exists": true,
+      "v15_count": 250,
+      "status": "records_missing_by_name",
+      "missing_count": 4,
+      "sample_missing": [
+        "Iran, Islamic Republic of",
+        "Macedonia, Republic of",
+        "Syrian Arab Republic",
+        "Tanzania, United Republic of"
+      ],
+      "reason": "v15 has current country list; four old names are naming changes, not a start blocker."
+    }
+  ],
+  "excluded_non_master": [
+    {
+      "name": "Material Request",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "MREQ-00001"
+      ],
+      "reason": "Document/transaction-like operational record; excluded by request."
+    },
+    {
+      "name": "Maintenance Schedule",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "MS00001"
+      ],
+      "reason": "Document/transaction-like operational record; excluded by request."
+    },
+    {
+      "name": "Event",
+      "old_count": 231,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 231,
+      "sample_missing": [
+        "EV00001",
+        "EV00003",
+        "EV00004",
+        "EV00005",
+        "EV00006"
+      ],
+      "reason": "Calendar/history record; excluded."
+    },
+    {
+      "name": "Note",
+      "old_count": 5,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 5,
+      "sample_missing": [
+        "Discussion Junior Kabale Giant AS 04-03-2019",
+        "Incorrect number of General Ledger Entries found. You might have selected a wrong Account in the transaction.",
+        "Metabase",
+        "Mulitple Tradrex",
+        "Password"
+      ],
+      "reason": "Personal/system note; excluded."
+    },
+    {
+      "name": "SMS Log",
+      "old_count": 7,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 7,
+      "sample_missing": [
+        "SMSLOG/00000001",
+        "SMSLOG/00000002",
+        "SMSLOG/00000003",
+        "SMSLOG/00000004",
+        "SMSLOG/00000005"
+      ],
+      "reason": "Communication log; excluded."
+    },
+    {
+      "name": "DocShare",
+      "old_count": 8810,
+      "v15_exists": true,
+      "v15_count": 75,
+      "status": "v15_has_records_unmapped",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "Sharing metadata; not reusable master data."
+    },
+    {
+      "name": "Patch Log",
+      "old_count": 378,
+      "v15_exists": true,
+      "v15_count": 718,
+      "status": "records_missing_by_name",
+      "missing_count": 378,
+      "sample_missing": [
+        "PATCHLOG00001",
+        "PATCHLOG00002",
+        "PATCHLOG00003",
+        "PATCHLOG00004",
+        "PATCHLOG00005"
+      ],
+      "reason": "System patch history; excluded."
+    },
+    {
+      "name": "Error Snapshot",
+      "old_count": 4,
+      "v15_exists": false,
+      "v15_count": null,
+      "status": "doctype_missing_in_v15",
+      "missing_count": 0,
+      "sample_missing": [],
+      "reason": "System error history; excluded."
+    },
+    {
+      "name": "Desktop Icon",
+      "old_count": 668,
+      "v15_exists": true,
+      "v15_count": 0,
+      "status": "records_missing_by_name",
+      "missing_count": 668,
+      "sample_missing": [
+        "00dcbce54e",
+        "0280b45589",
+        "0308de7583",
+        "033d788394",
+        "03766c35e4"
+      ],
+      "reason": "Legacy UI metadata; not used for v15 start."
+    },
+    {
+      "name": "Page",
+      "old_count": 24,
+      "v15_exists": true,
+      "v15_count": 18,
+      "status": "records_missing_by_name",
+      "missing_count": 19,
+      "sample_missing": [
+        "Accounts Browser",
+        "activity",
+        "applications",
+        "bom-browser",
+        "data-import-tool"
+      ],
+      "reason": "Framework pages differ by version; not imported as records."
+    }
+  ],
+  "custom_records_previously_imported_but_name_comparison_differs": [
+    {
+      "name": "Approved Discounts",
+      "old_count": 29,
+      "v15_exists": true,
+      "v15_count": 29,
+      "status": "records_missing_by_name",
+      "missing_count": 24,
+      "sample_missing": [
+        "DISC-00031",
+        "DISC-00032",
+        "DISC-00034",
+        "DISC-00035",
+        "DISC-00036"
+      ]
+    },
+    {
+      "name": "Area",
+      "old_count": 4,
+      "v15_exists": true,
+      "v15_count": 8,
+      "status": "records_missing_by_name",
+      "missing_count": 4,
+      "sample_missing": [
+        "42c552ed46",
+        "836591b281",
+        "95951f8ecf",
+        "9c33a7f28e"
+      ]
+    },
+    {
+      "name": "Computed Profit n Loss Report",
+      "old_count": 11,
+      "v15_exists": true,
+      "v15_count": 22,
+      "status": "records_missing_by_name",
+      "missing_count": 11,
+      "sample_missing": [
+        "0312f6120f",
+        "31-08-2017",
+        "36f32f8b70",
+        "468402f524",
+        "63dd5c1ade"
+      ]
+    },
+    {
+      "name": "Driver",
+      "old_count": 8,
+      "v15_exists": true,
+      "v15_count": 8,
+      "status": "records_missing_by_name",
+      "missing_count": 8,
+      "sample_missing": [
+        "2a0a4f6ee3",
+        "Akello Judith",
+        "Bagenda William",
+        "d087a2cc51",
+        "James Rwatoro"
+      ]
+    },
+    {
+      "name": "Ext Links",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 4,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "cf330dd1a6",
+        "Vmoennsply7"
+      ]
+    },
+    {
+      "name": "Goods Transporter",
+      "old_count": 251,
+      "v15_exists": true,
+      "v15_count": 251,
+      "status": "records_missing_by_name",
+      "missing_count": 251,
+      "sample_missing": [
+        "0701311708",
+        "07066810398",
+        "0706810398",
+        "0773740086",
+        "0782590761"
+      ]
+    },
+    {
+      "name": "Handler Worksheet",
+      "old_count": 25,
+      "v15_exists": true,
+      "v15_count": 25,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "HWS-00026",
+        "HWS-00027"
+      ]
+    },
+    {
+      "name": "Month",
+      "old_count": 12,
+      "v15_exists": true,
+      "v15_count": 24,
+      "status": "records_missing_by_name",
+      "missing_count": 12,
+      "sample_missing": [
+        "April",
+        "August",
+        "December",
+        "February",
+        "January"
+      ]
+    },
+    {
+      "name": "Motor Vehicle",
+      "old_count": 8,
+      "v15_exists": true,
+      "v15_count": 16,
+      "status": "records_missing_by_name",
+      "missing_count": 8,
+      "sample_missing": [
+        "034d4d3d02",
+        "12fb0d7ca6",
+        "25111afb87",
+        "288fcbf53a",
+        "90ea72d4a9"
+      ]
+    },
+    {
+      "name": "Part Name",
+      "old_count": 1094,
+      "v15_exists": true,
+      "v15_count": 1094,
+      "status": "records_missing_by_name",
+      "missing_count": 1094,
+      "sample_missing": [
+        "007618005e",
+        "00d2dceec0",
+        "00e4dc979e",
+        "00edaaf3b0",
+        "010f450ab6"
+      ]
+    },
+    {
+      "name": "Position",
+      "old_count": 9,
+      "v15_exists": true,
+      "v15_count": 18,
+      "status": "records_missing_by_name",
+      "missing_count": 9,
+      "sample_missing": [
+        "Administrator",
+        "Assesment Trainee",
+        "Handler",
+        "In-Charge CPU",
+        "Internal Auditor"
+      ]
+    },
+    {
+      "name": "Pricing Rule",
+      "old_count": 70,
+      "v15_exists": true,
+      "v15_count": 70,
+      "status": "records_missing_by_name",
+      "missing_count": 70,
+      "sample_missing": [
+        "5 or More Cartons Price - Total Quartz Mwesigwa Mbarara",
+        "Accel Oilibya",
+        "AFRO Carton Price - Mwesigwa Mbarara",
+        "AXCL GTX Discounted",
+        "Brake Pedal Carton Price"
+      ]
+    },
+    {
+      "name": "Price Master Login Audit",
+      "old_count": 203,
+      "v15_exists": true,
+      "v15_count": 213,
+      "status": "records_missing_by_name",
+      "missing_count": 203,
+      "sample_missing": [
+        "00e7729700",
+        "01a1d81bde",
+        "02831d42a4",
+        "0293212057",
+        "02c9597e92"
+      ]
+    },
+    {
+      "name": "Towns",
+      "old_count": 343,
+      "v15_exists": true,
+      "v15_count": 209,
+      "status": "records_missing_by_name",
+      "missing_count": 209,
+      "sample_missing": [
+        "Abuko",
+        "AGAGO",
+        "AGWOK",
+        "AKABA",
+        "AKWORO"
+      ]
+    },
+    {
+      "name": "Container",
+      "old_count": 29,
+      "v15_exists": true,
+      "v15_count": 29,
+      "status": "records_missing_by_name",
+      "missing_count": 19,
+      "sample_missing": [
+        "114b73d879",
+        "CTR-0019",
+        "CXDU2121091",
+        "DFSU6379847",
+        "e921918399"
+      ]
+    },
+    {
+      "name": "Items Cost",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 2,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "MAIN SHAFT - BXR"
+      ]
+    },
+    {
+      "name": "Payslip",
+      "old_count": 1,
+      "v15_exists": true,
+      "v15_count": 1,
+      "status": "records_missing_by_name",
+      "missing_count": 1,
+      "sample_missing": [
+        "039f9bb992"
+      ]
+    },
+    {
+      "name": "Penalty",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 4,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "2ac8a20c52",
+        "e494c097b9"
+      ]
+    },
+    {
+      "name": "receipt",
+      "old_count": 3,
+      "v15_exists": true,
+      "v15_count": 6,
+      "status": "records_missing_by_name",
+      "missing_count": 3,
+      "sample_missing": [
+        "1a688024bc",
+        "68cab85e4d",
+        "e266f8f353"
+      ]
+    },
+    {
+      "name": "Warehouse Stocking",
+      "old_count": 20,
+      "v15_exists": true,
+      "v15_count": 39,
+      "status": "records_missing_by_name",
+      "missing_count": 3,
+      "sample_missing": [
+        "WASTK-0000040",
+        "WASTK-0000041",
+        "WASTK-0000042"
+      ]
+    },
+    {
+      "name": "Year",
+      "old_count": 2,
+      "v15_exists": true,
+      "v15_count": 4,
+      "status": "records_missing_by_name",
+      "missing_count": 2,
+      "sample_missing": [
+        "2016",
+        "2017"
+      ]
+    }
+  ]
+}

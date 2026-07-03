@@ -1,0 +1,122 @@
+{
+  "generated_at": "2026-06-26T12:34:08.666Z",
+  "target": "https://new.zenjji.com",
+  "missing_before": [
+    "superbkasese@gmail.com",
+    "taffdrc02@gmail.com",
+    "taffdrc19@gmail.com",
+    "taffkampala@gmail.com",
+    "taffmbale@gmail.com",
+    "taffmobilefive@gmail.com",
+    "taffmobilefour@gmail.com",
+    "taffmobileone@gmail.com",
+    "taffmobiletwo@gmail.com",
+    "tambogeneraltraders@gmail.com",
+    "titanrubbertt@gmail.com",
+    "uwonge.mg16@gmail.com"
+  ],
+  "uploaded_file": "/private/files/v15-missing-users-data-import.csv",
+  "data_import": "User Import on 2026-06-26 15:34:08.746574",
+  "status": "Success",
+  "import_logs": [
+    {
+      "success": 1,
+      "docname": "superbkasese@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[2]"
+    },
+    {
+      "success": 1,
+      "docname": "taffdrc02@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[3]"
+    },
+    {
+      "success": 1,
+      "docname": "taffdrc19@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[4]"
+    },
+    {
+      "success": 1,
+      "docname": "taffkampala@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[5]"
+    },
+    {
+      "success": 1,
+      "docname": "taffmbale@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[6]"
+    },
+    {
+      "success": 1,
+      "docname": "taffmobilefive@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[7]"
+    },
+    {
+      "success": 1,
+      "docname": "taffmobilefour@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[8]"
+    },
+    {
+      "success": 1,
+      "docname": "taffmobileone@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[9]"
+    },
+    {
+      "success": 1,
+      "docname": "taffmobiletwo@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[10]"
+    },
+    {
+      "success": 1,
+      "docname": "tambogeneraltraders@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[11]"
+    },
+    {
+      "success": 1,
+      "docname": "titanrubbertt@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[12]"
+    },
+    {
+      "success": 1,
+      "docname": "uwonge.mg16@gmail.com",
+      "messages": "\"[]\"",
+      "exception": null,
+      "row_indexes": "[13]"
+    }
+  ],
+  "created_after": [
+    "superbkasese@gmail.com",
+    "taffdrc02@gmail.com",
+    "taffdrc19@gmail.com",
+    "taffkampala@gmail.com",
+    "taffmbale@gmail.com",
+    "taffmobilefive@gmail.com",
+    "taffmobilefour@gmail.com",
+    "taffmobileone@gmail.com",
+    "taffmobiletwo@gmail.com",
+    "tambogeneraltraders@gmail.com",
+    "titanrubbertt@gmail.com",
+    "uwonge.mg16@gmail.com"
+  ],
+  "missing_after": []
+}

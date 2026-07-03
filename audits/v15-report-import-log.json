@@ -1,0 +1,417 @@
+{
+  "generated_at": "2026-06-24T11:57:50.329Z",
+  "apply": false,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_non_standard_reports": 35,
+    "attempted_create": 0,
+    "attempted_update": 0,
+    "created": 0,
+    "updated": 0,
+    "skipped_same_name": 0,
+    "skipped_missing_doctype": 0,
+    "report_builder_field_warnings": 19,
+    "failed": 0
+  },
+  "adjustments": [
+    {
+      "report": "Daily Activity Report",
+      "adjustment": "Daily Activity Report.cost center->cost_center"
+    },
+    {
+      "report": "Daily Activity Report",
+      "adjustment": "Daily Activity Report.expense details->expense_details"
+    },
+    {
+      "report": "DAR-Daily Sales report",
+      "adjustment": "normalized_query_text"
+    },
+    {
+      "report": "SalesExpensesBankings",
+      "adjustment": "Daily Activity Report.cost center->cost_center"
+    },
+    {
+      "report": "Sales Reconciliation DAR Vs Sales Invoice",
+      "adjustment": "normalized_query_text"
+    },
+    {
+      "report": "STOCK DIFFERENCE REPORT SUMMARY",
+      "adjustment": "Delivery Difference Report.stock entry number->stock_entry_number"
+    },
+    {
+      "report": "STOCK DIFFERENCE REPORT SUMMARY",
+      "adjustment": "Delivery Difference Report.cost center->cost_center"
+    },
+    {
+      "report": "STOCK DIFFERENCE REPORT SUMMARY",
+      "adjustment": "Difference report Details.shortage qty->shortage_qty"
+    },
+    {
+      "report": "STOCK DIFFERENCE REPORT SUMMARY",
+      "adjustment": "Difference report Details.excess qty->excess_qty"
+    }
+  ],
+  "warnings": [
+    {
+      "report": "Pending Payments",
+      "type": "missing_field",
+      "doctype": "Pending Payments",
+      "field": "pending_amount"
+    },
+    {
+      "report": "Price-Rules",
+      "type": "missing_field",
+      "doctype": "Pricing Rule",
+      "field": "item_code"
+    },
+    {
+      "report": "Price-Rules",
+      "type": "missing_field",
+      "doctype": "Pricing Rule",
+      "field": "price"
+    },
+    {
+      "report": "Sales Invoice 29012020",
+      "type": "missing_field",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Sales Invoice Month range",
+      "type": "missing_field",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Sales invoice report",
+      "type": "missing_field",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Sales Invoice Summary 28-04-2023",
+      "type": "missing_field",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "SALES SUMMARY BY PERIOD AND SELLING UNIT",
+      "type": "missing_field",
+      "doctype": "Sales Invoice",
+      "field": "mode_of_payment"
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "type": "missing_field",
+      "doctype": "Salary Slip",
+      "field": "month"
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "type": "missing_field",
+      "doctype": "Salary Slip",
+      "field": "month"
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "type": "missing_field",
+      "doctype": "Salary Slip",
+      "field": "fiscal_year"
+    },
+    {
+      "report": "Group Item List",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "category"
+    },
+    {
+      "report": "Group Item List",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "is_service_item"
+    },
+    {
+      "report": "Group Item List",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "default_warehouse"
+    },
+    {
+      "report": "Itemlist Import",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "net_weight"
+    },
+    {
+      "report": "Itemlist Import",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "default_warehouse"
+    },
+    {
+      "report": "ItemList-Item Code",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "category"
+    },
+    {
+      "report": "ItemList-Item Code",
+      "type": "missing_field",
+      "doctype": "Item",
+      "field": "is_service_item"
+    },
+    {
+      "report": "Product-Line Report",
+      "type": "missing_field",
+      "doctype": "maximum stock",
+      "field": "remark"
+    }
+  ],
+  "results": [
+    {
+      "report": "Daily Activity Report",
+      "ref_doctype": "Daily Activity Report",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 2
+    },
+    {
+      "report": "DAR- Daily Sales Report Full",
+      "ref_doctype": "Daily Activity Report",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "DAR-Daily Sales report",
+      "ref_doctype": "Daily Activity Report",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 1
+    },
+    {
+      "report": "SalesExpensesBankings",
+      "ref_doctype": "Daily Activity Report",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 1
+    },
+    {
+      "report": "CPU Cost Center Expenses 18-06-2022",
+      "ref_doctype": "Journal Entry",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Journal Entries Report",
+      "ref_doctype": "Journal Entry",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Pending Payments",
+      "ref_doctype": "Pending Payments",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Price-Rules",
+      "ref_doctype": "Pricing Rule",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Daily Sales",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Price Review Report",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Sales Invoice 29012020",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Sales Invoice Month range",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Sales invoice report",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Sales Invoice Summary 28-04-2023",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "SALES SUMMARY BY PERIOD AND SELLING UNIT",
+      "ref_doctype": "Sales Invoice",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Shop visit",
+      "ref_doctype": "Shop visit",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "DocType - Admin - followup",
+      "ref_doctype": "DocType",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "SCANNED DOCUMETS",
+      "ref_doctype": "File",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "To do reports",
+      "ref_doctype": "ToDo",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Monthly payslip report(MPR)",
+      "ref_doctype": "Salary Slip",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Sales Reconciliation DAR Vs Sales Invoice",
+      "ref_doctype": "Daily Activity Report",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 1
+    },
+    {
+      "report": "STOCK DIFFERENCE REPORT SUMMARY",
+      "ref_doctype": "Delivery Difference Report",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 4
+    },
+    {
+      "report": "Group Item List",
+      "ref_doctype": "Item",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Itemlist Import",
+      "ref_doctype": "Item",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "ItemList-Item Code",
+      "ref_doctype": "Item",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Items",
+      "ref_doctype": "Item",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "ITEM LOOKUP 06-05-2021",
+      "ref_doctype": "Item Price",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Item Price Shops Dev 05-11-2025",
+      "ref_doctype": "Item Price",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Price List",
+      "ref_doctype": "Item Price",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Mix-Max Stock Balance Report",
+      "ref_doctype": "Stock Ledger Entry",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Ordering Kit",
+      "ref_doctype": "Top3AVGSales",
+      "report_type": "Query Report",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Supplementary Order",
+      "ref_doctype": "Top3AVGSales",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Max-Reorder Qty-APL",
+      "ref_doctype": "Warehouse Maximum Stock",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Product-Line Report",
+      "ref_doctype": "Warehouse Maximum Stock",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    },
+    {
+      "report": "Warehousing Stocking Report",
+      "ref_doctype": "Warehouse Stocking",
+      "report_type": "Report Builder",
+      "status": "dry_run_update",
+      "adjustments": 0
+    }
+  ]
+}

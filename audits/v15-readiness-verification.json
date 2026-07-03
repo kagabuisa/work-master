@@ -1,0 +1,288 @@
+{
+  "generated_at": "2026-06-25T19:07:15.066Z",
+  "target": "https://new.zenjji.com",
+  "counts": [
+    {
+      "label": "Company",
+      "old_doctype": "Company",
+      "old_raw": 1,
+      "old_expected": 1,
+      "v15": 1,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Fiscal Year",
+      "old_doctype": "Fiscal Year",
+      "old_raw": 15,
+      "old_expected": 15,
+      "v15": 15,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Currency",
+      "old_doctype": "Currency",
+      "old_raw": 139,
+      "old_expected": 139,
+      "v15": 155,
+      "delta": 16,
+      "status": "ok"
+    },
+    {
+      "label": "Account",
+      "old_doctype": "Account",
+      "old_raw": 261,
+      "old_expected": 261,
+      "v15": 297,
+      "delta": 36,
+      "status": "ok"
+    },
+    {
+      "label": "Cost Center",
+      "old_doctype": "Cost Center",
+      "old_raw": 38,
+      "old_expected": 38,
+      "v15": 39,
+      "delta": 1,
+      "status": "ok"
+    },
+    {
+      "label": "Warehouse Type",
+      "old_doctype": "Warehouse Type",
+      "old_raw": 6,
+      "old_expected": 6,
+      "v15": 6,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Warehouse",
+      "old_doctype": "Warehouse",
+      "old_raw": 51,
+      "old_expected": 51,
+      "v15": 63,
+      "delta": 12,
+      "status": "ok"
+    },
+    {
+      "label": "UOM",
+      "old_doctype": "UOM",
+      "old_raw": 13,
+      "old_expected": 13,
+      "v15": 244,
+      "delta": 231,
+      "status": "ok"
+    },
+    {
+      "label": "Brand",
+      "old_doctype": "Brand",
+      "old_raw": 28,
+      "old_expected": 28,
+      "v15": 28,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Item Group",
+      "old_doctype": "Item Group",
+      "old_raw": 15,
+      "old_expected": 15,
+      "v15": 15,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Price List",
+      "old_doctype": "Price List",
+      "old_raw": 59,
+      "old_expected": 59,
+      "v15": 69,
+      "delta": 10,
+      "status": "ok"
+    },
+    {
+      "label": "Branch",
+      "old_doctype": "Branch",
+      "old_raw": 28,
+      "old_expected": 28,
+      "v15": 28,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Mode of Payment",
+      "old_doctype": "Mode of Payment",
+      "old_raw": 39,
+      "old_expected": 39,
+      "v15": 39,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Supplier",
+      "old_doctype": "Supplier",
+      "old_raw": 534,
+      "old_expected": 534,
+      "v15": 534,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Customer",
+      "old_doctype": "Customer",
+      "old_raw": 2809,
+      "old_expected": 2808,
+      "v15": 2796,
+      "delta": -12,
+      "status": "ok"
+    },
+    {
+      "label": "Employee",
+      "old_doctype": "Employee",
+      "old_raw": 178,
+      "old_expected": 178,
+      "v15": 181,
+      "delta": 3,
+      "status": "ok"
+    },
+    {
+      "label": "Item Category",
+      "old_doctype": "Item Category",
+      "old_raw": 27,
+      "old_expected": 27,
+      "v15": 28,
+      "delta": 1,
+      "status": "ok"
+    },
+    {
+      "label": "Item",
+      "old_doctype": "Item",
+      "old_raw": 2152,
+      "old_expected": 2152,
+      "v15": 2152,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Item Price",
+      "old_doctype": "Item Price",
+      "old_raw": 70287,
+      "old_expected": 69541,
+      "v15": 69541,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Department",
+      "old_doctype": "Department",
+      "old_raw": 14,
+      "old_expected": 14,
+      "v15": 15,
+      "delta": 1,
+      "status": "ok"
+    },
+    {
+      "label": "Designation",
+      "old_doctype": "Designation",
+      "old_raw": 30,
+      "old_expected": 30,
+      "v15": 47,
+      "delta": 17,
+      "status": "ok"
+    },
+    {
+      "label": "Employment Type",
+      "old_doctype": "Employment Type",
+      "old_raw": 9,
+      "old_expected": 9,
+      "v15": 9,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Holiday List",
+      "old_doctype": "Holiday List",
+      "old_raw": 1,
+      "old_expected": 1,
+      "v15": 1,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Territory",
+      "old_doctype": "Territory",
+      "old_raw": 17,
+      "old_expected": 17,
+      "v15": 19,
+      "delta": 2,
+      "status": "ok"
+    },
+    {
+      "label": "Customer Group",
+      "old_doctype": "Customer Group",
+      "old_raw": 40,
+      "old_expected": 40,
+      "v15": 45,
+      "delta": 5,
+      "status": "ok"
+    },
+    {
+      "label": "Supplier Group",
+      "old_doctype": "Supplier Type",
+      "old_raw": 15,
+      "old_expected": 15,
+      "v15": 16,
+      "delta": 1,
+      "status": "ok"
+    },
+    {
+      "label": "Terms and Conditions",
+      "old_doctype": "Terms and Conditions",
+      "old_raw": 1,
+      "old_expected": 1,
+      "v15": 1,
+      "delta": 0,
+      "status": "ok"
+    },
+    {
+      "label": "Purchase Taxes and Charges Template",
+      "old_doctype": "Purchase Taxes and Charges Template",
+      "old_raw": 3,
+      "old_expected": 3,
+      "v15": 4,
+      "delta": 1,
+      "status": "ok"
+    },
+    {
+      "label": "Contact",
+      "old_doctype": "Contact",
+      "old_raw": 2003,
+      "old_expected": 2002,
+      "v15": 2358,
+      "delta": 356,
+      "status": "ok"
+    },
+    {
+      "label": "Address",
+      "old_doctype": "Address",
+      "old_raw": 60,
+      "old_expected": 60,
+      "v15": 38,
+      "delta": -22,
+      "status": "review"
+    }
+  ],
+  "blockers": [],
+  "warnings": [
+    "Address: v15 has 38, expected 60; review note applies.",
+    "Address: 22 old address row(s) were skipped because no valid target link could be mapped.",
+    "Features Setup: GET /api/resource/Features%20Setup/Features%20Setup failed 500 (500)"
+  ],
+  "specific_checks": {
+    "blank_item_category_count": 0,
+    "latest_unique_item_prices": 69541,
+    "duplicate_old_item_prices_skipped": 746,
+    "addresses_skipped_no_link": 22
+  }
+}

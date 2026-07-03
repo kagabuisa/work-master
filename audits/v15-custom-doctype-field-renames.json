@@ -1,0 +1,80 @@
+[
+  {
+    "parent": "Container",
+    "old_fieldname": "1st_truck_reg_no_driver_name_and_contact",
+    "new_fieldname": "field_1st_truck_reg_no_driver_name_and_contact",
+    "fieldtype": "Data"
+  },
+  {
+    "parent": "Container",
+    "old_fieldname": "2nd_truck_reg_no_driver_name_and_contact",
+    "new_fieldname": "field_2nd_truck_reg_no_driver_name_and_contact",
+    "fieldtype": "Data"
+  },
+  {
+    "parent": "Daily Activity Report",
+    "old_fieldname": "cost center",
+    "new_fieldname": "cost_center",
+    "fieldtype": "Link"
+  },
+  {
+    "parent": "Daily Activity Report",
+    "old_fieldname": "expense details",
+    "new_fieldname": "expense_details",
+    "fieldtype": "Long Text"
+  },
+  {
+    "parent": "Deli Details",
+    "old_fieldname": "amended_from",
+    "new_fieldname": "amended_from_2",
+    "fieldtype": "Link"
+  },
+  {
+    "parent": "Delivery Difference Report",
+    "old_fieldname": "stock entry number",
+    "new_fieldname": "stock_entry_number",
+    "fieldtype": "Data"
+  },
+  {
+    "parent": "Delivery Difference Report",
+    "old_fieldname": "cost center",
+    "new_fieldname": "cost_center",
+    "fieldtype": "Link"
+  },
+  {
+    "parent": "Delivery Difference Report",
+    "old_fieldname": "difference details",
+    "new_fieldname": "difference_details",
+    "fieldtype": "Table"
+  },
+  {
+    "parent": "Difference report Details",
+    "old_fieldname": "shortage qty",
+    "new_fieldname": "shortage_qty",
+    "fieldtype": "Float"
+  },
+  {
+    "parent": "Difference report Details",
+    "old_fieldname": "excess qty",
+    "new_fieldname": "excess_qty",
+    "fieldtype": "Float"
+  },
+  {
+    "parent": "Test Gate Pass",
+    "old_fieldname": "team leader",
+    "new_fieldname": "team_leader",
+    "fieldtype": "Link"
+  },
+  {
+    "parent": "Test Gate Pass",
+    "old_fieldname": "team member 2",
+    "new_fieldname": "team_member_2",
+    "fieldtype": "Link"
+  },
+  {
+    "parent": "Test Gate Pass",
+    "old_fieldname": "team member 3",
+    "new_fieldname": "team_member_3",
+    "fieldtype": "Link"
+  }
+]

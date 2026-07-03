@@ -1,0 +1,253 @@
+{
+  "generated_at": "2026-06-25T19:12:17.274Z",
+  "old_source": {
+    "database": "1bd3e0294d",
+    "database_version": "10.0.25-MariaDB-1~trusty"
+  },
+  "v15_target": "https://new.zenjji.com",
+  "cutoff": {
+    "gl_entries": 1892987,
+    "gl_min_date": "2016-05-31T21:00:00.000Z",
+    "gl_max_date": "2026-12-29T21:00:00.000Z",
+    "stock_ledger_entries": 2814236,
+    "sle_min_date": "2016-05-31T21:00:00.000Z",
+    "sle_max_date": "2026-12-29T21:00:00.000Z"
+  },
+  "v15_transaction_counts": {
+    "GL Entry": 6,
+    "Stock Ledger Entry": 5,
+    "Sales Invoice": 4,
+    "Purchase Invoice": 2,
+    "Journal Entry": 1,
+    "Stock Entry": 0,
+    "Stock Reconciliation": 0,
+    "Payment Entry": 0
+  },
+  "accounting": {
+    "nonzero_account_balances": 183,
+    "total_debit_balance": 92683389948.11,
+    "total_credit_balance": 92752330948.11,
+    "net_balance": -68941000,
+    "nonzero_party_balances": 103,
+    "top_accounts": [
+      {
+        "account": "Sales - SACL",
+        "balance": -69882945389.19
+      },
+      {
+        "account": "Cost of Goods Sold - SACL",
+        "balance": 65176566226.99
+      },
+      {
+        "account": "Creditors - SACL",
+        "balance": -13686074077
+      },
+      {
+        "account": "Stanbic Bank(KAGABU ISA) USD 930014867111 - SACL",
+        "balance": 12607895357
+      },
+      {
+        "account": "Stock Received But Not Billed - SACL",
+        "balance": -7228539247.3
+      },
+      {
+        "account": "Clearing and Forwarding MBSA/KLA - SACL",
+        "balance": 4445456050
+      },
+      {
+        "account": "Opening Balance Equity - SACL",
+        "balance": -1749552112.62
+      },
+      {
+        "account": "CPU Stores WHse - SACL",
+        "balance": 1564738535.35
+      },
+      {
+        "account": "Rent - SACL",
+        "balance": 1175926325
+      },
+      {
+        "account": "Salary - SACL",
+        "balance": 1158842764
+      },
+      {
+        "account": "Kagabu Isa - SACL",
+        "balance": 577388481
+      },
+      {
+        "account": "Freight Expenses - SACL",
+        "balance": 525564831
+      },
+      {
+        "account": "Imports Handling Expenses - SACL",
+        "balance": 414231852
+      },
+      {
+        "account": "Motor Vehicle Fuel - SACL",
+        "balance": 336400092
+      },
+      {
+        "account": "Staff Meals and Refreshments - SACL",
+        "balance": 271454500
+      },
+      {
+        "account": "Travel Expenses - SACL",
+        "balance": 271168003
+      },
+      {
+        "account": "Stock Adjustment - SACL",
+        "balance": 228121039.26
+      },
+      {
+        "account": "VAT Payments - SACL",
+        "balance": 219611454
+      },
+      {
+        "account": "Other Income - SACL",
+        "balance": -189030734
+      },
+      {
+        "account": "Vehicles - SACL",
+        "balance": 164370630
+      }
+    ]
+  },
+  "stock": {
+    "nonzero_bins": 4945,
+    "total_stock_value": 2371158062,
+    "negative_qty_bins": 5,
+    "negative_value_bins": 2,
+    "top_bins": [
+      {
+        "item_code": "TAFF BUTYL 3.00-17-TUBES",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 10251,
+        "stock_value": 75176593
+      },
+      {
+        "item_code": "BULB HEADLAMP S25 12V35/35W",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 106419,
+        "stock_value": 71504820
+      },
+      {
+        "item_code": "SPARK PLUG D8TC(RED) TAFF",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 64440,
+        "stock_value": 68662000
+      },
+      {
+        "item_code": "CABLE ACCELERATOR TAFF-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 25440,
+        "stock_value": 58512000
+      },
+      {
+        "item_code": "BATTERY TAFF YB6.5 12V6.5AH WET CG125",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 1671,
+        "stock_value": 55782326
+      },
+      {
+        "item_code": "SHOCK ABSORBER RR TAFF-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 2262,
+        "stock_value": 50885587
+      },
+      {
+        "item_code": "FRONT FENDER N/M-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 1655,
+        "stock_value": 32830000
+      },
+      {
+        "item_code": "MOTORCYCLE UMBRELLA",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 773,
+        "stock_value": 30920000
+      },
+      {
+        "item_code": "BEARING 6004",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 22250,
+        "stock_value": 29405033
+      },
+      {
+        "item_code": "TITAN FORTRESS 3.00-17 GJIE-TYRE",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 445,
+        "stock_value": 28925000
+      },
+      {
+        "item_code": "BEARING 6300",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 19420,
+        "stock_value": 26290688
+      },
+      {
+        "item_code": "BEARING 628",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 29870,
+        "stock_value": 25389500
+      },
+      {
+        "item_code": "BULB HEADLAMP SPORT XENON-HID",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 21000,
+        "stock_value": 25200000
+      },
+      {
+        "item_code": "BEARING 6301",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 19420,
+        "stock_value": 24440000
+      },
+      {
+        "item_code": "FUEL TANK COVER-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 5050,
+        "stock_value": 22725000
+      },
+      {
+        "item_code": "HUB FR-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 988,
+        "stock_value": 22724000
+      },
+      {
+        "item_code": "RADIO & MP3 PLAYER BIG",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 740,
+        "stock_value": 22200000
+      },
+      {
+        "item_code": "PISTON KIT STD++ TAFF-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 2610,
+        "stock_value": 22161257
+      },
+      {
+        "item_code": "SPARK PLUG A7TC(WHITE) TAFF",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 21090,
+        "stock_value": 20035500
+      },
+      {
+        "item_code": "CARBURETOR ASSY-BM100",
+        "warehouse": "CPU Stores WHse - SACL",
+        "actual_qty": 995,
+        "stock_value": 19900000
+      }
+    ]
+  },
+  "outstanding": {
+    "sales_invoice": {
+      "count": 64,
+      "total_outstanding": 41670881
+    },
+    "purchase_invoice": {
+      "count": 54,
+      "total_outstanding": 15482909152
+    }
+  }
+}

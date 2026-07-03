@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Invoice App</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Sales</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'sales' }) %>
+      </nav>
+    </header>
+    <section class="metrics">
+      <article>
+        <span>Invoices</span>
+        <strong><%= summary.invoice_count %></strong>
+      </article>
+      <article>
+        <span>Total Sales</span>
+        <strong><%= money(summary.invoice_total) %></strong>
+      </article>
+      <article>
+        <span>Paid</span>
+        <strong><%= money(summary.paid_total) %></strong>
+      </article>
+      <article>
+        <span>Debtors</span>
+        <strong><%= money(summary.balance_due) %></strong>
+      </article>
+    </section>
+
+    <section class="grid">
+      <div>
+        <div class="section-title">
+          <h2>Recent Invoices</h2>
+          <a href="/invoices">View all</a>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Customer</th>
+              <th>Total</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!recent.length) { %>
+              <tr><td colspan="4" class="empty">No invoices yet.</td></tr>
+            <% } %>
+            <% recent.forEach((invoice) => { %>
+              <tr>
+                <td><a href="/invoices/<%= invoice.id %>"><%= invoice.invoice_no %></a></td>
+                <td><%= invoice.customer_name %></td>
+                <td><%= money(invoice.total) %></td>
+                <td><span class="badge <%= invoice.status %>"><%= invoice.status %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <div class="section-title">
+          <h2>Top Debtors</h2>
+          <a href="/reports/debtors">Statement report</a>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!debtors.length) { %>
+              <tr><td colspan="2" class="empty">No debtor balances.</td></tr>
+            <% } %>
+            <% debtors.forEach((debtor) => { %>
+              <tr>
+                <td><%= debtor.customer_name %></td>
+                <td><%= money(debtor.balance_due) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

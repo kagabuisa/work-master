@@ -1,0 +1,1214 @@
+{
+  "generated_at": "2026-06-25T07:32:31.821Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "source_with_category": 2152,
+  "v15_blank_items": 2151,
+  "updated": 2151,
+  "dry_run_update": 0,
+  "skipped_no_old_category": 0,
+  "skipped_missing_category_record": 0,
+  "failed": 0,
+  "results": [
+    {
+      "item": "12N 6.5L ACID YAYE",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N 6.5L DRY YAYE",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N 6.5L DRY YOG",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N 6.5L HYBRID YAYE",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6 ACID JINLI",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6 DRY JINLI",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6 DRY OSCALLY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6 DRY START",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6 ORIGINAL MS",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6 WITH ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6.5 ACID EAGLE",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6.5 ACID OSCALLY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6.5 KAGE ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6.5B DRY J&L",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12N6.5B DRY SKYD",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "12NL YUASA",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "2T SHELL ADVANCE",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "6N4.BS DRY YAYE",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 ACID GoldPower",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 ACID J&L -BATTERY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 ACID JINLI",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 DRY J&L",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 DRY JINLI",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 DRY ROYAL",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6 DRY YAYE",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "6N6.5 DRY OSCALLY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "ACCEL PLUS SAE40 1X12",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "ACID FIRST FILL",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "AFRO OIL SAE30 5X6 2T",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "AFRO OIL SAE50 5X6 PETROL",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "AFRO-OIL DIESEL 5X6.",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "AIR CLEANER ASSY-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "AIR CLEANER SPONGE-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "ALARM SYSTEM",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "ALDITE",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "ALDITE BOSSIL",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "ALDITE SMALL",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "ALDITE V-TECH",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "AM INTERNATIONAL SAE450 1x24",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "AM INTERNATIONAL SAE50 5x6",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "ANTENNA FLYING EAGLE",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "ARRIEL",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "AXCL GTi 20W-50 1X12",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "AXCL GTX-SUPER 4T OIL",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "BATTERY -12N2.5 DRY- (TAFF)",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N2.5 DRY RZ",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N2.5 JINLI DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N2.5 OSCALLY DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N2.5 VINSLON DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 ACID GP",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 ACID MEGAJIN",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 ACID NYC",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 ACID ROYAL",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 DRY MEGAJIN",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 DRY NYC",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5 KAGE DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5-3B ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5B ACID KINBOSS",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N6.5BS KING BOS",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N9 J&L DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N9 JINLI DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 12N9 OSCALLY DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY 6N6 DT/XL",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BATTERY 6N6 J&L DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY BREATHER",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY DRY 12N6.5 -RZ",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY HOLDER",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY TAFF 12N2.5 12V2.5AH DRY BM100",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY TAFF 12N2.5-BS 12V2.5AH/10HR ACID BM100",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY TAFF 12N9 DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY TAFF 12N9AH DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY TAFF YB6.5 12V6.5AH WET CG125",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY TOSKY YB2.5 ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT 12N2.5 DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT 12N6.5 DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT 12N6.5-BS 12V, 6.5AH/10HR(GEL)",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT 12N7-4BS 12V 7Ah @20Hr DRY APP:UPS/SOLAR",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT 12N7-4BS 12V 7AH DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT 12N9 DRY",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT YB2.5 ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY VBT YB6.5 ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY YB2.5L-B ACID",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY-12N6.5ACID START",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY, TAFF, 12N6.5 12V/6.5AH ACID/WET, CG125",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BATTERY, TAFF, 12N6.5 12V/6.5AH DRY, CG125",
+      "status": "updated",
+      "old_category": "BATTERIES",
+      "item_category": "tqqkebuh7p"
+    },
+    {
+      "item": "BEARING 1312",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 30205",
+      "status": "updated",
+      "old_category": "CG200",
+      "item_category": "tqrj8fjmsv"
+    },
+    {
+      "item": "BEARING 6000",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6001",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6002",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6003",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6004",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6006",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6200",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6201",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6201 KEVLAR",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6202",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6203",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6204",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6205",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 628",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 628 J&L -BM100",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 628 KEVLAR",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 628 OPEN",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 628 YOG",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6300",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6301",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6302",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6303",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6304",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6304 (KEVLA)-BM100",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6305",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING 6328",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BEARING CRANK 6304(BAJAJ)-39186420-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BEYOND 3/17-TUBES",
+      "status": "updated",
+      "old_category": "TUBES",
+      "item_category": "tquhoab973"
+    },
+    {
+      "item": "BEYOND 3/18-TUBES",
+      "status": "updated",
+      "old_category": "TUBES",
+      "item_category": "tquhoab973"
+    },
+    {
+      "item": "BIIMA U LOCK",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BIKE LOCK",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BIKE LOCK SMALL",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BLOCK GASKET METALIC TAFF-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BLOCK GASKET METALIC-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BLOCK GASKET PAPER-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BLOCK GASKET-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BLOCK GASKET(METALIC)-CG150",
+      "status": "updated",
+      "old_category": "CG150",
+      "item_category": "tqr6t3qkp3"
+    },
+    {
+      "item": "BLOCK GASKET(PAPER)-CG150",
+      "status": "updated",
+      "old_category": "CG150",
+      "item_category": "tqr6t3qkp3"
+    },
+    {
+      "item": "BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BOLT & NUT",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOLT 10",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOLT 12\"(CENTER BOLT)",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOLT 13",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOLT 14\"(CENTER BOLT)",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOLT 17",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOLT 19",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BONUS STAR SAE50 PETROL 5X6",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "BOSEN 2.50/18 BL FR-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 2.50/18 FR-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 2.75/17 BL-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 2.75/18 FR-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 2.75/18 SQ-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 250/17-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/17 ARW-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/17 FLAT-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/17 SQ-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/17 STONE BREAKER-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/18 ARW-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/18 FLAT-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/18 MD-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/18 SQ-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 3/18 STONE BREAKER-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN 410/18-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOSEN CORDIA L 3/17-TYRE",
+      "status": "updated",
+      "old_category": "TYRES",
+      "item_category": "tqv9n9j8k9"
+    },
+    {
+      "item": "BOX BIG",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOX MEDIUM SIZE",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BOX OIL",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BRAKE ARM J&L-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE ARM KEVLAR-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE ARM ROD-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "Brake Arm Rod-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE ARM-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE ARM-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE FLUID",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "BRAKE FLUID TOTAL",
+      "status": "updated",
+      "old_category": "LUBRICANTS",
+      "item_category": "tqtcrml39g"
+    },
+    {
+      "item": "BRAKE HOOK/CORNER STAND-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE LEVER -HJ125",
+      "status": "updated",
+      "old_category": "HJ125",
+      "item_category": "tqthph780b"
+    },
+    {
+      "item": "BRAKE LEVER-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE LEVER-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE LIGHT SWITCH-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE LIGHT SWITCH-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE PEDAL - TVS STAR",
+      "status": "updated",
+      "old_category": "TVS STAR",
+      "item_category": "tqv7ukm0mu"
+    },
+    {
+      "item": "BRAKE PEDAL J&L-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE PEDAL YOG-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE PEDAL-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE PEDAL-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE PEDAL-CG200",
+      "status": "updated",
+      "old_category": "CG200",
+      "item_category": "tqrj8fjmsv"
+    },
+    {
+      "item": "BRAKE PEDAL-DH125",
+      "status": "updated",
+      "old_category": "HAOJUE DH125",
+      "item_category": "tqseb1ac9l"
+    },
+    {
+      "item": "BRAKE PEDAL-GN125",
+      "status": "updated",
+      "old_category": "GN125",
+      "item_category": "tqses3k1ks"
+    },
+    {
+      "item": "BRAKE PEDAL-HJ125",
+      "status": "updated",
+      "old_category": "HJ125",
+      "item_category": "tqthph780b"
+    },
+    {
+      "item": "BRAKE PEDAL-HJU125",
+      "status": "updated",
+      "old_category": "HAOJUE ELEGANT",
+      "item_category": "tqtpa13itd"
+    },
+    {
+      "item": "BRAKE PEDAL-MAX",
+      "status": "updated",
+      "old_category": "TVS MAX",
+      "item_category": "tque62lf10"
+    },
+    {
+      "item": "BRAKE ROD-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE ROD-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE SHOE -BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE BEYOND -CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE SHOE BEYOND-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE FD-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE FKW TAFF-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE FR NATS-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE FR NYC - BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE FR ROYAL-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE FR(Works TVS Star)-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE GERATE-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE GERATE-WY125",
+      "status": "updated",
+      "old_category": "OTHER PARTS",
+      "item_category": "tqtt2eop0s"
+    },
+    {
+      "item": "BRAKE SHOE GOLDEN CHOICE-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE GOLDEN CHOICE-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE SHOE GOLDPOWER-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE GOLDPOWER-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE SHOE HDL-BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    },
+    {
+      "item": "BRAKE SHOE HDL-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE SHOE J&G-CG125",
+      "status": "updated",
+      "old_category": "CG125",
+      "item_category": "tqr8btjbvg"
+    },
+    {
+      "item": "BRAKE SHOE J&L -BM100",
+      "status": "updated",
+      "old_category": "BM100",
+      "item_category": "tqqqa1kgh2"
+    }
+  ]
+}

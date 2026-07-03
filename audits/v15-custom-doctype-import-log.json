@@ -1,0 +1,278 @@
+{
+  "generated_at": "2026-06-24T11:30:44.601Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_custom_doctypes": 65,
+    "target_existing_doctypes": 980,
+    "attempted": 0,
+    "created": 0,
+    "skipped_existing": 65,
+    "failed": 0,
+    "renamed_fields": 0,
+    "fixed_child_tables": 0
+  },
+  "field_renames": [],
+  "results": [
+    {
+      "doctype": "Handler Worksheet Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Sales invoiced",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Salesrptdetails",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Warehouse Type",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Approved Discounts",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Area",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Asset Register",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Audit Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Budget details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Budget Entry",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Budget Set",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Computed Profit n Loss Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Goods Transporter",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Delivery Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "CPU Daily Delivery Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Daily Activity Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Deli Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Difference report Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Delivery Difference Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Driver",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Ext Links",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Gate  Pass",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Handler Worksheet",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Motor Vehicle",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Net Asset Value - Balance Sheet",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Order Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Payment Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Payment Voucher",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Pending Payments",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Performance charges",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "receipt",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Sales report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "PoorQuality",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Shop visit",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Shop Visit Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Test Gate Pass",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Trip Plan-Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle Log Details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Tricycle trip details",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle Log",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Towns",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Vehicle Log Book",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Lead Followup",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Price Master Login Audit",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Year",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Position",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Payslip",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Penalty",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Charges on Salary",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Month",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Shop Management",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Container",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Item Category",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Items Cost",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "maximum stock",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Part Name",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "PoorlyPricedItems",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Price Change Request",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "SHOP ORDERS",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Supply Report",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Top3AVGSales",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "TopTaffItems",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Warehouse Maximum Stock",
+      "status": "skipped_existing"
+    },
+    {
+      "doctype": "Warehouse Stocking",
+      "status": "skipped_existing"
+    }
+  ]
+}

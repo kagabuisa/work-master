@@ -1,0 +1,566 @@
+{
+  "generated_at": "2026-06-24T11:41:13.671Z",
+  "target": "https://new.zenjji.com",
+  "checked_count": 95,
+  "verified_count": 95,
+  "missing_count": 0,
+  "missing": [],
+  "verified": [
+    {
+      "doc_type": "Account",
+      "property": "sort_order",
+      "count": 1
+    },
+    {
+      "doc_type": "Audit Report",
+      "field_name": "label",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Charges on Salary",
+      "field_name": "charge_name",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Cost Center",
+      "property": "sort_order",
+      "count": 1
+    },
+    {
+      "doc_type": "Customer",
+      "property": "sort_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Customer",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "naming_series",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Daily Activity Report",
+      "field_name": "unit_type",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Delivery Note",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "employee_number",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "employee_number",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Employee",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "accountant",
+      "property": "permlevel",
+      "count": 1
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "links_cpu",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Ext Links",
+      "field_name": "user",
+      "property": "permlevel",
+      "count": 1
+    },
+    {
+      "doc_type": "Gate  Pass",
+      "field_name": "activity",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Gate  Pass",
+      "field_name": "vehicle",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "attributes",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "label",
+      "count": 1
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "item_code",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Item",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Item Price",
+      "property": "sort_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Item Price",
+      "property": "sort_order",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry",
+      "property": "title_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "cheque_no",
+      "property": "in_list_view",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "total_credit",
+      "property": "precision",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "total_debit",
+      "property": "precision",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry",
+      "field_name": "voucher_type",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "property": "sort_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "property": "sort_order",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "credit_in_account_currency",
+      "property": "precision",
+      "count": 1
+    },
+    {
+      "doc_type": "Journal Entry Account",
+      "field_name": "debit_in_account_currency",
+      "property": "precision",
+      "count": 1
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "company_name",
+      "property": "label",
+      "count": 1
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "lead_name",
+      "property": "label",
+      "count": 1
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "source",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Lead",
+      "field_name": "source",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Leave Application",
+      "field_name": "status",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Price List",
+      "property": "sort_order",
+      "count": 1
+    },
+    {
+      "doc_type": "Pricing Rule",
+      "field_name": "apply_on",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Purchase Invoice",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Purchase Invoice",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Purchase Order",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Purchase Receipt",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Quotation",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Salary Slip",
+      "field_name": "column_break_25",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "is_pos",
+      "property": "default",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "naming_series",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "update_stock",
+      "property": "default",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice",
+      "field_name": "update_stock",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Invoice Item",
+      "field_name": "rate",
+      "property": "precision",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "base_rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "base_rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "rounded_total",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales Order",
+      "field_name": "rounded_total",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Sales report",
+      "field_name": "table_3",
+      "property": "label",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Entry",
+      "property": "title_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "default",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "in_list_view",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "options",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Entry",
+      "field_name": "purpose",
+      "property": "read_only",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Entry Detail",
+      "property": "sort_order",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "property": "title_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "difference_amount",
+      "property": "in_list_view",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "posting_date",
+      "property": "in_list_view",
+      "count": 1
+    },
+    {
+      "doc_type": "Stock Reconciliation",
+      "field_name": "posting_time",
+      "property": "in_list_view",
+      "count": 1
+    },
+    {
+      "doc_type": "Supplier",
+      "field_name": "naming_series",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Supplier",
+      "field_name": "naming_series",
+      "property": "reqd",
+      "count": 1
+    },
+    {
+      "doc_type": "Supplier Quotation",
+      "field_name": "in_words",
+      "property": "hidden",
+      "count": 1
+    },
+    {
+      "doc_type": "Supplier Quotation",
+      "field_name": "in_words",
+      "property": "print_hide",
+      "count": 1
+    },
+    {
+      "doc_type": "Warehouse",
+      "property": "sort_field",
+      "count": 1
+    },
+    {
+      "doc_type": "Warehouse",
+      "property": "sort_order",
+      "count": 1
+    }
+  ]
+}

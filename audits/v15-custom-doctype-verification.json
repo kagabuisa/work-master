@@ -1,0 +1,465 @@
+{
+  "generated_at": "2026-06-24T11:31:01.804Z",
+  "target": "https://new.zenjji.com",
+  "source_count": 65,
+  "found_count": 65,
+  "missing_count": 0,
+  "missing": [],
+  "details": [
+    {
+      "name": "Approved Discounts",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Area",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Asset Register",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Audit Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Budget details",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Budget Entry",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Budget Set",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Computed Profit n Loss Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "CPU Daily Delivery Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Daily Activity Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Deli Details",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Delivery Details",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Delivery Difference Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Driver",
+      "module": "Setup",
+      "custom": 0,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Ext Links",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Gate  Pass",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Handler Worksheet",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Handler Worksheet Details",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Motor Vehicle",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Net Asset Value - Balance Sheet",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Order Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Payment Details",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Payment Voucher",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Pending Payments",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Performance charges",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "receipt",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Sales invoiced",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Sales report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Salesrptdetails",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Shop visit",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Shop Visit Details",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Test Gate Pass",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 1
+    },
+    {
+      "name": "Trip Plan-Report",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Vehicle",
+      "module": "Setup",
+      "custom": 0,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Vehicle Log",
+      "module": "HR",
+      "custom": 0,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Vehicle Log Book",
+      "module": "Accounts",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Lead Followup",
+      "module": "CRM",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Price Master Login Audit",
+      "module": "Custom",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Payslip",
+      "module": "HR",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Penalty",
+      "module": "HR",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Goods Transporter",
+      "module": "Selling",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Charges on Salary",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Month",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Position",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Shop Management",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Towns",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Tricycle trip details",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Vehicle Log Details",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Year",
+      "module": "Setup",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Container",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Difference report Details",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Item Category",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Items Cost",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "maximum stock",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Part Name",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "PoorlyPricedItems",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "PoorQuality",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "Price Change Request",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "SHOP ORDERS",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Supply Report",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Top3AVGSales",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 1,
+      "issingle": 0
+    },
+    {
+      "name": "TopTaffItems",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Warehouse Maximum Stock",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Warehouse Stocking",
+      "module": "Stock",
+      "custom": 1,
+      "istable": 0,
+      "issingle": 0
+    },
+    {
+      "name": "Warehouse Type",
+      "module": "Stock",
+      "custom": 0,
+      "istable": 0,
+      "issingle": 0
+    }
+  ]
+}

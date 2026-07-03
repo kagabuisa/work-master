@@ -1,0 +1,382 @@
+{
+  "generated_at": "2026-06-24T11:48:17.529Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_custom_roles": 14,
+    "roles_created": 14,
+    "roles_skipped_existing": 0,
+    "source_custom_doctype_permissions": 131,
+    "doctypes_attempted": 58,
+    "doctypes_updated": 58,
+    "doctypes_skipped_standard_existing": 4,
+    "doctypes_skipped_missing": 0,
+    "doctypes_skipped_no_change": 0,
+    "submittable_updated": 14,
+    "failed": 0
+  },
+  "results": [
+    {
+      "role": "Accountant",
+      "status": "role_created"
+    },
+    {
+      "role": "Accounts User-Mobile",
+      "status": "role_created"
+    },
+    {
+      "role": "Business Development Manager",
+      "status": "role_created"
+    },
+    {
+      "role": "CPU Managers",
+      "status": "role_created"
+    },
+    {
+      "role": "DC Manager",
+      "status": "role_created"
+    },
+    {
+      "role": "Director",
+      "status": "role_created"
+    },
+    {
+      "role": "Driver",
+      "status": "role_created"
+    },
+    {
+      "role": "Emergency",
+      "status": "role_created"
+    },
+    {
+      "role": "Fields Sales",
+      "status": "role_created"
+    },
+    {
+      "role": "Local Buyer",
+      "status": "role_created"
+    },
+    {
+      "role": "Shop Manager",
+      "status": "role_created"
+    },
+    {
+      "role": "Stock Adjuster",
+      "status": "role_created"
+    },
+    {
+      "role": "Store Manager",
+      "status": "role_created"
+    },
+    {
+      "role": "Warehouse stock reconciler",
+      "status": "role_created"
+    },
+    {
+      "doctype": "Approved Discounts",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Area",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Asset Register",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Audit Report",
+      "status": "permissions_updated",
+      "permission_rows": 3
+    },
+    {
+      "doctype": "Budget details",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Budget Entry",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Budget Set",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Charges on Salary",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Computed Profit n Loss Report",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Container",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "CPU Daily Delivery Report",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Daily Activity Report",
+      "status": "permissions_updated",
+      "permission_rows": 8
+    },
+    {
+      "doctype": "Deli Details",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Delivery Details",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Delivery Difference Report",
+      "status": "permissions_updated",
+      "permission_rows": 3
+    },
+    {
+      "doctype": "Difference report Details",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Driver",
+      "status": "skipped_standard_existing_doctype"
+    },
+    {
+      "doctype": "Ext Links",
+      "status": "permissions_updated",
+      "permission_rows": 14
+    },
+    {
+      "doctype": "Gate  Pass",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Goods Transporter",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Handler Worksheet",
+      "status": "permissions_updated",
+      "permission_rows": 3
+    },
+    {
+      "doctype": "Item Category",
+      "status": "permissions_updated",
+      "permission_rows": 3
+    },
+    {
+      "doctype": "Items Cost",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Lead Followup",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "maximum stock",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Month",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Motor Vehicle",
+      "status": "permissions_updated",
+      "permission_rows": 4
+    },
+    {
+      "doctype": "Net Asset Value - Balance Sheet",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Order Report",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Part Name",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Payment Details",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Payment Voucher",
+      "status": "permissions_updated",
+      "permission_rows": 4
+    },
+    {
+      "doctype": "Payslip",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Penalty",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Pending Payments",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Performance charges",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "PoorlyPricedItems",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "PoorQuality",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Position",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Price Change Request",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Price Master Login Audit",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "receipt",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Sales report",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Shop Management",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "SHOP ORDERS",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Shop visit",
+      "status": "permissions_updated",
+      "permission_rows": 3
+    },
+    {
+      "doctype": "Shop Visit Details",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Supply Report",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Test Gate Pass",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Top3AVGSales",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "TopTaffItems",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Towns",
+      "status": "permissions_updated",
+      "permission_rows": 5
+    },
+    {
+      "doctype": "Tricycle trip details",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Trip Plan-Report",
+      "status": "permissions_updated",
+      "permission_rows": 2
+    },
+    {
+      "doctype": "Vehicle",
+      "status": "skipped_standard_existing_doctype"
+    },
+    {
+      "doctype": "Vehicle Log",
+      "status": "skipped_standard_existing_doctype"
+    },
+    {
+      "doctype": "Vehicle Log Book",
+      "status": "permissions_updated",
+      "permission_rows": 4
+    },
+    {
+      "doctype": "Vehicle Log Details",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Warehouse Maximum Stock",
+      "status": "permissions_updated",
+      "permission_rows": 7
+    },
+    {
+      "doctype": "Warehouse Stocking",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    },
+    {
+      "doctype": "Warehouse Type",
+      "status": "skipped_standard_existing_doctype"
+    },
+    {
+      "doctype": "Year",
+      "status": "permissions_updated",
+      "permission_rows": 1
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Balance Sheet</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Balance Sheet' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'report' }) %>
+      </nav>
+    </header>
+
+    <section class="metrics">
+      <article><span>Assets</span><strong><%= money(report.summary.total_assets) %></strong></article>
+      <article><span>Liabilities + Equity</span><strong><%= money(report.summary.liabilities_plus_equity) %></strong></article>
+      <article><span>Status</span><strong><%= report.summary.is_balanced ? 'Balanced' : `Off by ${money(report.summary.difference)}` %></strong></article>
+    </section>
+
+    <form class="report-filters" method="get">
+      <label>As Of<input type="date" name="as_of" value="<%= report.filters.as_of %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/reports/balance-sheet">Reset</a>
+      </div>
+    </form>
+
+    <section class="grid">
+      <div>
+        <div class="section-title">
+          <h2>Assets</h2>
+          <strong><%= money(report.summary.total_assets) %></strong>
+        </div>
+        <table>
+          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% if (!report.assets.length) { %>
+              <tr><td colspan="2" class="empty">No asset balances found.</td></tr>
+            <% } %>
+            <% report.assets.forEach((row) => { %>
+              <tr>
+                <td>
+                  <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
+                  <small><%= row.account_name %></small>
+                </td>
+                <td><%= money(row.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot><tr><th>Total Assets</th><th><%= money(report.summary.total_assets) %></th></tr></tfoot>
+        </table>
+      </div>
+
+      <div>
+        <div class="section-title">
+          <h2>Liabilities</h2>
+          <strong><%= money(report.summary.total_liabilities) %></strong>
+        </div>
+        <table>
+          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% if (!report.liabilities.length) { %>
+              <tr><td colspan="2" class="empty">No liability balances found.</td></tr>
+            <% } %>
+            <% report.liabilities.forEach((row) => { %>
+              <tr>
+                <td>
+                  <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
+                  <small><%= row.account_name %></small>
+                </td>
+                <td><%= money(row.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot><tr><th>Total Liabilities</th><th><%= money(report.summary.total_liabilities) %></th></tr></tfoot>
+        </table>
+
+        <div class="section-title report-section">
+          <h2>Equity</h2>
+          <strong><%= money(report.summary.total_equity) %></strong>
+        </div>
+        <table>
+          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% if (!report.equity.length) { %>
+              <tr><td colspan="2" class="empty">No equity balances found.</td></tr>
+            <% } %>
+            <% report.equity.forEach((row) => { %>
+              <tr>
+                <td>
+                  <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
+                  <small><%= row.account_name %></small>
+                </td>
+                <td><%= money(row.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr><th>Total Equity</th><th><%= money(report.summary.total_equity) %></th></tr>
+            <tr><th>Liabilities + Equity</th><th><%= money(report.summary.liabilities_plus_equity) %></th></tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

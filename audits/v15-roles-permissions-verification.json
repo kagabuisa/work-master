@@ -1,0 +1,474 @@
+{
+  "generated_at": "2026-06-24T11:48:57.272Z",
+  "target": "https://new.zenjji.com",
+  "roles_checked": 14,
+  "roles_missing": [],
+  "doctypes_checked": 58,
+  "permission_count_mismatches": [],
+  "checked": [
+    {
+      "doctype": "Approved Discounts",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Area",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Asset Register",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Audit Report",
+      "expected": 3,
+      "actual": 3,
+      "is_submittable": 1,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Budget details",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Budget Entry",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Budget Set",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Charges on Salary",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Computed Profit n Loss Report",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Container",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 1,
+      "allow_import": 1
+    },
+    {
+      "doctype": "CPU Daily Delivery Report",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Daily Activity Report",
+      "expected": 8,
+      "actual": 8,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Deli Details",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Delivery Details",
+      "expected": 2,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Delivery Difference Report",
+      "expected": 3,
+      "actual": 3,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Difference report Details",
+      "expected": 2,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Ext Links",
+      "expected": 14,
+      "actual": 14,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Gate  Pass",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Goods Transporter",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Handler Worksheet",
+      "expected": 3,
+      "actual": 3,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Item Category",
+      "expected": 3,
+      "actual": 3,
+      "is_submittable": 1,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Items Cost",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Lead Followup",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "maximum stock",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Month",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Motor Vehicle",
+      "expected": 4,
+      "actual": 4,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Net Asset Value - Balance Sheet",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 1,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Order Report",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 1,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Part Name",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Payment Details",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Payment Voucher",
+      "expected": 4,
+      "actual": 4,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Payslip",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Penalty",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Pending Payments",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Performance charges",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "PoorlyPricedItems",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "PoorQuality",
+      "expected": 2,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Position",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Price Change Request",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Price Master Login Audit",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "receipt",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Sales report",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Shop Management",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "SHOP ORDERS",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Shop visit",
+      "expected": 3,
+      "actual": 3,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Shop Visit Details",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Supply Report",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Test Gate Pass",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Top3AVGSales",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "TopTaffItems",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Towns",
+      "expected": 5,
+      "actual": 5,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Tricycle trip details",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Trip Plan-Report",
+      "expected": 2,
+      "actual": 2,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Vehicle Log Book",
+      "expected": 4,
+      "actual": 4,
+      "is_submittable": 1,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Vehicle Log Details",
+      "expected": 1,
+      "actual": 0,
+      "is_submittable": 0,
+      "allow_import": 0
+    },
+    {
+      "doctype": "Warehouse Maximum Stock",
+      "expected": 7,
+      "actual": 7,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Warehouse Stocking",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 1
+    },
+    {
+      "doctype": "Year",
+      "expected": 1,
+      "actual": 1,
+      "is_submittable": 0,
+      "allow_import": 0
+    }
+  ],
+  "child_table_permission_mismatches": [
+    {
+      "doctype": "Budget details",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "Charges on Salary",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "Delivery Details",
+      "expected": 2,
+      "actual": 0
+    },
+    {
+      "doctype": "Difference report Details",
+      "expected": 2,
+      "actual": 0
+    },
+    {
+      "doctype": "Lead Followup",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "maximum stock",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "Payment Details",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "PoorQuality",
+      "expected": 2,
+      "actual": 0
+    },
+    {
+      "doctype": "Top3AVGSales",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "Tricycle trip details",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "doctype": "Vehicle Log Details",
+      "expected": 1,
+      "actual": 0
+    }
+  ],
+  "note": "Child table DocTypes do not retain independent permissions in Frappe v15; access is controlled by the parent DocType permissions."
+}

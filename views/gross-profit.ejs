@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Gross Profit</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Gross Profit' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'report' }) %>
+      </nav>
+    </header>
+    <section class="metrics">
+      <article><span>Sales</span><strong><%= money(report.summary.sales_amount) %></strong></article>
+      <article><span>COGS</span><strong><%= money(report.summary.cost_amount) %></strong></article>
+      <article><span>Gross Profit</span><strong><%= money(report.summary.gross_profit) %></strong></article>
+    </section>
+    <form class="report-filters" method="get">
+      <label>
+        Search
+        <input name="q" value="<%= report.filters.search %>" placeholder="Search gross profit" autocomplete="off" data-stock-report-item>
+        <div class="results stock-report-item-results"></div>
+      </label>
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/reports/gross-profit">Reset</a>
+      </div>
+    </form>
+    <script src="/stock-report-filters.js"></script>
+    <section class="invoice-card report-section">
+      <table>
+        <thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th>Sales</th><th>COGS</th><th>Gross Profit</th></tr></thead>
+        <tbody>
+          <% if (!report.rows.length) { %><tr><td colspan="8" class="empty">No gross profit rows found.</td></tr><% } %>
+          <% report.rows.forEach((row) => { %>
+            <tr>
+              <td><%= row.invoice_date %></td>
+              <td><a href="/invoices/<%= row.invoice_id %>"><%= row.invoice_no %></a></td>
+              <td><%= row.customer_name %></td>
+              <td class="item-code-col"><strong><%= row.item_name %></strong><small><%= row.item_code %></small></td>
+              <td class="warehouse-col"><%= row.warehouse %></td>
+              <td><%= money(row.sales_amount) %></td>
+              <td><%= money(row.cost_amount) %></td>
+              <td><strong><%= money(row.gross_profit) %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

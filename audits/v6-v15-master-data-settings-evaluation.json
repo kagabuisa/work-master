@@ -1,0 +1,1296 @@
+{
+  "generated_at": "2026-06-25T19:07:10.481Z",
+  "old_source": {
+    "type": "mysql",
+    "database": "1bd3e0294d",
+    "database_version": "10.0.25-MariaDB-1~trusty"
+  },
+  "new_target": {
+    "type": "frappe_api",
+    "url": "https://new.zenjji.com"
+  },
+  "objective": "Match ERPNext v6 master data and important settings in ERPNext v15.",
+  "master_data": {
+    "Company": {
+      "source_count": 1,
+      "target_count": 1,
+      "matched": 1,
+      "missing_count": 0,
+      "field_diff_count": 2,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "SUPERTEX APA CO. LTD",
+          "target_name": "SUPERTEX APA CO LTD",
+          "field": "company_name",
+          "old_value": "SUPERTEX APA CO. LTD",
+          "expected_after_mapping": "SUPERTEX APA CO. LTD",
+          "v15_value": "SUPERTEX APA CO LTD"
+        },
+        {
+          "name": "SUPERTEX APA CO. LTD",
+          "target_name": "SUPERTEX APA CO LTD",
+          "field": "domain",
+          "old_value": "Retail",
+          "expected_after_mapping": "Retail",
+          "v15_value": ""
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Currency": {
+      "source_count": 139,
+      "target_count": 155,
+      "matched": 139,
+      "missing_count": 0,
+      "field_diff_count": 11,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "CNY",
+          "target_name": "CNY",
+          "field": "fraction_units",
+          "old_value": "0",
+          "expected_after_mapping": "0",
+          "v15_value": "100"
+        },
+        {
+          "name": "CNY",
+          "target_name": "CNY",
+          "field": "number_format",
+          "old_value": "#,###.###",
+          "expected_after_mapping": "#,###.###",
+          "v15_value": "#,###.##"
+        },
+        {
+          "name": "IRR",
+          "target_name": "IRR",
+          "field": "symbol",
+          "old_value": "",
+          "expected_after_mapping": "",
+          "v15_value": "﷼"
+        },
+        {
+          "name": "KES",
+          "target_name": "KES",
+          "field": "symbol",
+          "old_value": "KSh",
+          "expected_after_mapping": "KSh",
+          "v15_value": "Sh"
+        },
+        {
+          "name": "KES",
+          "target_name": "KES",
+          "field": "enabled",
+          "old_value": "1",
+          "expected_after_mapping": "1",
+          "v15_value": "0"
+        },
+        {
+          "name": "NPR",
+          "target_name": "NPR",
+          "field": "number_format",
+          "old_value": "#,###.##",
+          "expected_after_mapping": "#,###.##",
+          "v15_value": "#,##,###.##"
+        },
+        {
+          "name": "SGD",
+          "target_name": "SGD",
+          "field": "fraction",
+          "old_value": "Sen",
+          "expected_after_mapping": "Sen",
+          "v15_value": "Cent"
+        },
+        {
+          "name": "TRY",
+          "target_name": "TRY",
+          "field": "number_format",
+          "old_value": "#,###.##",
+          "expected_after_mapping": "#,###.##",
+          "v15_value": "#.###,##"
+        },
+        {
+          "name": "UGX",
+          "target_name": "UGX",
+          "field": "symbol",
+          "old_value": "Ugx",
+          "expected_after_mapping": "Ugx",
+          "v15_value": "Sh"
+        },
+        {
+          "name": "UGX",
+          "target_name": "UGX",
+          "field": "fraction_units",
+          "old_value": "0",
+          "expected_after_mapping": "0",
+          "v15_value": "100"
+        },
+        {
+          "name": "UGX",
+          "target_name": "UGX",
+          "field": "number_format",
+          "old_value": "#,###",
+          "expected_after_mapping": "#,###",
+          "v15_value": "#,###.##"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Fiscal Year": {
+      "source_count": 15,
+      "target_count": 15,
+      "matched": 15,
+      "missing_count": 0,
+      "field_diff_count": 10,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "2026",
+          "target_name": "2026",
+          "field": "year_start_date",
+          "old_value": "2025-12-31",
+          "expected_after_mapping": "2025-12-31",
+          "v15_value": "2026-01-01"
+        },
+        {
+          "name": "2026",
+          "target_name": "2026",
+          "field": "year_end_date",
+          "old_value": "2026-12-30",
+          "expected_after_mapping": "2026-12-30",
+          "v15_value": "2026-12-31"
+        },
+        {
+          "name": "2027",
+          "target_name": "2027",
+          "field": "year_start_date",
+          "old_value": "2026-12-31",
+          "expected_after_mapping": "2026-12-31",
+          "v15_value": "2027-01-01"
+        },
+        {
+          "name": "2027",
+          "target_name": "2027",
+          "field": "year_end_date",
+          "old_value": "2027-12-30",
+          "expected_after_mapping": "2027-12-30",
+          "v15_value": "2027-12-31"
+        },
+        {
+          "name": "2028",
+          "target_name": "2028",
+          "field": "year_start_date",
+          "old_value": "2027-12-31",
+          "expected_after_mapping": "2027-12-31",
+          "v15_value": "2028-01-01"
+        },
+        {
+          "name": "2028",
+          "target_name": "2028",
+          "field": "year_end_date",
+          "old_value": "2028-12-30",
+          "expected_after_mapping": "2028-12-30",
+          "v15_value": "2028-12-31"
+        },
+        {
+          "name": "2029",
+          "target_name": "2029",
+          "field": "year_start_date",
+          "old_value": "2028-12-31",
+          "expected_after_mapping": "2028-12-31",
+          "v15_value": "2029-01-01"
+        },
+        {
+          "name": "2029",
+          "target_name": "2029",
+          "field": "year_end_date",
+          "old_value": "2029-12-30",
+          "expected_after_mapping": "2029-12-30",
+          "v15_value": "2029-12-31"
+        },
+        {
+          "name": "2030",
+          "target_name": "2030",
+          "field": "year_start_date",
+          "old_value": "2029-12-31",
+          "expected_after_mapping": "2029-12-31",
+          "v15_value": "2030-01-01"
+        },
+        {
+          "name": "2030",
+          "target_name": "2030",
+          "field": "year_end_date",
+          "old_value": "2030-12-30",
+          "expected_after_mapping": "2030-12-30",
+          "v15_value": "2030-12-31"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "UOM": {
+      "source_count": 13,
+      "target_count": 244,
+      "matched": 13,
+      "missing_count": 0,
+      "field_diff_count": 1,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "Unit",
+          "target_name": "Unit",
+          "field": "must_be_whole_number",
+          "old_value": "0",
+          "expected_after_mapping": "0",
+          "v15_value": "1"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Brand": {
+      "source_count": 28,
+      "target_count": 28,
+      "matched": 28,
+      "missing_count": 0,
+      "field_diff_count": 0,
+      "missing": [],
+      "field_diffs": [],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Branch": {
+      "source_count": 28,
+      "target_count": 28,
+      "matched": 28,
+      "missing_count": 0,
+      "field_diff_count": 0,
+      "missing": [],
+      "field_diffs": [],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Warehouse Type": {
+      "source_count": 6,
+      "target_count": 6,
+      "matched": 6,
+      "missing_count": 0,
+      "field_diff_count": 0,
+      "missing": [],
+      "field_diffs": [],
+      "old_missing_fields": [],
+      "v15_missing_fields": [
+        "warehouse_type"
+      ]
+    },
+    "Item Group": {
+      "source_count": 15,
+      "target_count": 15,
+      "matched": 15,
+      "missing_count": 0,
+      "field_diff_count": 9,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "Products",
+          "target_name": "Products",
+          "field": "is_group",
+          "old_value": "Yes",
+          "expected_after_mapping": "Yes",
+          "v15_value": "0"
+        },
+        {
+          "name": "Spark Plug",
+          "target_name": "Spark Plug",
+          "field": "parent_item_group",
+          "old_value": "Products",
+          "expected_after_mapping": "Products",
+          "v15_value": "All Item Groups"
+        },
+        {
+          "name": "Spokes",
+          "target_name": "Spokes",
+          "field": "parent_item_group",
+          "old_value": "Products",
+          "expected_after_mapping": "Products",
+          "v15_value": "All Item Groups"
+        },
+        {
+          "name": "CC Measuring Oil",
+          "target_name": "CC Measuring Oil",
+          "field": "item_group_name",
+          "old_value": "Measuring Oil",
+          "expected_after_mapping": "Measuring Oil",
+          "v15_value": "CC Measuring Oil"
+        },
+        {
+          "name": "CC Measuring Oil",
+          "target_name": "CC Measuring Oil",
+          "field": "parent_item_group",
+          "old_value": "Products",
+          "expected_after_mapping": "Products",
+          "v15_value": "All Item Groups"
+        },
+        {
+          "name": "Taff Butyl",
+          "target_name": "Taff Butyl",
+          "field": "parent_item_group",
+          "old_value": "Products",
+          "expected_after_mapping": "Products",
+          "v15_value": "All Item Groups"
+        },
+        {
+          "name": "Piston Taff",
+          "target_name": "Piston Taff",
+          "field": "parent_item_group",
+          "old_value": "Products",
+          "expected_after_mapping": "Products",
+          "v15_value": "All Item Groups"
+        },
+        {
+          "name": "Wires",
+          "target_name": "Wires",
+          "field": "parent_item_group",
+          "old_value": "Products",
+          "expected_after_mapping": "Products",
+          "v15_value": "All Item Groups"
+        },
+        {
+          "name": "Vehicles",
+          "target_name": "Vehicles",
+          "field": "parent_item_group",
+          "old_value": "Fixed Assets",
+          "expected_after_mapping": "Fixed Assets",
+          "v15_value": "All Item Groups"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Price List": {
+      "source_count": 59,
+      "target_count": 69,
+      "matched": 59,
+      "missing_count": 0,
+      "field_diff_count": 12,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "Import Price",
+          "target_name": "Import Price",
+          "field": "price_list_name",
+          "old_value": "Import China",
+          "expected_after_mapping": "Import China",
+          "v15_value": "Import Price"
+        },
+        {
+          "name": "PLST CARTON TAFF BUNIA",
+          "target_name": "PLST CARTON TAFF BUNIA",
+          "field": "price_list_name",
+          "old_value": "PLST VIP TAFF BUNIA",
+          "expected_after_mapping": "PLST VIP TAFF BUNIA",
+          "v15_value": "PLST CARTON TAFF BUNIA"
+        },
+        {
+          "name": "PLST Galaxy Autos ASP",
+          "target_name": "PLST Galaxy Autos ASP",
+          "field": "price_list_name",
+          "old_value": "PLST Tambo ASP",
+          "expected_after_mapping": "PLST Tambo ASP",
+          "v15_value": "PLST Galaxy Autos ASP"
+        },
+        {
+          "name": "PLST Japa Q. Spares",
+          "target_name": "PLST Japa Q. Spares",
+          "field": "price_list_name",
+          "old_value": "PLST Japa Q. Spares Retail",
+          "expected_after_mapping": "PLST Japa Q. Spares Retail",
+          "v15_value": "PLST Japa Q. Spares"
+        },
+        {
+          "name": "PLST Kyenjojo Traders",
+          "target_name": "PLST Kyenjojo Traders",
+          "field": "price_list_name",
+          "old_value": "Kyenjojo Trdz CST",
+          "expected_after_mapping": "Kyenjojo Trdz CST",
+          "v15_value": "PLST Kyenjojo Traders"
+        },
+        {
+          "name": "PLST Multiple Tradex WHSL",
+          "target_name": "PLST Multiple Tradex WHSL",
+          "field": "price_list_name",
+          "old_value": "PLST Mutliple Tradex WHSL",
+          "expected_after_mapping": "PLST Mutliple Tradex WHSL",
+          "v15_value": "PLST Multiple Tradex WHSL"
+        },
+        {
+          "name": "PLST TAFF BUNIA RTL",
+          "target_name": "PLST TAFF BUNIA RTL",
+          "field": "price_list_name",
+          "old_value": "PLST TAFF KUDIA RTL",
+          "expected_after_mapping": "PLST TAFF KUDIA RTL",
+          "v15_value": "PLST TAFF BUNIA RTL"
+        },
+        {
+          "name": "PLST TAFF BUNIA WHSL",
+          "target_name": "PLST TAFF BUNIA WHSL",
+          "field": "price_list_name",
+          "old_value": "PLST TAFF KUDIA WHSL",
+          "expected_after_mapping": "PLST TAFF KUDIA WHSL",
+          "v15_value": "PLST TAFF BUNIA WHSL"
+        },
+        {
+          "name": "PLST Taff Kampala",
+          "target_name": "PLST Taff Kampala",
+          "field": "price_list_name",
+          "old_value": "Taff Kampala",
+          "expected_after_mapping": "Taff Kampala",
+          "v15_value": "PLST Taff Kampala"
+        },
+        {
+          "name": "Retail Pricelist",
+          "target_name": "Retail Pricelist",
+          "field": "price_list_name",
+          "old_value": "Price List Baiga AS",
+          "expected_after_mapping": "Price List Baiga AS",
+          "v15_value": "Retail Pricelist"
+        },
+        {
+          "name": "Standard Selling",
+          "target_name": "Standard Selling",
+          "field": "buying",
+          "old_value": "1",
+          "expected_after_mapping": "1",
+          "v15_value": "0"
+        },
+        {
+          "name": "Wholesale PLST",
+          "target_name": "Wholesale PLST",
+          "field": "price_list_name",
+          "old_value": "Nile Tradex Wholesale PL",
+          "expected_after_mapping": "Nile Tradex Wholesale PL",
+          "v15_value": "Wholesale PLST"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": []
+    },
+    "Cost Center": {
+      "source_count": 38,
+      "target_count": 39,
+      "matched": 38,
+      "missing_count": 0,
+      "field_diff_count": 1,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "SUPERTEX APA CO. LTD - SACL",
+          "target_name": "SUPERTEX APA CO LTD - SACL",
+          "field": "cost_center_name",
+          "old_value": "SUPERTEX APA CO. LTD",
+          "expected_after_mapping": "SUPERTEX APA CO. LTD",
+          "v15_value": "SUPERTEX APA CO LTD"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": [
+        "cost_center_type"
+      ]
+    },
+    "Warehouse": {
+      "source_count": 51,
+      "target_count": 63,
+      "matched": 51,
+      "missing_count": 0,
+      "field_diff_count": 12,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "Container(1) W/Hse - SACL",
+          "target_name": "Container(1) W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Container",
+          "expected_after_mapping": "Container",
+          "v15_value": "Container(1) W/Hse"
+        },
+        {
+          "name": "CPU Stores WHse - SACL",
+          "target_name": "CPU Stores WHse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Stores",
+          "expected_after_mapping": "Stores",
+          "v15_value": "CPU Stores WHse"
+        },
+        {
+          "name": "DDR Request W/Hse - SACL",
+          "target_name": "DDR Request W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "DDR Req",
+          "expected_after_mapping": "DDR Req",
+          "v15_value": "DDR Request W/Hse"
+        },
+        {
+          "name": "Galaxy Enterprises W/Hse - SACL",
+          "target_name": "Galaxy Enterprises W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Galaxy Enterprises",
+          "expected_after_mapping": "Galaxy Enterprises",
+          "v15_value": "Galaxy Enterprises W/Hse"
+        },
+        {
+          "name": "Kyenjojo Trdz W/Hse - SACL",
+          "target_name": "Kyenjojo Trdz W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Kyenjojo T W/Hse",
+          "expected_after_mapping": "Kyenjojo T W/Hse",
+          "v15_value": "Kyenjojo Trdz W/Hse"
+        },
+        {
+          "name": "Masaba AG W/Hse - SACL",
+          "target_name": "Masaba AG W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Masaba AS W/Hse",
+          "expected_after_mapping": "Masaba AS W/Hse",
+          "v15_value": "Masaba AG W/Hse"
+        },
+        {
+          "name": "Okiror Vita W/Hse - SACL",
+          "target_name": "Okiror Vita W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Okiror Vita WHse",
+          "expected_after_mapping": "Okiror Vita WHse",
+          "v15_value": "Okiror Vita W/Hse"
+        },
+        {
+          "name": "Ordering Shop2Shop W/Hse - SACL",
+          "target_name": "Ordering Shop2Shop W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Ordering Shop2Shop WHse - SACL",
+          "expected_after_mapping": "Ordering Shop2Shop WHse - SACL",
+          "v15_value": "Ordering Shop2Shop W/Hse"
+        },
+        {
+          "name": "Superb Kse W/Hse - SACL",
+          "target_name": "Superb Kse W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Super W/Hse",
+          "expected_after_mapping": "Super W/Hse",
+          "v15_value": "Superb Kse W/Hse"
+        },
+        {
+          "name": "Taff Arua W/Hse Shp - SACL",
+          "target_name": "Taff Arua W/Hse Shp - SACL",
+          "field": "warehouse_name",
+          "old_value": "Taff Arua W/Hse",
+          "expected_after_mapping": "Taff Arua W/Hse",
+          "v15_value": "Taff Arua W/Hse Shp"
+        },
+        {
+          "name": "Taff Kampala W/Hse - SACL",
+          "target_name": "Taff Kampala W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Taff Kampala",
+          "expected_after_mapping": "Taff Kampala",
+          "v15_value": "Taff Kampala W/Hse"
+        },
+        {
+          "name": "Transfer CPU W/Hse - SACL",
+          "target_name": "Transfer CPU W/Hse - SACL",
+          "field": "warehouse_name",
+          "old_value": "Stores CPU W/Hse",
+          "expected_after_mapping": "Stores CPU W/Hse",
+          "v15_value": "Transfer CPU W/Hse"
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": [
+        "cost_center",
+        "create_account_under",
+        "warehouse_abbreviation",
+        "branch"
+      ]
+    },
+    "Account": {
+      "source_count": 261,
+      "target_count": 297,
+      "matched": 261,
+      "missing_count": 0,
+      "field_diff_count": 66,
+      "missing": [],
+      "field_diffs": [
+        {
+          "name": "Abiriga AS W/Hse - SACL",
+          "target_name": "Abiriga AS W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Alpha AS W/Hse - SACL",
+          "target_name": "Alpha AS W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Baiga AS WHse - SACL",
+          "target_name": "Baiga AS WHse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "BC Bundibugyo W/Hse - SACL",
+          "target_name": "BC Bundibugyo W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "BC Nebbi W/Hse - SACL",
+          "target_name": "BC Nebbi W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "BC Paidha W/Hse - SACL",
+          "target_name": "BC Paidha W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Container(1) W/Hse - SACL",
+          "target_name": "Container(1) W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Container(2) W/Hse - SACL",
+          "target_name": "Container(2) W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "CPU Stores WHse - SACL",
+          "target_name": "CPU Stores WHse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "DDR Req W/Hs - SACL",
+          "target_name": "DDR Req W/Hs - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Factory Samples W/Hse - SACL",
+          "target_name": "Factory Samples W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Galaxy Ent W/Hse - SACL",
+          "target_name": "Galaxy Ent W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Galaxy Enterprises W/Hse - SACL",
+          "target_name": "Galaxy Enterprises W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Giant Auto Spares W/Hse - SACL",
+          "target_name": "Giant Auto Spares W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Gold AS W/Hse - SACL",
+          "target_name": "Gold AS W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Guangzhou China W/Hse - SACL",
+          "target_name": "Guangzhou China W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Japa Quality Spares W/Hse - SACL",
+          "target_name": "Japa Quality Spares W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Kyenjojo Trdz W/Hse - SACL",
+          "target_name": "Kyenjojo Trdz W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Masaba AG W/Hse - SACL",
+          "target_name": "Masaba AG W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Masereka AS W/Hse - SACL",
+          "target_name": "Masereka AS W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mobile West W/Hse - SACL",
+          "target_name": "Mobile West W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Multiple Tradex W/Hse - SACL",
+          "target_name": "Multiple Tradex W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mwesigwa AP W/Hse - SACL",
+          "target_name": "Mwesigwa AP W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Nile TX W/Hse - SACL",
+          "target_name": "Nile TX W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Ogwang AS W/Hse - SACL",
+          "target_name": "Ogwang AS W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "OK Extra Traders(OKET) W/Hse - SACL",
+          "target_name": "OK Extra Traders(OKET) W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Okiror Vita W/Hse - SACL",
+          "target_name": "Okiror Vita W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Ordering Shop2Shop W/Hse - SACL",
+          "target_name": "Ordering Shop2Shop W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "SKY Traders W/Hse - SACL",
+          "target_name": "SKY Traders W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Superb Kse W/Hse - SACL",
+          "target_name": "Superb Kse W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Taff Arua Shp W/Hse - SACL",
+          "target_name": "Taff Arua Shp W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Taff Arua W/Hse Shp- SACL - SACL",
+          "target_name": "Taff Arua W/Hse Shp- SACL - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Taff Kampala W/Hse - SACL",
+          "target_name": "Taff Kampala W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Taff Mbale W/Hse - SACL",
+          "target_name": "Taff Mbale W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Tambo Gen Trdz W/Hse - SACL",
+          "target_name": "Tambo Gen Trdz W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Temporary DDR W/Hse - SACL",
+          "target_name": "Temporary DDR W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Teso RS W/Hse - SACL",
+          "target_name": "Teso RS W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Transfer CPU W/Hse - SACL",
+          "target_name": "Transfer CPU W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Transit W/Hse - SACL",
+          "target_name": "Transit W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Wholesale W/Hse - SACL",
+          "target_name": "Wholesale W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Showroom CPU W/Hse - SACL",
+          "target_name": "Showroom CPU W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Taff Bunia W/Hse - SACL",
+          "target_name": "Taff Bunia W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "C$K Factory W/Hse - SACL",
+          "target_name": "C$K Factory W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mobile Two W/Hse - SACL",
+          "target_name": "Mobile Two W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mackay W/Hse - SACL",
+          "target_name": "Mackay W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mobile One W/Hse - SACL",
+          "target_name": "Mobile One W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mobile Three W/Hse - SACL",
+          "target_name": "Mobile Three W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mbarara Stockist W/Hse - SACL",
+          "target_name": "Mbarara Stockist W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "three - SACL",
+          "target_name": "three - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mobile Four W/Hse - SACL",
+          "target_name": "Mobile Four W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Mobile Five W/Hse - SACL",
+          "target_name": "Mobile Five W/Hse - SACL",
+          "field": "account_type",
+          "old_value": "Warehouse",
+          "expected_after_mapping": "Warehouse",
+          "v15_value": "Stock"
+        },
+        {
+          "name": "Direct Expenses - SACL",
+          "target_name": "5100 - Direct Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Stock Expenses - SACL",
+          "target_name": "5110 - Stock Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Cost of Goods Sold - SACL",
+          "target_name": "5111 - Cost of Goods Sold - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": "Cost of Goods Sold"
+        },
+        {
+          "name": "Indirect Expenses - SACL",
+          "target_name": "5200 - Indirect Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Administrative Expenses - SACL",
+          "target_name": "5201 - Administrative Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Depreciation - SACL",
+          "target_name": "5203 - Depreciation - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": "Depreciation"
+        },
+        {
+          "name": "Entertainment Expenses - SACL",
+          "target_name": "5204 - Entertainment Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Legal Expenses - SACL",
+          "target_name": "5206 - Legal Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Miscellaneous Expenses - SACL",
+          "target_name": "5221 - Miscellaneous Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": "Chargeable"
+        },
+        {
+          "name": "Salary - SACL",
+          "target_name": "5213 - Salary - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Sales Expenses - SACL",
+          "target_name": "5214 - Sales Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Travel Expenses - SACL",
+          "target_name": "5216 - Travel Expenses - SACL",
+          "field": "account_type",
+          "old_value": "Expense Account",
+          "expected_after_mapping": "Expense Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Direct Income - SACL",
+          "target_name": "4100 - Direct Income - SACL",
+          "field": "account_type",
+          "old_value": "Income Account",
+          "expected_after_mapping": "Income Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Sales - SACL",
+          "target_name": "4110 - Sales - SACL",
+          "field": "account_type",
+          "old_value": "Income Account",
+          "expected_after_mapping": "Income Account",
+          "v15_value": ""
+        },
+        {
+          "name": "Indirect Income - SACL",
+          "target_name": "4200 - Indirect Income - SACL",
+          "field": "account_type",
+          "old_value": "Income Account",
+          "expected_after_mapping": "Income Account",
+          "v15_value": ""
+        }
+      ],
+      "old_missing_fields": [],
+      "v15_missing_fields": [
+        "cost_center"
+      ]
+    }
+  },
+  "settings": {
+    "System Settings": {
+      "old_field_count": 23,
+      "comparable_field_count": 9,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "email_footer_address",
+        "ignore_user_permissions_if_missing",
+        "scheduler_last_event",
+        "session_expiry_mobile"
+      ],
+      "field_diffs": []
+    },
+    "Global Defaults": {
+      "old_field_count": 17,
+      "comparable_field_count": 6,
+      "field_diff_count": 1,
+      "fields_missing_in_v15": [
+        "current_fiscal_year"
+      ],
+      "field_diffs": [
+        {
+          "field": "default_company",
+          "old_value": "SUPERTEX APA CO. LTD",
+          "expected_after_mapping": "SUPERTEX APA CO. LTD",
+          "v15_value": "SUPERTEX APA CO LTD"
+        }
+      ]
+    },
+    "Accounts Settings": {
+      "old_field_count": 15,
+      "comparable_field_count": 1,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "acc_frozen_upto",
+        "auto_accounting_for_stock",
+        "credit_controller",
+        "frozen_accounts_modifier"
+      ],
+      "field_diffs": []
+    },
+    "Stock Settings": {
+      "old_field_count": 23,
+      "comparable_field_count": 8,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "automatically_set_serial_nos_based_on_fifo",
+        "item_group",
+        "stock_auth_role",
+        "stock_frozen_upto",
+        "tolerance"
+      ],
+      "field_diffs": []
+    },
+    "Selling Settings": {
+      "old_field_count": 21,
+      "comparable_field_count": 8,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "campaign_naming_by",
+        "customer_group",
+        "territory"
+      ],
+      "field_diffs": []
+    },
+    "Buying Settings": {
+      "old_field_count": 17,
+      "comparable_field_count": 6,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "supplier_type"
+      ],
+      "field_diffs": []
+    },
+    "HR Settings": {
+      "old_field_count": 13,
+      "comparable_field_count": 1,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "include_holidays_in_total_working_days",
+        "stop_birthday_reminders"
+      ],
+      "field_diffs": []
+    },
+    "Manufacturing Settings": {
+      "old_field_count": 19,
+      "comparable_field_count": 6,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "default_fg_warehouse",
+        "default_wip_warehouse",
+        "over_production_allowance_percentage"
+      ],
+      "field_diffs": []
+    },
+    "Print Settings": {
+      "old_field_count": 17,
+      "comparable_field_count": 7,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [],
+      "field_diffs": []
+    },
+    "Features Setup": {
+      "old_field_count": 31,
+      "comparable_field_count": 0,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [],
+      "field_diffs": [],
+      "error": "GET /api/resource/Features%20Setup/Features%20Setup failed 500 (500)"
+    },
+    "Website Settings": {
+      "old_field_count": 31,
+      "comparable_field_count": 3,
+      "field_diff_count": 0,
+      "fields_missing_in_v15": [
+        "address",
+        "banner_html",
+        "banner_image",
+        "brand_html",
+        "copyright",
+        "facebook_share",
+        "favicon",
+        "google_analytics_id",
+        "google_plus_one",
+        "head_html",
+        "home_page",
+        "home_page_is_products",
+        "linked_in_share",
+        "subdomain",
+        "title_prefix",
+        "twitter_share",
+        "twitter_share_via",
+        "website_theme_image_link"
+      ],
+      "field_diffs": []
+    }
+  }
+}

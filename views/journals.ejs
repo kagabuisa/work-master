@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Journals</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Accounting</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Journals' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'accounts' }) %>
+      </nav>
+    </header>
+
+    <form class="search" method="get">
+      <input name="q" value="<%= search %>" placeholder="Search journals">
+      <button type="submit">Search</button>
+    </form>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr>
+            <th>Journal</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Party</th>
+            <th>Reference</th>
+            <th>Debit</th>
+            <th>Credit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!journals.length) { %>
+            <tr><td colspan="7" class="empty">No journal entries found.</td></tr>
+          <% } %>
+          <% journals.forEach((journal) => { %>
+            <tr>
+              <td><a href="/journals/<%= journal.id %>"><%= journal.journal_no %></a></td>
+              <td><%= journal.posting_date %></td>
+              <td><%= journalTypeLabel(journal.journal_type) %></td>
+              <td><%= journal.party_name || journal.party_id || '' %></td>
+              <td><%= journal.reference_no || '' %></td>
+              <td><%= money(journal.total_debit) %></td>
+              <td><%= money(journal.total_credit) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

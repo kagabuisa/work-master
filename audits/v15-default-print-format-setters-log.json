@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-06-24T12:00:52.058Z",
+  "target": "https://new.zenjji.com",
+  "attempted": 2,
+  "created": 2,
+  "updated": 0,
+  "skipped_missing_format": 0,
+  "failed": 0,
+  "results": [
+    {
+      "doc_type": "Asset Register",
+      "format": "Asset Register print",
+      "status": "created"
+    },
+    {
+      "doc_type": "Stock Entry",
+      "format": "STOCK ENTRY",
+      "status": "created"
+    }
+  ]
+}

@@ -1,0 +1,432 @@
+{
+  "generated_at": "2026-06-24T12:13:19.082Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "company_mapping": {
+    "SUPERTEX APA CO. LTD": "SUPERTEX APA CO LTD"
+  },
+  "counts": {
+    "Currency": {
+      "source": 139,
+      "skipped_existing": 139,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Fiscal Year": {
+      "source": 15,
+      "skipped_existing": 14,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 1
+    },
+    "UOM": {
+      "source": 13,
+      "skipped_existing": 13,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Brand": {
+      "source": 28,
+      "skipped_existing": 28,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Branch": {
+      "source": 28,
+      "skipped_existing": 24,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 4
+    },
+    "Warehouse Type": {
+      "source": 6,
+      "skipped_existing": 6,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Item Group": {
+      "source": 15,
+      "skipped_existing": 15,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Price List": {
+      "source": 59,
+      "skipped_existing": 48,
+      "dry_run_create": 0,
+      "created": 11,
+      "failed": 0
+    },
+    "Cost Center": {
+      "source": 38,
+      "skipped_existing": 38,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Account": {
+      "source": 261,
+      "skipped_existing": 261,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Warehouse": {
+      "source": 51,
+      "skipped_existing": 30,
+      "dry_run_create": 0,
+      "created": 21,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "doctype": "Fiscal Year",
+      "name": "2027",
+      "status": "failed",
+      "error": "POST /api/resource/Fiscal%20Year failed 409",
+      "response": {
+        "exception": "frappe.exceptions.NameError: Year start date or end date is overlapping with <a href=\"/app/Form/Fiscal Year/2026\" target=\"_blank\" style=\"font-weight: bold;\">Fiscal Year 2026</a>. To avoid please set company",
+        "exc_type": "NameError",
+        "_exc_source": "erpnext (app)",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 309, in insert\\n    self.run_before_save_methods()\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1145, in run_before_save_methods\\n    self.run_method(\\\"validate\\\")\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1016, in run_method\\n    out = Document.hook(fn)(self, *args, **kwargs)\\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1376, in composer\\n    return composed(self, method, *args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1358, in runner\\n    add_to_return_value(self, fn(self, *args, **kwargs))\\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 1013, in fn\\n    return method_object(*args, **kwargs)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/erpnext/erpnext/accounts/doctype/fiscal_year/fiscal_year.py\\\", line 34, in validate\\n    self.validate_overlap()\\n  File \\\"apps/erpnext/erpnext/accounts/doctype/fiscal_year/fiscal_year.py\\\", line 90, in validate_overlap\\n    frappe.throw(\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 616, in throw\\n    msgprint(\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 581, in msgprint\\n    _raise_exception()\\n  File \\\"apps/frappe/frappe/__init__.py\\\", line 532, in _raise_exception\\n    raise exc\\nfrappe.exceptions.NameError: Year start date or end date is overlapping with <a href=\\\"/app/Form/Fiscal Year/2026\\\" target=\\\"_blank\\\" style=\\\"font-weight: bold;\\\">Fiscal Year 2026</a>. To avoid please set company\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Year start date or end date is overlapping with <a href=\\\\\\\"/app/Form/Fiscal Year/2026\\\\\\\" target=\\\\\\\"_blank\\\\\\\" style=\\\\\\\"font-weight: bold;\\\\\\\">Fiscal Year 2026</a>. To avoid please set company\\\", \\\"title\\\": \\\"Message\\\", \\\"indicator\\\": \\\"red\\\", \\\"raise_exception\\\": 1, \\\"__frappe_exc_id\\\": \\\"1c64b42dc8eb1df966d5e91ed5c7ead416e0415354629b04afb3f531\\\"}\"]"
+      }
+    },
+    {
+      "doctype": "Branch",
+      "name": "CPU",
+      "status": "failed",
+      "error": "POST /api/resource/Branch failed 409",
+      "response": {
+        "exception": "frappe.exceptions.DuplicateEntryError: ('Branch', 'CPU Kampala', IntegrityError(1062, \"Duplicate entry 'CPU Kampala' for key 'PRIMARY'\"))",
+        "exc_type": "DuplicateEntryError",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 579, in db_insert\\n    frappe.db.sql(\\n  File \\\"apps/frappe/frappe/database/database.py\\\", line 230, in sql\\n    self._cursor.execute(query, values)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 153, in execute\\n    result = self._query(query)\\n             ^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 322, in _query\\n    conn.query(q)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 563, in query\\n    self._affected_rows = self._read_query_result(unbuffered=unbuffered)\\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 825, in _read_query_result\\n    result.read()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 1199, in read\\n    first_packet = self.connection._read_packet()\\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 775, in _read_packet\\n    packet.raise_for_error()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/protocol.py\\\", line 219, in raise_for_error\\n    err.raise_mysql_exception(self._data)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/err.py\\\", line 150, in raise_mysql_exception\\n    raise errorclass(errno, errval)\\npymysql.err.IntegrityError: (1062, \\\"Duplicate entry 'CPU Kampala' for key 'PRIMARY'\\\")\\n\\nDuring handling of the above exception, another exception occurred:\\n\\nTraceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 320, in insert\\n    self.db_insert(ignore_if_duplicate=ignore_if_duplicate)\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 606, in db_insert\\n    raise frappe.DuplicateEntryError(self.doctype, self.name, e)\\nfrappe.exceptions.DuplicateEntryError: ('Branch', 'CPU Kampala', IntegrityError(1062, \\\"Duplicate entry 'CPU Kampala' for key 'PRIMARY'\\\"))\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Branch <strong>CPU Kampala</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+      }
+    },
+    {
+      "doctype": "Branch",
+      "name": "Japa Q. Spares(JQS) Branch",
+      "status": "failed",
+      "error": "POST /api/resource/Branch failed 409",
+      "response": {
+        "exception": "frappe.exceptions.DuplicateEntryError: ('Branch', 'Japa Q. Spares Branch', IntegrityError(1062, \"Duplicate entry 'Japa Q. Spares Branch' for key 'PRIMARY'\"))",
+        "exc_type": "DuplicateEntryError",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 579, in db_insert\\n    frappe.db.sql(\\n  File \\\"apps/frappe/frappe/database/database.py\\\", line 230, in sql\\n    self._cursor.execute(query, values)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 153, in execute\\n    result = self._query(query)\\n             ^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 322, in _query\\n    conn.query(q)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 563, in query\\n    self._affected_rows = self._read_query_result(unbuffered=unbuffered)\\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 825, in _read_query_result\\n    result.read()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 1199, in read\\n    first_packet = self.connection._read_packet()\\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 775, in _read_packet\\n    packet.raise_for_error()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/protocol.py\\\", line 219, in raise_for_error\\n    err.raise_mysql_exception(self._data)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/err.py\\\", line 150, in raise_mysql_exception\\n    raise errorclass(errno, errval)\\npymysql.err.IntegrityError: (1062, \\\"Duplicate entry 'Japa Q. Spares Branch' for key 'PRIMARY'\\\")\\n\\nDuring handling of the above exception, another exception occurred:\\n\\nTraceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 320, in insert\\n    self.db_insert(ignore_if_duplicate=ignore_if_duplicate)\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 606, in db_insert\\n    raise frappe.DuplicateEntryError(self.doctype, self.name, e)\\nfrappe.exceptions.DuplicateEntryError: ('Branch', 'Japa Q. Spares Branch', IntegrityError(1062, \\\"Duplicate entry 'Japa Q. Spares Branch' for key 'PRIMARY'\\\"))\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Branch <strong>Japa Q. Spares Branch</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+      }
+    },
+    {
+      "doctype": "Branch",
+      "name": "Multiple Tradex Branch",
+      "status": "failed",
+      "error": "POST /api/resource/Branch failed 409",
+      "response": {
+        "exception": "frappe.exceptions.DuplicateEntryError: ('Branch', 'Multiple Tradex', IntegrityError(1062, \"Duplicate entry 'Multiple Tradex' for key 'PRIMARY'\"))",
+        "exc_type": "DuplicateEntryError",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 579, in db_insert\\n    frappe.db.sql(\\n  File \\\"apps/frappe/frappe/database/database.py\\\", line 230, in sql\\n    self._cursor.execute(query, values)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 153, in execute\\n    result = self._query(query)\\n             ^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 322, in _query\\n    conn.query(q)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 563, in query\\n    self._affected_rows = self._read_query_result(unbuffered=unbuffered)\\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 825, in _read_query_result\\n    result.read()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 1199, in read\\n    first_packet = self.connection._read_packet()\\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 775, in _read_packet\\n    packet.raise_for_error()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/protocol.py\\\", line 219, in raise_for_error\\n    err.raise_mysql_exception(self._data)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/err.py\\\", line 150, in raise_mysql_exception\\n    raise errorclass(errno, errval)\\npymysql.err.IntegrityError: (1062, \\\"Duplicate entry 'Multiple Tradex' for key 'PRIMARY'\\\")\\n\\nDuring handling of the above exception, another exception occurred:\\n\\nTraceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 320, in insert\\n    self.db_insert(ignore_if_duplicate=ignore_if_duplicate)\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 606, in db_insert\\n    raise frappe.DuplicateEntryError(self.doctype, self.name, e)\\nfrappe.exceptions.DuplicateEntryError: ('Branch', 'Multiple Tradex', IntegrityError(1062, \\\"Duplicate entry 'Multiple Tradex' for key 'PRIMARY'\\\"))\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Branch <strong>Multiple Tradex</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+      }
+    },
+    {
+      "doctype": "Branch",
+      "name": "SKY Traders(SKY)",
+      "status": "failed",
+      "error": "POST /api/resource/Branch failed 409",
+      "response": {
+        "exception": "frappe.exceptions.DuplicateEntryError: ('Branch', 'SKY Traders', IntegrityError(1062, \"Duplicate entry 'SKY Traders' for key 'PRIMARY'\"))",
+        "exc_type": "DuplicateEntryError",
+        "exc": "[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 579, in db_insert\\n    frappe.db.sql(\\n  File \\\"apps/frappe/frappe/database/database.py\\\", line 230, in sql\\n    self._cursor.execute(query, values)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 153, in execute\\n    result = self._query(query)\\n             ^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/cursors.py\\\", line 322, in _query\\n    conn.query(q)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 563, in query\\n    self._affected_rows = self._read_query_result(unbuffered=unbuffered)\\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 825, in _read_query_result\\n    result.read()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 1199, in read\\n    first_packet = self.connection._read_packet()\\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"env/lib/python3.11/site-packages/pymysql/connections.py\\\", line 775, in _read_packet\\n    packet.raise_for_error()\\n  File \\\"env/lib/python3.11/site-packages/pymysql/protocol.py\\\", line 219, in raise_for_error\\n    err.raise_mysql_exception(self._data)\\n  File \\\"env/lib/python3.11/site-packages/pymysql/err.py\\\", line 150, in raise_mysql_exception\\n    raise errorclass(errno, errval)\\npymysql.err.IntegrityError: (1062, \\\"Duplicate entry 'SKY Traders' for key 'PRIMARY'\\\")\\n\\nDuring handling of the above exception, another exception occurred:\\n\\nTraceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 120, in application\\n    response = frappe.api.handle(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/__init__.py\\\", line 52, in handle\\n    data = endpoint(**arguments)\\n           ^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/api/v1.py\\\", line 46, in create_doc\\n    return frappe.new_doc(doctype, **data).insert()\\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"apps/frappe/frappe/model/document.py\\\", line 320, in insert\\n    self.db_insert(ignore_if_duplicate=ignore_if_duplicate)\\n  File \\\"apps/frappe/frappe/model/base_document.py\\\", line 606, in db_insert\\n    raise frappe.DuplicateEntryError(self.doctype, self.name, e)\\nfrappe.exceptions.DuplicateEntryError: ('Branch', 'SKY Traders', IntegrityError(1062, \\\"Duplicate entry 'SKY Traders' for key 'PRIMARY'\\\"))\\n\"]",
+        "_server_messages": "[\"{\\\"message\\\": \\\"Branch <strong>SKY Traders</strong> already exists\\\", \\\"title\\\": \\\"Duplicate Name\\\", \\\"indicator\\\": \\\"red\\\"}\"]"
+      }
+    },
+    {
+      "doctype": "Account",
+      "name": "Application of Funds (Assets) - SACL",
+      "status": "mapped_existing_account",
+      "target": "1000 - Application of Funds (Assets) - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Current Assets - SACL",
+      "status": "mapped_existing_account",
+      "target": "1100-1600 - Current Assets - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Accounts Receivable - SACL",
+      "status": "mapped_existing_account",
+      "target": "1300 - Accounts Receivable - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Debtors - SACL",
+      "status": "mapped_existing_account",
+      "target": "1310 - Debtors - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Bank Accounts - SACL",
+      "status": "mapped_existing_account",
+      "target": "1200 - Bank Accounts - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Cash In Hand - SACL",
+      "status": "mapped_existing_account",
+      "target": "1100 - Cash In Hand - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Cash - SACL",
+      "status": "mapped_existing_account",
+      "target": "1110 - Cash - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Loans and Advances (Assets) - SACL",
+      "status": "mapped_existing_account",
+      "target": "1600 - Loans and Advances (Assets) - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Securities and Deposits - SACL",
+      "status": "mapped_existing_account",
+      "target": "1650 - Securities and Deposits - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Earnest Money - SACL",
+      "status": "mapped_existing_account",
+      "target": "1651 - Earnest Money - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Stock Assets - SACL",
+      "status": "mapped_existing_account",
+      "target": "1400 - Stock Assets - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Tax Assets - SACL",
+      "status": "mapped_existing_account",
+      "target": "1500 - Tax Assets - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Fixed Assets - SACL",
+      "status": "mapped_existing_account",
+      "target": "1700 - Fixed Assets - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Equity - SACL",
+      "status": "mapped_existing_account",
+      "target": "3000 - Equity - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Dividends Paid - SACL",
+      "status": "mapped_existing_account",
+      "target": "3200 - Dividends Paid - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Opening Balance Equity - SACL",
+      "status": "mapped_existing_account",
+      "target": "3300 - Opening Balance Equity - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Retained Earnings - SACL",
+      "status": "mapped_existing_account",
+      "target": "3400 - Retained Earnings - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5000 - Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Direct Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5100 - Direct Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Stock Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5110 - Stock Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Cost of Goods Sold - SACL",
+      "status": "mapped_existing_account",
+      "target": "5111 - Cost of Goods Sold - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Expenses Included In Valuation - SACL",
+      "status": "mapped_existing_account",
+      "target": "5118 - Expenses Included In Valuation - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Stock Adjustment - SACL",
+      "status": "mapped_existing_account",
+      "target": "5119 - Stock Adjustment - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Indirect Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5200 - Indirect Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Administrative Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5201 - Administrative Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Depreciation - SACL",
+      "status": "mapped_existing_account",
+      "target": "5203 - Depreciation - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Entertainment Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5204 - Entertainment Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Legal Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5206 - Legal Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Miscellaneous Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5221 - Miscellaneous Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Salary - SACL",
+      "status": "mapped_existing_account",
+      "target": "5213 - Salary - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Sales Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5214 - Sales Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Travel Expenses - SACL",
+      "status": "mapped_existing_account",
+      "target": "5216 - Travel Expenses - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Income - SACL",
+      "status": "mapped_existing_account",
+      "target": "4000 - Income - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Direct Income - SACL",
+      "status": "mapped_existing_account",
+      "target": "4100 - Direct Income - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Sales - SACL",
+      "status": "mapped_existing_account",
+      "target": "4110 - Sales - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Indirect Income - SACL",
+      "status": "mapped_existing_account",
+      "target": "4200 - Indirect Income - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Source of Funds (Liabilities) - SACL",
+      "status": "mapped_existing_account",
+      "target": "2000 - Source of Funds (Liabilities) - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Current Liabilities - SACL",
+      "status": "mapped_existing_account",
+      "target": "2100-2400 - Current Liabilities - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Accounts Payable - SACL",
+      "status": "mapped_existing_account",
+      "target": "2100 - Accounts Payable - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Creditors - SACL",
+      "status": "mapped_existing_account",
+      "target": "2110 - Creditors - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Duties and Taxes - SACL",
+      "status": "mapped_existing_account",
+      "target": "2300 - Duties and Taxes - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Loans (Liabilities) - SACL",
+      "status": "mapped_existing_account",
+      "target": "2400 - Loans (Liabilities) - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Bank Overdraft Account - SACL",
+      "status": "mapped_existing_account",
+      "target": "2430 - Bank Overdraft Account - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Secured Loans - SACL",
+      "status": "mapped_existing_account",
+      "target": "2410 - Secured Loans - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Unsecured Loans - SACL",
+      "status": "mapped_existing_account",
+      "target": "2420 - Unsecured Loans - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Stock Liabilities - SACL",
+      "status": "mapped_existing_account",
+      "target": "2200 - Stock Liabilities - SACL"
+    },
+    {
+      "doctype": "Account",
+      "name": "Stock Received But Not Billed - SACL",
+      "status": "mapped_existing_account",
+      "target": "2210 - Stock Received But Not Billed - SACL"
+    }
+  ]
+}

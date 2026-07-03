@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-06-26T10:16:54.956Z",
+  "apply": false,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "Pricing Rule": {
+      "duplicate_groups": 0,
+      "delete_count": 0
+    },
+    "Approved Discounts": {
+      "duplicate_groups": 0,
+      "delete_count": 0
+    },
+    "Part Name": {
+      "duplicate_groups": 0,
+      "delete_count": 0
+    },
+    "Goods Transporter": {
+      "duplicate_groups": 0,
+      "delete_count": 0
+    },
+    "Towns": {
+      "duplicate_groups": 0,
+      "delete_count": 0
+    },
+    "Driver": {
+      "duplicate_groups": 0,
+      "delete_count": 0
+    }
+  },
+  "deleted": [],
+  "failed": []
+}

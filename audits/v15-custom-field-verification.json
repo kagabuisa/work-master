@@ -1,0 +1,905 @@
+{
+  "generated_at": "2026-06-24T11:36:01.443Z",
+  "target": "https://new.zenjji.com",
+  "source_count": 179,
+  "verified_count": 179,
+  "missing_count": 0,
+  "missing": [],
+  "verified": [
+    {
+      "dt": "Account",
+      "fieldname": "cost_center",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Address",
+      "fieldname": "shopify_address_id",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Approved Discounts",
+      "fieldname": "status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Area",
+      "fieldname": "invoices",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Area",
+      "fieldname": "sales_invoiced",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Attendance",
+      "fieldname": "late_arrival",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Attendance",
+      "fieldname": "la_time",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Attendance",
+      "fieldname": "early_departure",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Attendance",
+      "fieldname": "ed_time",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Container",
+      "fieldname": "reference",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Container",
+      "fieldname": "column",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Cost Center",
+      "fieldname": "cost_center_type",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Customer",
+      "fieldname": "shopify_customer_id",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Customer",
+      "fieldname": "contact_person",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Customer",
+      "fieldname": "lead_employee",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Customer",
+      "fieldname": "lead_employee_name",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Customer",
+      "fieldname": "customer_followup_section",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Customer",
+      "fieldname": "customer_followup",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "warehouse",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "review_report",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "sales_invoiced",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "expenses_posted",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "divider",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "banked_on",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "cash_banked",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Daily Activity Report",
+      "fieldname": "bank_used",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Employee",
+      "fieldname": "assigned_to",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Ext Links",
+      "fieldname": "shops_sales_and_commission",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "suppliers",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "product_line_item",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "item_category",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "system_category",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "source",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "cost",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "old_cost",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "rrp",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "rwp",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "freight",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "handling_costs",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "package_type",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "lead_item",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "abc_analysis",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "minimum_order_qty",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "group_abc",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "supply_vs_demand",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "part_name",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "photocount_id",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "maximum_stock",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "import_max_qty",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "length",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "width",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "height",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "gross_weight",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "qty_per_carton",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "cbm_per_carton",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "order_min_qty",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "fob",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item",
+      "fieldname": "import_supplier",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "price_type",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "price_update",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "price_update_on",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "cost_center",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "carton_price",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "dealer_price",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "new_price",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "stock_balance",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "unit_cost",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "promo_start_date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "promo_expiry_date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "promo_warehouse",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "promo_customer",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "warehouse_type",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "promo_rate",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "promo_qty",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "incarton",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "old_price",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "item_category",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Item Price",
+      "fieldname": "margin",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "entry_category",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "requisition_status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "request_approved",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "sales_date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "employee",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "employee_name",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "cost_center",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "allow",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "invoice_number",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry",
+      "fieldname": "workflow_state",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Journal Entry Account",
+      "fieldname": "packages_received",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "town_visited",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "town",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "owner_tel",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "shop_size",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "town_classification",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "owner_met",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "shop_manager",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "manager_tel_whatsapp",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "remarks",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "bad_data",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "sales_person",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "sales_person_name",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "lead_follow_up",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Lead",
+      "fieldname": "lead_followup",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Leave Application",
+      "fieldname": "workflow_state",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Print Settings",
+      "fieldname": "compact_item_print",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Invoice",
+      "fieldname": "test",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order",
+      "fieldname": "approval_status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order",
+      "fieldname": "container_status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order",
+      "fieldname": "delivery_to",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order",
+      "fieldname": "reference",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order",
+      "fieldname": "container_number",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "import_details",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "import_supplier",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "import_rate",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "qty_per_carton",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "cb2",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "item_weight",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Order Item",
+      "fieldname": "carton_cbm",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Receipt",
+      "fieldname": "business_unit_or_cost_center",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Receipt",
+      "fieldname": "buyer",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Receipt",
+      "fieldname": "buyer_name",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Purchase Receipt",
+      "fieldname": "receipt_no",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "column_break_27",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "sales",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "margin",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "commission2",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "approved",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "details_of_charges",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "charges_to_recover",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "deduction_and_balance",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "salary_slip",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "employee2",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "month2",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "balance_bf",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "clbrk_28",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "grand_total",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "deducted",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "balance_cf",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Salary Slip",
+      "fieldname": "kagabu",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice",
+      "fieldname": "contact",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice",
+      "fieldname": "approved",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice",
+      "fieldname": "warehoused",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice",
+      "fieldname": "invoice_number",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice",
+      "fieldname": "invoice_by",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice",
+      "fieldname": "invoicer_name",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Invoice Item",
+      "fieldname": "category",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Sales Order",
+      "fieldname": "shopify_order_id",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "transfer_type",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "target_warehouse_for_shop_to_shop_transfer",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "order_status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "approval_status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "delivery_status",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "total_packages",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "delivery_details",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "cost_center",
+      "status": "doctype_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "allow",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "customer_names",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "document_type",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "document_id",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "stock_entry_posting_date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "delivery_date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "transporter",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "packed_by",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "packer",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "receive_date",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "packages_received",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "received_by",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "employee",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry",
+      "fieldname": "singature",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Entry Detail",
+      "fieldname": "picked",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Stock Reconciliation",
+      "fieldname": "warehouse",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Supplier",
+      "fieldname": "holding_company",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Top3AVGSales",
+      "fieldname": "remark",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Warehouse",
+      "fieldname": "warehouse_abbreviation",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Warehouse",
+      "fieldname": "branch",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Warehouse",
+      "fieldname": "warehouse_type",
+      "status": "doctype_field"
+    },
+    {
+      "dt": "Warehouse",
+      "fieldname": "cost_center",
+      "status": "custom_field"
+    },
+    {
+      "dt": "Warehouse",
+      "fieldname": "code",
+      "status": "custom_field"
+    }
+  ]
+}

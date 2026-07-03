@@ -1,0 +1,1074 @@
+{
+  "generated_at": "2026-06-26T12:34:22.413Z",
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_users": 75,
+    "created": 0,
+    "existing_updated": 41,
+    "skipped_existing": 34,
+    "skipped_system_user": 0,
+    "skipped_invalid_email": 0,
+    "failed": 0,
+    "role_assignments_applied": 550
+  },
+  "missing_roles": [],
+  "results": [
+    {
+      "user": "3RDCPUAUDITOR@gmail.com",
+      "email": "3RDCPUAUDITOR@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Stock Manager",
+        "Stock User",
+        "Accounts Manager",
+        "Stock Adjuster",
+        "Auditor",
+        "Expense Approver",
+        "HR User"
+      ]
+    },
+    {
+      "user": "abirigaspares@gmail.com",
+      "email": "abirigaspares@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "acc.supertex@gmail.com",
+      "email": "acc.supertex@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts Manager",
+        "Accounts User",
+        "CPU Managers",
+        "HR Manager",
+        "HR User",
+        "Local Buyer",
+        "Purchase Manager",
+        "Purchase User",
+        "Report Manager",
+        "Sales User",
+        "Accountant",
+        "Employee"
+      ]
+    },
+    {
+      "user": "acholharon@gmail.com",
+      "email": "acholharon@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "afbikecenter@gmail.com",
+      "email": "afbikecenter@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Expense Approver",
+        "Leave Approver",
+        "Purchase User",
+        "Report Manager",
+        "Sales User",
+        "Stock User",
+        "Accounts User",
+        "Stock Manager",
+        "CPU Managers",
+        "Stock Adjuster",
+        "DC Manager",
+        "Item Manager",
+        "Purchase Master Manager",
+        "Sales Manager",
+        "Purchase Manager",
+        "Auditor",
+        "Accounts Manager",
+        "Director"
+      ]
+    },
+    {
+      "user": "alfredogwang16@gmail.com",
+      "email": "alfredogwang16@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "alphaautospares@gmail.com",
+      "email": "alphaautospares@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "atusasiretr@gmail.com",
+      "email": "atusasiretr@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "baigaspares@gmail.com",
+      "email": "baigaspares@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Expense Approver",
+        "Employee",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "banyavic225@gmail.com",
+      "email": "banyavic225@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Employee",
+        "Auditor",
+        "Accounts User",
+        "CPU Managers",
+        "Accounts Manager"
+      ]
+    },
+    {
+      "user": "bcbundibugyo@gmail.com",
+      "email": "bcbundibugyo@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "bcnebbi@gmail.com",
+      "email": "bcnebbi@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "bcpaidha@gmail.com",
+      "email": "bcpaidha@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "bentreed@ymail.com",
+      "email": "bentreed@ymail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "bouhani2004@yahoo.fr",
+      "email": "bouhani2004@yahoo.fr",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "bryooks877@gmail.com",
+      "email": "bryooks877@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Accounts Manager",
+        "Expense Approver",
+        "HR User",
+        "Leave Approver",
+        "Sales Manager",
+        "Sales Master Manager",
+        "Accounts User",
+        "Sales User",
+        "Accountant",
+        "Item Manager"
+      ]
+    },
+    {
+      "user": "business@supertexapa.com",
+      "email": "business@supertexapa.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Accounts Manager",
+        "Accounts User",
+        "Analytics",
+        "Auditor",
+        "Blogger",
+        "CPU Managers",
+        "Customer",
+        "Director",
+        "Expense Approver",
+        "HR Manager",
+        "HR User",
+        "Item Manager",
+        "Leave Approver",
+        "Maintenance Manager",
+        "Maintenance User",
+        "Manufacturing Manager",
+        "Manufacturing User",
+        "Newsletter Manager",
+        "Projects Manager",
+        "Projects User",
+        "Purchase Manager",
+        "Purchase Master Manager",
+        "Purchase User",
+        "Quality Manager",
+        "Report Manager",
+        "Sales Manager",
+        "Sales Master Manager",
+        "Sales User",
+        "Stock Manager",
+        "Stock User",
+        "Supplier",
+        "Support Team",
+        "Website Manager",
+        "Stock Adjuster",
+        "Accounts User-Mobile",
+        "DC Manager",
+        "Driver",
+        "Local Buyer",
+        "Store Manager",
+        "Warehouse stock reconciler"
+      ]
+    },
+    {
+      "user": "busingyesalama@gmail.com",
+      "email": "busingyesalama@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Expense Approver",
+        "HR Manager",
+        "HR User",
+        "Item Manager",
+        "Purchase Manager",
+        "Purchase Master Manager",
+        "Purchase User",
+        "Report Manager",
+        "Sales Manager",
+        "Sales Master Manager",
+        "Sales User",
+        "Accounts User",
+        "Accounts Manager",
+        "CPU Managers",
+        "Stock User",
+        "DC Manager",
+        "Stock Manager",
+        "Support Team",
+        "Local Buyer",
+        "Accountant",
+        "Director",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "cherotichtendet@gmail.com",
+      "email": "cherotichtendet@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Employee",
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "Churchillocaya@gmail.com",
+      "email": "Churchillocaya@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "cpuaudit@gmail.com",
+      "email": "cpuaudit@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Stock Manager",
+        "Stock User",
+        "Accounts Manager",
+        "Stock Adjuster",
+        "Auditor",
+        "Expense Approver",
+        "HR User"
+      ]
+    },
+    {
+      "user": "cpuretail@gmail.com",
+      "email": "cpuretail@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Item Manager",
+        "Report Manager",
+        "Sales User",
+        "Accounts User",
+        "CPU Managers",
+        "Stock User",
+        "Employee",
+        "Purchase User",
+        "Stock Adjuster",
+        "HR User"
+      ]
+    },
+    {
+      "user": "cpushipping@gmail.com",
+      "email": "cpushipping@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Expense Approver",
+        "Leave Approver",
+        "Purchase User",
+        "Report Manager",
+        "Sales User",
+        "Employee",
+        "Stock User",
+        "Accounts User",
+        "Stock Manager",
+        "CPU Managers",
+        "Stock Adjuster",
+        "DC Manager",
+        "Item Manager",
+        "Purchase Master Manager",
+        "Sales Manager",
+        "Purchase Manager",
+        "Auditor"
+      ]
+    },
+    {
+      "user": "cpustores@gmail.com",
+      "email": "cpustores@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Item Manager",
+        "Stock Manager",
+        "Store Manager",
+        "Purchase Manager",
+        "Purchase Master Manager",
+        "Purchase User",
+        "Stock User",
+        "Accounts User",
+        "Expense Approver",
+        "Employee",
+        "HR User",
+        "Accounts Manager",
+        "CPU Managers"
+      ]
+    },
+    {
+      "user": "danielomoding@gmail.com",
+      "email": "danielomoding@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "enyikug@mail.zenjji.com",
+      "email": "enyikug@mail.zenjji.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Expense Approver",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Accounts User"
+      ]
+    },
+    {
+      "user": "giantautospares20@gmail.com",
+      "email": "giantautospares20@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Purchase User",
+        "Employee"
+      ]
+    },
+    {
+      "user": "goldspares@gmail.com",
+      "email": "goldspares@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Expense Approver",
+        "Employee"
+      ]
+    },
+    {
+      "user": "japaqualityspares@gmail.com",
+      "email": "japaqualityspares@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Support Team",
+        "Stock User"
+      ]
+    },
+    {
+      "user": "jtumukunde002@gmail.com",
+      "email": "jtumukunde002@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "kagabuisa@gmail.com",
+      "email": "kagabuisa@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "System Manager",
+        "Accounts User",
+        "Analytics",
+        "Auditor",
+        "Blogger",
+        "Expense Approver",
+        "HR Manager",
+        "HR User",
+        "Item Manager",
+        "Leave Approver",
+        "Maintenance Manager",
+        "Maintenance User",
+        "Manufacturing Manager",
+        "Manufacturing User",
+        "Newsletter Manager",
+        "Projects Manager",
+        "Projects User",
+        "Purchase Manager",
+        "Purchase Master Manager",
+        "Purchase User",
+        "Quality Manager",
+        "Report Manager",
+        "Sales Manager",
+        "Sales Master Manager",
+        "Sales User",
+        "Stock Manager",
+        "Stock User",
+        "Support Team",
+        "Customer",
+        "Website Manager",
+        "Supplier",
+        "CPU Managers",
+        "Driver",
+        "Accounts Manager",
+        "DC Manager",
+        "Accountant",
+        "Local Buyer",
+        "Stock Adjuster",
+        "Store Manager",
+        "Warehouse stock reconciler",
+        "Director"
+      ]
+    },
+    {
+      "user": "kdlbs2525@gmail.com",
+      "email": "kdlbs2525@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "kiberu@gmail.com",
+      "email": "kiberu@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "kiizadavid2018@gmail.com",
+      "email": "kiizadavid2018@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "kyamuisa@gmail.com",
+      "email": "kyamuisa@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "kyenjojotraders@gmail.com",
+      "email": "kyenjojotraders@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Accounts User",
+        "Employee"
+      ]
+    },
+    {
+      "user": "logisticscpu@gmail.com",
+      "email": "logisticscpu@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Expense Approver",
+        "Item Manager",
+        "Leave Approver",
+        "Purchase Manager",
+        "Purchase Master Manager",
+        "Purchase User",
+        "Report Manager",
+        "Sales Manager",
+        "Sales Master Manager",
+        "Sales User",
+        "Accounts User",
+        "CPU Managers",
+        "Stock User",
+        "DC Manager",
+        "Stock Manager",
+        "Stock Adjuster",
+        "Auditor",
+        "Employee",
+        "Local Buyer"
+      ]
+    },
+    {
+      "user": "masabaautogiant@gmail.com",
+      "email": "masabaautogiant@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Purchase User",
+        "Employee",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "masaronaldrudie@gmail.com",
+      "email": "masaronaldrudie@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "maserekaspares@gmail.com",
+      "email": "maserekaspares@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Leave Approver",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee",
+        "Stock Adjuster"
+      ]
+    },
+    {
+      "user": "mathewosia@gmail.com",
+      "email": "mathewosia@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Auditor",
+        "Employee",
+        "Accounts User",
+        "Accounts Manager"
+      ]
+    },
+    {
+      "user": "mobilewest0916@gmail.com",
+      "email": "mobilewest0916@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Expense Approver",
+        "Leave Approver",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Purchase User",
+        "Driver",
+        "Accounts User",
+        "HR User",
+        "Fields Sales"
+      ]
+    },
+    {
+      "user": "mudashiromar@gmail.com",
+      "email": "mudashiromar@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "mugabicjunior@gmail.com",
+      "email": "mugabicjunior@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Expense Approver",
+        "HR Manager",
+        "Leave Approver",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Purchase User",
+        "Driver",
+        "Accounts User",
+        "Employee"
+      ]
+    },
+    {
+      "user": "multipletradex@gmail.com",
+      "email": "multipletradex@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "mwesigwaivan40@gmail.com",
+      "email": "mwesigwaivan40@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "mwesigwaparts@gmail.com",
+      "email": "mwesigwaparts@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "nakayongonubu@gmail.com",
+      "email": "nakayongonubu@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Fields Sales",
+        "Store Manager"
+      ]
+    },
+    {
+      "user": "nanarafat@zenjji.com",
+      "email": "nanarafat@zenjji.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Item Manager",
+        "Report Manager",
+        "Sales User",
+        "Accounts User",
+        "Stock User",
+        "Purchase User",
+        "Store Manager",
+        "Stock Adjuster",
+        "Driver",
+        "Expense Approver",
+        "Leave Approver",
+        "HR User"
+      ]
+    },
+    {
+      "user": "niletradex@gmail.com",
+      "email": "niletradex@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee",
+        "Purchase User",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "ogwangspares@gmail.com",
+      "email": "ogwangspares@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Purchase User",
+        "Employee",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "okirorvita@gmail.com",
+      "email": "okirorvita@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "olwenysteven47@gmail.com",
+      "email": "olwenysteven47@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "onzikuronald@gmail.com",
+      "email": "onzikuronald@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "opureopenganmathew@gmail.com",
+      "email": "opureopenganmathew@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "pgalaxyenterprises@gmail.com",
+      "email": "pgalaxyenterprises@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Leave Approver",
+        "Sales User",
+        "Stock User",
+        "Employee",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "ritahnayebare541@gmail.com",
+      "email": "ritahnayebare541@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Store Manager"
+      ]
+    },
+    {
+      "user": "rwatooroj@mail.zenjji.com",
+      "email": "rwatooroj@mail.zenjji.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Stock User",
+        "Expense Approver",
+        "Sales User",
+        "Employee",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "secpuauditor@gmail.com",
+      "email": "secpuauditor@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Stock Manager",
+        "Stock User",
+        "Accounts Manager",
+        "Stock Adjuster",
+        "Auditor",
+        "Expense Approver",
+        "HR User"
+      ]
+    },
+    {
+      "user": "shinazzawedde0@gmail.com",
+      "email": "shinazzawedde0@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts Manager",
+        "Accounts User",
+        "CPU Managers",
+        "HR Manager",
+        "HR User",
+        "Local Buyer",
+        "Purchase Manager",
+        "Purchase User",
+        "Report Manager",
+        "Sales User",
+        "Accountant",
+        "Employee",
+        "Leave Approver",
+        "Sales Master Manager",
+        "Stock Adjuster",
+        "Stock User",
+        "Expense Approver",
+        "Quality Manager",
+        "Sales Manager",
+        "Stock Manager"
+      ]
+    },
+    {
+      "user": "skysalesfortportal@gmail.com",
+      "email": "skysalesfortportal@gmail.com",
+      "status": "skipped_existing",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "Sales User",
+        "Stock User"
+      ]
+    },
+    {
+      "user": "skytradersug@gmail.com",
+      "email": "skytradersug@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee",
+        "Purchase User",
+        "Leave Approver"
+      ]
+    },
+    {
+      "user": "solomonamalo1991@gmail.com",
+      "email": "solomonamalo1991@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    },
+    {
+      "user": "superbkasese@gmail.com",
+      "email": "superbkasese@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Employee",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "taffdrc02@gmail.com",
+      "email": "taffdrc02@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "taffdrc19@gmail.com",
+      "email": "taffdrc19@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "taffkampala@gmail.com",
+      "email": "taffkampala@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "Leave Approver",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Stock Adjuster",
+        "Sales Manager",
+        "HR User",
+        "CPU Managers",
+        "Purchase Master Manager",
+        "Emergency",
+        "Fields Sales"
+      ]
+    },
+    {
+      "user": "taffmbale@gmail.com",
+      "email": "taffmbale@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Stock User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Employee",
+        "Support Team"
+      ]
+    },
+    {
+      "user": "taffmobilefive@gmail.com",
+      "email": "taffmobilefive@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Fields Sales",
+        "Report Manager",
+        "Sales User",
+        "Stock User"
+      ]
+    },
+    {
+      "user": "taffmobilefour@gmail.com",
+      "email": "taffmobilefour@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Fields Sales",
+        "Report Manager"
+      ]
+    },
+    {
+      "user": "taffmobileone@gmail.com",
+      "email": "taffmobileone@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Fields Sales",
+        "Report Manager",
+        "Accounts User",
+        "Expense Approver",
+        "HR User",
+        "Item Manager",
+        "Purchase User",
+        "Sales User",
+        "Stock Adjuster",
+        "Stock User"
+      ]
+    },
+    {
+      "user": "taffmobiletwo@gmail.com",
+      "email": "taffmobiletwo@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Item Manager",
+        "Report Manager",
+        "Sales User",
+        "Accounts User",
+        "Stock User",
+        "Purchase User",
+        "Stock Adjuster",
+        "Driver",
+        "Expense Approver",
+        "Leave Approver",
+        "HR User",
+        "Store Manager"
+      ]
+    },
+    {
+      "user": "tambogeneraltraders@gmail.com",
+      "email": "tambogeneraltraders@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Accounts User",
+        "Expense Approver",
+        "HR Manager",
+        "Sales User",
+        "Stock User",
+        "Support Team",
+        "Employee"
+      ]
+    },
+    {
+      "user": "titanrubbertt@gmail.com",
+      "email": "titanrubbertt@gmail.com",
+      "status": "existing_updated",
+      "roles": [
+        "Fields Sales",
+        "Report Manager",
+        "Accounts User",
+        "Item Manager",
+        "Sales User",
+        "Stock User"
+      ]
+    },
+    {
+      "user": "uwonge.mg16@gmail.com",
+      "email": "uwonge.mg16@gmail.com",
+      "status": "skipped_existing",
+      "roles": []
+    }
+  ]
+}

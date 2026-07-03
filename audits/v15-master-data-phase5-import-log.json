@@ -1,0 +1,1825 @@
+{
+  "generated_at": "2026-06-25T09:12:07.785Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "Contact": {
+      "source": 2002,
+      "skipped_existing": 85,
+      "skipped_no_link": 1,
+      "dry_run_create": 0,
+      "created": 1916,
+      "failed": 0
+    },
+    "Address": {
+      "source": 60,
+      "skipped_existing": 0,
+      "skipped_no_link": 22,
+      "dry_run_create": 0,
+      "created": 38,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "doctype": "Contact",
+      "name": "-MARTIN  OCUNU SAM-0773731071-SOROTI--MARTIN  OCUNU SAM-0773731071-SOROTI",
+      "status": "created",
+      "target": "-MARTIN  OCUNU SAM-0773731071-SOROTI--MARTIN  OCUNU SAM-0773731071-SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "(BARNABAS TAYEBWA-0773718211-BUTUNDUZI)-(BARNABAS TAYEBWA-0773718211-BUTUNDUZI)",
+      "status": "created",
+      "target": "(BARNABAS TAYEBWA-0773718211-BUTUNDUZI)-\"(BARNABAS TAYEBWA-0773718211-BUTUNDUZI)\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "0788921264-SUSU PAKADHA-0788921264",
+      "status": "created",
+      "target": "0788921264-\"SUSU PAKADHA-0788921264\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "36R-0708827645-SHAMBA-36R-0708827645-SHAMBA",
+      "status": "created",
+      "target": "36R-0708827645-SHAMBA-\"FRED 36R-0708827645-SHAMBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "50R- 0706174721- kampala-50R- 0706174721- kampala",
+      "status": "created",
+      "target": "50R- 0706174721- kampala-\"SAFI 50R- 0706174721- kampala\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AAACHA SOFLYV  0787169647 SOROTI-AAACHA SOFLYV  0787169647 SOROTI",
+      "status": "created",
+      "target": "AAACHA SOFLYV  0787169647 SOROTI-AAACHA SOFLYV  0787169647 SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AALIYA BINT MUSA-AALIYA BINT MUSA",
+      "status": "created",
+      "target": "AALIYA BINT MUSA-AALIYA BINT MUSA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Aaron-0760658852-Lira-Aaron-0760658852-Lira",
+      "status": "created",
+      "target": "Aaron-0760658852-Lira-Aaron-0760658852-Lira"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABAALA   KITO-ABAALA   KITO",
+      "status": "created",
+      "target": "ABAALA   KITO-\"ABAALA   KITO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABAALA  PATREK-ABAALA  PATREK",
+      "status": "created",
+      "target": "ABAALA  PATREK-\"ABAALA  PATREK\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABASI -0783491016-MUBUKU-ABASI -0783491016-MUBUKU",
+      "status": "created",
+      "target": "ABASI -0783491016-MUBUKU-\"ABASI -0783491016-MUBUKU\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABBY-0755962582-NANSANA-ABBY-0755962582-NANSANA",
+      "status": "created",
+      "target": "ABBY-0755962582-NANSANA-ABBY-0755962582-NANSANA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDALAH  - 0782576606-ABDALAH  - 0782576606",
+      "status": "created",
+      "target": "ABDALAH  - 0782576606-\"ABDALAH  - 0782576606\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDI-0788516629-SIRONKO-ABDI-0788516629-SIRONKO",
+      "status": "created",
+      "target": "ABDI-0788516629-SIRONKO-\"ABDI-0788516629-SIRONKO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDUL 0773142957 KYENJOJO-LUGOMBA-ABDUL 0773142957 KYENJOJO-LUGOMBA",
+      "status": "created",
+      "target": "ABDUL 0773142957 KYENJOJO-LUGOMBA-\"ABDUL 0773142957 KYENJOJO-LUGOMBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDUL 0773142957 LUGOMBE-ABDUL AUTO GARAGE",
+      "status": "created",
+      "target": "ABDUL 0773142957 LUGOMBE-\"ABDUL AUTO GARAGE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDUL 0779837926 KOBOKO-KK SPARES",
+      "status": "created",
+      "target": "ABDUL 0779837926 KOBOKO-\"KK SPARES\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDUL MOTOR SPARE PARTS-0778230150-KAMWENGE-ABDUL MOTOR SPARE PARTS-0778230150-KAMWENGE",
+      "status": "created",
+      "target": "ABDUL MOTOR SPARE PARTS-0778230150-KAMWENGE-\"ABDUL MOTOR SPARE PARTS-0778230150-KAMWENGE\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Abdul-075430092-Abdul-075430092",
+      "status": "created",
+      "target": "Abdul-075430092-\"Abdul-075430092\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDUL-0772431271-KITGUM-ABDUL-0772431271-KITGUM",
+      "status": "created",
+      "target": "ABDUL-0772431271-KITGUM-\"ABDUL-0772431271-KITGUM\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABDULLAH-0704535091-ABU SPARES AND GARAGE",
+      "status": "created",
+      "target": "ABDULLAH-0704535091-\"ABU SPARES AND GARAGE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABIA KAMWENGE - 0786899264-ABIA KAMWENGE - 0786899264",
+      "status": "created",
+      "target": "ABIA KAMWENGE - 0786899264-\"ABIA KAMWENGE - 0786899264\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Abigaba-0778673669-Butogo-Abigaba-0778673669-Butogo",
+      "status": "created",
+      "target": "Abigaba-0778673669-Butogo-\"Abigaba-0778673669-Butogo\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Abraham Nkikabahazi -0783497870-kiryandongo-Abraham Nkikabahazi -0783497870-kiryandongo",
+      "status": "created",
+      "target": "Abraham Nkikabahazi -0783497870-kiryandongo-\"Abraham Nkikabahazi -0783497870-kiryandongo\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABRAHAM- 0757036431-SIRONKO-ABRAHAM- 0757036431-SIRONKO",
+      "status": "created",
+      "target": "ABRAHAM- 0757036431-SIRONKO-ABRAHAM- 0757036431-SIRONKO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABS-0783491016-KASESE-ABS-0783491016-KASESE",
+      "status": "created",
+      "target": "ABS-0783491016-KASESE-\"ABS-0783491016-KASESE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABU IBRAHIM-0779711500-KAMPALA, MBK-ABU IBRAHIM-0779711500-KAMPALA, MBK",
+      "status": "created",
+      "target": "ABU IBRAHIM-0779711500-KAMPALA, MBK-\"ABU IBRAHIM-0779711500-KAMPALA, MBK\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABU KIJAJASI -0702516659-NDEJJE-ABU KIJAJASI -0702516659-NDEJJE",
+      "status": "created",
+      "target": "ABU KIJAJASI -0702516659-NDEJJE-ABU KIJAJASI -0702516659-NDEJJE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ABUDALAH -0784527630 BWEYALE-ABUDALAH SPARE PARTS",
+      "status": "created",
+      "target": "ABUDALAH -0784527630 BWEYALE-\"ABUDALAH SPARE PARTS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "acewere titus-true spares",
+      "status": "created",
+      "target": "acewere titus-\"true spares\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ACHIDRI PONSIO-0783614525-KOBOKO-ACHIDRI PONSIO-0783614525-KOBOKO",
+      "status": "created",
+      "target": "ACHIDRI PONSIO-0783614525-KOBOKO-\"ACHIDRI PONSIO-0783614525-KOBOKO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ACHOME JOHN -0775166178-ACHOME JOHN -0775166178",
+      "status": "created",
+      "target": "ACHOME JOHN -0775166178-\"ACHOME JOHN -0775166178\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "acidri ponsio-acidri ponsio",
+      "status": "created",
+      "target": "acidri ponsio-\"acidri ponsio\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ACLEO-ACLEO",
+      "status": "created",
+      "target": "ACLEO-\"ACLEO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADAM-0785001305-RUKUNGIRI-ADAMZ GARAGE &SPARES 0785001305",
+      "status": "created",
+      "target": "ADAM-0785001305-RUKUNGIRI-\"ADAMZ GARAGE &SPARES 0785001305\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADAMASCO JOHN-0762293722-ADAMASCO JOHN-0762293722",
+      "status": "created",
+      "target": "ADAMASCO JOHN-0762293722-ADAMASCO JOHN-0762293722"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADELLA-0700731086-RWEBIKONA-ADELLA-0700731086-RWEBIKONA",
+      "status": "created",
+      "target": "ADELLA-0700731086-RWEBIKONA-ADELLA-0700731086-RWEBIKONA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADENGA ODERAI 0772988554 SOROTI-ADENGA ODERAI 0772988554 SOROTI",
+      "status": "created",
+      "target": "ADENGA ODERAI 0772988554 SOROTI-ADENGA ODERAI 0772988554 SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADENGA YES BOSS 0703413601 SOROTI-ADENGA YES BOSS 0703413601 SOROTI",
+      "status": "created",
+      "target": "ADENGA YES BOSS 0703413601 SOROTI-ADENGA YES BOSS 0703413601 SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADEYO FRED-0794477637-ADEYO FRED-0794477637",
+      "status": "created",
+      "target": "ADEYO FRED-0794477637-\"ADEYO FRED-0794477637\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADIGA-MIZAMIL-0793213267-ADIGA-MIZAMIL-0793213267",
+      "status": "created",
+      "target": "ADIGA-MIZAMIL-0793213267-\"ADIGA-MIZAMIL-0793213267\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADIGA-YUMBE-0784767142-ADIGA-YUMBE-0784767142",
+      "status": "created",
+      "target": "ADIGA-YUMBE-0784767142-ADIGA-YUMBE-0784767142"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADOLF-0751878567-KAMPALA-ADOLF-0751878567-KAMPALA",
+      "status": "created",
+      "target": "ADOLF-0751878567-KAMPALA-\"ADOLF-0751878567-KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADOLF-077430588-KATOOKE-ADOLF-077430588-KATOOKE",
+      "status": "created",
+      "target": "ADOLF-077430588-KATOOKE-ADOLF-077430588-KATOOKE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADOLF-0777450419-KINYARA-ADOLF-0777450419-KINYARA",
+      "status": "created",
+      "target": "ADOLF-0777450419-KINYARA-\"ADOLF-0777450419-KINYARA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADOLF-0781467798-BUBUKWANGA-ADOLF-0781467798-BUBUKWANGA",
+      "status": "created",
+      "target": "ADOLF-0781467798-BUBUKWANGA-\"ADOLF-0781467798-BUBUKWANGA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADONIA-0771608725-ISINGIRO-ADONIA-0771608725-ISINGIRO",
+      "status": "created",
+      "target": "ADONIA-0771608725-ISINGIRO-\"ADONIA-0771608725-ISINGIRO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADRO-0773997217-OKOLO-ADRO-0773997217-OKOLO",
+      "status": "created",
+      "target": "ADRO-0773997217-OKOLO-\"ADRO-0773997217-OKOLO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADUBA- 0771755381 PAROMBO-ADUBA- 0771755381 PAROMBO",
+      "status": "created",
+      "target": "ADUBA- 0771755381 PAROMBO-\"ADUBA- 0771755381 PAROMBO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADUMU PETER  - 0787105585-ADUMU PETER  - 0787105585",
+      "status": "created",
+      "target": "ADUMU PETER  - 0787105585-\"ADUMU PETER  - 0787105585\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADUNI JOHN-CAN KABUCHAN",
+      "status": "created",
+      "target": "ADUNI JOHN-\"CAN KABUCHAN\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADYEENI KASUSU-JAMES",
+      "status": "created",
+      "target": "ADYEENI KASUSU-JAMES"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ADYEERI-KASUSU-ADYEERI-KASUSU",
+      "status": "created",
+      "target": "ADYEERI-KASUSU-ADYEERI-KASUSU"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Afako Denis-Afako Denis",
+      "status": "created",
+      "target": "Afako Denis-\"Afako Denis\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Africana - Kabale- 0783995809-Africana Kabale",
+      "status": "created",
+      "target": "Africana - Kabale- 0783995809-\"Africana Kabale\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGABA EMILLY-0788237386-RUKUNGIRI-AGABA EMILLY-0788237386-RUKUNGIRI",
+      "status": "created",
+      "target": "AGABA EMILLY-0788237386-RUKUNGIRI-\"AGABA EMILLY-0788237386-RUKUNGIRI\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGABA MOTO SPARES -0782771904-NYAMUNUKA-AGABA MOTO SPARES -0782771904-NYAMUNUKA",
+      "status": "created",
+      "target": "AGABA MOTO SPARES -0782771904-NYAMUNUKA-\"AGABA MOTO SPARES -0782771904-NYAMUNUKA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGABA-0702448941-KASANGATI-AGABA-0702448941-KASANGATI",
+      "status": "created",
+      "target": "AGABA-0702448941-KASANGATI-AGABA-0702448941-KASANGATI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGABA-N/A-CONGO-AGABA-N/A-CONGO",
+      "status": "created",
+      "target": "AGABA-N/A-CONGO-\"AGABA-N/A-CONGO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGGREY AUTO GARAGE -0703909134-NAMUWONGO-AGGREY AUTO GARAGE -0703909134-NAMUWONGO",
+      "status": "created",
+      "target": "AGGREY AUTO GARAGE -0703909134-NAMUWONGO-AGGREY AUTO GARAGE -0703909134-NAMUWONGO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGIE OSCALLY-0784725771-KAMPALA-AGIE OSCALLY-0784725771-KAMPALA",
+      "status": "created",
+      "target": "AGIE OSCALLY-0784725771-KAMPALA-AGIE OSCALLY-0784725771-KAMPALA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGINESS 0777352024 SHAMBA COMP-AGINESS 0777352024 SHAMBA COMP",
+      "status": "created",
+      "target": "AGINESS 0777352024 SHAMBA COMP-\"AGINESS 0777352024 SHAMBA COMP\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Agnes motor spare parts-0784121045-Rukungiri-Agnes motor spare parts-0784121045-Rukungiri",
+      "status": "created",
+      "target": "Agnes motor spare parts-0784121045-Rukungiri-\"Agnes motor spare parts-0784121045-Rukungiri\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGONZA MOTOR SPARE PARTS-0776902590-HOIMA-AGONZA MOTOR SPARE PARTS-0776902590-HOIMA",
+      "status": "created",
+      "target": "AGONZA MOTOR SPARE PARTS-0776902590-HOIMA-AGONZA MOTOR SPARE PARTS-0776902590-HOIMA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGONZA-0777902549-HOIMA-AGONZA-0777902549-HOIMA",
+      "status": "created",
+      "target": "AGONZA-0777902549-HOIMA-AGONZA-0777902549-HOIMA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AGUTI MARY-0778507557-KAPELEBYONG-AGUTI MARY-0778507557-KAPELEBYONG",
+      "status": "created",
+      "target": "AGUTI MARY-0778507557-KAPELEBYONG-AGUTI MARY-0778507557-KAPELEBYONG"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AHABYONA JOSEPH-0782242057-KABUNDAIRE-AHABYONA JOSEPH-0782242057-KABUNDAIRE",
+      "status": "created",
+      "target": "AHABYONA JOSEPH-0782242057-KABUNDAIRE-\"AHABYONA JOSEPH-0782242057-KABUNDAIRE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AHMED-0751659321-NSANGI-AHMED-0751659321-NSANGI",
+      "status": "created",
+      "target": "AHMED-0751659321-NSANGI-AHMED-0751659321-NSANGI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AHUMUA MOTOR SPARES-0774798032-HOIMA-AHUMUA MOTOR SPARES-0774798032-HOIMA",
+      "status": "created",
+      "target": "AHUMUA MOTOR SPARES-0774798032-HOIMA-AHUMUA MOTOR SPARES-0774798032-HOIMA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AIDAH J&L- 0782200586-KAMPALA-AIDAH J&L- 0782200586-KAMPALA",
+      "status": "created",
+      "target": "AIDAH J&L- 0782200586-KAMPALA-\"AIDAH J&L- 0782200586-KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AIDAH--0772645823-MBALE-BUSEESA SPARE  PARTS",
+      "status": "created",
+      "target": "AIDAH--0772645823-MBALE-\"BUSEESA SPARE  PARTS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AISHA - 0788401153 MBALE-AISHA - 0788401153 MBALE",
+      "status": "created",
+      "target": "AISHA - 0788401153 MBALE-\"AISHA - 0788401153 MBALE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AISHA JO MOTOR SPAE PARTS-0778814735-KYENGERA-AISHA JO MOTOR SPAE PARTS-0778814735-KYENGERA",
+      "status": "created",
+      "target": "AISHA JO MOTOR SPAE PARTS-0778814735-KYENGERA-AISHA JO MOTOR SPAE PARTS-0778814735-KYENGERA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AISHA-0783425542-NAMAYUMBA-AISHA-0783425542-NAMAYUMBA",
+      "status": "created",
+      "target": "AISHA-0783425542-NAMAYUMBA-AISHA-0783425542-NAMAYUMBA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AJ JAIMO INVESTMENTS 0752-868272 0781-895762-AK JAIMO INVESTMENTS",
+      "status": "created",
+      "target": "AJ JAIMO INVESTMENTS 0752-868272 0781-895762-AK JAIMO INVESTMENTS 0752-868272 0781-895762"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AJIGA-0771486749-ABUKO-AJIGA-0771486749-ABUKO",
+      "status": "created",
+      "target": "AJIGA-0771486749-ABUKO-\"AJIGA-0771486749-ABUKO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AJJA YAJJA-0772947904-KIBUYE-AJJA YAJJA-0772947904-KIBUYE",
+      "status": "created",
+      "target": "AJJA YAJJA-0772947904-KIBUYE-AJJA YAJJA-0772947904-KIBUYE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AJUNAH-0753365876-MBALE-AJUNAH-0753365876-MBALE",
+      "status": "created",
+      "target": "AJUNAH-0753365876-MBALE-\"AJUNAH-0753365876-MBALE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKAIKAI JETHRO 0770334890-AKAIKAI JETHRO 0770334890",
+      "status": "created",
+      "target": "AKAIKAI JETHRO 0770334890-AKAIKAI JETHRO 0770334890"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKANKWASA AKIM-0782238401-KAMPALA-AKANKWASA AKIM-0782238401-KAMPALA",
+      "status": "created",
+      "target": "AKANKWASA AKIM-0782238401-KAMPALA-\"AKANKWASA AKIM-0782238401-KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKANKWASA CHARITY-0750947577-GAYAZA-AKANKWASA CHARITY-0750947577-GAYAZA",
+      "status": "created",
+      "target": "AKANKWASA CHARITY-0750947577-GAYAZA-\"AKANKWASA CHARITY-0750947577-GAYAZA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKANKWASA-0751366441-KYAKATWIRE-AKANKWASA-0751366441-KYAKATWIRE",
+      "status": "created",
+      "target": "AKANKWASA-0751366441-KYAKATWIRE-\"AKANKWASA-0751366441-KYAKATWIRE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKIBA-0777002762-KITGUM-AKIBA-0777002762-KITGUM",
+      "status": "created",
+      "target": "AKIBA-0777002762-KITGUM-\"AKIBA-0777002762-KITGUM\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKIM  SSENYONDO-0780381931-NTANDI-AKIM  SSENYONDO-0780381931-NTANDI",
+      "status": "created",
+      "target": "AKIM  SSENYONDO-0780381931-NTANDI-\"AKIM  SSENYONDO-0780381931-NTANDI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKIM-0780381931-NTANDI-AKIM-0780381931-NTANDI",
+      "status": "created",
+      "target": "AKIM-0780381931-NTANDI-\"AKIM-0780381931-NTANDI\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKONA DAVID-0781604323-OYAM TOWN-AKONA DAVID-0781604323-OYAM TOWN",
+      "status": "created",
+      "target": "AKONA DAVID-0781604323-OYAM TOWN-\"AKONA DAVID-0781604323-OYAM TOWN\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKORA GARAGE-0773098821-KAJJANSI-AKORA GARAGE-0773098821-KAJJANSI",
+      "status": "created",
+      "target": "AKORA GARAGE-0773098821-KAJJANSI-AKORA GARAGE-0773098821-KAJJANSI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AKWATA EMPOLA-0753924977-BUIKWE-AKWATA EMPOLA-0753924977-BUIKWE",
+      "status": "created",
+      "target": "AKWATA EMPOLA-0753924977-BUIKWE-AKWATA EMPOLA-0753924977-BUIKWE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALARU-ALARU",
+      "status": "created",
+      "target": "ALARU-\"ALARU\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALBINO TIMBER-0782148656-KITGUM-ALBINO TIMBER-0782148656-KITGUM",
+      "status": "created",
+      "target": "ALBINO TIMBER-0782148656-KITGUM-\"ALBINO TIMBER-0782148656-KITGUM\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALECKU NELSON- 0778494056-ALECKU NELSON- 0778494056",
+      "status": "created",
+      "target": "ALECKU NELSON- 0778494056-ALECKU NELSON- 0778494056"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX  ISHINGIRO-ALEX  ISHINGIRO",
+      "status": "created",
+      "target": "ALEX  ISHINGIRO-\"ALEX  ISHINGIRO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX - KANYARIGIRI - 0782448959-ALEX - KANYARIGIRI - 0782448959",
+      "status": "created",
+      "target": "ALEX - KANYARIGIRI - 0782448959-\"ALEX - KANYARIGIRI - 0782448959\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX 0772587010 GULU-ALEX 0772587010 GULU",
+      "status": "created",
+      "target": "ALEX 0772587010 GULU-\"ALEX 0772587010 GULU\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX AUTO SPARES- 0752377442- ISINGIRO-ALEX AUTO SPARES- 0752377442- ISINGIRO",
+      "status": "created",
+      "target": "ALEX AUTO SPARES- 0752377442- ISINGIRO-\"ALEX AUTO SPARES- 0752377442- ISINGIRO\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX AUTO SPARES-0703878223-KAMULI-ALEX AUTO SPARES-0703878223-KAMULI",
+      "status": "created",
+      "target": "ALEX AUTO SPARES-0703878223-KAMULI-\"ALEX AUTO SPARES-0703878223-KAMULI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX MOTOR SPARES-0782200997-ALEX MOTOR SPARES-0782200997-kisoro",
+      "status": "created",
+      "target": "ALEX MOTOR SPARES-0782200997-\"ALEX MOTOR SPARES-0782200997-kisoro\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX O779819752-ERUSI-ALEX O779819752-ERUSI",
+      "status": "created",
+      "target": "ALEX O779819752-ERUSI-\"ALEX O779819752-ERUSI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX OTUCOPI - 0772776156-ALEX - OTUCOPI - 0772776156 - SOROTI",
+      "status": "created",
+      "target": "ALEX OTUCOPI - 0772776156-ALEX - OTUCOPI - 0772776156 - SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX TUMUHAIRE-0785630838-KANARA-ALEX TUMUHAIRE-0785630838-KANARA",
+      "status": "created",
+      "target": "ALEX TUMUHAIRE-0785630838-KANARA-\"ALEX TUMUHAIRE-0785630838-KANARA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX-0706565590-ALEX MOTORCYCLE GARAGE",
+      "status": "created",
+      "target": "ALEX-0706565590-\"ALEX MOTORCYCLE GARAGE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX-0756233536-KATWE KAMPALA-ALEX-0756233536-KATWE KAMPALA",
+      "status": "created",
+      "target": "ALEX-0756233536-KATWE KAMPALA-\"ALEX-0756233536-KATWE KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX-0779819752-ERUSI-ALEX-0779819752-ERUSI",
+      "status": "created",
+      "target": "ALEX-0779819752-ERUSI-\"ALEX-0779819752-ERUSI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALEX-0789380770-KAKIIRI-ALEX-0789380770-KAKIIRI",
+      "status": "created",
+      "target": "ALEX-0789380770-KAKIIRI-ALEX-0789380770-KAKIIRI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "alex-alex",
+      "status": "created",
+      "target": "alex-\"alex\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALFRED-0754150829-KATETE-ALFRED-0754150829-KATETE",
+      "status": "created",
+      "target": "ALFRED-0754150829-KATETE-ALFRED-0754150829-KATETE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALFRED-0777876455-BUKWUO-ALFRED-0777876455-BUKWUO",
+      "status": "created",
+      "target": "ALFRED-0777876455-BUKWUO-\"ALFRED-0777876455-BUKWUO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALI KAMUKAMA-0783578924-KYABOHE-ALI KAMUKAMA-0783578924-KYABOHE",
+      "status": "created",
+      "target": "ALI KAMUKAMA-0783578924-KYABOHE-\"ALI KAMUKAMA-0783578924-KYABOHE\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALI SPARE PARTS-0759154378-LUWEERO-ALI SPARE PARTS-0759154378-LUWEERO",
+      "status": "created",
+      "target": "ALI SPARE PARTS-0759154378-LUWEERO-ALI SPARE PARTS-0759154378-LUWEERO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALI-0759154378-WOBULENZI-ALI-0759154378-WOBULENZI",
+      "status": "created",
+      "target": "ALI-0759154378-WOBULENZI-ALI-0759154378-WOBULENZI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALI-0783578924-ALI-0783578924",
+      "status": "created",
+      "target": "ALI-0783578924-\"ALI-0783578924\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALIBAJAAJ-0757031002-SOROTI-ALIBAJAAJ-0757031002-SOROTI",
+      "status": "created",
+      "target": "ALIBAJAAJ-0757031002-SOROTI-\"ALIBAJAAJ-0757031002-SOROTI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALITUHA-0700210922-MBALE-ALITUHA-0700210922-MBALE",
+      "status": "created",
+      "target": "ALITUHA-0700210922-MBALE-\"ALITUHA-0700210922-MBALE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALLAN-0771469128-ALWI-ALLAN ENTERPRISE PATENG",
+      "status": "created",
+      "target": "ALLAN-0771469128-ALWI-\"ALLAN ENTERPRISE PATENG\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALONGA OSUMANI-0786660222-ALONGA OSUMANI-0786660222",
+      "status": "created",
+      "target": "ALONGA OSUMANI-0786660222-\"ALONGA OSUMANI-0786660222\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Aloro swadick-Arua general autos",
+      "status": "created",
+      "target": "Aloro swadick-\"Arua general autos\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALOYSIOUS 07731771131 GULU-ALOYSIOUS 07731771131 GULU",
+      "status": "created",
+      "target": "ALOYSIOUS 07731771131 GULU-\"ALOYSIOUS 07731771131 GULU\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ALPHAT-0782251434-NYAHUKA-ALPHAT-0782251434-NYAHUKA",
+      "status": "created",
+      "target": "ALPHAT-0782251434-NYAHUKA-\"ALPHAT-0782251434-NYAHUKA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMAHGIIRE-RUGOMBE-AMAHGIIRE-RUGOMBE",
+      "status": "created",
+      "target": "AMAHGIIRE-RUGOMBE-\"AMAHGIIRE-RUGOMBE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Amanya -0774445000-kagadi-Amanya -0774445000-kagadi",
+      "status": "created",
+      "target": "Amanya -0774445000-kagadi-\"Amanya -0774445000-kagadi\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMANYIRE EJIKU-KASESE-AMANYIRE EJIKU-KASESE",
+      "status": "created",
+      "target": "AMANYIRE EJIKU-KASESE-\"AMANYIRE EJIKU-KASESE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Amba rashid-ombajua auto motos",
+      "status": "created",
+      "target": "Amba rashid-\"ombajua auto motos\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMBROSE -  PAMPA  - 0789551388 -  SOROTI-AMBROSE -  PAMPA  - 0789551388 -  SOROTI",
+      "status": "created",
+      "target": "AMBROSE -  PAMPA  - 0789551388 -  SOROTI-AMBROSE -  PAMPA  - 0789551388 -  SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMBROSE 0783419335 TAPARA OYAM-AMBROSE 0783419335 TAPARA OYAM",
+      "status": "created",
+      "target": "AMBROSE 0783419335 TAPARA OYAM-\"AMBROSE 0783419335 TAPARA OYAM\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Ambrose Rukunyu-0772684565-Ambrose Rukunyu-0772684565",
+      "status": "created",
+      "target": "Ambrose Rukunyu-0772684565-\"Ambrose Rukunyu-0772684565\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMBROSE- 0789456275- ALANGI-AMBROSE- 0789456275- ALANGI",
+      "status": "created",
+      "target": "AMBROSE- 0789456275- ALANGI-AMBROSE- 0789456275- ALANGI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMBROSE-0774179375-KITI-AMBROSE-0774179375-KITI",
+      "status": "created",
+      "target": "AMBROSE-0774179375-KITI-\"AMBROSE-0774179375-KITI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMBROSE-0789456275- PAIDHA-AMBROSE-0789456275- PAIDHA",
+      "status": "created",
+      "target": "AMBROSE-0789456275- PAIDHA-\"AMBROSE-0789456275- PAIDHA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Amina -SOROTI-0703121585-GOOD PRICE",
+      "status": "created",
+      "target": "Amina -SOROTI-0703121585-GOOD PRICE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMINA-KAMPALA-0705242747-AMINA-KAMPALA-0705242747",
+      "status": "created",
+      "target": "AMINA-KAMPALA-0705242747-\"AMINA-KAMPALA-0705242747\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMOS   RWENTUHE-AMOS   RWENTUHE",
+      "status": "created",
+      "target": "AMOS   RWENTUHE-\"AMOS   RWENTUHE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "amos  rembo-amos  rembo",
+      "status": "created",
+      "target": "amos  rembo-\"amos  rembo\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMOS-0763349041-AMOS-0763349041",
+      "status": "created",
+      "target": "AMOS-0763349041-AMOS-0763349041"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMOTI 0777036152-LIRA-AMOTOI AND SONS",
+      "status": "created",
+      "target": "AMOTI 0777036152-LIRA-\"AMOTOI AND SONS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMOTI- 078648660- KYENJOJO-AMOTI- 078648660- KYENJOJO",
+      "status": "created",
+      "target": "AMOTI- 078648660- KYENJOJO-\"AMOTI- 078648660- KYENJOJO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ampa and sons motor spares-0782466443-hoima-ampa and sons motor spares-0782466443-hoima",
+      "status": "created",
+      "target": "ampa and sons motor spares-0782466443-hoima-ampa and sons motor spares-0782466443-hoima"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMRI-0777054149-BUSUNGA-AMU AUTO PARTS",
+      "status": "created",
+      "target": "AMRI-0777054149-BUSUNGA-\"AMU AUTO PARTS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AMULE-0777534446-keri-AMULE-0777534446-keri",
+      "status": "created",
+      "target": "AMULE-0777534446-keri-\"AMULE-0777534446-keri\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "amuri majaliwa- 0787189193-busunga.-amuri majaliwa- 0787189193-busunga.",
+      "status": "created",
+      "target": "amuri majaliwa- 0787189193-busunga.-amuri majaliwa- 0787189193-busunga."
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANANIAS TABAN- 0774235292- OBONGI-ANANIAS TABAN- 0774235292- OBONGI",
+      "status": "created",
+      "target": "ANANIAS TABAN- 0774235292- OBONGI-ANANIAS TABAN- 0774235292- OBONGI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANATORI  BUSHENYI-ANATORI  BUSHENYI",
+      "status": "created",
+      "target": "ANATORI  BUSHENYI-\"ANATORI  BUSHENYI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANDERSON SEBUTE-+ 243825533876-ANDERSON SEBUTE-+ 2438255338768",
+      "status": "created",
+      "target": "ANDERSON SEBUTE-+ 243825533876-\"ANDERSON SEBUTE-+ 2438255338768\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANDREW AUTO SPARES-0775220900- KYOTERA-ANDREW AUTO SPARES-0775220900- KYOTERA",
+      "status": "created",
+      "target": "ANDREW AUTO SPARES-0775220900- KYOTERA-\"ANDREW AUTO SPARES-0775220900- KYOTERA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Andrew keju-Two in one",
+      "status": "created",
+      "target": "Andrew keju-\"Two in one\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANDREW-0778435289-KAMPALA-ANDREW-0778435289-KAMPALA",
+      "status": "created",
+      "target": "ANDREW-0778435289-KAMPALA-\"ANDREW-0778435289-KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANEYINZA AND BROTHERS-0753677959-JINJA-ANEYINZA AND BROTHERS-0753677959-JINJA",
+      "status": "created",
+      "target": "ANEYINZA AND BROTHERS-0753677959-JINJA-ANEYINZA AND BROTHERS-0753677959-JINJA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANGELLA TESO INN 0756061410 SOROTI-ANGELLA TESO INN 0756061410 SOROTI",
+      "status": "created",
+      "target": "ANGELLA TESO INN 0756061410 SOROTI-ANGELLA TESO INN 0756061410 SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANITA SPARE MOTORS-0773376519-KYENJOJO-ANITA SPARE MOTORS-0773376519-KYENJOJO",
+      "status": "created",
+      "target": "ANITA SPARE MOTORS-0773376519-KYENJOJO-ANITA SPARE MOTORS-0773376519-KYENJOJO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Ankit S Nayee.-Adjustment CST",
+      "status": "created",
+      "target": "Ankit S Nayee.-KAPWATA MOTOR SPARES KAPCHORWA 0769674321"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANKUNDA-0782539831-KAMPALA-ANKUNDA-0782539831-KAMPALA",
+      "status": "created",
+      "target": "ANKUNDA-0782539831-KAMPALA-\"ANKUNDA-0782539831-KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANN-0787089919-KIREKA-ANN-0787089919-KIREKA",
+      "status": "created",
+      "target": "ANN-0787089919-KIREKA-ANN-0787089919-KIREKA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANNI 47R-0700416617-SHAMBA COMPLEX-ANNI 47R-0700416617-SHAMBA COMPLEX",
+      "status": "created",
+      "target": "ANNI 47R-0700416617-SHAMBA COMPLEX-\"ANNI 47R-0700416617-SHAMBA COMPLEX\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANTHONE KASOZO - 0786388055-ANTHONE KASOZO - 0786388055",
+      "status": "created",
+      "target": "ANTHONE KASOZO - 0786388055-\"ANTHONE KASOZO - 0786388055\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANTHONY-0754292500-MITYANA-ANTHONY-0754292500-MITYANA",
+      "status": "created",
+      "target": "ANTHONY-0754292500-MITYANA-\"ANTHONY-0754292500-MITYANA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANTONIO 0784350075 LIRA-ANTONIO 0784350075 LIRA",
+      "status": "created",
+      "target": "ANTONIO 0784350075 LIRA-\"ANTONIO 0784350075 LIRA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANWANKANE KIGEZI-0782415249-ANWANKANE KIGEZI-0782415249",
+      "status": "created",
+      "target": "ANWANKANE KIGEZI-0782415249-\"ANWANKANE KIGEZI-0782415249\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANYA JUMA PETER -07945070820-ANYA JUMA PETER -07945070820",
+      "status": "created",
+      "target": "ANYA JUMA PETER -07945070820-\"ANYA JUMA PETER -07945070820\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANYWAR MECHANIC- 0778565545- ARUA P/S-ANYWAR MECHANIC- 0778565545- ARUA",
+      "status": "created",
+      "target": "ANYWAR MECHANIC- 0778565545- ARUA P/S-ANYWAR MECHANIC- 0778565545- ARUA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ANYWAR MECHANIC- 0778565545.-ANYWAR MECHANIC- 0778565545.",
+      "status": "created",
+      "target": "ANYWAR MECHANIC- 0778565545.-ANYWAR MECHANIC- 0778565545."
+    },
+    {
+      "doctype": "Contact",
+      "name": "AOGON  SAM    -  0786470121-AOGON  SAM    -  0786470121",
+      "status": "created",
+      "target": "AOGON  SAM    -  0786470121-\"AOGON  SAM    -  0786470121\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Apangu william-Apangu william",
+      "status": "created",
+      "target": "Apangu william-\"Apangu william\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "APPAIN-0759728006-IGANGA-APPAIN-0759728006-IGANGA",
+      "status": "created",
+      "target": "APPAIN-0759728006-IGANGA-APPAIN-0759728006-IGANGA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARAFAH 0782251434  NYUHUKA-ARAFAH AND SONS",
+      "status": "created",
+      "target": "ARAFAH 0782251434  NYUHUKA-\"ARAFAH AND SONS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARAFAH-0755571414-WAKISO-ARAFAH-0755571414-WAKISO",
+      "status": "created",
+      "target": "ARAFAH-0755571414-WAKISO-ARAFAH-0755571414-WAKISO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARAFAT        -078825260-ARAFAT        -078825260",
+      "status": "created",
+      "target": "ARAFAT        -078825260-\"ARAFAT        -078825260\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARIAKA RHONE-ARUA-0770701356-ARIAKA RHONE-ARUA-0770701356",
+      "status": "created",
+      "target": "ARIAKA RHONE-ARUA-0770701356-\"ARIAKA RHONE-ARUA-0770701356\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Arike malia-good  care  auto spares",
+      "status": "created",
+      "target": "Arike malia-\"good  care  auto spares\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARIKO 07895508559 KOBOKO-ARIKO 07895508559 KOBOKO",
+      "status": "created",
+      "target": "ARIKO 07895508559 KOBOKO-\"ARIKO 07895508559 KOBOKO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARIKO GWERI 0770245881 SOROTI-ARIKO GWERI 0770245881 SOROTI",
+      "status": "created",
+      "target": "ARIKO GWERI 0770245881 SOROTI-ARIKO GWERI 0770245881 SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Arinaitwe Innocent Kabale- 0788079680-Arinaitwe Auto Spares- Garrage Street",
+      "status": "created",
+      "target": "Arinaitwe Innocent Kabale- 0788079680-\"Arinaitwe Auto Spares- Garrage Street\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARIPU 0777442470 MARACHA-ARIPU 0777442470 MARACHA",
+      "status": "created",
+      "target": "ARIPU 0777442470 MARACHA-\"ARIPU 0777442470 MARACHA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARNOLD 0758542193-ARNOLD AND SONS",
+      "status": "created",
+      "target": "ARNOLD 0758542193-KAMULI-\"ARNOLD AND SONS 0758542193-KAMULI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AROMA RONALD-0777365098-KITGUM-AROMA RONALD-0777365098-KITGUM",
+      "status": "created",
+      "target": "AROMA RONALD-0777365098-KITGUM-AROMA RONALD-0777365098-KITGUM"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AROMA-0785038106-ANAKA GULU-AROMA-0785038106-ANAKA GULU",
+      "status": "created",
+      "target": "AROMA-0785038106-ANAKA GULU-\"AROMA-0785038106-ANAKA GULU\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ARON-078545773-ARON-078545773",
+      "status": "created",
+      "target": "ARON-078545773-\"ARON-078545773\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASEGA-Kakwa ku yuma",
+      "status": "created",
+      "target": "ASEGA-\"Kakwa ku yuma\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASHA-0772232030-144R SHAMBA-ASHA-0772232030-144R SHAMBA",
+      "status": "created",
+      "target": "ASHA-0772232030-144R SHAMBA-ASHA-0772232030-144R SHAMBA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASHABA-0705440078-MILONGO-ASHABA-0705440078-MILONGO",
+      "status": "created",
+      "target": "ASHABA-0705440078-MILONGO-\"ASHABA-0705440078-MILONGO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASHARAF-KAMPALA-0704378473-VINSLON MOTORCYCLE  SPARE  PARTS-ASHARAF-KAMPALA-0704378473",
+      "status": "created",
+      "target": "ASHIRAF-KAMPALA-0704378473-\"VINSLON MOTORCYCLE  SPARE  PARTS-ASHARAF-KAMPALA-0704378473\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASHRAF-0781812626-SOROTI-ASHRAF-0781812626-SOROTI",
+      "status": "created",
+      "target": "ASHRAF-0781812626-SOROTI-\"ASHRAF-0781812626-SOROTI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "asiimwe  mbale-asiimwe  mbale",
+      "status": "created",
+      "target": "Asiimwe  mbale-\"asiimwe  mbale\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASIIMWE-0704735070-MUKUNYU-ASIIMWE-0704735070-MUKUNYU",
+      "status": "created",
+      "target": "ASIIMWE-0704735070-MUKUNYU-\"ASIIMWE-0704735070-MUKUNYU\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASIIMWE-0777747510-KYENJOJO-ASIIMWE-0777747510-KYENJOJO",
+      "status": "created",
+      "target": "ASIIMWE-0777747510-KYENJOJO-\"ASIIMWE-0777747510-KYENJOJO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASMA MUZUNGU-0700306543-KAMPALA-ASMA MUZUNGU-0700306543-KAMPALA",
+      "status": "created",
+      "target": "ASMA MUZUNGU-0700306543-KAMPALA-\"ASMA MUZUNGU-0700306543-KAMPALA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Assis-0755487381-kampala-Assis-0755487381-kampala",
+      "status": "created",
+      "target": "Assis-0755487381-kampala-Assis-0755487381-kampala"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASUMANI-KAMPALA-0775970116-KATS-ASUMANI-KAMPALA-0775970116",
+      "status": "created",
+      "target": "ASUMANI-KAMPALA-0775970116-\"KATS-ASUMANI-KAMPALA-0775970116\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ASUNTA 0789107502 GULU-ASUNTA GULU 0789107502",
+      "status": "created",
+      "target": "ASUNTA 0789107502 GULU-\"ASUNTA GULU 0789107502\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATAMA SIASA-ARUA-0785791913-ATAMA SIASA-ARUA-0785791913",
+      "status": "created",
+      "target": "ATAMA SIASA-ARUA-0785791913-\"ATAMA SIASA-ARUA-0785791913\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATEGEKA PATRICK-KATOOKE-ATEGEKA PATRICK-KATOOKE",
+      "status": "created",
+      "target": "ATEGEKA PATRICK-KATOOKE-\"ATEGEKA PATRICK-KATOOKE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATEGEKA WILSON-RUBONA-ATEGEKA WILSON-RUBONA",
+      "status": "created",
+      "target": "ATEGEKA WILSON-RUBONA-\"ATEGEKA WILSON-RUBONA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATHUR-0703020963-ATHUR SPARES AND LUBRICANTS",
+      "status": "created",
+      "target": "ATHUR-0703020963-\"ATHUR SPARES AND LUBRICANTS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATIBU-0701512430-SHAMBA-ATIBU-0701512430-SHAMBA",
+      "status": "created",
+      "target": "ATIBU-0701512430-SHAMBA-\"ATIBU-0701512430-SHAMBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATIKU JAMAL-0794202034-ATIKU JAMAL-0794202034",
+      "status": "created",
+      "target": "ATIKU JAMAL-0794202034-\"ATIKU JAMAL-0794202034\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATIKU SHABAN- 078645984- AWINDRI.-ATIKU SHABAN- 078645984- AWINDRI.",
+      "status": "created",
+      "target": "ATIKU SHABAN- 078645984- AWINDRI.-ATIKU SHABAN- 078645984- AWINDRI."
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATLAS & SONS 0773299519 YUMBE-ATLAS & SONS 0773299519 YUMBE",
+      "status": "created",
+      "target": "ATLAS & SONS 0773299519 YUMBE-\"ATLAS & SONS 0773299519 YUMBE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATUGONZA MOTOR SPARE PARTS-0776210142-ATUGONZA MOTOR SPARE PARTS-0776210142",
+      "status": "created",
+      "target": "ATUGONZA MOTOR SPARE PARTS-0776210142-ATUGONZA MOTOR SPARE PARTS-0776210142"
+    },
+    {
+      "doctype": "Contact",
+      "name": "ATUGONZA-073059331-KYENJOJO-ATUGONZA-073059331-KYENJOJO",
+      "status": "created",
+      "target": "ATUGONZA-073059331-KYENJOJO-\"ATUGONZA-073059331-KYENJOJO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AUGASTINE KASOZO - 0753929859-AUGASTINE KASOZO - 0753929859",
+      "status": "created",
+      "target": "AUGASTINE KASOZO - 0753929859-\"AUGASTINE KASOZO - 0753929859\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AUNT SARAH  0702381661-KAYABWE-AUNT SARAH  0702381661-KAYABWE",
+      "status": "created",
+      "target": "AUNT SARAH  0702381661-KAYABWE-\"AUNT SARAH  0702381661-KAYABWE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AVENDY-0702347665-BOMBO-AVENDY-0702347665-BOMBO",
+      "status": "created",
+      "target": "AVENDY-0702347665-BOMBO-AVENDY-0702347665-BOMBO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AWARA- 0775542555- AGWOK-AWARA- 0775542555- AGWOK",
+      "status": "created",
+      "target": "AWARA- 0775542555- AGWOK-\"AWARA- 0775542555- AGWOK\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AXAM-0705121335-KAMPALA MBK-AXAM-0705121335-KAMPALA MBK",
+      "status": "created",
+      "target": "AXAM-0705121335-KAMPALA MBK-\"AXAM-0705121335-KAMPALA MBK\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AYEBAZIBWE-0776779485-KYENJOJO-AYEBAZIBWE-0776779485-KYENJOJO",
+      "status": "created",
+      "target": "AYEBAZIBWE-0776779485-KYENJOJO-\"AYEBAZIBWE-0776779485-KYENJOJO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AYIMAN RASUL-0794776640-AYIMAN RASUL-0794776640",
+      "status": "created",
+      "target": "AYIMAN RASUL-0794776640-\"AYIMAN RASUL-0794776640\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AYUB -KAPIR -0788608392- KAPIR-AYUB -KAPIR -0788608392- KAPIR",
+      "status": "created",
+      "target": "AYUB -KAPIR -0788608392- KAPIR-AYUB -KAPIR -0788608392- KAPIR"
+    },
+    {
+      "doctype": "Contact",
+      "name": "AYUB--0700554025-BUGIRI-AYUB SPARES-BUGIRI-0700554025",
+      "status": "created",
+      "target": "AYUB--0700554025-BUGIRI-\"AYUB SPARES-BUGIRI-0700554025\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "AZZIZY-0777205059-NOBILI-AZZIZY-0777205059-NOBILI",
+      "status": "created",
+      "target": "AZZIZY-0777205059-NOBILI-\"AZZIZY-0777205059-NOBILI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "b  k garage-garage",
+      "status": "created",
+      "target": "b  k garage-\"garage\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "B.A. AMARI MUSTAFA-NYANJA-ETEGERA-B.A. AMARI MUSTAFA-NYANJA-ETEGERA",
+      "status": "created",
+      "target": "B.A. AMARI MUSTAFA-NYANJA-ETEGERA-\"B.A. AMARI MUSTAFA-NYANJA-ETEGERA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BA MOZY AUTO SPAREPARTS-BA MOZY AUTO SPAREPARTS",
+      "status": "created",
+      "target": "BA MOZY AUTO SPAREPARTS-BA MOZY AUTO SPAREPARTS"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Ba-lusembo motor spares-0773259669-kyotera-Ba-lusembo motor spares-0773259669-kyotera",
+      "status": "created",
+      "target": "Ba-lusembo motor spares-0773259669-kyotera-Ba-lusembo motor spares-0773259669-kyotera"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BA-MUTYABA MOTORCYLE SPARES-0787823684-BA-MUTYABA MOTORCYLE SPARES-0787823684",
+      "status": "created",
+      "target": "BA-MUTYABA MOTORCYLE SPARES-0787823684-BA-MUTYABA MOTORCYLE SPARES-0787823684"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Ba-Tomusange spare parts-0702285346-Kyotera-Ba-Tomusange spare parts-0702285346-Kyotera",
+      "status": "created",
+      "target": "Ba-Tomusange spare parts-0702285346-Kyotera-\"Ba-Tomusange spare parts-0702285346-Kyotera\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BA-YIGA MOTOCYCLE SPARES-0753244506 KYOTERA-BA-YIGA MOTOCYCLE SPARES-0753244506 KYOTERA",
+      "status": "created",
+      "target": "BA-YIGA MOTOCYCLE SPARES-0753244506 KYOTERA-\"BA-YIGA MOTOCYCLE SPARES-0753244506 KYOTERA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Baabu spare parts-0756180196-KAMPALA-Baabu spare parts-0756180196-KAMPALA",
+      "status": "created",
+      "target": "Baabu spare parts-0756180196-KAMPALA-\"Baabu spare parts-0756180196-KAMPALA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAASA DAVID 0771426695 TORORO",
+      "status": "created",
+      "target": "BAASA DAVID 0771426695 TORORO-\"BAASA AUTO SPARES 0771426695-MUKONO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BABRA-0705832161-BUIKWE-BABRA-0705832161-BUIKWE",
+      "status": "created",
+      "target": "BABRA-0705832161-BUIKWE-BABRA-0705832161-BUIKWE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BABTIST RUTOOMA - 0786595899-BABTIST RUTOOMA - 0786595899",
+      "status": "created",
+      "target": "BABTIST RUTOOMA - 0786595899-\"BABTIST RUTOOMA - 0786595899\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BADRU-0782321001-108R SHAMBA-BADRU-0782321001-108R SHAMBA",
+      "status": "created",
+      "target": "BADRU-0782321001-108R SHAMBA-\"BADRU-0782321001-108R SHAMBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAGAMA   RUSHERE-BAGAMA   RUSHERE",
+      "status": "created",
+      "target": "BAGAMA   RUSHERE-\"BAGAMA   RUSHERE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAGUMA EDWARD- 0773445139-BAGUMA EDWARD- 0773445139",
+      "status": "created",
+      "target": "BAGUMA EDWARD- 0773445139-\"BAGUMA EDWARD- 0773445139\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAHATI 07783877193 BWEYALE-BAHATI 07783877193 BWEYALE",
+      "status": "created",
+      "target": "BAHATI 07783877193 BWEYALE-\"BAHATI 07783877193 BWEYALE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "bahati-bahati",
+      "status": "created",
+      "target": "bahati-\"bahati\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAISE MOTOR SPARES JINJA-0702722963-BAISE MOTOR SPARES JINJA-0702722963",
+      "status": "created",
+      "target": "BAISE MOTOR SPARES JINJA-0702722963-\"BAISE MOTOR SPARES JINJA-0702722963\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAISI AND ANNET SPARE PARTS 0705066220 BUWENGE-BAISI AND ANNET SPARE PARTS 0705066220 BUWENGE",
+      "status": "created",
+      "target": "BAISI AND ANNET SPARE PARTS 0705066220 BUWENGE-\"BAISI AND ANNET SPARE PARTS 0705066220 BUWENGE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAKER MOTOR SPARES-0753042090-KYAZANGA-BAKER MOTOR SPARES-0753042090-KYAZANGA",
+      "status": "created",
+      "target": "BAKER MOTOR SPARES-0753042090-KYAZANGA-\"BAKER MOTOR SPARES-0753042090-KYAZANGA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAKER MOTORCYCLE. SPARE PARTS-0782200444-BAKER MOTORCYCLE. SPARE PARTS-0782200444",
+      "status": "created",
+      "target": "BAKER MOTORCYCLE. SPARE PARTS-0782200444-BAKER MOTORCYCLE. SPARE PARTS-0782200444"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALA MUGABO-O771184844-RWEBENSENGO-BALA MUGABO-O771184844-RWEBENSENGO",
+      "status": "created",
+      "target": "BALA MUGABO-O771184844-RWEBENSENGO-\"BALA MUGABO-O771184844-RWEBENSENGO\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Bala Stephen-0788693592-katoke-Bala Stephen-0788693592-katoke",
+      "status": "created",
+      "target": "Bala Stephen-0788693592-katoke-Bala Stephen-0788693592-katoke"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALA-0771184844-RWEBENSENGO-BALA-0771184844-RWEBENSENGO",
+      "status": "created",
+      "target": "BALA-0771184844-RWEBENSENGO-\"BALA-0771184844-RWEBENSENGO\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALIKOWA -  JUAKALI - 0773573015-BALIKOWA -  JUAKALI - 0773573015",
+      "status": "created",
+      "target": "BALIKOWA -  JUAKALI - 0773573015-BALIKOWA -  JUAKALI - 0773573015"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALIKOWA-SOROTI 0780478737-BALIKOWA",
+      "status": "created",
+      "target": "BALIKOWA-SOROTI 0780478737-BALIKOWA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALUBAYA 0782776853 -MUBENDE-BALUBAYA AUTO SPARE",
+      "status": "created",
+      "target": "BALUBAYA 0782776853 -MUBENDE-\"BALUBAYA AUTO SPARE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALUKU-0786014872-NOBILI-BALUKU-0786014872-NOBILI",
+      "status": "created",
+      "target": "BALUKU-0786014872-NOBILI-\"BALUKU-0786014872-NOBILI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BALUKU-KASESE-0773649345-BALUKU-KASESE-0773649345",
+      "status": "created",
+      "target": "BALUKU-KASESE-0773649345-\"BALUKU-KASESE-0773649345\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BANCO-0751802562-MBALE-BANCO-0751802562-MBALE",
+      "status": "created",
+      "target": "BANCO-0751802562-MBALE-BANCO-0751802562-MBALE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Banet- Rubanda- 0775626068, 0756565789-Banet- Rubanda",
+      "status": "created",
+      "target": "Banet- Rubanda- 0775626068, 0756565789-\"Banet- Rubanda\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BANYA-0772410240-BENYA MOTORCYCLE SPARES 0772410240",
+      "status": "created",
+      "target": "BANYA-0772410240-\"BENYA MOTORCYCLE SPARES 0772410240\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BARAK O783497870 BWEYALE-BARAK MOTOR SPARES",
+      "status": "created",
+      "target": "BARAK O783497870 BWEYALE-\"BARAK MOTOR SPARES\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BARAKE  MOSES-BARAKE  MOSES",
+      "status": "created",
+      "target": "BARAKE  MOSES-\"BARAKE  MOSES\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "barigye-barigye",
+      "status": "created",
+      "target": "barigye-\"barigye\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BARUKU ISSAH - RUBONA-BARUKU ISSAH - RUBONA",
+      "status": "created",
+      "target": "BARUKU ISSAH - RUBONA-\"BARUKU ISSAH - RUBONA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BARUWAGA-BARUWAGA",
+      "status": "created",
+      "target": "BARUWAGA-\"BARUWAGA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BASAJJA 0778635802 WOBULENZI-BASAJJA 0778635802 WOBULENZI",
+      "status": "created",
+      "target": "BASAJJA 0778635802 WOBULENZI-\"BASAJJA 0778635802 WOBULENZI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BASHIR-0772967130-KITGUM-BAM MOTOR SPARES",
+      "status": "created",
+      "target": "BASHIR-0772967130-KITGUM-\"BAM MOTOR SPARES\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BASIIMA 0775482565GAYAZA-BASIIMA 0775482565GAYAZA",
+      "status": "created",
+      "target": "BASIIMA 0775482565GAYAZA-BASIIMA 0775482565GAYAZA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BASIITA SPARE PARTS-0705049568-KAKIRI-BASIITA SPARE PARTS-0705049568-KAKIRI",
+      "status": "created",
+      "target": "BASIITA SPARE PARTS-0705049568-KAKIRI-BASIITA SPARE PARTS-0705049568-KAKIRI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Basimekyi Micheal- Rwahi town-Basimekyi",
+      "status": "created",
+      "target": "Basimekyi Micheal- Rwahi town- 0787793468-\"Basimekyi\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BAZARRA  RWAIHAMBA-BAZARRA  RWAIHAMBA",
+      "status": "created",
+      "target": "BAZARRA  RWAIHAMBA-\"BAZARRA  RWAIHAMBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BECKAM-0702495207-MASINDI-BECKAM-0702495207-MASINDI",
+      "status": "created",
+      "target": "BECKAM-0702495207-MASINDI-\"BECKAM-0702495207-MASINDI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BEN MOTO PARTS -0752375720-MBARARA-BEN MOTO PARTS -0752375720-MBARARA",
+      "status": "created",
+      "target": "BEN MOTO PARTS -0752375720-MBARARA-\"BEN MOTO PARTS -0752375720-MBARARA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BEN-0704325466-mbarara-BEN-0704325466-mbarara",
+      "status": "created",
+      "target": "BEN-0704325466-mbarara-\"BEN-0704325466-mbarara\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BEN-0788103747-ARUA-BEN-0788103747-ARUA",
+      "status": "created",
+      "target": "BEN-0788103747-ARUA-BEN-0788103747-ARUA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "Benard - Kisoro-  0775366273, 0771443049-Benard",
+      "status": "created",
+      "target": "Benard - Kisoro-  0775366273, 0771443049-\"Benard\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENARD-0775722295-KIHIHI-BENARD-0775722295-KIHIHI",
+      "status": "created",
+      "target": "BENARD-0775722295-KIHIHI-\"BENARD-0775722295-KIHIHI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Benard-0784098874-butogo-Benard-0784098874-butogo",
+      "status": "created",
+      "target": "Benard-0784098874-butogo-\"Benard-0784098874-butogo\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENERD-0781264844-KYENJOJO-BENERD-0781264844-KYENJOJO",
+      "status": "created",
+      "target": "BENERD-0781264844-KYENJOJO-\"BENERD-0781264844-KYENJOJO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENIDICTO MAKANIKA-0774705850-KOBA-BENIDICTO MAKANIKA-0774705850-KOBA",
+      "status": "created",
+      "target": "BENIDICTO MAKANIKA-0774705850-KOBA-\"BENIDICTO MAKANIKA-0774705850-KOBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENJAMIN .NAKATONYA 0778833200 SOROTI-BENJAMIN .NAKATONYA 0778833200 SOROTI",
+      "status": "created",
+      "target": "BENJAMIN .NAKATONYA 0778833200 SOROTI-BENJAMIN .NAKATONYA 0778833200 SOROTI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENJAMIN MATANY 0760847536 MOROTO-BENJAMIN MATANY 0760847536 MOROTO",
+      "status": "created",
+      "target": "BENJAMIN MATANY 0760847536 MOROTO-BENJAMIN MATANY 0760847536 MOROTO"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENON KABUGA - 0772428078-BENON KABUGA - 0772428078",
+      "status": "created",
+      "target": "BENON KABUGA - 0772428078-\"BENON KABUGA - 0772428078\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENON-O789546321-RWEBISHENGO-BENON-O789546321-RWEBISHENGO",
+      "status": "created",
+      "target": "BENON-O789546321-RWEBISHENGO-\"BENON-O789546321-RWEBISHENGO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENSON-0777363820-OMYER-BENSON-0777363820-OMYER",
+      "status": "created",
+      "target": "BENSON-0777363820-OMYER-\"BENSON-0777363820-OMYER\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Benson-Benson Garage KCB Kachumbala",
+      "status": "created",
+      "target": "Benson-Benson Garage KCB Kachumbala"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BENYA OBOSA-MALABA-0772410240-MANBEN HARDWARE-MALABA-0772410240",
+      "status": "created",
+      "target": "BENYA OBOSA-MALABA-0772410240-\"MANBEN HARDWARE-MALABA-0772410240\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BESWERI- 0773191548-PAKWACHI-BESWERI- 0773191548-PAKWACHI",
+      "status": "created",
+      "target": "BESWERI- 0773191548-PAKWACHI-\"BESWERI- 0773191548-PAKWACHI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Betty J&L-0753585840-kampala-Betty J&L-0753585840-kampala",
+      "status": "created",
+      "target": "Betty J&L-0753585840-kampala-\"Betty J&L-0753585840-kampala\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BIDONG-0779819752-NDEW-BIDONG-0779819752-NDEW",
+      "status": "created",
+      "target": "BIDONG-0779819752-NDEW-\"BIDONG-0779819752-NDEW\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BINDEEBA $  sons-BINDEEBA  $  SONS",
+      "status": "created",
+      "target": "BINDEEBA $  sons-\"BINDEEBA  $  SONS\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BIRAGA IBRAHIM-0774663392-RUKUNGIRI-BIRAGA IBRAHIM-0774663392-RUKUNGIRI",
+      "status": "created",
+      "target": "BIRAGA IBRAHIM-0774663392-RUKUNGIRI-BIRAGA IBRAHIM-0774663392-RUKUNGIRI"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BIRUNGI   RWEBISENGO-BIRUNGI  RWEBISENGO",
+      "status": "created",
+      "target": "BIRUNGI   RWEBISENGO-\"BIRUNGI  RWEBISENGO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BMK- MBALE-BMK- MBALE",
+      "status": "created",
+      "target": "BMK- MBALE-\"BMK- MBALE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOAZ  KAMANGO-BOAZ  KAMANGO",
+      "status": "created",
+      "target": "BOAZ  KAMANGO-\"BOAZ  KAMANGO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOAZ DELITON 0775903265-NYAHUKA-BOAZ DELITON 0775903265-NYAHUKA",
+      "status": "created",
+      "target": "BOAZ DELITON 0775903265-NYAHUKA-BOAZ DELITON 0775903265-NYAHUKA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOAZ-0787102605-KAMPALA-90R-BOAZ-0787102605-KAMPALA-90R",
+      "status": "created",
+      "target": "BOAZ-0787102605-KAMPALA-90R-\"BOAZ-0787102605-KAMPALA-90R\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOB -OSCALLY -0778652643-AMARACHI GENERAL STORES",
+      "status": "created",
+      "target": "BOB -OSCALLY -0778652643-\"AMARACHI GENERAL STORES\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Bob Mariachi--Bob Mariachi-0778652643",
+      "status": "created",
+      "target": "Bob Mariachi--\"Bob Mariachi-0778652643\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOLOINGO JIMMY-0782491202-PAIDHA-BOLOINGO JIMMY-0782491202-PAIDHA",
+      "status": "created",
+      "target": "BOLOINGO JIMMY-0782491202-PAIDHA-\"BOLOINGO JIMMY-0782491202-PAIDHA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BONGO AND SONS 0706442568-ISHAKA-BONGO AND SONS 0706442568-ISHAKA",
+      "status": "created",
+      "target": "BONGO AND SONS 0706442568-ISHAKA-BONGO AND SONS 0706442568-ISHAKA"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BONNY - BUYAGA-BONNY - BUYAGA",
+      "status": "created",
+      "target": "BONNY - BUYAGA-\"BONNY - BUYAGA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BONNY 0780879919 BUSIA-BONNY 0780879919 BUSIA",
+      "status": "created",
+      "target": "BONNY 0780879919 BUSIA-\"BONNY 0780879919 BUSIA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BONNY AMUDAT-BONNY AMUDAT",
+      "status": "created",
+      "target": "BONNY AMUDAT-\"BONNY AMUDAT\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOONABANA HOLDING LTD-0782994819- ISHAKA-BOONABANA HOLDING LTD-0782994819- ISHAKA",
+      "status": "created",
+      "target": "BOONABANA HOLDING LTD-0782994819- ISHAKA-\"BOONABANA HOLDING LTD-0782994819- ISHAKA\"-1"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO    KIKAGATE-BOSCO  KIKAGATE",
+      "status": "created",
+      "target": "BOSCO    KIKAGATE-\"BOSCO  KIKAGATE\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "bosco  0794985987 cakulia-Bosco-  0794985987- cakulia",
+      "status": "created",
+      "target": "bosco  0794985987 cakulia-\"Bosco-  0794985987- cakulia\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO 0775084704 TORORO-BOSCO 0775084704 TORORO",
+      "status": "created",
+      "target": "BOSCO 0775084704 TORORO-\"BOSCO 0775084704 TORORO\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO INVEST-0772426906-SHAMBA-BOSCO INVEST-0772426906-SHAMBA",
+      "status": "created",
+      "target": "BOSCO INVEST-0772426906-SHAMBA-\"BOSCO INVEST-0772426906-SHAMBA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO OGWANG -0787815044 SERERE-BOSCO OGWANG -0787815044 SERERE",
+      "status": "created",
+      "target": "BOSCO OGWANG -0787815044 SERERE-BOSCO OGWANG -0787815044 SERERE"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO-0706841211-BOSCO-0706841211",
+      "status": "created",
+      "target": "BOSCO-0706841211-\"BOSCO-0706841211\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO-0775985487-APALA-OJB MOTOR SPARES",
+      "status": "created",
+      "target": "BOSCO-0775985487-APALA-\"OJB MOTOR SPARES\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSCO-KAMPALA-0775625860-BOSCO-KAMPALA-0775625860",
+      "status": "created",
+      "target": "BOSCO-KAMPALA-0775625860-\"BOSCO-KAMPALA-0775625860\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOSSA 0752100863 JINJA-BOSSA 0752100863 JINJA",
+      "status": "created",
+      "target": "BOSSA 0752100863 JINJA-\"BOSSA 0752100863 JINJA\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BOYO MAXIWELL-0772260871-ALEBTONG-RWOT MIO MOTOR SPARES",
+      "status": "created",
+      "target": "BOYO MAXIWELL-0772260871-ALEBTONG-RWOT MIO MOTOR SPARES"
+    },
+    {
+      "doctype": "Contact",
+      "name": "brain-o777268513-tegeres-brain-o777268513-tegeres",
+      "status": "created",
+      "target": "brain-o777268513-tegeres-\"brain-o777268513-tegeres\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Bran Ratib-White brothers",
+      "status": "created",
+      "target": "Bran Ratib-\"White brothers\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "Bredah_0759436067-BRENDAH JINJA  0759436067",
+      "status": "created",
+      "target": "Bredah_0759436067-BRENDAH JINJA  0759436067"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BRENDA  ALOBO-0772159787-GULU-BRENDA  ALOBO-0772159787-GULU",
+      "status": "created",
+      "target": "BRENDA  ALOBO-0772159787-GULU-BRENDA  ALOBO-0772159787-GULU"
+    },
+    {
+      "doctype": "Contact",
+      "name": "BRENDA - 0785562684 - NEBBI-BRENDA - 0785562684 - NEBBI",
+      "status": "created",
+      "target": "BRENDA - 0785562684 - NEBBI-\"BRENDA - 0785562684 - NEBBI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BRENDA 0785562684 NEBBI-BRENDA 0785562684 NEBBI",
+      "status": "created",
+      "target": "BRENDA 0785562684 NEBBI-\"BRENDA 0785562684 NEBBI\""
+    },
+    {
+      "doctype": "Contact",
+      "name": "BRIAN SPARE PARTS-0704309937-ZIROBWE-BRIAN SPARE PARTS-0704309937-ZIROBWE",
+      "status": "created",
+      "target": "BRIAN SPARE PARTS-0704309937-ZIROBWE-BRIAN SPARE PARTS-0704309937-ZIROBWE"
+    }
+  ]
+}

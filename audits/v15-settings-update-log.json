@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-06-25T18:59:56.136Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "updates": [
+    {
+      "doctype": "System Settings",
+      "field": "deny_multiple_sessions",
+      "old_value": "1",
+      "update_value": "1",
+      "previous_v15_value": "0"
+    },
+    {
+      "doctype": "System Settings",
+      "field": "disable_standard_email_footer",
+      "old_value": "1",
+      "update_value": "1",
+      "previous_v15_value": "0"
+    },
+    {
+      "doctype": "System Settings",
+      "field": "number_format",
+      "old_value": "#,###.##",
+      "update_value": "#,###.##",
+      "previous_v15_value": "#,###"
+    },
+    {
+      "doctype": "System Settings",
+      "field": "session_expiry",
+      "old_value": "00:05",
+      "update_value": "00:05",
+      "previous_v15_value": "170:00"
+    },
+    {
+      "doctype": "Global Defaults",
+      "field": "disable_rounded_total",
+      "old_value": "1",
+      "update_value": "1",
+      "previous_v15_value": "0"
+    },
+    {
+      "doctype": "Stock Settings",
+      "field": "reorder_email_notify",
+      "old_value": "1",
+      "update_value": "1",
+      "previous_v15_value": "0"
+    },
+    {
+      "doctype": "Stock Settings",
+      "field": "stock_uom",
+      "old_value": "Unit",
+      "update_value": "Unit",
+      "previous_v15_value": "Nos"
+    },
+    {
+      "doctype": "Buying Settings",
+      "field": "allow_multiple_items",
+      "old_value": "0",
+      "update_value": "0",
+      "previous_v15_value": "1"
+    },
+    {
+      "doctype": "Print Settings",
+      "field": "print_style",
+      "old_value": "Modern",
+      "update_value": "Modern",
+      "previous_v15_value": "Redesign"
+    },
+    {
+      "doctype": "Website Settings",
+      "field": "disable_signup",
+      "old_value": "0",
+      "update_value": "0",
+      "previous_v15_value": "1"
+    }
+  ],
+  "skipped_same": [
+    {
+      "doctype": "Global Defaults",
+      "field": "default_company",
+      "value": "SUPERTEX APA CO LTD"
+    }
+  ],
+  "failed": []
+}

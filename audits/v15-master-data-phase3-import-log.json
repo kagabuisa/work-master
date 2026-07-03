@@ -1,0 +1,624 @@
+{
+  "generated_at": "2026-06-25T06:42:09.494Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "Supplier": {
+      "source": 534,
+      "skipped_existing": 534,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Customer": {
+      "source": 2808,
+      "skipped_existing": 2807,
+      "dry_run_create": 0,
+      "created": 1,
+      "failed": 0
+    },
+    "Employee": {
+      "source": 178,
+      "skipped_existing": 80,
+      "dry_run_create": 0,
+      "created": 98,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "doctype": "Customer",
+      "name": "ISAAC  - 1",
+      "status": "created",
+      "target": "ISAAC - 786595900"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0002",
+      "status": "created",
+      "target": "HR-EMP-00084"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0007",
+      "status": "created",
+      "target": "HR-EMP-00085"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0008",
+      "status": "created",
+      "target": "HR-EMP-00086"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0009",
+      "status": "created",
+      "target": "HR-EMP-00087"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0012",
+      "status": "created",
+      "target": "HR-EMP-00088"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0013",
+      "status": "created",
+      "target": "HR-EMP-00089"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0014",
+      "status": "created",
+      "target": "HR-EMP-00090"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0015",
+      "status": "created",
+      "target": "HR-EMP-00091"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0016",
+      "status": "created",
+      "target": "HR-EMP-00092"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0017",
+      "status": "created",
+      "target": "HR-EMP-00093"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0018",
+      "status": "created",
+      "target": "HR-EMP-00094"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0019",
+      "status": "created",
+      "target": "HR-EMP-00095"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0020",
+      "status": "created",
+      "target": "HR-EMP-00096"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0021",
+      "status": "created",
+      "target": "HR-EMP-00097"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0022",
+      "status": "created",
+      "target": "HR-EMP-00098"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0023",
+      "status": "created",
+      "target": "HR-EMP-00099"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0024",
+      "status": "created",
+      "target": "HR-EMP-00100"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0025",
+      "status": "created",
+      "target": "HR-EMP-00101"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0026",
+      "status": "created",
+      "target": "HR-EMP-00102"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0027",
+      "status": "created",
+      "target": "HR-EMP-00103"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0028",
+      "status": "created",
+      "target": "HR-EMP-00104"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0029",
+      "status": "created",
+      "target": "HR-EMP-00105"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0030",
+      "status": "created",
+      "target": "HR-EMP-00106"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0031",
+      "status": "created",
+      "target": "HR-EMP-00107"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0033",
+      "status": "created",
+      "target": "HR-EMP-00108"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0036",
+      "status": "created",
+      "target": "HR-EMP-00109"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0037",
+      "status": "created",
+      "target": "HR-EMP-00110"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0038",
+      "status": "created",
+      "target": "HR-EMP-00111"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0041",
+      "status": "created",
+      "target": "HR-EMP-00112"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0042",
+      "status": "created",
+      "target": "HR-EMP-00113"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0043",
+      "status": "created",
+      "target": "HR-EMP-00114"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0048",
+      "status": "created",
+      "target": "HR-EMP-00115"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0050",
+      "status": "created",
+      "target": "HR-EMP-00116"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0055",
+      "status": "created",
+      "target": "HR-EMP-00117"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0060",
+      "status": "created",
+      "target": "HR-EMP-00118"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0062",
+      "status": "created",
+      "target": "HR-EMP-00119"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0064",
+      "status": "created",
+      "target": "HR-EMP-00120"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0070",
+      "status": "created",
+      "target": "HR-EMP-00121"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0071",
+      "status": "created",
+      "target": "HR-EMP-00122"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0072",
+      "status": "created",
+      "target": "HR-EMP-00123"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0076",
+      "status": "created",
+      "target": "HR-EMP-00124"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0077",
+      "status": "created",
+      "target": "HR-EMP-00125"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0078",
+      "status": "created",
+      "target": "HR-EMP-00126"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0079",
+      "status": "created",
+      "target": "HR-EMP-00127"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0080",
+      "status": "created",
+      "target": "HR-EMP-00128"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0081",
+      "status": "created",
+      "target": "HR-EMP-00129"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0082",
+      "status": "created",
+      "target": "HR-EMP-00130"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0083",
+      "status": "created",
+      "target": "HR-EMP-00131"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0084",
+      "status": "created",
+      "target": "HR-EMP-00132"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0086",
+      "status": "created",
+      "target": "HR-EMP-00133"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0087",
+      "status": "created",
+      "target": "HR-EMP-00134"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0089",
+      "status": "created",
+      "target": "HR-EMP-00135"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0090",
+      "status": "created",
+      "target": "HR-EMP-00136"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0091",
+      "status": "created",
+      "target": "HR-EMP-00137"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0093",
+      "status": "created",
+      "target": "HR-EMP-00138"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0094",
+      "status": "created",
+      "target": "HR-EMP-00139"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0095",
+      "status": "created",
+      "target": "HR-EMP-00140"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0096",
+      "status": "created",
+      "target": "HR-EMP-00141"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0097",
+      "status": "created",
+      "target": "HR-EMP-00142"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0098",
+      "status": "created",
+      "target": "HR-EMP-00143"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0099",
+      "status": "created",
+      "target": "HR-EMP-00144"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0100",
+      "status": "created",
+      "target": "HR-EMP-00145"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0101",
+      "status": "created",
+      "target": "HR-EMP-00146"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0103",
+      "status": "created",
+      "target": "HR-EMP-00147"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0104",
+      "status": "created",
+      "target": "HR-EMP-00148"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0108",
+      "status": "created",
+      "target": "HR-EMP-00149"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0109",
+      "status": "created",
+      "target": "HR-EMP-00150"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0110",
+      "status": "created",
+      "target": "HR-EMP-00151"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0112",
+      "status": "created",
+      "target": "HR-EMP-00152"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0115",
+      "status": "created",
+      "target": "HR-EMP-00153"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0116",
+      "status": "created",
+      "target": "HR-EMP-00154"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0117",
+      "status": "created",
+      "target": "HR-EMP-00155"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0118",
+      "status": "created",
+      "target": "HR-EMP-00156"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0120",
+      "status": "created",
+      "target": "HR-EMP-00157"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0122",
+      "status": "created",
+      "target": "HR-EMP-00158"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0124",
+      "status": "created",
+      "target": "HR-EMP-00159"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0125",
+      "status": "created",
+      "target": "HR-EMP-00160"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0129",
+      "status": "created",
+      "target": "HR-EMP-00161"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0131",
+      "status": "created",
+      "target": "HR-EMP-00162"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0133",
+      "status": "created",
+      "target": "HR-EMP-00163"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0137",
+      "status": "created",
+      "target": "HR-EMP-00164"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0143",
+      "status": "created",
+      "target": "HR-EMP-00165"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0145",
+      "status": "created",
+      "target": "HR-EMP-00166"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0146",
+      "status": "created",
+      "target": "HR-EMP-00167"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0151",
+      "status": "created",
+      "target": "HR-EMP-00168"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0152",
+      "status": "created",
+      "target": "HR-EMP-00169"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0153",
+      "status": "created",
+      "target": "HR-EMP-00170"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0154",
+      "status": "created",
+      "target": "HR-EMP-00171"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0155",
+      "status": "created",
+      "target": "HR-EMP-00172"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0156",
+      "status": "created",
+      "target": "HR-EMP-00173"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0158",
+      "status": "created",
+      "target": "HR-EMP-00174"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0161",
+      "status": "created",
+      "target": "HR-EMP-00175"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0162",
+      "status": "created",
+      "target": "HR-EMP-00176"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0170",
+      "status": "created",
+      "target": "HR-EMP-00177"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0172",
+      "status": "created",
+      "target": "HR-EMP-00178"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0177",
+      "status": "created",
+      "target": "HR-EMP-00179"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0178",
+      "status": "created",
+      "target": "HR-EMP-00180"
+    },
+    {
+      "doctype": "Employee",
+      "name": "EMP/0179",
+      "status": "created",
+      "target": "HR-EMP-00181"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "generated_at": "2026-06-24T12:00:26.784Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "source_custom_print_formats": 12,
+    "attempted_create": 0,
+    "attempted_update": 12,
+    "created": 0,
+    "updated": 12,
+    "skipped_missing_doctype": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "print_format": "Asset Register print",
+      "doc_type": "Asset Register",
+      "status": "updated"
+    },
+    {
+      "print_format": "Custom Audit report",
+      "doc_type": "Audit Report",
+      "status": "updated"
+    },
+    {
+      "print_format": "Purchase Order",
+      "doc_type": "Purchase Order",
+      "status": "updated"
+    },
+    {
+      "print_format": "metaTest",
+      "doc_type": "Sales Invoice",
+      "status": "updated"
+    },
+    {
+      "print_format": "New Format 20-12-2025",
+      "doc_type": "Sales Invoice",
+      "status": "updated"
+    },
+    {
+      "print_format": "PrintTemp",
+      "doc_type": "Sales Invoice",
+      "status": "updated"
+    },
+    {
+      "print_format": "sales invoice print",
+      "doc_type": "Sales Invoice",
+      "status": "updated"
+    },
+    {
+      "print_format": "Delivery note",
+      "doc_type": "Stock Entry",
+      "status": "updated"
+    },
+    {
+      "print_format": "DLN Mobile",
+      "doc_type": "Stock Entry",
+      "status": "updated"
+    },
+    {
+      "print_format": "STOCK ENTRY",
+      "doc_type": "Stock Entry",
+      "status": "updated"
+    },
+    {
+      "print_format": "Stock Entry - Invoice",
+      "doc_type": "Stock Entry",
+      "status": "updated"
+    },
+    {
+      "print_format": "test",
+      "doc_type": "Stock Entry",
+      "status": "updated"
+    }
+  ]
+}

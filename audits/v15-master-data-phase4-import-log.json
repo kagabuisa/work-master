@@ -1,0 +1,268 @@
+{
+  "generated_at": "2026-06-25T07:30:09.834Z",
+  "apply": true,
+  "target": "https://new.zenjji.com",
+  "counts": {
+    "Item Category": {
+      "source": 27,
+      "skipped_existing": 27,
+      "dry_run_create": 0,
+      "created": 0,
+      "failed": 0
+    },
+    "Item": {
+      "source": 2152,
+      "skipped_existing": 2151,
+      "skipped_missing_link": 0,
+      "dry_run_create": 0,
+      "created": 1,
+      "failed": 0
+    },
+    "Item Price": {
+      "source": 70287,
+      "latest_unique_source": 69541,
+      "duplicate_old_rows_skipped": 746,
+      "skipped_existing": 69503,
+      "skipped_missing_link": 0,
+      "dry_run_create": 0,
+      "created": 38,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "doctype": "Item",
+      "name": "MACK SAE50 API CF DIESEL 5X6",
+      "status": "created",
+      "target": "MACK SAE50 API CF DIESEL 5X6"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-70687",
+      "status": "created",
+      "target": "ugl8ag5u81"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-17571",
+      "status": "created",
+      "target": "ugllpue65b"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-03043",
+      "status": "created",
+      "target": "ugl6v3v0tf"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-00555",
+      "status": "created",
+      "target": "ugl2nbp9tj"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-17640",
+      "status": "created",
+      "target": "ugmg05nhd0"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-01798",
+      "status": "created",
+      "target": "uglotsg6j0"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-19405",
+      "status": "created",
+      "target": "ugmm4nstuk"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-19809",
+      "status": "created",
+      "target": "ugna2kmq6g"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-17678",
+      "status": "created",
+      "target": "ugntkubska"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-21757",
+      "status": "created",
+      "target": "ugnn0mte5p"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-24488",
+      "status": "created",
+      "target": "ugnp7ctstu"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-25047",
+      "status": "created",
+      "target": "ugnrjq5icg"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-27018",
+      "status": "created",
+      "target": "ugnqdm6rg5"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-29842",
+      "status": "created",
+      "target": "ugo3ffjrol"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-28716",
+      "status": "created",
+      "target": "ugo582k6pj"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-31043",
+      "status": "created",
+      "target": "ugoj0sptq5"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-35228",
+      "status": "created",
+      "target": "ugopfet6ej"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-38529",
+      "status": "created",
+      "target": "ugo9v2hafv"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-37451",
+      "status": "created",
+      "target": "ugod1ndduf"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-39613",
+      "status": "created",
+      "target": "ugphpe0mk7"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-42730",
+      "status": "created",
+      "target": "ugpmm5tt3j"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-44960",
+      "status": "created",
+      "target": "ugp2lvno5d"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-43854",
+      "status": "created",
+      "target": "ugpoogvv2b"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-50790",
+      "status": "created",
+      "target": "ugqef0218l"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-47169",
+      "status": "created",
+      "target": "ugpppt9ed1"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-46051",
+      "status": "created",
+      "target": "ugp1ts9k4b"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-48358",
+      "status": "created",
+      "target": "ugqf4q60vc"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-52096",
+      "status": "created",
+      "target": "ugqc9uc2r9"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-55687",
+      "status": "created",
+      "target": "ugq17udgas"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-54663",
+      "status": "created",
+      "target": "ugq3ifrjq6"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-53509",
+      "status": "created",
+      "target": "ugq7fri927"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-56709",
+      "status": "created",
+      "target": "ugrjruc0qq"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-57721",
+      "status": "created",
+      "target": "ugr1kse1bb"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-61709",
+      "status": "created",
+      "target": "ugsv78qnjd"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-58738",
+      "status": "created",
+      "target": "ugseqhnamj"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-59761",
+      "status": "created",
+      "target": "ugs10j0v0a"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-63089",
+      "status": "created",
+      "target": "ugs8jrr4br"
+    },
+    {
+      "doctype": "Item Price",
+      "name": "ITEM-PRICE-69345",
+      "status": "created",
+      "target": "ugtbfd03kh"
+    }
+  ]
+}
