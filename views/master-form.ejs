@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title><%= mode === 'edit' ? config.editLabel : config.newLabel %></title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Setup</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: config.title, href: '/settings/' + config.key }, { label: mode === 'edit' ? config.editLabel : config.newLabel }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'settings' }) %>
+      </nav>
+    </header>
+
+    <% if (error) { %>
+      <section class="notice warning"><strong><%= error %></strong></section>
+    <% } %>
+
+    <form method="post" action="<%= mode === 'edit' ? '/settings/' + config.key + '/' + encodeURIComponent(record[config.idField]) : '/settings/' + config.key %>" class="invoice-form">
+      <section class="form-grid">
+        <% config.fields.forEach((field) => { %>
+          <label class="<%= field.className || '' %>">
+            <%= field.label %>
+            <% if (field.type === 'textarea') { %>
+              <textarea name="<%= field.name %>" rows="3" <%= field.required ? 'required' : '' %>><%= record[field.name] || '' %></textarea>
+            <% } else if (field.type === 'option-select') { %>
+              <select name="<%= field.name %>" <%= field.required ? 'required' : '' %>>
+                <option value=""></option>
+                <% (optionValues[field.optionGroup] || []).forEach((value) => { %>
+                  <option value="<%= value %>" <%= String(record[field.name] ?? '') === String(value) ? 'selected' : '' %>><%= value %></option>
+                <% }) %>
+              </select>
+            <% } else if (field.type === 'select') { %>
+              <select name="<%= field.name %>" <%= field.required ? 'required' : '' %>>
+                <% (field.options || []).forEach((option) => { %>
+                  <option value="<%= option.value %>" <%= String(record[field.name] ?? option.defaultValue ?? '') === String(option.value) ? 'selected' : '' %>><%= option.label %></option>
+                <% }) %>
+              </select>
+            <% } else { %>
+              <input
+                name="<%= field.name %>"
+                value="<%= record[field.name] ?? '' %>"
+                type="<%= field.type || 'text' %>"
+                <% if (field.maxlength) { %>maxlength="<%= field.maxlength %>"<% } %>
+                <% if (field.step) { %>step="<%= field.step %>"<% } %>
+                <% if (field.min) { %>min="<%= field.min %>"<% } %>
+                <% if (field.placeholder) { %>placeholder="<%= field.placeholder %>"<% } %>
+                <% if (field.autocomplete) { %>autocomplete="<%= field.autocomplete %>"<% } %>
+                <% if (field.optionGroup) { %>list="options-<%= field.name %>"<% } %>
+                <% if (field.required) { %>required<% } %>
+                <% if (mode === 'edit' && field.lockedOnEdit) { %>readonly<% } %>
+              >
+              <% if (field.optionGroup) { %>
+                <datalist id="options-<%= field.name %>">
+                  <% (optionValues[field.optionGroup] || []).forEach((value) => { %>
+                    <option value="<%= value %>"></option>
+                  <% }) %>
+                </datalist>
+              <% } %>
+            <% } %>
+            <% if (field.optionGroup && config.key !== 'options' && can('masters.options.create')) { %>
+              <span class="field-hint">Option missing? <a class="inline-link" href="/settings/options/new?group=<%= encodeURIComponent(field.optionGroup) %>">Add new option</a></span>
+            <% } %>
+          </label>
+        <% }) %>
+      </section>
+      <div class="actions">
+        <a class="button button-light" href="/settings/<%= config.key %>">Cancel</a>
+        <button type="submit"><%= mode === 'edit' ? 'Save ' : 'Create ' %><%= config.singular %></button>
+      </div>
+    </form>
+    <% if (mode === 'edit') { %><%- include('record-audit', { record: record }) %><% } %>
+  </main>
+</body>
+</html>

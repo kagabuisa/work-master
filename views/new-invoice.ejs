@@ -13,6 +13,11 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'sales' }) %>
+        <div class="actions page-actions">
+          <button type="submit" form="invoice-form"><%= invoice ? 'Save Changes' : 'Save Draft' %></button>
+          <% if (can('vouchers.sales.submit') && can('payments.sales.record')) { %><button type="submit" form="invoice-form" name="action" value="cash_sale">Submit Cash Sale</button><% } %>
+          <% if (can('vouchers.sales.submit')) { %><button type="submit" form="invoice-form" name="action" value="submit_invoice">Submit Invoice</button><% } %>
+        </div>
       </nav>
     </header>
     <% if (typeof stockWarning !== 'undefined' && stockWarning) { %>
@@ -26,47 +31,44 @@
         </p>
       </section>
     <% } %>
+    <section class="notice warning" id="invoice-form-error" hidden>
+      <strong></strong>
+    </section>
 
     <form id="invoice-form" method="post" action="<%= invoice ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form">
-      <section class="form-grid">
-        <label>
-          Invoice Date
-          <input type="date" name="invoice_date" value="<%= invoice ? invoice.invoice_date : today %>" required>
-        </label>
-        <label>
-          Due Date
-          <input type="date" name="due_date" value="<%= invoice && invoice.due_date ? invoice.due_date : '' %>">
-        </label>
-        <label class="wide">
-          Customer
+      <section class="invoice-entry-row">
+        <div class="form-field">
+          <label class="field-label" for="invoice-date">Invoice Date</label>
+          <input id="invoice-date" type="date" name="invoice_date" value="<%= invoice ? invoice.invoice_date : today %>" required>
+        </div>
+        <div class="form-field">
+          <label class="field-label" for="due-date">Due Date</label>
+          <input id="due-date" type="date" name="due_date" value="<%= invoice && invoice.due_date ? invoice.due_date : '' %>">
+        </div>
+        <div class="form-field lookup-field">
+          <label class="field-label" for="customer-search">Customer</label>
           <input id="customer-search" name="customer_name" autocomplete="off" placeholder="Search and select customer" value="<%= invoice ? invoice.customer_name : '' %>" required>
           <input type="hidden" name="customer_id" id="customer-id" value="<%= invoice && invoice.customer_id ? invoice.customer_id : '' %>">
           <div id="customer-results" class="results"></div>
-        </label>
-        <label>
-          Phone
-          <input name="customer_phone" placeholder="Optional" value="<%= invoice && invoice.customer_phone ? invoice.customer_phone : '' %>">
-        </label>
-      </section>
-
-      <section class="item-picker">
-        <label>
-          Invoice From Warehouse
+        </div>
+        <div class="form-field">
+          <label class="field-label" for="warehouse-select">Invoice From Warehouse</label>
           <select id="warehouse-select" name="warehouse" required>
             <option value="">Loading warehouses...</option>
           </select>
-        </label>
-        <label>
-          Add Item From MySQL
+        </div>
+        <div class="form-field lookup-field">
+          <label class="field-label" for="item-search">Add Item</label>
           <input id="item-search" autocomplete="off" placeholder="Choose a warehouse first" disabled>
           <div id="item-results" class="results"></div>
-        </label>
+        </div>
       </section>
 
       <table id="invoice-items" class="editable">
         <thead>
           <tr>
-            <th class="item-code-col">Item</th>
+            <th class="row-number">#</th>
+            <th class="item-code-col">Item Name</th>
             <th>Stock</th>
             <th>Qty</th>
             <th>Unit Price</th>
@@ -75,7 +77,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr class="empty-row"><td colspan="6" class="empty">Search and add items to begin.</td></tr>
+          <tr class="empty-row"><td colspan="7" class="empty">Search and add items to begin.</td></tr>
         </tbody>
       </table>
 
@@ -90,43 +92,62 @@
         </label>
         <div class="live-total">
           <span>Total</span>
-          <strong id="grand-total">UGX 0</strong>
+          <strong id="grand-total">Ugx 0</strong>
         </div>
         <div class="live-total">
           <span>Paid</span>
-          <strong id="paid-total">UGX 0</strong>
+          <strong id="paid-total">Ugx 0</strong>
         </div>
         <div class="live-total">
           <span>Balance</span>
-          <strong id="balance-total">UGX 0</strong>
+          <strong id="balance-total">Ugx 0</strong>
         </div>
         <div class="live-total">
           <span>Status</span>
           <strong id="payment-status">Unpaid</strong>
         </div>
+        <label>
+          Cash Sale Method
+          <select name="cash_sale_method">
+            <option value="cash">Cash</option>
+            <option value="mobile_money">Mobile Money</option>
+            <option value="bank">Bank</option>
+            <option value="card">Card</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>
+          Cash Sale Reference
+          <input name="cash_sale_reference" placeholder="Optional">
+        </label>
+        <label class="wide">
+          Cash Sale Notes
+          <input name="cash_sale_notes" placeholder="Optional">
+        </label>
         <label class="wide">
           Notes
           <textarea name="notes" rows="3" placeholder="Payment terms or delivery note"><%= invoice && invoice.notes ? invoice.notes : '' %></textarea>
         </label>
       </section>
 
-      <section class="payments-entry">
+      <section class="payments-entry" hidden>
         <div class="section-title">
           <h2>Payments</h2>
         </div>
         <table id="invoice-payments" class="editable">
           <thead>
             <tr>
+              <th class="row-number">#</th>
               <th>Date</th>
               <th>Method</th>
-              <th>Reference</th>
+              <th>Payment Reference</th>
               <th>Notes</th>
               <th>Amount</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr class="empty-row"><td colspan="6" class="empty">No payments added.</td></tr>
+            <tr class="empty-row"><td colspan="7" class="empty">No payments added.</td></tr>
           </tbody>
         </table>
         <div class="payment-form invoice-payment-form">
@@ -149,7 +170,7 @@
             </select>
           </label>
           <label>
-            Reference
+            Payment Reference
             <input id="payment-reference" placeholder="Optional">
           </label>
           <label class="wide">
@@ -164,9 +185,6 @@
 
       <input type="hidden" name="items_json" id="items-json">
       <input type="hidden" name="payments_json" id="payments-json">
-      <div class="actions">
-        <button type="submit"><%= invoice ? 'Save Changes' : 'Save Draft' %></button>
-      </div>
     </form>
   </main>
   <script>
@@ -176,6 +194,6 @@
       warehouse: items[0] ? items[0].warehouse : '',
     }).replace(/</g, '\\u003c') %>;
   </script>
-  <script src="/invoice.js"></script>
+  <script src="/invoice.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

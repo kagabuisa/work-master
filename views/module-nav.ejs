@@ -1,107 +1,108 @@
 <% const currentModule = typeof activeModule !== 'undefined' ? activeModule : ''; %>
-<div class="module-nav" aria-label="Primary navigation" data-module-nav>
-  <div class="module-nav-group">
-    <a class="module-nav-primary <%= currentModule === 'accounts' ? 'active' : '' %>" href="/accounts">Accounts</a>
-    <div class="module-nav-menu">
-      <a href="/journals/new">New Journal</a>
-      <a href="/reports/balance-sheet">Balance Sheet</a>
-      <a href="/accounts">Chart of Accounts</a>
-      <a href="/reports/general-ledger">General Ledger</a>
-      <a href="/journals">Journals</a>
-      <a href="/reports/profit-and-loss">P&amp;L</a>
-      <a href="/reports/trial-balance">Trial Balance</a>
+<% const scoped = currentUser.role !== 'admin' && ['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'); %>
+<% const supplierScoped = currentUser.role !== 'admin' && currentUser.scopes?.suppliers?.mode === 'selected'; %>
+<aside class="module-nav" aria-label="Primary navigation" data-module-nav>
+  <button class="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="module-nav-scroll">
+    Menu
+  </button>
+  <a class="module-nav-home" href="/">
+    <span>Work Master</span>
+    <small>Dashboard</small>
+  </a>
+
+  <% if (can('vouchers.sales.create') || can('vouchers.purchases.create') || can('vouchers.stock.create') && !supplierScoped || can('vouchers.journals.create') && !scoped) { %>
+  <div class="module-nav-actions" aria-label="Create">
+    <div class="module-nav-new" data-new-menu>
+      <button class="module-nav-action module-nav-new-trigger" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="module-nav-new-options" data-new-menu-trigger>
+        <span>New</span>
+        <span class="module-nav-new-icon" aria-hidden="true">+</span>
+      </button>
+      <div class="module-nav-new-options" id="module-nav-new-options" role="menu" hidden data-new-menu-options>
+        <% if (can('vouchers.sales.create')) { %><a href="/invoices/new" role="menuitem"><span>Sales Invoice</span><small>Bill a customer</small></a><% } %>
+        <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new" role="menuitem"><span>Purchase</span><small>Receive stock and track payment</small></a><% } %>
+        <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/entries/new" role="menuitem"><span>Stock Entry</span><small>Record stock movement</small></a><% } %>
+        <% if (can('vouchers.journals.create') && !scoped) { %><a href="/journals/new" role="menuitem"><span>Journal Entry</span><small>Record accounting entry</small></a><% } %>
+      </div>
     </div>
   </div>
-  <div class="module-nav-group">
-    <a class="module-nav-primary <%= currentModule === 'stock' ? 'active' : '' %>" href="/stock">Stock</a>
-    <div class="module-nav-menu">
-      <a href="/stock/entries/new">New Stock Entry</a>
-      <a href="/reports/gross-profit">Gross Profit</a>
-      <a href="/reports/stock-movement">Movement</a>
-      <a href="/stock">Stock Balance</a>
-      <a href="/reports/stock-ledger">Stock Ledger</a>
-    </div>
+  <% } %>
+
+  <div class="module-nav-scroll" id="module-nav-scroll">
+    <% if (can('vouchers.sales.view') || can('vouchers.sales.create')) { %>
+    <section class="module-nav-section <%= currentModule === 'sales' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="<%= can('vouchers.sales.view') ? '/invoices' : '/invoices/new' %>">Sales</a>
+      <div class="module-nav-links">
+        <% if (can('vouchers.sales.create')) { %><a href="/invoices/new">New Sales Invoice</a><% } %>
+        <% if (can('vouchers.sales.view')) { %><a href="/invoices">Sales Invoices</a><% } %>
+        <% if (can('reports.debtors.view') && !scoped) { %><a href="/reports/debtors">Debtors</a><% } %>
+      </div>
+    </section>
+    <% } %>
+
+    <% if (can('vouchers.purchases.view') || can('vouchers.purchases.create')) { %>
+    <section class="module-nav-section <%= currentModule === 'purchases' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="<%= can('vouchers.purchases.view') ? '/purchases' : '/purchases/new' %>">Purchases</a>
+      <div class="module-nav-links">
+        <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new">New Purchase</a><% } %>
+        <% if (can('vouchers.purchases.view')) { %><a href="/purchases">Purchases</a><% } %>
+        <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger?entry_type=purchase">Purchase Stock Ledger</a><% } %>
+      </div>
+    </section>
+    <% } %>
+
+    <% if (can('vouchers.stock.view') || can('vouchers.stock.create') && !supplierScoped) { %>
+    <section class="module-nav-section <%= currentModule === 'stock' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="/stock">Stock</a>
+      <div class="module-nav-links">
+        <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/entries/new">New Stock Entry</a><% } %>
+        <% if (can('vouchers.stock.view')) { %><a href="/stock">Stock Balance</a><% } %>
+        <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger">Stock Ledger</a><% } %>
+        <% if (can('reports.stock-movement.view') && !scoped) { %><a href="/reports/stock-movement">Stock Movement</a><% } %>
+      </div>
+    </section>
+    <% } %>
+
+    <% if (can('accounts.view') || can('vouchers.journals.view') && !scoped) { %>
+    <section class="module-nav-section <%= currentModule === 'accounts' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="<%= can('accounts.view') ? '/accounts' : '/journals' %>">Accounts</a>
+      <div class="module-nav-links">
+        <% if (can('vouchers.journals.create') && !scoped) { %><a href="/journals/new">New Journal Entry</a><% } %>
+        <% if (can('accounts.view')) { %><a href="/accounts">Chart of Accounts</a><% } %>
+        <% if (can('vouchers.journals.view') && !scoped) { %><a href="/journals">Journals</a><% } %>
+      </div>
+    </section>
+    <% } %>
+
+    <% if (availableReports.length && !scoped) { %>
+    <section class="module-nav-section <%= currentModule === 'report' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="<%= availableReports[0].href %>">Reports</a>
+      <div class="module-nav-links">
+        <% availableReports.forEach((report) => { %><a href="<%= report.href %>"><%= report.label %></a><% }) %>
+      </div>
+    </section>
+    <% } %>
+
+    <% if (currentUser.role === 'admin' || can('sync.run') || ['customers', 'suppliers', 'items', 'warehouses', 'options'].some((key) => can(`masters.${key}.view`))) { %>
+    <section class="module-nav-section <%= currentModule === 'settings' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="/settings">Settings</a>
+      <div class="module-nav-links">
+        <% if (can('masters.customers.view')) { %><a href="/settings/customers">Customers</a><% } %>
+        <% if (can('masters.suppliers.view')) { %><a href="/settings/suppliers">Suppliers</a><% } %>
+        <% if (can('masters.items.view')) { %><a href="/settings/items">Items</a><% } %>
+        <% if (can('masters.warehouses.view')) { %><a href="/settings/warehouses">Warehouses</a><% } %>
+        <% if (can('masters.employees.view')) { %><a href="/settings/employees">Employees</a><% } %>
+        <% if (can('masters.options.view')) { %><a href="/settings/options">Options</a><% } %>
+        <a href="/settings">Application Settings</a>
+        <% if (currentUser.role === 'admin') { %><a href="/settings/users">Users</a><a href="/settings/roles">Roles</a><% } %>
+      </div>
+    </section>
+    <% } %>
   </div>
-  <div class="module-nav-group">
-    <a class="module-nav-primary <%= currentModule === 'sales' ? 'active' : '' %>" href="/invoices">Sales</a>
-    <div class="module-nav-menu">
-      <a href="/invoices/new">New Invoice</a>
-      <a href="/reports/debtors">Debtors</a>
-      <a href="/reports/gross-profit">Gross Profit</a>
-      <a href="/invoices">Invoices</a>
-    </div>
-  </div>
-  <div class="module-nav-group">
-    <a class="module-nav-primary <%= currentModule === 'purchases' ? 'active' : '' %>" href="/purchases">Purchases</a>
-    <div class="module-nav-menu">
-      <a href="/stock/entries/new">New Purchase Receipt</a>
-      <a href="/purchases">Purchase Ledger</a>
-      <a href="/reports/stock-ledger?entry_type=purchase">Purchase Receipts</a>
-    </div>
-  </div>
-  <div class="module-nav-group">
-    <a class="module-nav-primary <%= currentModule === 'report' ? 'active' : '' %>" href="/reports/general-ledger">Report</a>
-    <div class="module-nav-menu">
-      <a href="/reports/balance-sheet">Balance Sheet</a>
-      <a href="/reports/debtors">Debtors</a>
-      <a href="/reports/general-ledger">General Ledger</a>
-      <a href="/reports/gross-profit">Gross Profit</a>
-      <a href="/reports/profit-and-loss">P&amp;L</a>
-      <a href="/reports/stock-ledger">Stock Ledger</a>
-      <a href="/reports/stock-movement">Stock Movement</a>
-      <a href="/reports/trial-balance">Trial Balance</a>
-    </div>
-  </div>
-  <div class="module-nav-group">
-    <a class="module-nav-primary <%= currentModule === 'settings' ? 'active' : '' %>" href="/settings">Settings</a>
-    <div class="module-nav-menu">
-      <a href="/settings">Application Settings</a>
-    </div>
-  </div>
-  <a class="button module-nav-action" href="/invoices/new">New Invoice</a>
-  <a class="button module-nav-action" href="/journals/new">New Journal</a>
-  <a class="button module-nav-action" href="/stock/entries/new">New Stock Entry</a>
-  <% if (currentModule === 'accounts') { %>
-    <div class="module-section-submenu" aria-label="Accounts links">
-      <a href="/reports/balance-sheet">Balance Sheet</a>
-      <a href="/accounts">Chart of Accounts</a>
-      <a href="/reports/general-ledger">General Ledger</a>
-      <a href="/journals">Journals</a>
-      <a href="/reports/profit-and-loss">P&amp;L</a>
-      <a href="/reports/trial-balance">Trial Balance</a>
-    </div>
-  <% } else if (currentModule === 'stock') { %>
-    <div class="module-section-submenu" aria-label="Stock links">
-      <a href="/reports/gross-profit">Gross Profit</a>
-      <a href="/reports/stock-movement">Movement</a>
-      <a href="/stock">Stock Balance</a>
-      <a href="/reports/stock-ledger">Stock Ledger</a>
-    </div>
-  <% } else if (currentModule === 'sales') { %>
-    <div class="module-section-submenu" aria-label="Sales links">
-      <a href="/reports/debtors">Debtors</a>
-      <a href="/reports/gross-profit">Gross Profit</a>
-      <a href="/invoices">Invoices</a>
-    </div>
-  <% } else if (currentModule === 'purchases') { %>
-    <div class="module-section-submenu" aria-label="Purchases links">
-      <a href="/purchases">Purchase Ledger</a>
-      <a href="/reports/stock-ledger?entry_type=purchase">Purchase Receipts</a>
-    </div>
-  <% } else if (currentModule === 'report') { %>
-    <div class="module-section-submenu" aria-label="Report links">
-      <a href="/reports/balance-sheet">Balance Sheet</a>
-      <a href="/reports/debtors">Debtors</a>
-      <a href="/reports/general-ledger">General Ledger</a>
-      <a href="/reports/gross-profit">Gross Profit</a>
-      <a href="/reports/profit-and-loss">P&amp;L</a>
-      <a href="/reports/stock-ledger">Stock Ledger</a>
-      <a href="/reports/stock-movement">Stock Movement</a>
-      <a href="/reports/trial-balance">Trial Balance</a>
-    </div>
-  <% } else if (currentModule === 'settings') { %>
-    <div class="module-section-submenu" aria-label="Settings links">
-      <a href="/settings">Application Settings</a>
+  <% if (currentUser) { %>
+    <div class="module-nav-account">
+      <span>Signed in as <strong><%= currentUser.username %></strong> · <%= currentUser.role_name || currentUser.role %></span>
+      <a href="/account/password">Change password</a>
+      <form method="post" action="/logout"><button type="submit">Log out</button></form>
     </div>
   <% } %>
-</div>
+</aside>

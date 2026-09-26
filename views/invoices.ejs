@@ -15,42 +15,71 @@
         <%- include('module-nav', { activeModule: 'sales' }) %>
       </nav>
     </header>
-    <form class="search" method="get">
-      <input name="q" value="<%= search %>" placeholder="Search invoices">
-      <button type="submit">Search</button>
+    <form class="report-filters invoice-filters" method="get">
+      <label>
+        Search
+        <input name="q" value="<%= search %>" placeholder="Search invoices">
+      </label>
+      <label>
+        From
+        <input type="date" name="from" value="<%= query.from || '' %>">
+      </label>
+      <label>
+        To
+        <input type="date" name="to" value="<%= query.to || '' %>">
+      </label>
+      <label>
+        Warehouse
+        <select name="warehouse">
+          <option value="">All Warehouses</option>
+          <% (typeof warehouses !== 'undefined' ? warehouses : []).forEach((row) => { %>
+            <% const warehouse = row.warehouse || row; %>
+            <option value="<%= warehouse %>" <%= query.warehouse === warehouse ? 'selected' : '' %>><%= warehouse %></option>
+          <% }) %>
+        </select>
+      </label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/invoices">Reset</a>
+      </div>
     </form>
 
     <section class="invoice-card report-section">
       <table>
         <thead>
           <tr>
+            <th class="row-number">#</th>
             <th>Invoice</th>
             <th>Date</th>
             <th>Customer</th>
             <th>Total</th>
             <th>Paid</th>
-            <th>Document</th>
-            <th>Status</th>
+            <th>Document Status</th>
+            <th>Payment Status</th>
           </tr>
         </thead>
         <tbody>
           <% if (!invoices.length) { %>
-            <tr><td colspan="7" class="empty">No invoices found.</td></tr>
+            <tr><td colspan="8" class="empty">No invoices found.</td></tr>
           <% } %>
-          <% invoices.forEach((invoice) => { %>
+          <% invoices.forEach((invoice, index) => { %>
             <% const docstatus = invoice.docstatus || 'submitted'; %>
+            <% const balanceDue = Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0)); %>
+            <% const paymentStatusLabel = invoice.status === 'partial' ? `Balance ${money(balanceDue)}` : invoice.status === 'paid' ? 'Paid' : invoice.status; %>
             <tr>
-              <td><a href="/invoices/<%= invoice.id %>"><%= invoice.invoice_no %></a></td>
+              <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
+              <td><a href="/invoices/<%= invoice.id %>" data-voucher-drawer="/invoices/<%= invoice.id %>/drawer"><%= invoice.invoice_no %></a></td>
               <td><%= invoice.invoice_date %></td>
               <td><%= invoice.customer_name %></td>
               <td><%= money(invoice.total) %></td>
               <td><%= money(invoice.amount_paid) %></td>
-              <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : 'Submitted' %></span></td>
-              <td><span class="badge <%= invoice.status %>"><%= invoice.status %></span></td>
+              <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
+              <td><span class="badge <%= invoice.status %>"><%= paymentStatusLabel %></span></td>
             </tr>
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination, query, basePath: '/invoices' }) %>
     </section>
   </main>
 </body>

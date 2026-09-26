@@ -1,0 +1,70 @@
+<% const voucherTitle = invoice.is_cash_sale ? 'Cash Sales Invoice' : 'Sales Invoice'; %>
+<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<% const docstatus = invoice.docstatus || 'submitted'; %>
+<% const payments = Array.isArray(invoice.payments) ? invoice.payments : []; %>
+<% const balanceDue = Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0)); %>
+<section class="invoice-card">
+  <%- include('invoice-header', { voucherTitle }) %>
+  <div class="invoice-meta">
+    <div>
+      <span>Customer</span>
+      <strong><%= invoice.customer_name %></strong>
+      <% if (invoice.customer_phone) { %><p><%= invoice.customer_phone %></p><% } %>
+    </div>
+    <div>
+      <span>Date</span>
+      <strong><%= invoice.invoice_date %></strong>
+      <% if (invoice.due_date) { %><p>Due <%= invoice.due_date %></p><% } %>
+    </div>
+    <div>
+      <span>Document Status</span>
+      <strong><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong>
+      <p><span class="badge <%= invoice.status %>"><%- include('invoice-payment-status', { invoice, money }) -%></span></p>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="row-number">#</th>
+        <th class="item-code-col">Item Name</th>
+        <th class="warehouse-col">Warehouse</th>
+        <th>Qty</th>
+        <th>Unit Price</th>
+        <th>Total</th>
+        <th class="tracking-info">Created by</th>
+        <th class="tracking-info">Updated by</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% items.forEach((item, index) => { %>
+        <tr>
+          <td class="row-number"><%= index + 1 %></td>
+          <td class="item-code-col"><strong><%= item.item_code %></strong></td>
+          <td class="warehouse-col"><%= item.warehouse || '' %></td>
+          <td><%= Number(item.quantity).toLocaleString() %></td>
+          <td><%= money(item.unit_price) %></td>
+          <td><%= money(item.line_total) %></td>
+          <td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td>
+          <td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <dl class="totals">
+    <div><dt>Subtotal</dt><dd><%= money(invoice.subtotal) %></dd></div>
+    <div><dt>Discount</dt><dd><%= money(invoice.discount_amount) %></dd></div>
+    <div><dt>Tax</dt><dd><%= money(invoice.tax_amount) %></dd></div>
+    <div class="grand"><dt>Total</dt><dd><%= money(invoice.total) %></dd></div>
+    <div><dt>Paid</dt><dd><%= money(invoice.amount_paid) %></dd></div>
+    <div><dt>Balance</dt><dd><%= money(invoice.total - invoice.amount_paid) %></dd></div>
+  </dl>
+
+  <% if (invoice.notes) { %>
+    <p class="notes"><%= invoice.notes %></p>
+  <% } %>
+</section>
+
+<%- include('invoice-payments', { invoice, payments, docstatus, balanceDue, today, money, returnTo: typeof returnTo !== 'undefined' ? returnTo : '' }) %>
+<% if (true) { %><%- include('record-audit', { record: invoice }) %><% } %>

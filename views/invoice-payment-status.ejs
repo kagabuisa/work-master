@@ -1,0 +1,9 @@
+<%
+  const statusValue = invoice.status || 'unpaid';
+  const balanceValue = Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0));
+  const statusLabel = statusValue === 'partial'
+    ? `Balance ${money(balanceValue)}`
+    : statusValue === 'paid'
+      ? 'Paid'
+      : statusValue;
+%><%= statusLabel %>

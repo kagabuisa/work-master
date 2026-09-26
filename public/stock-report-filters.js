@@ -32,7 +32,7 @@ async function loadReportItems(query) {
     return;
   }
   try {
-    const response = await fetch(`/api/master-items?q=${encodeURIComponent(search)}`);
+    const response = await fetch(`/api/report-items?q=${encodeURIComponent(search)}`);
     if (!response.ok) {
       throw new Error('Item lookup failed.');
     }
@@ -53,7 +53,7 @@ async function loadReportWarehouses() {
     return;
   }
   try {
-    const response = await fetch('/api/warehouses');
+    const response = await fetch('/api/report-warehouses');
     if (!response.ok) {
       throw new Error('Warehouse lookup failed.');
     }

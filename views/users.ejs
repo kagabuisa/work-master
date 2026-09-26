@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Users · Work Master</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Administration</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Users' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
+    </header>
+    <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
+    <% if (created) { %>
+      <section class="notice" role="status">
+        <strong>Temporary password for <%= created.username %></strong>
+        <p><code><%= created.password %></code></p>
+        <p>Give this to the user securely. It will not be shown again; they must change it at login.</p>
+      </section>
+    <% } %>
+    <section class="invoice-card report-section">
+      <div class="section-title"><h1>Users</h1></div>
+      <p>Assign a built-in or custom role to each user. <a href="/settings/roles">Manage roles and permissions</a>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Username</th><th>Role and status</th><th>Save access</th><th>Password</th></tr></thead>
+          <tbody>
+            <% users.forEach((user) => { %>
+              <tr>
+                <td><strong><%= user.username %></strong><% if (Number(user.id) === Number(currentUser.id)) { %> · You<% } %></td>
+                <td>
+                  <form method="post" action="/settings/users/<%= user.id %>/access" id="access-<%= user.id %>" class="user-access-form">
+                    <select name="role" aria-label="Role for <%= user.username %>">
+                      <% roles.forEach((role) => { %><option value="<%= role.slug %>" <%= user.role === role.slug ? 'selected' : '' %>><%= role.name %></option><% }) %>
+                    </select>
+                    <label><input type="checkbox" name="active" <%= user.active ? 'checked' : '' %>> Active</label>
+                  </form>
+                </td>
+                <td><button type="submit" form="access-<%= user.id %>" class="button-light">Save</button></td>
+                <td>
+                  <form method="post" action="/settings/users/<%= user.id %>/reset" data-confirm="Reset this user's password and sign them out?">
+                    <button type="submit" class="button-light">Reset password</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="invoice-card report-section">
+      <h2>Create user</h2>
+      <form method="post" action="/settings/users" class="user-create-form">
+        <label>Username <input name="username" pattern="[A-Za-z0-9._-]{3,64}" minlength="3" maxlength="64" required autocomplete="off"></label>
+        <label>Role <select name="role"><% roles.forEach((role) => { %><option value="<%= role.slug %>" <%= role.slug === 'standard' ? 'selected' : '' %>><%= role.name %></option><% }) %></select></label>
+        <button type="submit">Create user</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

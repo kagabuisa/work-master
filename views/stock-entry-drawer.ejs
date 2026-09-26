@@ -1,0 +1,46 @@
+<% const entryStatus = entry.docstatus || 'submitted'; %>
+<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<div class="invoice-drawer-content" data-voucher-title="<%= entry.entry_no %>" data-voucher-eyebrow="Stock Entry">
+  <div class="invoice-drawer-heading">
+    <div>
+      <p class="eyebrow">Stock Entry</p>
+      <h2><%= entry.entry_no %></h2>
+      <small><%= entry.entry_type %></small>
+    </div>
+  </div>
+  <div class="invoice-drawer-actions">
+    <% if (entryStatus === 'draft' && can('vouchers.stock.edit')) { %><a class="button button-light" href="/stock/entries/<%= entry.id %>/edit">Edit</a><% } %>
+  </div>
+  <section class="invoice-card">
+    <div class="invoice-meta">
+      <div><span>Type</span><strong><%= entry.entry_type %></strong></div>
+      <div><span>Posting Date</span><strong><%= entry.posting_date %></strong></div>
+      <div><span>Status</span><strong><span class="badge <%= entryStatus %>"><%= entryStatus === 'draft' ? 'Draft' : entryStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
+    </div>
+    <% if (entry.entry_type === 'purchase' && (entry.supplier_name || entry.supplier_reference)) { %>
+      <div class="invoice-meta">
+        <div><span>Supplier</span><strong><%= entry.supplier_name || '' %></strong><% if (entry.supplier_phone) { %><p><%= entry.supplier_phone %></p><% } %></div>
+        <div><span>Reference</span><strong><%= entry.supplier_reference || '' %></strong></div>
+      </div>
+    <% } %>
+    <table>
+      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th class="warehouse-col">Target</th><th>Qty</th><th>Rate</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
+      <tbody>
+        <% (items || []).forEach((item, index) => { %>
+          <tr>
+            <td><%= index + 1 %></td>
+            <td class="item-code-col"><strong><%= item.item_code %></strong> · <%= item.item_name %></td>
+            <td class="warehouse-col"><%= item.warehouse || '' %></td>
+            <td class="warehouse-col"><%= item.target_warehouse || '' %></td>
+            <td><%= Number(item.quantity || 0).toLocaleString() %></td>
+            <td><%= money(item.valuation_rate || 0) %></td>
+            <td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td>
+            <td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% if (entry.remarks) { %><p class="notes"><%= entry.remarks %></p><% } %>
+  </section>
+  <% if (true) { %><%- include('record-audit', { record: entry }) %><% } %>
+</div>

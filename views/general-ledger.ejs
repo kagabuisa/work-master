@@ -17,37 +17,28 @@
       </nav>
     </header>
 
-    <section class="metrics">
+    <section class="metrics general-ledger-metrics">
       <article><span>Debits</span><strong><%= money(report.summary.debit) %></strong></article>
       <article><span>Credits</span><strong><%= money(report.summary.credit) %></strong></article>
       <article><span>Net</span><strong><%= money(report.summary.balance) %></strong></article>
     </section>
 
     <form class="report-filters general-ledger-filters" method="get">
-      <datalist id="general-ledger-accounts">
-        <% glFilterOptions.accounts.forEach((account) => { %>
-          <option value="<%= account.value %>"></option>
-        <% }) %>
-      </datalist>
-      <datalist id="general-ledger-parties">
-        <% glFilterOptions.parties.forEach((party) => { %>
-          <option value="<%= party.value %>"></option>
-        <% }) %>
-      </datalist>
-      <label>
-        Search
-        <input name="q" value="<%= report.filters.search %>" placeholder="Search general ledger" autocomplete="off">
+      <label class="general-ledger-floating-field">
+        <input name="q" value="<%= report.filters.search %>" placeholder=" " autocomplete="off">
+        <span class="floating-label">Search</span>
       </label>
-      <label>
-        Account
-        <input name="account" value="<%= report.filters.account %>" placeholder="Code or name" list="general-ledger-accounts" autocomplete="off">
+      <label class="general-ledger-floating-field">
+        <input name="account" value="<%= report.filters.account %>" placeholder=" " autocomplete="off" data-gl-account>
+        <span class="floating-label">Account</span>
+        <div class="results gl-account-results"></div>
       </label>
-      <label>
-        Party
-        <input name="party" value="<%= report.filters.party %>" placeholder="Customer, supplier, employee" list="general-ledger-parties" autocomplete="off">
+      <label class="general-ledger-floating-field">
+        <input name="party" value="<%= report.filters.party %>" placeholder=" " autocomplete="off" data-gl-party>
+        <span class="floating-label">Party</span>
+        <div class="results gl-party-results"></div>
       </label>
-      <label>
-        Voucher
+      <label class="general-ledger-floating-field general-ledger-choice-field">
         <select name="voucher_type">
           <option value="">All</option>
           <% glFilterOptions.voucher_types.forEach((voucher) => { %>
@@ -57,9 +48,10 @@
             <option value="<%= report.filters.voucher_type %>" selected><%= report.filters.voucher_type %></option>
           <% } %>
         </select>
+        <span class="floating-label">Voucher</span>
       </label>
-      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
-      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <label class="general-ledger-floating-field general-ledger-choice-field"><input type="date" name="from" value="<%= report.filters.from %>"><span class="floating-label">From</span></label>
+      <label class="general-ledger-floating-field general-ledger-choice-field"><input type="date" name="to" value="<%= report.filters.to %>"><span class="floating-label">To</span></label>
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
         <a class="button button-light" href="/reports/general-ledger">Reset</a>
@@ -70,45 +62,57 @@
       <table>
         <thead>
           <tr>
+            <th class="row-number">#</th>
             <th>Date</th>
             <th>Account</th>
-            <th>Party</th>
-            <th>Voucher</th>
-            <th>Remarks</th>
             <th>Debit</th>
             <th>Credit</th>
             <th>Balance</th>
+            <th>Voucher Type</th>
+            <th>Voucher No.</th>
+            <th>Party</th>
+            <th>Remarks</th>
           </tr>
         </thead>
         <tbody>
           <% if (!report.rows.length) { %>
-            <tr><td colspan="8" class="empty">No general ledger entries found.</td></tr>
+            <tr><td colspan="10" class="empty">No general ledger entries found.</td></tr>
           <% } %>
-          <% report.rows.forEach((row) => { %>
+          <% report.rows.forEach((row, index) => { %>
             <tr>
+              <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td><%= row.posting_date %></td>
-              <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
-              <td><%= row.party_name || row.party_id || '' %></td>
-              <td>
-                <% if (row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
-                  <a href="/invoices/<%= row.voucher_id %>"><%= row.voucher_no || row.voucher_type %></a>
-                <% } else if (['cash_receipt', 'payment_journal', 'journal_entry'].includes(row.voucher_type) && row.voucher_id) { %>
-                  <a href="/journals/<%= row.voucher_id %>"><%= row.voucher_no || row.voucher_type %></a>
-                <% } else if (row.voucher_type && row.voucher_type.startsWith('stock_') && row.voucher_id) { %>
-                  <a href="/stock/entries/<%= row.voucher_id %>"><%= row.voucher_no || row.voucher_type %></a>
-                <% } else { %>
-                  <%= row.voucher_no || row.voucher_type %>
-                <% } %>
-              </td>
-              <td><%= row.remarks || '' %></td>
+              <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
               <td><%= row.debit ? money(row.debit) : '' %></td>
               <td><%= row.credit ? money(row.credit) : '' %></td>
               <td><strong><%= money(row.running_balance) %></strong></td>
+              <td><%= (row.voucher_type || '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') %></td>
+              <td>
+                <% if (row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
+                  <a href="/invoices/<%= row.voucher_id %>" data-voucher-drawer="/invoices/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
+                <% } else if (row.voucher_type === 'purchase' && row.voucher_id) { %>
+                  <a href="/purchases/<%= row.voucher_id %>" data-voucher-drawer="/purchases/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
+                <% } else if (row.voucher_type === 'purchase_payment' && row.voucher_id) { %>
+                  <a href="/purchases/payments/<%= row.voucher_id %>" data-voucher-drawer="/purchases/payments/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
+                <% } else if (row.voucher_type === 'customer_payment' && row.voucher_id) { %>
+                  <a href="/invoices/payments/<%= row.voucher_id %>" data-voucher-drawer="/invoices/payments/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
+                <% } else if (['cash_receipt', 'payment_journal', 'journal_entry'].includes(row.voucher_type) && row.voucher_id) { %>
+                  <a href="/journals/<%= row.voucher_id %>" data-voucher-drawer="/journals/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
+                <% } else if (row.voucher_type && row.voucher_type.startsWith('stock_') && row.voucher_id) { %>
+                  <a href="/stock/entries/<%= row.voucher_id %>" data-voucher-drawer="/stock/entries/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
+                <% } else { %>
+                  <%= row.voucher_no || row.voucher_id || '' %>
+                <% } %>
+              </td>
+              <td><%= row.party_name || row.party_id || '' %></td>
+              <td><%= row.remarks || '' %></td>
             </tr>
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/general-ledger' }) %>
     </section>
   </main>
+  <script src="/general-ledger.js"></script>
 </body>
 </html>

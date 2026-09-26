@@ -1,0 +1,39 @@
+<div class="statement-table-wrap">
+  <table class="statement-table">
+    <thead>
+      <tr>
+        <th class="row-number">#</th>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Reference</th>
+        <th>Description</th>
+        <th>Debit</th>
+        <th>Credit</th>
+        <th>Balance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!statement.length) { %>
+        <tr><td colspan="8" class="empty">No statement entries found.</td></tr>
+      <% } %>
+      <% statement.forEach((entry, index) => { %>
+        <tr>
+          <td class="row-number"><%= index + 1 %></td>
+          <td><%= entry.date %></td>
+          <td><span class="transaction-type transaction-type-<%= entry.type.toLowerCase() %>"><%= entry.type %></span></td>
+          <td>
+            <% if (entry.invoice_id) { %>
+              <a href="/invoices/<%= entry.invoice_id %>" data-voucher-drawer="/invoices/<%= entry.invoice_id %>/drawer"><%= entry.reference %></a>
+            <% } else { %>
+              <%= entry.reference %>
+            <% } %>
+          </td>
+          <td><%= entry.description %></td>
+          <td><%= entry.debit ? money(entry.debit) : '' %></td>
+          <td><%= entry.credit ? money(entry.credit) : '' %></td>
+          <td><strong><%= money(entry.balance) %></strong></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>

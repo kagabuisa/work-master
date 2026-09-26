@@ -1,0 +1,12 @@
+<% if (record && (record.created_at || record.updated_at || Object.prototype.hasOwnProperty.call(record, 'created_by'))) { %>
+  <% const auditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : 'Unknown'; %>
+  <div class="record-audit no-print">
+    <button type="button" class="tracking-toggle" data-tracking-toggle aria-expanded="false">Show tracking</button>
+    <dl class="tracking-info">
+      <div><dt>Created by</dt><dd><%= record.created_by || 'Unknown (existing record)' %></dd><dd><%= auditTime(record.created_at) %></dd></div>
+      <div><dt>Last updated by</dt><dd><%= record.updated_by || 'Unknown (existing record)' %></dd><dd><%= auditTime(record.updated_at) %></dd></div>
+      <% if (record.submitted_by || record.submitted_at) { %><div><dt>Submitted by</dt><dd><%= record.submitted_by || 'Unknown' %></dd><dd><%= auditTime(record.submitted_at) %></dd></div><% } %>
+      <% if (record.cancelled_by || record.cancelled_at) { %><div><dt>Cancelled by</dt><dd><%= record.cancelled_by || 'Unknown' %></dd><dd><%= auditTime(record.cancelled_at) %></dd></div><% } %>
+    </dl>
+  </div>
+<% } %>

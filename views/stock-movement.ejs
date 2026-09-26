@@ -34,11 +34,18 @@
       </div>
     </form>
     <script src="/stock-report-filters.js"></script>
+    <section class="metrics">
+      <article><span>Opening Qty</span><strong><%= Number(report.summary.opening_qty || 0).toLocaleString() %></strong></article>
+      <article><span>In Qty</span><strong><%= Number(report.summary.in_qty || 0).toLocaleString() %></strong></article>
+      <article><span>Out Qty</span><strong><%= Number(report.summary.out_qty || 0).toLocaleString() %></strong></article>
+      <article><span>Closing Value</span><strong><%= money(report.summary.closing_value || 0) %></strong></article>
+    </section>
     <section class="invoice-card report-section">
       <table>
         <thead>
           <tr>
-            <th class="item-code-col">Item</th>
+            <th class="row-number">#</th>
+            <th class="item-code-col">Item Name</th>
             <th class="warehouse-col">Warehouse</th>
             <th>Opening Qty</th>
             <th>In Qty</th>
@@ -50,20 +57,28 @@
           </tr>
         </thead>
         <tbody>
-          <% if (!report.rows.length) { %><tr><td colspan="9" class="empty">No stock movement found.</td></tr><% } %>
+          <% if (!report.rows.length) { %><tr><td colspan="10" class="empty">No stock movement found.</td></tr><% } %>
           <% report.rows.forEach((row, index) => {
-            const inDetails = Array.isArray(row.in_details) ? row.in_details : [];
-            const outDetails = Array.isArray(row.out_details) ? row.out_details : [];
             const inDetailsId = `movement-in-details-${index}`;
             const outDetailsId = `movement-out-details-${index}`;
           %>
             <tr>
+              <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
               <td><%= Number(row.opening_qty || 0).toLocaleString() %></td>
               <td>
-                <% if (inDetails.length) { %>
-                  <button type="button" class="quantity-link" data-movement-toggle="<%= inDetailsId %>" aria-expanded="false">
+                <% if (Number(row.in_qty || 0) > 0) { %>
+                  <button
+                    type="button"
+                    class="quantity-link"
+                    data-movement-toggle="<%= inDetailsId %>"
+                    data-item-code="<%= row.item_code %>"
+                    data-warehouse="<%= row.warehouse %>"
+                    data-direction="in"
+                    data-title="In Qty details for <%= row.item_code %> - <%= row.warehouse %>"
+                    aria-expanded="false"
+                  >
                     <%= Number(row.in_qty || 0).toLocaleString() %>
                   </button>
                 <% } else { %>
@@ -71,8 +86,17 @@
                 <% } %>
               </td>
               <td>
-                <% if (outDetails.length) { %>
-                  <button type="button" class="quantity-link" data-movement-toggle="<%= outDetailsId %>" aria-expanded="false">
+                <% if (Number(row.out_qty || 0) > 0) { %>
+                  <button
+                    type="button"
+                    class="quantity-link"
+                    data-movement-toggle="<%= outDetailsId %>"
+                    data-item-code="<%= row.item_code %>"
+                    data-warehouse="<%= row.warehouse %>"
+                    data-direction="out"
+                    data-title="Out Qty details for <%= row.item_code %> - <%= row.warehouse %>"
+                    aria-expanded="false"
+                  >
                     <%= Number(row.out_qty || 0).toLocaleString() %>
                   </button>
                 <% } else { %>
@@ -84,117 +108,12 @@
               <td><%= money(row.value_change) %></td>
               <td><strong><%= money(row.closing_value) %></strong></td>
             </tr>
-            <% if (inDetails.length) { %>
-              <tr class="movement-detail-row" id="<%= inDetailsId %>" hidden>
-                <td colspan="9">
-                  <div class="movement-detail">
-                    <h2>In Qty details for <%= row.item_code %> - <%= row.warehouse %></h2>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Voucher</th>
-                          <th>Type</th>
-                          <th>Qty</th>
-                          <th>Rate</th>
-                          <th>Value</th>
-                          <th>Balance Qty</th>
-                          <th>Balance Value</th>
-                          <th>Remarks</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <% inDetails.forEach((detail) => { %>
-                          <tr>
-                            <td><%= detail.posting_date %></td>
-                            <td>
-                              <% if (detail.voucher_id && String(detail.voucher_type || '').startsWith('stock_')) { %>
-                                <a class="voucher-link" href="/stock/entries/<%= detail.voucher_id %>"><%= detail.voucher_no || detail.voucher_type %></a>
-                              <% } else { %>
-                                <%= detail.voucher_no || detail.voucher_type %>
-                              <% } %>
-                            </td>
-                            <td><%= detail.stock_entry_type || '' %></td>
-                            <td><%= Number(detail.qty || 0).toLocaleString() %></td>
-                            <td><%= detail.rate ? money(detail.rate) : '' %></td>
-                            <td><%= money(detail.value) %></td>
-                            <td><%= Number(detail.balance_qty || 0).toLocaleString() %></td>
-                            <td><%= money(detail.balance_value) %></td>
-                            <td><%= detail.remarks || '' %></td>
-                          </tr>
-                        <% }) %>
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <th colspan="3">Total</th>
-                          <th><%= Number(row.in_qty || 0).toLocaleString() %></th>
-                          <th></th>
-                          <th><%= money(inDetails.reduce((sum, detail) => sum + Number(detail.value || 0), 0)) %></th>
-                          <th colspan="3"></th>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </td>
-              </tr>
-            <% } %>
-            <% if (outDetails.length) { %>
-              <tr class="movement-detail-row" id="<%= outDetailsId %>" hidden>
-                <td colspan="9">
-                  <div class="movement-detail">
-                    <h2>Out Qty details for <%= row.item_code %> - <%= row.warehouse %></h2>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Voucher</th>
-                          <th>Type</th>
-                          <th>Qty</th>
-                          <th>Rate</th>
-                          <th>Value</th>
-                          <th>Balance Qty</th>
-                          <th>Balance Value</th>
-                          <th>Remarks</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <% outDetails.forEach((detail) => { %>
-                          <tr>
-                            <td><%= detail.posting_date %></td>
-                            <td>
-                              <% if (detail.voucher_id && String(detail.voucher_type || '').startsWith('stock_')) { %>
-                                <a class="voucher-link" href="/stock/entries/<%= detail.voucher_id %>"><%= detail.voucher_no || detail.voucher_type %></a>
-                              <% } else { %>
-                                <%= detail.voucher_no || detail.voucher_type %>
-                              <% } %>
-                            </td>
-                            <td><%= detail.stock_entry_type || '' %></td>
-                            <td><%= Number(detail.qty || 0).toLocaleString() %></td>
-                            <td><%= detail.rate ? money(detail.rate) : '' %></td>
-                            <td><%= money(detail.value) %></td>
-                            <td><%= Number(detail.balance_qty || 0).toLocaleString() %></td>
-                            <td><%= money(detail.balance_value) %></td>
-                            <td><%= detail.remarks || '' %></td>
-                          </tr>
-                        <% }) %>
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <th colspan="3">Total</th>
-                          <th><%= Number(row.out_qty || 0).toLocaleString() %></th>
-                          <th></th>
-                          <th><%= money(outDetails.reduce((sum, detail) => sum + Number(detail.value || 0), 0)) %></th>
-                          <th colspan="3"></th>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </td>
-              </tr>
-            <% } %>
+            <tr class="movement-detail-row" id="<%= inDetailsId %>" hidden><td colspan="10"><div class="movement-detail" data-movement-detail></div></td></tr>
+            <tr class="movement-detail-row" id="<%= outDetailsId %>" hidden><td colspan="10"><div class="movement-detail" data-movement-detail></div></td></tr>
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/stock-movement' }) %>
     </section>
   </main>
   <script src="/stock-movement.js"></script>

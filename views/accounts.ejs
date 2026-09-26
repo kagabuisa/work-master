@@ -13,7 +13,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
-        <a class="button" href="/accounts/new">New Account</a>
+        <% if (can('accounts.manage')) { %><a class="button" href="/accounts/new">New Account</a><% } %>
       </nav>
     </header>
 
@@ -21,6 +21,7 @@
       <table>
         <thead>
           <tr>
+            <th class="row-number">#</th>
             <th>Code</th>
             <th>Account</th>
             <th>Type</th>
@@ -30,10 +31,11 @@
         </thead>
         <tbody>
           <% if (!accounts.length) { %>
-            <tr><td colspan="5" class="empty">No accounts found.</td></tr>
+            <tr><td colspan="6" class="empty">No accounts found.</td></tr>
           <% } %>
-          <% accounts.forEach((account) => { %>
+          <% accounts.forEach((account, index) => { %>
             <tr>
+              <td class="row-number"><%= index + 1 %></td>
               <td><strong><%= account.account_code %></strong></td>
               <td><%= account.account_name %></td>
               <td><%= account.account_type %></td>

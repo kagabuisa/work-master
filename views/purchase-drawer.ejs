@@ -1,0 +1,55 @@
+<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<div class="invoice-drawer-content" data-voucher-title="<%= purchase.purchase_no %>" data-voucher-eyebrow="Purchase">
+  <div class="invoice-drawer-heading">
+    <div>
+      <p class="eyebrow">Purchase</p>
+      <h2><%= purchase.purchase_no %></h2>
+      <small><%= purchase.supplier_name %></small>
+    </div>
+  </div>
+  <div class="invoice-drawer-actions">
+    <% if (purchase.docstatus === 'draft') { %>
+      <% if (can('vouchers.purchases.edit')) { %><a class="button button-light" href="/purchases/<%= purchase.id %>/edit">Edit</a><% } %>
+      <% if (can('vouchers.purchases.submit')) { %><form method="post" action="/purchases/<%= purchase.id %>/submit" class="inline-form" data-confirm="Submit this purchase? This receives the stock and creates the amount payable."><button type="submit">Submit &amp; Receive Stock</button></form><% } %>
+    <% } else if (purchase.docstatus === 'submitted' && can('vouchers.purchases.cancel')) { %>
+      <form method="post" action="/purchases/<%= purchase.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase? Stock and ledger entries will be reversed.">
+        <button type="submit" class="button-light">Cancel Purchase</button>
+      </form>
+    <% } %>
+  </div>
+  <section class="invoice-card">
+    <div class="invoice-meta">
+      <div><span>Supplier</span><strong><%= purchase.supplier_name %></strong><p><%= purchase.supplier_id %></p></div>
+      <div><span>Date</span><strong><%= purchase.posting_date %></strong><% if (purchase.due_date) { %><p>Due <%= purchase.due_date %></p><% } %></div>
+      <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
+    </div>
+    <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
+    <table>
+      <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th>Unit Cost</th><th>Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
+      <tbody>
+        <% (purchase.items || []).forEach((item, index) => { %>
+          <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <dl class="totals">
+      <div class="grand"><dt>Total</dt><dd><%= money(purchase.total) %></dd></div>
+      <div><dt>Paid</dt><dd><%= money(purchase.amount_paid) %></dd></div>
+      <div><dt>Balance Due</dt><dd><%= money(purchase.total - purchase.amount_paid) %></dd></div>
+    </dl>
+    <% if (purchase.remarks) { %><p class="notes"><%= purchase.remarks %></p><% } %>
+  </section>
+  <section class="invoice-card report-section">
+    <div class="section-title"><h2>Supplier Payments</h2></div>
+    <table>
+      <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Payment Reference</th><th>Notes</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <% if (!(purchase.payments || []).length) { %><tr><td colspan="7" class="empty">No payments recorded.</td></tr><% } %>
+        <% (purchase.payments || []).forEach((payment) => { %>
+          <tr><td><%= payment.payment_no %></td><td><%= payment.payment_date %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td><td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+  <% if (true) { %><%- include('record-audit', { record: purchase }) %><% } %>
+</div>

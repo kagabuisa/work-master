@@ -16,21 +16,135 @@
       </nav>
     </header>
 
-    <section class="invoice-card report-section">
-      <table>
-        <thead>
-          <tr>
-            <th>Area</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Application Settings</td>
-            <td><span class="badge draft">Pending</span></td>
-          </tr>
-        </tbody>
-      </table>
+    <section class="grid settings-grid">
+      <% if (currentUser.role === 'admin') { %>
+      <div class="settings-company-card">
+        <div class="section-title"><h2>Company Information</h2></div>
+        <p class="muted-text">These details appear on sales invoice previews and printouts.</p>
+        <% if (companySaved) { %><section class="notice sync-notice" role="status">Company information saved.</section><% } %>
+        <% if (companyError) { %><section class="notice warning" role="alert"><%= companyError %></section><% } %>
+        <form method="post" action="/settings/company-information">
+          <div class="form-grid">
+            <label class="wide">Company Name<input name="name" value="<%= company.name || '' %>" maxlength="200" required autocomplete="organization"></label>
+            <label class="wide">Address<textarea name="address" rows="3" maxlength="1000" autocomplete="street-address"><%= company.address || '' %></textarea></label>
+            <label>Phone<input name="phone" type="tel" value="<%= company.phone || '' %>" maxlength="100" autocomplete="tel"></label>
+            <label>Email<input name="email" type="email" value="<%= company.email || '' %>" maxlength="254" autocomplete="email"></label>
+            <label>Website<input name="website" value="<%= company.website || '' %>" maxlength="254" placeholder="www.example.com"></label>
+            <label>Tax ID / TIN<input name="tax_id" value="<%= company.tax_id || '' %>" maxlength="100"></label>
+            <label>Registration Number<input name="registration_number" value="<%= company.registration_number || '' %>" maxlength="100"></label>
+          </div>
+          <div class="actions"><button type="submit">Save Company Information</button></div>
+          <%- include('record-audit', { record: company }) %>
+        </form>
+      </div>
+
+      <div>
+        <div class="section-title"><h2>Users</h2></div>
+        <a href="/settings/users">Manage users</a> · <a href="/settings/roles">Manage roles</a>
+      </div>
+      <% } %>
+      <% if (can('sync.run')) { %>
+      <div class="settings-sync-card">
+        <div class="section-title">
+          <h2>ERPNext Sync</h2>
+          <form method="post" action="/settings/erpnext-sync/sales-invoices">
+            <button type="submit" <%= salesInvoiceSync.running ? 'disabled' : '' %>>
+              <%= salesInvoiceSync.running ? 'Importing...' : 'Import Sales Invoices' %>
+            </button>
+          </form>
+        </div>
+        <p class="muted-text">Sales invoices from <strong><%= salesInvoiceSync.import_from %></strong> going forward.</p>
+        <% if (salesInvoiceSync.query_status === 'success' && salesInvoiceSync.last && salesInvoiceSync.last.ok) { %>
+          <section class="notice sync-notice">
+            <strong>Import completed.</strong>
+            <p>
+              ERPNext invoices: <%= salesInvoiceSync.last.summary.mysql_invoices %>,
+              newly imported: <%= salesInvoiceSync.last.summary.imported %>,
+              already present: <%= salesInvoiceSync.last.summary.skipped_existing || 0 %>,
+              skipped without items: <%= salesInvoiceSync.last.summary.skipped_no_items %>,
+              new paid rows: <%= salesInvoiceSync.last.summary.paid_rows_created %>.
+            </p>
+          </section>
+        <% } else if (salesInvoiceSync.query_status === 'failed' && salesInvoiceSync.last) { %>
+          <section class="notice warning">
+            <strong>Import failed.</strong>
+            <p><%= salesInvoiceSync.last.message %></p>
+          </section>
+        <% } else if (salesInvoiceSync.query_status === 'running') { %>
+          <section class="notice warning">
+            <strong>Import already running.</strong>
+            <p>Please wait for the current import to finish.</p>
+          </section>
+        <% } else if (salesInvoiceSync.last) { %>
+          <p class="muted-text">
+            Last run:
+            <%= salesInvoiceSync.last.finished_at ? new Date(salesInvoiceSync.last.finished_at).toLocaleString() : 'Not finished' %>
+            <% if (salesInvoiceSync.last.ok && salesInvoiceSync.last.summary) { %>
+              · Newly imported <%= salesInvoiceSync.last.summary.imported %> invoices
+              · Already present <%= salesInvoiceSync.last.summary.skipped_existing || 0 %>
+            <% } else if (salesInvoiceSync.last.message) { %>
+              · <%= salesInvoiceSync.last.message %>
+            <% } %>
+          </p>
+        <% } else { %>
+          <p class="muted-text">No in-app import has been run since the app started.</p>
+        <% } %>
+      </div>
+      <% } %>
+      <% if (can('masters.items.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Items</h2>
+          <% if (can('masters.items.create')) { %><a class="button" href="/settings/items/new">Add</a><% } %>
+        </div>
+        <a href="/settings/items">Open Items</a>
+      </div>
+      <% } %>
+      <% if (can('masters.suppliers.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Suppliers</h2>
+          <% if (can('masters.suppliers.create')) { %><a class="button" href="/settings/suppliers/new">Add</a><% } %>
+        </div>
+        <a href="/settings/suppliers">Open Suppliers</a>
+      </div>
+      <% } %>
+      <% if (can('masters.customers.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Customers</h2>
+          <% if (can('masters.customers.create')) { %><a class="button" href="/settings/customers/new">Add</a><% } %>
+        </div>
+        <a href="/settings/customers">Open Customers</a>
+      </div>
+      <% } %>
+      <% if (can('masters.warehouses.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Warehouses</h2>
+          <% if (can('masters.warehouses.create')) { %><a class="button" href="/settings/warehouses/new">Add</a><% } %>
+        </div>
+        <a href="/settings/warehouses">Open Warehouses</a>
+      </div>
+      <% } %>
+      <% if (can('masters.employees.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Employees</h2>
+          <% if (can('masters.employees.create')) { %><a class="button" href="/settings/employees/new">Add</a><% } %>
+        </div>
+        <a href="/settings/employees">Open Employees</a>
+      </div>
+      <% } %>
+      <% if (can('masters.options.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Options</h2>
+          <% if (can('masters.options.create')) { %><a class="button" href="/settings/options/new">Add</a><% } %>
+        </div>
+        <a href="/settings/options">Open Options</a>
+      </div>
+      <% } %>
     </section>
   </main>
 </body>

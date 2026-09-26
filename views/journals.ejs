@@ -16,15 +16,41 @@
       </nav>
     </header>
 
-    <form class="search" method="get">
-      <input name="q" value="<%= search %>" placeholder="Search journals">
-      <button type="submit">Search</button>
+    <form class="report-filters journal-filters" method="get">
+      <label>
+        Search
+        <input name="q" value="<%= search %>" placeholder="Search journals">
+      </label>
+      <label>
+        Type
+        <select name="journal_type">
+          <option value="">All Types</option>
+          <option value="cash_receipt" <%= query.journal_type === 'cash_receipt' ? 'selected' : '' %>>Cash Receipt</option>
+          <option value="payment_journal" <%= query.journal_type === 'payment_journal' ? 'selected' : '' %>>Payment Journal</option>
+          <option value="sales_invoice" <%= query.journal_type === 'sales_invoice' ? 'selected' : '' %>>Sales Invoice</option>
+          <option value="journal_entry" <%= query.journal_type === 'journal_entry' ? 'selected' : '' %>>Journal Entry</option>
+        </select>
+      </label>
+      <label>
+        Status
+        <select name="status">
+          <option value="">All Statuses</option>
+          <option value="draft" <%= query.status === 'draft' ? 'selected' : '' %>>Draft</option>
+          <option value="submitted" <%= query.status === 'submitted' ? 'selected' : '' %>>Submitted</option>
+          <option value="cancelled" <%= query.status === 'cancelled' ? 'selected' : '' %>>Cancelled</option>
+        </select>
+      </label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/journals">Reset</a>
+      </div>
     </form>
 
     <section class="invoice-card report-section">
       <table>
         <thead>
           <tr>
+            <th class="row-number">#</th>
             <th>Journal</th>
             <th>Date</th>
             <th>Type</th>
@@ -32,25 +58,30 @@
             <th>Reference</th>
             <th>Debit</th>
             <th>Credit</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           <% if (!journals.length) { %>
-            <tr><td colspan="7" class="empty">No journal entries found.</td></tr>
+            <tr><td colspan="9" class="empty">No journal entries found.</td></tr>
           <% } %>
-          <% journals.forEach((journal) => { %>
+          <% journals.forEach((journal, index) => { %>
+            <% const docstatus = journal.docstatus || 'submitted'; %>
             <tr>
-              <td><a href="/journals/<%= journal.id %>"><%= journal.journal_no %></a></td>
+              <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
+              <td><a href="/journals/<%= journal.id %>" data-voucher-drawer="/journals/<%= journal.id %>/drawer"><%= journal.journal_no %></a></td>
               <td><%= journal.posting_date %></td>
               <td><%= journalTypeLabel(journal.journal_type) %></td>
               <td><%= journal.party_name || journal.party_id || '' %></td>
               <td><%= journal.reference_no || '' %></td>
               <td><%= money(journal.total_debit) %></td>
               <td><%= money(journal.total_credit) %></td>
+              <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
             </tr>
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination, query, basePath: '/journals' }) %>
     </section>
   </main>
 </body>

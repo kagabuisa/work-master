@@ -1,180 +1,23 @@
+<% const voucherTitle = invoice.is_cash_sale ? 'Cash Sales Invoice' : 'Sales Invoice'; %>
 <!doctype html>
 <html lang="en">
 <head>
-  <title><%= invoice.invoice_no %></title>
+  <title><%= voucherTitle %> <%= invoice.invoice_no %></title>
   <%- include('partials-head') %>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Invoice</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Invoices', href: '/invoices' }, { label: invoice.invoice_no }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'sales' }) %>
-        <% if ((invoice.docstatus || 'submitted') === 'draft') { %>
-          <a class="button" href="/invoices/<%= invoice.id %>/edit">Edit</a>
-          <form method="post" action="/invoices/<%= invoice.id %>/submit" class="inline-form">
-            <button type="submit">Submit</button>
-          </form>
-        <% } else { %>
-          <a class="button" href="/invoices/<%= invoice.id %>/print" target="_blank">Print</a>
-        <% } %>
+        <%- include('invoice-actions', { invoice }) %>
       </nav>
     </header>
-    <section class="invoice-card">
-      <% const docstatus = invoice.docstatus || 'submitted'; %>
-      <% const payments = Array.isArray(invoice.payments) ? invoice.payments : []; %>
-      <% const balanceDue = Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0)); %>
-      <div class="invoice-meta">
-        <div>
-          <span>Customer</span>
-          <strong><%= invoice.customer_name %></strong>
-          <% if (invoice.customer_phone) { %><p><%= invoice.customer_phone %></p><% } %>
-        </div>
-        <div>
-          <span>Date</span>
-          <strong><%= invoice.invoice_date %></strong>
-          <% if (invoice.due_date) { %><p>Due <%= invoice.due_date %></p><% } %>
-        </div>
-        <div>
-          <span>Document</span>
-          <strong><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : 'Submitted' %></span></strong>
-          <p><span class="badge <%= invoice.status %>"><%= invoice.status %></span></p>
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th class="item-code-col">Item</th>
-            <th class="warehouse-col">Warehouse</th>
-            <th>Qty</th>
-            <th>Unit Price</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% items.forEach((item) => { %>
-            <tr>
-              <td class="item-code-col">
-                <strong><%= item.item_name %></strong>
-                <small><%= item.item_code %></small>
-              </td>
-              <td class="warehouse-col"><%= item.warehouse || '' %></td>
-              <td><%= Number(item.quantity).toLocaleString() %></td>
-              <td><%= money(item.unit_price) %></td>
-              <td><%= money(item.line_total) %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-
-      <dl class="totals">
-        <div><dt>Subtotal</dt><dd><%= money(invoice.subtotal) %></dd></div>
-        <div><dt>Discount</dt><dd><%= money(invoice.discount_amount) %></dd></div>
-        <div><dt>Tax</dt><dd><%= money(invoice.tax_amount) %></dd></div>
-        <div class="grand"><dt>Total</dt><dd><%= money(invoice.total) %></dd></div>
-        <div><dt>Paid</dt><dd><%= money(invoice.amount_paid) %></dd></div>
-        <div><dt>Balance</dt><dd><%= money(invoice.total - invoice.amount_paid) %></dd></div>
-      </dl>
-
-      <% if (invoice.notes) { %>
-        <p class="notes"><%= invoice.notes %></p>
-      <% } %>
-    </section>
-
-    <section class="invoice-card payments-card">
-      <div class="section-title">
-        <h2>Payments</h2>
-        <span class="badge <%= invoice.status %>"><%= invoice.status %></span>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Method</th>
-            <th>Reference</th>
-            <th>Notes</th>
-            <th>Amount</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if (!payments.length) { %>
-            <tr><td colspan="6" class="empty">No payments received yet.</td></tr>
-          <% } %>
-          <% payments.forEach((payment) => { %>
-            <tr>
-              <td>
-                <input form="payment-<%= payment.id %>" type="date" name="payment_date" value="<%= payment.payment_date %>" required>
-              </td>
-              <td>
-                <select form="payment-<%= payment.id %>" name="method" required>
-                  <option value="cash" <%= payment.method === 'cash' ? 'selected' : '' %>>Cash</option>
-                  <option value="mobile_money" <%= payment.method === 'mobile_money' ? 'selected' : '' %>>Mobile Money</option>
-                  <option value="bank" <%= payment.method === 'bank' ? 'selected' : '' %>>Bank</option>
-                  <option value="card" <%= payment.method === 'card' ? 'selected' : '' %>>Card</option>
-                  <option value="other" <%= payment.method === 'other' ? 'selected' : '' %>>Other</option>
-                  <% if (!['cash', 'mobile_money', 'bank', 'card', 'other'].includes(payment.method)) { %>
-                    <option value="<%= payment.method %>" selected><%= payment.method %></option>
-                  <% } %>
-                </select>
-              </td>
-              <td><input form="payment-<%= payment.id %>" name="reference" value="<%= payment.reference || '' %>"></td>
-              <td><input form="payment-<%= payment.id %>" name="notes" value="<%= payment.notes || '' %>"></td>
-              <td><input form="payment-<%= payment.id %>" type="number" min="1" step="1" name="amount" value="<%= payment.amount %>" required></td>
-              <td>
-                <form id="payment-<%= payment.id %>" method="post" action="/invoices/<%= invoice.id %>/payments/<%= payment.id %>" class="inline-form">
-                  <button type="submit">Update</button>
-                </form>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-
-      <% if (docstatus === 'submitted' && balanceDue > 0) { %>
-        <form method="post" action="/invoices/<%= invoice.id %>/payments" class="payment-form">
-          <label>
-            Payment Date
-            <input type="date" name="payment_date" value="<%= today %>" required>
-          </label>
-          <label>
-            Amount
-            <input type="number" min="1" max="<%= balanceDue %>" step="1" name="amount" required>
-          </label>
-          <label>
-            Method
-            <select name="method" required>
-              <option value="cash">Cash</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="bank">Bank</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
-          <label>
-            Reference
-            <input name="reference" placeholder="Optional">
-          </label>
-          <label class="wide">
-            Notes
-            <input name="notes" placeholder="Optional">
-          </label>
-          <div class="payment-submit">
-            <span>Balance: <strong><%= money(balanceDue) %></strong></span>
-            <button type="submit">Add Payment</button>
-          </div>
-        </form>
-      <% } else if (docstatus === 'submitted') { %>
-        <p class="empty paid-note">This invoice is fully paid.</p>
-      <% } else { %>
-        <p class="empty paid-note">Submit the invoice before receiving payments.</p>
-      <% } %>
-    </section>
+    <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
+    <%- include('invoice-detail', { invoice, items, today, money }) %>
   </main>
 </body>
 </html>

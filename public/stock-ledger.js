@@ -8,11 +8,11 @@
     return;
   }
 
-  const money = new Intl.NumberFormat('en-US', {
+  const money = new Intl.NumberFormat('en-UG', {
     maximumFractionDigits: 0,
     minimumFractionDigits: 0,
   });
-  const quantity = new Intl.NumberFormat('en-US', {
+  const quantity = new Intl.NumberFormat('en-UG', {
     maximumFractionDigits: 3,
     minimumFractionDigits: 0,
   });
@@ -27,7 +27,7 @@
   }
 
   function formatMoney(value) {
-    return money.format(Number(value || 0));
+    return `Ugx ${money.format(Number(value || 0))}`;
   }
 
   function formatQuantity(value) {
@@ -61,7 +61,7 @@
         <div>
           <span>
             ${escapeHtml(label)}
-            ${label === 'Remarks' && isPurchaseStockEntry(details) ? '<button type="button" class="inline-link" data-supplier-adjust>Adjust</button>' : ''}
+            ${label === 'Remarks' && isPurchaseStockEntry(details) && details.status === 'draft' ? '<button type="button" class="inline-link" data-supplier-adjust>Adjust</button>' : ''}
           </span>
           <strong>${escapeHtml(value || '')}</strong>
         </div>
@@ -136,7 +136,8 @@
       <table>
         <thead>
           <tr>
-            <th class="item-code-col">Item</th>
+            <th class="row-number">#</th>
+            <th class="item-code-col">Item Name</th>
             <th class="warehouse-col">Warehouse</th>
             ${hasTarget ? '<th class="warehouse-col">Target</th>' : ''}
             <th>Qty</th>
@@ -145,8 +146,9 @@
           </tr>
         </thead>
         <tbody>
-          ${items.map((item) => `
+          ${items.map((item, index) => `
             <tr>
+              <td class="row-number">${index + 1}</td>
               <td class="item-code-col"><strong>${escapeHtml(item.item_code)}</strong></td>
               <td class="warehouse-col">${escapeHtml(item.warehouse || '')}</td>
               ${hasTarget ? `<td class="warehouse-col">${escapeHtml(item.target_warehouse || '')}</td>` : ''}
@@ -183,14 +185,14 @@
     const link = details.href
       ? `<a class="button button-light" href="${escapeHtml(details.href)}">${linkLabel}</a>`
       : '';
-    const cancelButton = details.kind === 'stock_entry' && details.status === 'submitted'
+    const cancelButton = document.body.dataset.canCancel === 'true' && details.kind === 'stock_entry' && details.status === 'submitted'
       ? `<button type="button" class="button-light" data-cancel-stock-entry data-stock-entry-id="${escapeHtml(details.id)}">Cancel</button>`
       : '';
     body.innerHTML = `
       <div class="voucher-meta">${renderMeta(details.meta, details)}</div>
       ${link || cancelButton ? `<div class="voucher-actions">${link}${cancelButton}</div>` : ''}
       ${renderSupplierInfo(details)}
-      ${renderSupplierForm(details)}
+      ${details.status === 'draft' ? renderSupplierForm(details) : ''}
       ${renderItems(details)}
       ${renderTotals(details.totals)}
     `;

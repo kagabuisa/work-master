@@ -13,6 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY server.js ./
 COPY src ./src
+COPY scripts ./scripts
 COPY views ./views
 COPY public ./public
 COPY README.md ./
