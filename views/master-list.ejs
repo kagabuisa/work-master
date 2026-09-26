@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title><%= config.title %></title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Setup</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: config.title }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'settings' }) %>
+        <% if (can(`masters.${config.key}.create`)) { %><a class="button" href="/settings/<%= config.key %>/new"><%= config.newLabel %></a><% } %>
+      </nav>
+    </header>
+
+    <form class="search" method="get">
+      <label><input name="q" value="<%= search %>" placeholder="Search <%= config.title.toLowerCase() %>" autocomplete="off">Search <%= config.title %></label>
+      <button type="submit">Search</button>
+      <% if (search) { %>
+        <a class="button button-light" href="/settings/<%= config.key %>">Reset</a>
+      <% } %>
+    </form>
+
+    <section class="invoice-card report-section">
+      <table class="<%= config.key === 'customers' ? 'customers-table' : '' %>">
+        <thead>
+          <tr>
+            <th class="row-number">#</th>
+            <% config.columns.forEach((column) => { %>
+              <th class="master-col-<%= column.key %>"><%= column.label %></th>
+            <% }) %>
+            <th>Document state</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!rows.length) { %>
+            <tr><td colspan="<%= config.columns.length + 3 %>" class="empty">No <%= config.title.toLowerCase() %> found.</td></tr>
+          <% } %>
+          <% rows.forEach((row, index) => { %>
+            <tr>
+              <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
+              <% config.columns.forEach((column) => { %>
+                <td class="master-col-<%= column.key %>">
+                  <% if (column.strong) { %>
+                    <strong><%= row[column.key] || '' %></strong>
+                  <% } else { %>
+                    <%= row[column.key] || '' %>
+                  <% } %>
+                  <% if (column.secondaryKey && row[column.secondaryKey] && row[column.secondaryKey] !== row[column.key]) { %>
+                    <small class="master-secondary">ID: <%= row[column.secondaryKey] %></small>
+                  <% } %>
+                </td>
+              <% }) %>
+              <td><%= row.docstatus === 'draft' ? 'Draft' : row.docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></td>
+              <td class="actions-cell">
+                <% if (can(`masters.${config.key}.edit`) && (row.docstatus === 'draft' || row.docstatus === 'submitted' && row.legacy_editable)) { %><a class="button button-light" href="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/edit">Edit</a><% } %>
+                <% if (row.docstatus === 'draft' && can(`masters.${config.key}.submit`)) { %><form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/submit"><button type="submit">Submit</button></form><% } %>
+                <% if (row.docstatus === 'submitted' && can(`masters.${config.key}.cancel`)) { %><form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/cancel" data-confirm="Cancel this <%= config.singular.toLowerCase() %>?"><button type="submit" class="button-light">Cancel</button></form><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <%- include('pagination', { pagination, query, basePath: `/settings/${config.key}` }) %>
+    </section>
+  </main>
+</body>
+</html>

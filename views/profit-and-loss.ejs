@@ -38,19 +38,20 @@
           <strong><%= money(report.summary.total_income) %></strong>
         </div>
         <table>
-          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
           <tbody>
             <% if (!report.income.length) { %>
-              <tr><td colspan="2" class="empty">No income entries found.</td></tr>
+              <tr><td colspan="3" class="empty">No income entries found.</td></tr>
             <% } %>
-            <% report.income.forEach((row) => { %>
+            <% report.income.forEach((row, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
                 <td><%= money(row.amount) %></td>
               </tr>
             <% }) %>
           </tbody>
-          <tfoot><tr><th>Total Income</th><th><%= money(report.summary.total_income) %></th></tr></tfoot>
+          <tfoot><tr><th colspan="2">Total Income</th><th><%= money(report.summary.total_income) %></th></tr></tfoot>
         </table>
       </div>
 
@@ -60,21 +61,22 @@
           <strong><%= money(report.summary.total_expenses) %></strong>
         </div>
         <table>
-          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
           <tbody>
             <% if (!report.expenses.length) { %>
-              <tr><td colspan="2" class="empty">No expense entries found.</td></tr>
+              <tr><td colspan="3" class="empty">No expense entries found.</td></tr>
             <% } %>
-            <% report.expenses.forEach((row) => { %>
+            <% report.expenses.forEach((row, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
                 <td><%= money(row.amount) %></td>
               </tr>
             <% }) %>
           </tbody>
           <tfoot>
-            <tr><th>Cost of Goods Sold</th><th><%= money(report.summary.cost_of_goods_sold) %></th></tr>
-            <tr><th>Total Expenses</th><th><%= money(report.summary.total_expenses) %></th></tr>
+            <tr><th colspan="2">Cost of Goods Sold</th><th><%= money(report.summary.cost_of_goods_sold) %></th></tr>
+            <tr><th colspan="2">Total Expenses</th><th><%= money(report.summary.total_expenses) %></th></tr>
           </tfoot>
         </table>
       </div>

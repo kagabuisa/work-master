@@ -13,7 +13,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'stock' }) %>
-        <a class="button" href="/stock/entries/new">New Stock Entry</a>
+        <% if (can('vouchers.stock.create') && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/entries/new">New Stock Entry</a><% } %>
       </nav>
     </header>
     <section class="metrics">
@@ -53,7 +53,8 @@
       <table>
         <thead>
           <tr>
-            <th class="item-code-col">Item</th>
+            <th class="row-number">#</th>
+            <th class="item-code-col">Item Name</th>
             <th class="warehouse-col">Warehouse</th>
             <th>Quantity</th>
             <th>Valuation Rate</th>
@@ -62,10 +63,11 @@
         </thead>
         <tbody>
           <% if (!balances.length) { %>
-            <tr><td colspan="5" class="empty">No local stock balances found.</td></tr>
+            <tr><td colspan="6" class="empty">No local stock balances found.</td></tr>
           <% } %>
-          <% balances.forEach((row) => { %>
+          <% balances.forEach((row, index) => { %>
             <tr>
+              <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
               <td><%= Number(row.quantity || 0).toLocaleString() %></td>
@@ -75,6 +77,7 @@
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination, query, basePath: '/stock' }) %>
     </section>
   </main>
 </body>

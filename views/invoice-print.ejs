@@ -1,19 +1,16 @@
+<% const voucherTitle = invoice.is_cash_sale ? 'Cash Sales Invoice' : 'Sales Invoice'; %>
 <!doctype html>
 <html lang="en">
 <head>
-  <title>Print <%= invoice.invoice_no %></title>
+  <title><%= voucherTitle %> <%= invoice.invoice_no %></title>
   <%- include('partials-head') %>
 </head>
 <body class="print-page">
   <main class="print-sheet">
-    <header class="print-header">
-      <div>
-        <h1>Invoice</h1>
-        <p><%= invoice.invoice_no %></p>
-      </div>
-      <button class="no-print" onclick="window.print()">Print</button>
-    </header>
-
+    <div class="print-actions no-print">
+      <button onclick="window.print()">Print</button>
+    </div>
+    <%- include('invoice-header', { voucherTitle }) %>
     <section class="invoice-meta">
       <div>
         <span>Bill To</span>
@@ -25,21 +22,34 @@
         <strong><%= invoice.invoice_date %></strong>
         <% if (invoice.due_date) { %><p>Due <%= invoice.due_date %></p><% } %>
       </div>
+      <div>
+        <span>Payment Status</span>
+        <strong><%- include('invoice-payment-status', { invoice, money }) -%></strong>
+      </div>
     </section>
 
-    <table class="print-invoice-table">
+    <table class="print-invoice-table print-items-table">
+      <colgroup>
+        <col class="print-number-column">
+        <col class="print-name-column">
+        <col class="print-quantity-column">
+        <col class="print-money-column">
+        <col class="print-money-column">
+      </colgroup>
       <thead>
         <tr>
-          <th class="item-code-col">Item</th>
+          <th class="row-number">#</th>
+          <th class="item-code-col">Item Name</th>
           <th>Qty</th>
           <th>Unit Price</th>
           <th>Total</th>
         </tr>
       </thead>
       <tbody>
-        <% items.forEach((item) => { %>
+        <% items.forEach((item, index) => { %>
           <tr>
-            <td class="item-code-col"><%= item.item_name %></td>
+            <td class="row-number"><%= index + 1 %></td>
+            <td class="item-code-col"><%= item.item_name || item.item_code %></td>
             <td><%= Number(item.quantity).toLocaleString() %></td>
             <td><%= money(item.unit_price) %></td>
             <td><%= money(item.line_total) %></td>
@@ -48,27 +58,27 @@
       </tbody>
       <tfoot>
         <tr>
-          <th colspan="3">Subtotal</th>
+          <th colspan="4">Subtotal</th>
           <td><%= money(invoice.subtotal) %></td>
         </tr>
         <tr>
-          <th colspan="3">Discount</th>
+          <th colspan="4">Discount</th>
           <td><%= money(invoice.discount_amount) %></td>
         </tr>
         <tr>
-          <th colspan="3">Tax</th>
+          <th colspan="4">Tax</th>
           <td><%= money(invoice.tax_amount) %></td>
         </tr>
         <tr class="grand">
-          <th colspan="3">Total</th>
+          <th colspan="4">Total</th>
           <td><%= money(invoice.total) %></td>
         </tr>
         <tr>
-          <th colspan="3">Paid</th>
+          <th colspan="4">Paid</th>
           <td><%= money(invoice.amount_paid) %></td>
         </tr>
         <tr>
-          <th colspan="3">Balance</th>
+          <th colspan="4">Balance</th>
           <td><%= money(invoice.total - invoice.amount_paid) %></td>
         </tr>
       </tfoot>
@@ -85,15 +95,17 @@
         <table class="print-invoice-table">
           <thead>
             <tr>
+              <th class="row-number">#</th>
               <th>Date</th>
               <th>Method</th>
-              <th>Reference</th>
+              <th>Payment Reference</th>
               <th>Amount</th>
             </tr>
           </thead>
           <tbody>
-            <% payments.forEach((payment) => { %>
+            <% payments.forEach((payment, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td><%= payment.payment_date %></td>
                 <td><%= payment.method %></td>
                 <td><%= payment.reference || '' %></td>

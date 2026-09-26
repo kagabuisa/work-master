@@ -1,9 +1,12 @@
 <!doctype html>
 <% const journalReadOnly = Boolean(readOnly); %>
 <% const journalLines = Array.isArray(journal.lines) && journal.lines.length ? journal.lines : [{}, {}]; %>
+<% const journalStatus = journal.docstatus || (journalReadOnly ? 'submitted' : 'draft'); %>
+<% const manualJournal = ['cash_receipt', 'journal_entry'].includes(journal.journal_type); %>
+<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
 <html lang="en">
 <head>
-  <title><%= journalReadOnly ? journal.journal_no : 'New Journal' %></title>
+  <title><%= journal.id ? journal.journal_no : 'New Journal' %></title>
   <%- include('partials-head') %>
 </head>
 <body>
@@ -11,7 +14,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Journals', href: '/journals' }, { label: journalReadOnly ? journal.journal_no : 'New Journal' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Journals', href: '/journals' }, { label: journal.id ? journal.journal_no : 'New Journal' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
@@ -22,7 +25,7 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <form method="post" action="/journals" class="invoice-form" id="journal-entry-form">
+    <form method="post" action="<%= journal.id ? `/journals/${journal.id}` : '/journals' %>" class="invoice-form" id="journal-entry-form">
       <section class="form-grid">
         <label>
           Type
@@ -30,11 +33,16 @@
             <option value="cash_receipt" <%= journal.journal_type === 'cash_receipt' ? 'selected' : '' %>>Cash Receipt</option>
             <option value="payment_journal" <%= journal.journal_type === 'payment_journal' ? 'selected' : '' %>>Payment Journal</option>
             <option value="journal_entry" <%= journal.journal_type === 'journal_entry' ? 'selected' : '' %>>Journal Entry</option>
+            <option value="sales_invoice" <%= journal.journal_type === 'sales_invoice' ? 'selected' : '' %>>Sales Invoice</option>
           </select>
         </label>
         <label>
           Posting Date
           <input type="date" name="posting_date" value="<%= journal.posting_date || today %>" required <%= journalReadOnly ? 'readonly' : '' %>>
+        </label>
+        <label>
+          Status
+          <input value="<%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %>" readonly>
         </label>
         <label>
           Party Type
@@ -83,17 +91,22 @@
       <table class="editable" id="journal-lines">
         <thead>
           <tr>
+            <th class="row-number">#</th>
             <th>Account</th>
             <th>Debit</th>
             <th>Credit</th>
             <th>Line Remarks</th>
+            <th>Status</th>
+            <% if (journalReadOnly) { %><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><% } %>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <% journalLines.forEach((line) => { %>
+          <% journalLines.forEach((line, index) => { %>
             <tr>
+              <td class="row-number"><%= index + 1 %></td>
               <td>
+                <input type="hidden" name="line_id" value="<%= line.id || '' %>">
                 <select name="account_id" required <%= journalReadOnly ? 'disabled' : '' %>>
                   <option value="">Choose account</option>
                   <% accounts.forEach((account) => { %>
@@ -104,16 +117,18 @@
               <td><input class="journal-money" name="debit" type="number" step="1" min="0" value="<%= line.debit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
               <td><input class="journal-money" name="credit" type="number" step="1" min="0" value="<%= line.credit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
               <td><input name="line_remarks" value="<%= line.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
+              <td><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
+              <% if (journalReadOnly) { %><td class="tracking-info"><%= line.created_by || 'Unknown' %><% if (lineAuditTime(line.created_at)) { %> <small><%= lineAuditTime(line.created_at) %></small><% } %></td><td class="tracking-info"><%= line.updated_by || 'Unknown' %><% if (lineAuditTime(line.updated_at)) { %> <small><%= lineAuditTime(line.updated_at) %></small><% } %></td><% } %>
               <td><button type="button" class="button-light" data-remove-journal-row <%= journalReadOnly ? 'hidden' : '' %>>Remove</button></td>
             </tr>
           <% }) %>
         </tbody>
         <tfoot>
           <tr>
-            <th>Total</th>
+            <th colspan="2">Total</th>
             <th id="journal-total-debit"><%= money(journal.total_debit || 0) %></th>
             <th id="journal-total-credit"><%= money(journal.total_credit || 0) %></th>
-            <th id="journal-balance-status" colspan="2"></th>
+            <th id="journal-balance-status" colspan="3"></th>
           </tr>
         </tfoot>
       </table>
@@ -121,13 +136,22 @@
       <div class="actions">
         <% if (!journalReadOnly) { %>
           <button type="button" class="button-light" id="add-journal-row">Add Row</button>
-          <button type="submit">Post Journal</button>
+          <button type="submit" name="action" value="save_draft">Save Draft</button>
+          <% if (!journal.id && can('vouchers.journals.submit')) { %><button type="submit" name="action" value="submit">Post Journal</button><% } %>
         <% } %>
         <% if (journalReadOnly) { %>
-          <a class="button" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a>
+          <% if (journalStatus === 'draft' && can('vouchers.journals.edit')) { %><a class="button" href="/journals/<%= journal.id %>/edit">Edit Draft</a><% } %>
+          <% if (journalStatus === 'draft' && can('vouchers.journals.submit')) { %><button type="submit" formaction="/journals/<%= journal.id %>/submit" formmethod="post">Submit Journal</button><% } %>
+          <% if (journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
+          <% if (manualJournal && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
+            <button type="submit" formaction="/journals/<%= journal.id %>/cancel" formmethod="post" class="button-light" data-confirm="Cancel this journal? This will reverse its ledger entries.">Cancel Journal</button>
+          <% } else if (!manualJournal) { %>
+            <span class="field-hint">Automatically generated journals are cancelled from their source document.</span>
+          <% } %>
         <% } %>
       </div>
     </form>
+    <% if (journal && journal.id) { %><%- include('record-audit', { record: journal }) %><% } %>
   </main>
   <% if (!journalReadOnly) { %>
     <script src="/journal-entry.js"></script>

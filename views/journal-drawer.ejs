@@ -1,0 +1,49 @@
+<% const journalStatus = journal.docstatus || 'submitted'; %>
+<% const journalLines = Array.isArray(journal.lines) && journal.lines.length ? journal.lines : []; %>
+<div class="invoice-drawer-content" data-voucher-title="<%= journal.journal_no %>" data-voucher-eyebrow="Journal Entry">
+  <div class="invoice-drawer-heading">
+    <div>
+      <p class="eyebrow"><%= journalTypeLabel ? journalTypeLabel(journal.journal_type) : journal.journal_type %></p>
+      <h2><%= journal.journal_no %></h2>
+      <small><%= journal.party_name || journal.party_id || '' %></small>
+    </div>
+  </div>
+  <div class="invoice-drawer-actions">
+    <% if (journalStatus === 'draft') { %>
+      <% if (can('vouchers.journals.edit')) { %><a class="button button-light" href="/journals/<%= journal.id %>/edit">Edit Draft</a><% } %>
+      <% if (can('vouchers.journals.submit')) { %><form method="post" action="/journals/<%= journal.id %>/submit" class="inline-form"><button type="submit">Submit Journal</button></form><% } %>
+    <% } %>
+    <% if (journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button button-light" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
+    <% if (['cash_receipt', 'journal_entry'].includes(journal.journal_type) && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
+      <form method="post" action="/journals/<%= journal.id %>/cancel" class="inline-form" data-confirm="Cancel this journal? This will reverse its ledger entries.">
+        <button type="submit" class="button-light">Cancel Journal</button>
+      </form>
+    <% } %>
+  </div>
+  <section class="invoice-card">
+    <div class="invoice-meta">
+      <div><span>Posting Date</span><strong><%= journal.posting_date %></strong></div>
+      <div><span>Status</span><strong><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
+      <div><span>Reference</span><strong><%= journal.reference_no || '' %></strong></div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Account</th><th>Debit</th><th>Credit</th><th>Line Remarks</th></tr></thead>
+      <tbody>
+        <% journalLines.forEach((line, index) => { %>
+          <tr>
+            <td><%= index + 1 %></td>
+            <td><strong><%= line.account_code %></strong> - <%= line.account_name %></td>
+            <td><%= Number(line.debit || 0) ? money(line.debit) : '' %></td>
+            <td><%= Number(line.credit || 0) ? money(line.credit) : '' %></td>
+            <td><%= line.remarks || '' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr><th colspan="2">Total</th><th><%= money(journal.total_debit || 0) %></th><th><%= money(journal.total_credit || 0) %></th><th></th></tr>
+      </tfoot>
+    </table>
+    <% if (journal.remarks) { %><p class="notes"><%= journal.remarks %></p><% } %>
+  </section>
+  <% if (true) { %><%- include('record-audit', { record: journal }) %><% } %>
+</div>

@@ -4,7 +4,7 @@
   <title>Stock Ledger</title>
   <%- include('partials-head') %>
 </head>
-<body>
+<body data-can-cancel="<%= can('vouchers.stock.cancel') %>">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -13,7 +13,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: report.filters.entry_type === 'purchase' ? 'purchases' : 'report' }) %>
-        <a class="button" href="/stock/entries/new">New Stock Entry</a>
+        <% if (can('vouchers.stock.create')) { %><a class="button" href="/stock/entries/new">New Stock Entry</a><% } %>
       </nav>
     </header>
     <form class="report-filters stock-ledger-filters" method="get">
@@ -59,13 +59,14 @@
       <table>
         <thead>
           <tr>
-            <th>Date</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th>Type</th><th>Status</th><th>Voucher</th><th>Reversal Ref</th><th>Qty</th><th>In Rate</th><th>Out Rate</th><th>Value</th><th>Balance Qty</th><th>Balance Value</th>
+            <th class="row-number">#</th><th>Date</th><th class="item-code-col">Item Name</th><th class="warehouse-col">Warehouse</th><th>Type</th><th>Status</th><th>Voucher</th><th>Reversal Ref</th><th>Qty</th><th>In Rate</th><th>Out Rate</th><th>Value</th><th>Balance Qty</th><th>Balance Value</th>
           </tr>
         </thead>
         <tbody>
-          <% if (!report.rows.length) { %><tr><td colspan="13" class="empty">No stock ledger entries found.</td></tr><% } %>
-          <% report.rows.forEach((row) => { %>
+          <% if (!report.rows.length) { %><tr><td colspan="14" class="empty">No stock ledger entries found.</td></tr><% } %>
+          <% report.rows.forEach((row, index) => { %>
             <tr class="<%= row.stock_entry_status === 'cancelled' || row.is_reversal ? 'ledger-cancelled-row' : '' %>">
+              <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td><%= row.posting_date %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
@@ -73,12 +74,14 @@
               <td><%= row.stock_entry_status || '' %><%= row.is_reversal ? ' reversal' : '' %></td>
               <td>
                 <% if (row.voucher_id) { %>
-                  <button
-                    type="button"
-                    class="voucher-link"
-                    data-voucher-type="<%= row.voucher_type %>"
-                    data-voucher-id="<%= row.voucher_id %>"
-                  ><%= row.voucher_no || row.voucher_type %></button>
+                  <% const voucherType = row.voucher_type || ''; %>
+                  <% const voucherFullUrl = voucherType.startsWith('stock_') ? `/stock/entries/${row.voucher_id}` : voucherType === 'purchase' ? `/purchases/${row.voucher_id}` : `/invoices/${row.voucher_id}`; %>
+                  <% const voucherDrawerUrl = voucherType.startsWith('stock_') ? `/stock/entries/${row.voucher_id}/drawer` : voucherType === 'purchase' ? `/purchases/${row.voucher_id}/drawer` : `/invoices/${row.voucher_id}/drawer`; %>
+                  <a
+                    class="voucher-drawer-link"
+                    href="<%= voucherFullUrl %>"
+                    data-voucher-drawer="<%= voucherDrawerUrl %>"
+                  ><%= row.voucher_no || row.voucher_type %></a>
                 <% } else { %>
                   <%= row.voucher_no || row.voucher_type %>
                 <% } %>
@@ -94,6 +97,7 @@
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/stock-ledger' }) %>
     </section>
   </main>
   <dialog class="voucher-dialog" id="voucher-dialog" aria-labelledby="voucher-dialog-title">

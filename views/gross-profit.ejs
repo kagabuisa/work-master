@@ -36,15 +36,16 @@
     <script src="/stock-report-filters.js"></script>
     <section class="invoice-card report-section">
       <table>
-        <thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th>Sales</th><th>COGS</th><th>Gross Profit</th></tr></thead>
+        <thead><tr><th class="row-number">#</th><th>Date</th><th>Invoice</th><th>Customer</th><th class="item-code-col">Item Name</th><th class="warehouse-col">Warehouse</th><th>Sales</th><th>COGS</th><th>Gross Profit</th></tr></thead>
         <tbody>
-          <% if (!report.rows.length) { %><tr><td colspan="8" class="empty">No gross profit rows found.</td></tr><% } %>
-          <% report.rows.forEach((row) => { %>
+          <% if (!report.rows.length) { %><tr><td colspan="9" class="empty">No gross profit rows found.</td></tr><% } %>
+          <% report.rows.forEach((row, index) => { %>
             <tr>
+              <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td><%= row.invoice_date %></td>
-              <td><a href="/invoices/<%= row.invoice_id %>"><%= row.invoice_no %></a></td>
+              <td><a href="/invoices/<%= row.invoice_id %>" data-voucher-drawer="/invoices/<%= row.invoice_id %>/drawer"><%= row.invoice_no %></a></td>
               <td><%= row.customer_name %></td>
-              <td class="item-code-col"><strong><%= row.item_name %></strong><small><%= row.item_code %></small></td>
+              <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
               <td><%= money(row.sales_amount) %></td>
               <td><%= money(row.cost_amount) %></td>
@@ -53,6 +54,7 @@
           <% }) %>
         </tbody>
       </table>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/gross-profit' }) %>
     </section>
   </main>
 </body>

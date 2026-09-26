@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>Invoice App</title>
+  <title>Work Master</title>
   <%- include('partials-head') %>
 </head>
 <body>
@@ -15,6 +15,9 @@
         <%- include('module-nav', { activeModule: 'sales' }) %>
       </nav>
     </header>
+    <% if (typeof limited !== 'undefined' && limited) { %>
+      <section class="invoice-card"><h1>Work Master</h1><p>Your role limits the sales overview. Use the navigation menu for the areas available to you.</p></section>
+    <% } else { %>
     <section class="metrics">
       <article>
         <span>Invoices</span>
@@ -28,10 +31,10 @@
         <span>Paid</span>
         <strong><%= money(summary.paid_total) %></strong>
       </article>
-      <article>
+      <% if (can('reports.debtors.view')) { %><article>
         <span>Debtors</span>
         <strong><%= money(summary.balance_due) %></strong>
-      </article>
+      </article><% } %>
     </section>
 
     <section class="grid">
@@ -43,6 +46,7 @@
         <table>
           <thead>
             <tr>
+              <th class="row-number">#</th>
               <th>Invoice</th>
               <th>Customer</th>
               <th>Total</th>
@@ -51,11 +55,12 @@
           </thead>
           <tbody>
             <% if (!recent.length) { %>
-              <tr><td colspan="4" class="empty">No invoices yet.</td></tr>
+              <tr><td colspan="5" class="empty">No invoices yet.</td></tr>
             <% } %>
-            <% recent.forEach((invoice) => { %>
+            <% recent.forEach((invoice, index) => { %>
               <tr>
-                <td><a href="/invoices/<%= invoice.id %>"><%= invoice.invoice_no %></a></td>
+                <td class="row-number"><%= index + 1 %></td>
+                <td><a href="/invoices/<%= invoice.id %>" data-voucher-drawer="/invoices/<%= invoice.id %>/drawer"><%= invoice.invoice_no %></a></td>
                 <td><%= invoice.customer_name %></td>
                 <td><%= money(invoice.total) %></td>
                 <td><span class="badge <%= invoice.status %>"><%= invoice.status %></span></td>
@@ -65,7 +70,7 @@
         </table>
       </div>
 
-      <div>
+      <% if (can('reports.debtors.view')) { %><div>
         <div class="section-title">
           <h2>Top Debtors</h2>
           <a href="/reports/debtors">Statement report</a>
@@ -73,24 +78,27 @@
         <table>
           <thead>
             <tr>
+              <th class="row-number">#</th>
               <th>Customer</th>
               <th>Balance</th>
             </tr>
           </thead>
           <tbody>
             <% if (!debtors.length) { %>
-              <tr><td colspan="2" class="empty">No debtor balances.</td></tr>
+              <tr><td colspan="3" class="empty">No debtor balances.</td></tr>
             <% } %>
-            <% debtors.forEach((debtor) => { %>
+            <% debtors.forEach((debtor, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td><%= debtor.customer_name %></td>
                 <td><%= money(debtor.balance_due) %></td>
               </tr>
             <% }) %>
           </tbody>
         </table>
-      </div>
+      </div><% } %>
     </section>
+    <% } %>
   </main>
 </body>
 </html>

@@ -5,6 +5,27 @@
   <%- include('partials-head') %>
 </head>
 <body>
+  <%
+    const statementParams = new URLSearchParams();
+    if (report.filters.customer) statementParams.set('customer', report.filters.customer);
+    if (report.filters.search) statementParams.set('q', report.filters.search);
+    if (report.filters.from) statementParams.set('from', report.filters.from);
+    if (report.filters.to) statementParams.set('to', report.filters.to);
+    if (report.filters.statement_from && report.filters.statement_from !== report.filters.from) statementParams.set('statement_from', report.filters.statement_from);
+    if (report.filters.statement_to && report.filters.statement_to !== report.filters.to) statementParams.set('statement_to', report.filters.statement_to);
+    const closeParams = new URLSearchParams();
+    if (report.filters.search) closeParams.set('q', report.filters.search);
+    if (report.filters.from) closeParams.set('from', report.filters.from);
+    if (report.filters.to) closeParams.set('to', report.filters.to);
+    closeParams.set('view', 'list');
+    const isFullStatement = Boolean(report.selected && query.view === 'full');
+    const paymentInvoiceId = report.paymentInvoiceId || (report.statement && report.statement.find((entry) => entry.type === 'Invoice' && Number(entry.balance_due || 0) > 0)?.invoice_id);
+    const isPaymentView = Boolean(report.selected && query.view === 'payment' && paymentData);
+    const isListView = !isFullStatement && !isPaymentView;
+    const paymentParams = new URLSearchParams(statementParams);
+    paymentParams.set('view', 'payment');
+    const paymentReturnTo = `/reports/debtors?${paymentParams.toString()}`;
+  %>
   <main class="shell">
     <header class="topbar">
       <div>
@@ -15,34 +36,42 @@
         <%- include('module-nav', { activeModule: 'report' }) %>
       </nav>
     </header>
-    <form class="report-filters" method="get">
-      <label>
-        Customer
+    <nav class="debtor-tabs" aria-label="Debtors views">
+      <a class="<%= isListView ? 'active' : '' %>" href="/reports/debtors?<%= closeParams.toString() %>" <% if (isListView) { %>aria-current="page"<% } %>>Debtors List</a>
+      <% if (report.selected) { %>
+        <a class="<%= isFullStatement ? 'active' : '' %>" href="/reports/debtors?<%= statementParams.toString() %><%= statementParams.toString() ? '&' : '' %>view=full" <% if (isFullStatement) { %>aria-current="page"<% } %>>Statement · <%= report.selected.customer_name %></a>
+      <% } %>
+      <% if (report.selected && paymentInvoiceId) { %>
+        <a class="<%= isPaymentView ? 'active' : '' %>" href="/reports/debtors?<%= paymentParams.toString() %>" <% if (isPaymentView) { %>aria-current="page"<% } %>>Receive Payment</a>
+      <% } %>
+    </nav>
+
+    <% if (isListView) { %>
+    <form class="report-filters debtor-filters" method="get">
+      <label class="debtor-customer-filter">
+        <span>Customer:</span>
         <input name="q" value="<%= report.filters.search %>" placeholder="Search debtors" list="statement-customers">
         <datalist id="statement-customers">
-          <% (report.customerResults || []).forEach((customer) => { %>
-            <option value="<%= customer.customer_name %>"><%= customer.customer_id || customer.customer_name %></option>
+          <% (report.customerResults || []).filter((customer) => Number(customer.balance_due) > 0).forEach((customer) => { %>
+            <option value="<%= customer.customer_id || customer.customer_name %>"></option>
           <% }) %>
         </datalist>
       </label>
-      <label>
-        From
-        <input type="date" name="from" value="<%= report.filters.from %>">
+      <label class="debtor-date-filter">
+        <span>From:</span>
+        <input type="date" name="from" value="<%= report.filters.from %>" aria-label="From date" title="From date">
       </label>
-      <label>
-        To
-        <input type="date" name="to" value="<%= report.filters.to %>">
+      <label class="debtor-date-filter">
+        <span>To:</span>
+        <input type="date" name="to" value="<%= report.filters.to %>" aria-label="To date" title="To date">
       </label>
-      <% if (report.filters.customer) { %>
-        <input type="hidden" name="customer" value="<%= report.filters.customer %>">
-      <% } %>
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
         <a class="button button-light" href="/reports/debtors">Reset</a>
       </div>
     </form>
 
-    <section class="metrics">
+    <section class="metrics debtor-metrics" aria-label="Debtors summary">
       <article>
         <span>Debtors</span>
         <strong><%= report.summary.customer_count %></strong>
@@ -68,7 +97,8 @@
       <table>
         <thead>
           <tr>
-            <th>Customer</th>
+            <th class="row-number">#</th>
+            <th>Customer ID</th>
             <th>Invoices</th>
             <th>Current</th>
             <th>1-30</th>
@@ -81,13 +111,13 @@
         </thead>
         <tbody>
           <% if (!report.debtors.length) { %>
-            <tr><td colspan="9" class="empty">No debtor balances found.</td></tr>
+            <tr><td colspan="10" class="empty">No debtor balances found.</td></tr>
           <% } %>
-          <% report.debtors.forEach((debtor) => { %>
-            <tr>
+          <% report.debtors.forEach((debtor, index) => { const customerParams = new URLSearchParams(statementParams); customerParams.set('customer', debtor.customer_key); customerParams.delete('view'); %>
+            <tr class="debtor-row" data-statement-href="/reports/debtors?<%= customerParams.toString() %>" tabindex="0" role="link" aria-label="Open statement for <%= debtor.customer_name %>">
+              <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td>
-                <strong><%= debtor.customer_name %></strong>
-                <% if (debtor.customer_id) { %><small><%= debtor.customer_id %></small><% } %>
+                <a class="debtor-name" href="/reports/debtors?<%= customerParams.toString() %>"><%= debtor.customer_id || debtor.customer_name %></a>
               </td>
               <td><%= debtor.invoice_count %></td>
               <td><%= money(debtor.current) %></td>
@@ -96,8 +126,8 @@
               <td><%= money(debtor.days_61_90) %></td>
               <td><%= money(debtor.days_over_90) %></td>
               <td><strong><%= money(debtor.balance_due) %></strong></td>
-              <td>
-                <a href="/reports/debtors?customer=<%= encodeURIComponent(debtor.customer_key) %>&q=<%= encodeURIComponent(report.filters.search) %>&from=<%= encodeURIComponent(report.filters.from) %>&to=<%= encodeURIComponent(report.filters.to) %>">Statement</a>
+              <td class="actions-cell">
+                <a href="/reports/debtors?<%= customerParams.toString() %>">View</a>
               </td>
             </tr>
           <% }) %>
@@ -105,7 +135,7 @@
         <% if (report.debtors.length) { %>
           <tfoot>
             <tr>
-              <th>Total</th>
+              <th colspan="2">Total</th>
               <th><%= report.debtors.reduce((sum, row) => sum + Number(row.invoice_count || 0), 0) %></th>
               <th><%= money(report.summary.current) %></th>
               <th><%= money(report.summary.days_1_30) %></th>
@@ -118,94 +148,102 @@
           </tfoot>
         <% } %>
       </table>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/debtors' }) %>
     </section>
 
-    <% if (report.filters.search && !report.selected) { %>
-      <section class="invoice-card report-section">
-        <div class="section-title">
-          <h2>Customer Matches</h2>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Invoices</th>
-              <th>Invoice Total</th>
-              <th>Paid</th>
-              <th>Balance</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!(report.customerResults || []).length) { %>
-              <tr><td colspan="6" class="empty">No matching customers found.</td></tr>
-            <% } %>
-            <% (report.customerResults || []).forEach((customer) => { %>
-              <tr>
-                <td>
-                  <strong><%= customer.customer_name %></strong>
-                  <% if (customer.customer_id) { %><small><%= customer.customer_id %></small><% } %>
-                </td>
-                <td><%= customer.invoice_count %></td>
-                <td><%= money(customer.invoice_total) %></td>
-                <td><%= money(customer.paid_total) %></td>
-                <td><strong><%= money(customer.balance_due) %></strong></td>
-                <td>
-                  <a href="/reports/debtors?customer=<%= encodeURIComponent(customer.customer_key) %>&q=<%= encodeURIComponent(report.filters.search) %>&from=<%= encodeURIComponent(report.filters.from) %>&to=<%= encodeURIComponent(report.filters.to) %>">Statement</a>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </section>
     <% } %>
 
-    <% if (report.selected) { %>
-      <section class="invoice-card report-section">
-        <div class="section-title">
+    <% if (isFullStatement) { %>
+      <section class="invoice-card report-section debtor-full-statement" data-statement data-export-name="<%= report.selected.customer_name %>-statement.csv">
+        <div class="section-title statement-heading">
           <div>
             <p class="eyebrow">Statement</p>
             <h2><%= report.selected.customer_name %></h2>
           </div>
-          <strong>Balance: <%= money(report.selected.balance_due) %></strong>
+          <div class="statement-balance">
+            <span>Balance due</span>
+            <strong><%= money(report.selected.balance_due) %></strong>
+          </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Reference</th>
-              <th>Description</th>
-              <th>Debit</th>
-              <th>Credit</th>
-              <th>Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!report.statement.length) { %>
-              <tr><td colspan="7" class="empty">No statement entries found.</td></tr>
-            <% } %>
-            <% report.statement.forEach((entry) => { %>
-              <tr>
-                <td><%= entry.date %></td>
-                <td><%= entry.type %></td>
-                <td>
-                  <% if (entry.invoice_id) { %>
-                    <a href="/invoices/<%= entry.invoice_id %>"><%= entry.reference %></a>
-                  <% } else { %>
-                    <%= entry.reference %>
-                  <% } %>
-                </td>
-                <td><%= entry.description %></td>
-                <td><%= entry.debit ? money(entry.debit) : '' %></td>
-                <td><%= entry.credit ? money(entry.credit) : '' %></td>
-                <td><strong><%= money(entry.balance) %></strong></td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
+        <div class="statement-actions no-print">
+          <button type="button" class="button button-light" data-print-statement>Print</button>
+          <button type="button" class="button button-light" data-export-statement>Export</button>
+          <% if (paymentInvoiceId) { %>
+            <a class="button" href="/reports/debtors?<%= paymentParams.toString() %>">Receive Payment</a>
+          <% } %>
+        </div>
+        <%- include('debtor-statement-table', { statement: report.statement, money }) %>
       </section>
     <% } %>
+
+    <% if (isPaymentView) { const paymentInvoice = paymentData.invoice; const paymentDocstatus = paymentInvoice.docstatus || 'submitted'; const paymentHistory = Array.isArray(paymentInvoice.payments) ? paymentInvoice.payments : []; const paymentBalance = Math.max(0, Number(paymentInvoice.total || 0) - Number(paymentInvoice.amount_paid || 0)); %>
+      <div class="section-title statement-heading payment-tab-heading">
+        <div>
+          <p class="eyebrow">Receive payment</p>
+          <h2><%= paymentInvoice.customer_name %> · <a href="/invoices/<%= paymentInvoice.id %>" data-voucher-drawer="/invoices/<%= paymentInvoice.id %>/drawer"><%= paymentInvoice.invoice_no %></a></h2>
+        </div>
+        <div class="statement-balance">
+          <span>Balance due</span>
+          <strong><%= money(paymentBalance) %></strong>
+        </div>
+      </div>
+      <%- include('invoice-payments', { invoice: paymentInvoice, payments: paymentHistory, docstatus: paymentDocstatus, balanceDue: paymentBalance, today, money, returnTo: paymentReturnTo }) %>
+    <% } %>
   </main>
+
+  <% if (report.selected && !isFullStatement && !isPaymentView && query.view !== 'list') { statementParams.set('view', 'full'); %>
+    <div class="statement-drawer-layer" data-statement-layer>
+      <a class="statement-drawer-backdrop" href="/reports/debtors?<%= closeParams.toString() %>" aria-label="Close statement" data-close-statement></a>
+      <aside class="statement-drawer" role="dialog" aria-modal="true" aria-labelledby="statement-drawer-title" data-statement data-export-name="<%= report.selected.customer_name %>-statement.csv" tabindex="-1">
+        <header class="statement-drawer-header">
+          <div>
+            <p class="eyebrow">Customer statement</p>
+            <h2 id="statement-drawer-title"><%= report.selected.customer_name %></h2>
+            <% if (report.selected.customer_id) { %><small><%= report.selected.customer_id %></small><% } %>
+          </div>
+          <a class="statement-drawer-close" href="/reports/debtors?<%= closeParams.toString() %>" aria-label="Close statement" data-close-statement>&times;</a>
+        </header>
+        <div class="statement-drawer-body">
+          <div class="statement-balance-card">
+            <span>Balance</span>
+            <strong><%= money(report.selected.balance_due) %></strong>
+            <small><%= report.selected.invoice_count %> invoice<%= Number(report.selected.invoice_count) === 1 ? '' : 's' %></small>
+          </div>
+          <form class="statement-date-range" method="get" action="/reports/debtors">
+            <input type="hidden" name="customer" value="<%= report.selected.customer_key %>">
+            <% if (report.filters.search) { %><input type="hidden" name="q" value="<%= report.filters.search %>"><% } %>
+            <label>
+              From
+              <input type="date" name="statement_from" value="<%= report.filters.statement_from %>">
+            </label>
+            <label>
+              To
+              <input type="date" name="statement_to" value="<%= report.filters.statement_to %>">
+            </label>
+            <button type="submit">Apply</button>
+            <% if (report.filters.statement_range_set) { const clearRangeParams = new URLSearchParams(); clearRangeParams.set('customer', report.selected.customer_key); if (report.filters.search) clearRangeParams.set('q', report.filters.search); if (report.filters.from) clearRangeParams.set('from', report.filters.from); if (report.filters.to) clearRangeParams.set('to', report.filters.to); %>
+              <a class="button button-light" href="/reports/debtors?<%= clearRangeParams.toString() %>">Clear</a>
+            <% } %>
+          </form>
+          <div class="statement-actions">
+            <button type="button" class="button button-light" data-print-statement>Print</button>
+            <button type="button" class="button button-light" data-export-statement>Export</button>
+            <% if (paymentInvoiceId) { %>
+              <a class="button" href="/reports/debtors?<%= paymentParams.toString() %>">Receive Payment</a>
+            <% } %>
+            <a class="button button-light" href="/reports/debtors?<%= statementParams.toString() %>">Open Full Statement</a>
+          </div>
+          <section class="statement-transactions">
+            <div class="section-title">
+              <h3>Transactions</h3>
+              <span><%= report.statement.length %> entr<%= report.statement.length === 1 ? 'y' : 'ies' %></span>
+            </div>
+            <%- include('debtor-statement-table', { statement: report.statement, money }) %>
+          </section>
+        </div>
+      </aside>
+    </div>
+  <% } %>
+  <script src="/debtor-report.js?v=<%= assetVersion %>-date-label-v1" defer></script>
 </body>
 </html>

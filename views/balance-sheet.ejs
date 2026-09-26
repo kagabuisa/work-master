@@ -37,13 +37,14 @@
           <strong><%= money(report.summary.total_assets) %></strong>
         </div>
         <table>
-          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
           <tbody>
             <% if (!report.assets.length) { %>
-              <tr><td colspan="2" class="empty">No asset balances found.</td></tr>
+              <tr><td colspan="3" class="empty">No asset balances found.</td></tr>
             <% } %>
-            <% report.assets.forEach((row) => { %>
+            <% report.assets.forEach((row, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td>
                   <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
                   <small><%= row.account_name %></small>
@@ -52,7 +53,7 @@
               </tr>
             <% }) %>
           </tbody>
-          <tfoot><tr><th>Total Assets</th><th><%= money(report.summary.total_assets) %></th></tr></tfoot>
+          <tfoot><tr><th colspan="2">Total Assets</th><th><%= money(report.summary.total_assets) %></th></tr></tfoot>
         </table>
       </div>
 
@@ -62,13 +63,14 @@
           <strong><%= money(report.summary.total_liabilities) %></strong>
         </div>
         <table>
-          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
           <tbody>
             <% if (!report.liabilities.length) { %>
-              <tr><td colspan="2" class="empty">No liability balances found.</td></tr>
+              <tr><td colspan="3" class="empty">No liability balances found.</td></tr>
             <% } %>
-            <% report.liabilities.forEach((row) => { %>
+            <% report.liabilities.forEach((row, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td>
                   <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
                   <small><%= row.account_name %></small>
@@ -77,7 +79,7 @@
               </tr>
             <% }) %>
           </tbody>
-          <tfoot><tr><th>Total Liabilities</th><th><%= money(report.summary.total_liabilities) %></th></tr></tfoot>
+          <tfoot><tr><th colspan="2">Total Liabilities</th><th><%= money(report.summary.total_liabilities) %></th></tr></tfoot>
         </table>
 
         <div class="section-title report-section">
@@ -85,13 +87,14 @@
           <strong><%= money(report.summary.total_equity) %></strong>
         </div>
         <table>
-          <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
           <tbody>
             <% if (!report.equity.length) { %>
-              <tr><td colspan="2" class="empty">No equity balances found.</td></tr>
+              <tr><td colspan="3" class="empty">No equity balances found.</td></tr>
             <% } %>
-            <% report.equity.forEach((row) => { %>
+            <% report.equity.forEach((row, index) => { %>
               <tr>
+                <td class="row-number"><%= index + 1 %></td>
                 <td>
                   <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
                   <small><%= row.account_name %></small>
@@ -101,8 +104,8 @@
             <% }) %>
           </tbody>
           <tfoot>
-            <tr><th>Total Equity</th><th><%= money(report.summary.total_equity) %></th></tr>
-            <tr><th>Liabilities + Equity</th><th><%= money(report.summary.liabilities_plus_equity) %></th></tr>
+            <tr><th colspan="2">Total Equity</th><th><%= money(report.summary.total_equity) %></th></tr>
+            <tr><th colspan="2">Liabilities + Equity</th><th><%= money(report.summary.liabilities_plus_equity) %></th></tr>
           </tfoot>
         </table>
       </div>

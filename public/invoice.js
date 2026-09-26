@@ -21,32 +21,35 @@ const paymentMethod = document.querySelector('#payment-method');
 const paymentReference = document.querySelector('#payment-reference');
 const paymentNotes = document.querySelector('#payment-notes');
 const addPaymentButton = document.querySelector('#add-payment');
+const formError = document.querySelector('#invoice-form-error');
 const initialData = window.invoiceInitial || {};
+let activeWarehouse = initialData.warehouse || '';
 
 const money = new Intl.NumberFormat('en-UG', {
   style: 'currency',
   currency: 'UGX',
+  currencyDisplay: 'code',
   maximumFractionDigits: 0,
 });
 
-let preloadedItems = [];
+const formatMoney = (value) => money.format(value).replace('UGX', 'Ugx');
+
 let preloadedCustomers = [];
-let itemsLoading = false;
+let itemRequestId = 0;
 let customersLoading = false;
 let editingPaymentIndex = null;
 
 let itemTimer;
 itemSearch.addEventListener('input', () => {
   clearTimeout(itemTimer);
+  itemRequestId += 1;
+  itemResults.innerHTML = '';
   itemTimer = setTimeout(searchItems, 220);
 });
 
-itemSearch.addEventListener('focus', () => {
-  showPreloadedItems();
-});
-
+itemSearch.addEventListener('focus', searchItems);
 itemSearch.addEventListener('click', () => {
-  showPreloadedItems();
+  searchItems();
 });
 
 itemSearch.addEventListener('blur', () => {
@@ -58,15 +61,21 @@ itemSearch.addEventListener('blur', () => {
   }, 150);
 });
 
-warehouseSelect.addEventListener('change', () => {
-  itemSearch.disabled = !warehouseSelect.value;
-  itemSearch.placeholder = warehouseSelect.value ? 'Search item name, code, category' : 'Choose a warehouse first';
-  itemSearch.value = '';
-  itemResults.innerHTML = '';
-  preloadedItems = [];
+warehouseSelect.addEventListener('change', async () => {
+  const nextWarehouse = warehouseSelect.value;
+  if (items.length && nextWarehouse !== activeWarehouse) {
+    const confirmed = await confirmWithDialog(`Changing the warehouse will remove ${items.length} line item${items.length === 1 ? '' : 's'}. Continue?`);
+    if (!confirmed) {
+      warehouseSelect.value = activeWarehouse;
+      syncWarehouseFields();
+      return;
+    }
+  }
+
+  activeWarehouse = nextWarehouse;
+  syncWarehouseFields();
   items.length = 0;
   renderItems();
-  preloadItems();
 });
 
 let customerTimer;
@@ -85,6 +94,10 @@ customerSearch.addEventListener('click', () => {
 });
 
 customerSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    customerResults.innerHTML = '';
+    return;
+  }
   if (event.key !== 'Enter' || event.ctrlKey) {
     return;
   }
@@ -111,11 +124,7 @@ document.querySelectorAll('[name="discount_amount"], [name="tax_amount"]').forEa
   input.addEventListener('input', renderTotals);
 });
 
-document.addEventListener('wheel', (event) => {
-  if (event.target.matches('input[type="number"]')) {
-    event.preventDefault();
-  }
-}, { passive: false });
+form.addEventListener('input', clearFormError);
 
 initializeInvoiceForm();
 initializePayments();
@@ -133,18 +142,17 @@ form.addEventListener('submit', (event) => {
   }
   if (!customerId.value) {
     event.preventDefault();
-    alert('Select a customer from the database.');
-    customerSearch.focus();
+    showFormError('Select a customer from the database.', customerSearch);
     return;
   }
   if (!items.length) {
     event.preventDefault();
-    alert('Add at least one item.');
+    showFormError('Add at least one item.', itemSearch);
     return;
   }
   if (calculatePaidTotal() > calculateGrandTotal()) {
     event.preventDefault();
-    alert('Total payments cannot exceed the invoice total.');
+    showFormError('Total payments cannot exceed the invoice total.', paymentAmount);
     return;
   }
   itemsJson.value = JSON.stringify(items);
@@ -158,7 +166,25 @@ form.addEventListener('keydown', (event) => {
   if (event.target.matches('textarea')) {
     return;
   }
+  if (event.target.closest('#invoice-items')) {
+    return;
+  }
   event.preventDefault();
+  if (event.target === itemSearch) {
+    const firstItem = itemResults.querySelector('[data-item]');
+    if (firstItem) {
+      firstItem.click();
+      return;
+    }
+  }
+  if (event.target === customerSearch) {
+    const firstCustomer = customerResults.querySelector('[data-id]');
+    if (firstCustomer) {
+      selectCustomer(firstCustomer);
+      return;
+    }
+  }
+  focusNextField(event.target);
 });
 
 form.addEventListener('keydown', (event) => {
@@ -166,74 +192,62 @@ form.addEventListener('keydown', (event) => {
     event.preventDefault();
     form.requestSubmit();
   }
+  if (event.key === 'Escape') {
+    clearTimeout(itemTimer);
+    itemRequestId += 1;
+    itemResults.innerHTML = '';
+    customerResults.innerHTML = '';
+  }
 });
 
 async function searchItems() {
+  clearTimeout(itemTimer);
+  const requestId = ++itemRequestId;
   const q = itemSearch.value.trim();
   const warehouse = warehouseSelect.value;
   if (!warehouse) {
     itemResults.innerHTML = '<p>Choose a warehouse before searching items.</p>';
     return;
   }
-  if (!q) {
-    showPreloadedItems();
-    return;
-  }
+  const isCurrentSearch = () => requestId === itemRequestId
+    && warehouse === warehouseSelect.value
+    && q === itemSearch.value.trim()
+    && (document.activeElement === itemSearch || itemResults.contains(document.activeElement));
+  itemResults.innerHTML = '<p>Loading items...</p>';
   try {
-    const rows = await fetchItems(q);
-    renderItemResults(rows);
+    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}`);
+    if (!response.ok) {
+      throw new Error('Item request failed.');
+    }
+    const rows = await response.json();
+    if (isCurrentSearch()) renderItemResults(rows);
   } catch {
-    itemResults.innerHTML = '<p>Could not load items for this warehouse.</p>';
-  }
-}
-
-async function fetchItems(q = '') {
-  const warehouse = warehouseSelect.value;
-  const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}`);
-  if (!response.ok) {
-    throw new Error('Item request failed.');
-  }
-  return response.json();
-}
-
-async function preloadItems() {
-  if (!warehouseSelect.value) {
-    return;
-  }
-  itemsLoading = true;
-  try {
-    preloadedItems = await fetchItems();
-  } catch {
-    preloadedItems = [];
-  } finally {
-    itemsLoading = false;
-    if (document.activeElement === itemSearch && !itemSearch.value.trim()) {
-      showPreloadedItems();
+    if (isCurrentSearch()) {
+      itemResults.innerHTML = '<p>Could not load items for this warehouse. Click the search field to retry.</p>';
     }
   }
-}
-
-function showPreloadedItems() {
-  if (!warehouseSelect.value) {
-    itemResults.innerHTML = '<p>Choose a warehouse before searching items.</p>';
-    return;
-  }
-  if (itemsLoading) {
-    itemResults.innerHTML = '<p>Loading items...</p>';
-    return;
-  }
-  renderItemResults(preloadedItems);
 }
 
 function renderItemResults(rows) {
   itemResults.innerHTML = rows.map((item) => `
     <div class="result-row">
-      <div>
-        <strong>${escapeHtml(item.item_name || item.item_code)}</strong>
-        <span>${escapeHtml(item.category || '')} · Stock ${formatQuantity(item.stock_balance)} · ${money.format(item.unit_price || 0)}</span>
+      <div class="item-result-details">
+        <strong class="item-result-name">${escapeHtml(item.item_name || item.item_code)}</strong>
+        <span class="item-result-meta">${[
+          item.item_code !== item.item_name ? item.item_code : '',
+          item.category,
+        ].filter(Boolean).map(escapeHtml).join(' · ')}</span>
       </div>
-      <label>
-        Qty
+      <div class="item-result-stock">
+        <span class="item-result-label">In stock</span>
+        <strong>${formatQuantity(item.stock_balance)}${item.stock_uom ? ` <small>${escapeHtml(item.stock_uom)}</small>` : ''}</strong>
+      </div>
+      <div class="item-result-price">
+        <span class="item-result-label">Unit price</span>
+        <strong>${formatMoney(item.unit_price || 0)}</strong>
+      </div>
+      <label class="item-result-quantity">
+        <span class="item-result-label">Qty</span>
         <input type="text" inputmode="decimal" value="1" data-qty>
       </label>
       <button type="button" data-item='${escapeAttr(JSON.stringify(item))}'>Add</button>
@@ -241,12 +255,29 @@ function renderItemResults(rows) {
   `).join('') || '<p>No matching items.</p>';
 
   itemResults.querySelectorAll('[data-item]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      selectItemResult(button);
+    });
     button.addEventListener('click', () => {
-      const row = button.closest('.result-row');
-      const quantity = Number(row.querySelector('[data-qty]').value || 0);
-      addItem(JSON.parse(button.dataset.item), quantity);
-      itemSearch.value = '';
-      itemResults.innerHTML = '';
+      if (!button.isConnected) {
+        return;
+      }
+      selectItemResult(button);
+    });
+  });
+
+  itemResults.querySelectorAll('.result-row').forEach((row) => {
+    row.addEventListener('mousedown', (event) => {
+      if (event.target.closest('input, button')) {
+        return;
+      }
+      const button = row.querySelector('[data-item]');
+      if (!button) {
+        return;
+      }
+      event.preventDefault();
+      selectItemResult(button);
     });
   });
 
@@ -257,6 +288,21 @@ function renderItemResults(rows) {
         input.closest('.result-row').querySelector('[data-item]').click();
       }
     });
+  });
+}
+
+function selectItemResult(button) {
+  const row = button.closest('.result-row');
+  if (!row || !button.dataset.item) {
+    return;
+  }
+  const quantity = Number(row.querySelector('[data-qty]').value || 0);
+  addItem(JSON.parse(button.dataset.item), quantity);
+  itemSearch.value = '';
+  itemResults.innerHTML = '';
+  requestAnimationFrame(() => {
+    itemSearch.focus();
+    itemSearch.select();
   });
 }
 
@@ -273,15 +319,37 @@ async function loadWarehouses() {
     ].join('');
     if (initialData.warehouse) {
       warehouseSelect.value = initialData.warehouse;
+      activeWarehouse = initialData.warehouse;
     }
-    itemSearch.disabled = !warehouseSelect.value;
-    itemSearch.placeholder = warehouseSelect.value ? 'Search item name, code, category' : 'Choose a warehouse first';
-    preloadItems();
+    syncWarehouseFields();
   } catch {
     warehouseSelect.innerHTML = '<option value="">Could not load warehouses</option>';
   } finally {
-    itemSearch.disabled = !warehouseSelect.value;
+    syncWarehouseFields();
   }
+}
+
+function syncWarehouseFields() {
+  itemSearch.disabled = !warehouseSelect.value;
+  itemSearch.placeholder = warehouseSelect.value ? 'Search item name, code, category' : 'Choose a warehouse first';
+}
+
+function confirmWithDialog(message) {
+  if (window.WorkMasterConfirm) {
+    return window.WorkMasterConfirm(message);
+  }
+
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(() => resolve(window.confirm(message)), 1500);
+    window.addEventListener('WorkMasterConfirmReady', () => {
+      window.clearTimeout(timeout);
+      if (window.WorkMasterConfirm) {
+        resolve(window.WorkMasterConfirm(message));
+      } else {
+        resolve(window.confirm(message));
+      }
+    }, { once: true });
+  });
 }
 
 async function searchCustomers() {
@@ -357,6 +425,7 @@ function addItem(source, quantity = 1) {
     existing.quantity = normalizeQuantity(existing.quantity + quantity);
   } else {
     items.push({
+      id: 0,
       item_code: source.item_code,
       item_name: source.item_name || source.item_code,
       warehouse: source.warehouse || '',
@@ -376,6 +445,8 @@ function initializeInvoiceForm() {
 
   initialData.items.forEach((item) => {
     items.push({
+      id: Number(item.id || 0),
+      line_no: Number(item.line_no || item.id || 0),
       item_code: item.item_code,
       item_name: item.item_name,
       warehouse: item.warehouse || '',
@@ -421,7 +492,7 @@ function initializePayments() {
 
 function renderItems() {
   if (!items.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6" class="empty">Search and add items to begin.</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="empty">Search and add items to begin.</td></tr>';
     renderTotals();
     return;
   }
@@ -431,14 +502,12 @@ function renderItems() {
     const total = quantity * item.unit_price;
     return `
       <tr>
-        <td class="item-code-col">
-          <strong>${escapeHtml(item.item_name)}</strong>
-          <small>${escapeHtml(item.item_code)}${item.warehouse ? ` · ${escapeHtml(item.warehouse)}` : ''}</small>
-        </td>
+        <td class="row-number">${index + 1}</td>
+        <td class="item-code-col"><strong>${escapeHtml(item.item_code)}</strong></td>
         <td>${formatQuantity(item.stock_at_sale)}</td>
         <td><input type="text" inputmode="decimal" value="${formatQuantity(quantity)}" data-index="${index}" data-field="quantity"></td>
         <td><input type="number" min="0" step="1" value="${roundMoney(item.unit_price)}" data-index="${index}" data-field="unit_price"></td>
-        <td data-line-total="${index}">${money.format(total || 0)}</td>
+        <td data-line-total="${index}">${formatMoney(total || 0)}</td>
         <td><button type="button" class="icon" data-remove="${index}">Remove</button></td>
       </tr>
     `;
@@ -496,18 +565,15 @@ function addPaymentFromForm() {
   const balance = Math.max(0, total - paid + currentPaymentAmount);
 
   if (!paymentDate.value) {
-    alert('Enter a payment date.');
-    paymentDate.focus();
+    showFormError('Enter a payment date.', paymentDate);
     return false;
   }
   if (amount <= 0) {
-    alert('Enter a payment amount greater than zero.');
-    paymentAmount.focus();
+    showFormError('Enter a payment amount greater than zero.', paymentAmount);
     return false;
   }
   if (amount > balance) {
-    alert(`Payment cannot exceed the current balance of ${money.format(balance)}.`);
-    paymentAmount.focus();
+    showFormError(`Payment cannot exceed the current balance of ${formatMoney(balance)}.`, paymentAmount);
     return false;
   }
 
@@ -547,18 +613,19 @@ function hasPendingPaymentInput() {
 
 function renderPayments() {
   if (!payments.length) {
-    paymentsTbody.innerHTML = '<tr class="empty-row"><td colspan="6" class="empty">No payments added.</td></tr>';
+    paymentsTbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="empty">No payments added.</td></tr>';
     renderTotals();
     return;
   }
 
   paymentsTbody.innerHTML = payments.map((payment, index) => `
     <tr>
+      <td class="row-number">${index + 1}</td>
       <td>${escapeHtml(payment.payment_date)}</td>
       <td>${escapeHtml(payment.method)}</td>
       <td>${escapeHtml(payment.reference || '')}</td>
       <td>${escapeHtml(payment.notes || '')}</td>
-      <td>${money.format(payment.amount || 0)}</td>
+      <td>${formatMoney(payment.amount || 0)}</td>
       <td class="row-actions">
         <button type="button" class="button-light" data-edit-payment="${index}">Edit</button>
         <button type="button" class="icon" data-remove-payment="${index}">Remove</button>
@@ -611,15 +678,15 @@ function updateLineTotal(index) {
     return;
   }
   const item = items[index];
-  totalCell.textContent = money.format((item.quantity * item.unit_price) || 0);
+  totalCell.textContent = formatMoney((item.quantity * item.unit_price) || 0);
 }
 
 function renderTotals() {
   const total = calculateGrandTotal();
   const paid = calculatePaidTotal();
-  grandTotal.textContent = money.format(total);
-  paidTotal.textContent = money.format(paid);
-  balanceTotal.textContent = money.format(Math.max(0, total - paid));
+  grandTotal.textContent = formatMoney(total);
+  paidTotal.textContent = formatMoney(paid);
+  balanceTotal.textContent = formatMoney(Math.max(0, total - paid));
   if (paymentStatus) {
     paymentStatus.textContent = formatPaymentStatus(total, paid);
   }
@@ -673,6 +740,34 @@ function focusNextItemInput(currentInput) {
   currentInput.dataset.enterReady = '';
   nextInput.focus();
   nextInput.select();
+}
+
+function showFormError(message, field) {
+  if (formError) {
+    const target = formError.querySelector('strong') || formError;
+    target.textContent = message;
+    formError.hidden = false;
+    formError.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  if (field && typeof field.focus === 'function') {
+    field.focus();
+  }
+}
+
+function clearFormError() {
+  if (formError) {
+    formError.hidden = true;
+  }
+}
+
+function focusNextField(current) {
+  const fields = [...form.querySelectorAll('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])')]
+    .filter((field) => field.offsetParent !== null);
+  const index = fields.indexOf(current);
+  const next = fields[index + 1];
+  if (next && typeof next.focus === 'function') {
+    next.focus();
+  }
 }
 
 function escapeHtml(value) {

@@ -29,6 +29,7 @@ let referencesLoading = false;
 addJournalRow.addEventListener('click', () => {
   journalLinesBody.appendChild(blankJournalRow());
   updateJournalTotals();
+  updateJournalRowNumbers();
 });
 
 journalType.addEventListener('change', () => {
@@ -147,6 +148,7 @@ journalLinesBody.addEventListener('click', (event) => {
     event.target.closest('tr').remove();
   }
   updateJournalTotals();
+  updateJournalRowNumbers();
 });
 
 journalForm.addEventListener('submit', (event) => {
@@ -170,6 +172,7 @@ configurePartySearch();
 configureReferenceSearch();
 preloadParties();
 updateJournalTotals();
+updateJournalRowNumbers();
 
 function applyJournalTypeTemplate() {
   const rows = [...journalLinesBody.querySelectorAll('tr')];
@@ -188,6 +191,7 @@ function applyJournalTypeTemplate() {
     rows[0].querySelector('[name="debit"]').placeholder = 'Debit';
     rows[1].querySelector('[name="credit"]').placeholder = 'Credit';
   }
+  updateJournalRowNumbers();
 }
 
 function configurePartySearch() {
@@ -483,6 +487,15 @@ function clearJournalRow(row) {
   }
 }
 
+function updateJournalRowNumbers() {
+  journalLinesBody.querySelectorAll('tr').forEach((row, index) => {
+    const numberCell = row.querySelector('.row-number');
+    if (numberCell) {
+      numberCell.textContent = index + 1;
+    }
+  });
+}
+
 function hasEnteredAmounts() {
   return [...journalLinesBody.querySelectorAll('[name="debit"], [name="credit"]')]
     .some((input) => Number(input.value || 0) > 0);
@@ -513,8 +526,9 @@ function formatMoney(value) {
   return new Intl.NumberFormat('en-UG', {
     style: 'currency',
     currency: 'UGX',
+    currencyDisplay: 'code',
     maximumFractionDigits: 0,
-  }).format(Number(value || 0));
+  }).format(Number(value || 0)).replace('UGX', 'Ugx');
 }
 
 function escapeHtml(value) {

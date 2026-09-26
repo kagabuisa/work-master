@@ -1,0 +1,14 @@
+<% if (typeof company !== 'undefined' && company && company.name) { %>
+<section class="invoice-company" aria-label="Company information">
+  <h2><%= company.name %></h2>
+  <% if (company.address) { %><p class="invoice-company-address"><%= company.address %></p><% } %>
+  <% const contactDetails = [company.phone, company.email, company.website].filter(Boolean); %>
+  <% if (contactDetails.length) { %><p class="invoice-company-details"><% contactDetails.forEach((detail) => { %><span><%= detail %></span><% }) %></p><% } %>
+  <% if (company.tax_id || company.registration_number) { %>
+    <p class="invoice-company-details">
+      <% if (company.tax_id) { %><span>Tax ID / TIN: <%= company.tax_id %></span><% } %>
+      <% if (company.registration_number) { %><span>Registration No: <%= company.registration_number %></span><% } %>
+    </p>
+  <% } %>
+</section>
+<% } %>

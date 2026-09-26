@@ -1,0 +1,82 @@
+<% const paymentAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<section class="invoice-card payments-card" id="receive-payment">
+  <div class="section-title">
+    <h2>Payments</h2>
+    <span class="badge <%= invoice.status %>"><%- include('invoice-payment-status', { invoice, money }) -%></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="row-number">#</th>
+        <th>Date</th>
+        <th>Method</th>
+        <th>Payment Reference</th>
+        <th>Notes</th>
+        <th>Amount</th>
+        <th>Status</th>
+        <th class="tracking-info">Created by</th>
+        <th class="tracking-info">Updated by</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!payments.length) { %>
+        <tr><td colspan="10" class="empty">No payments received yet.</td></tr>
+      <% } %>
+      <% payments.forEach((payment, index) => { %>
+        <tr>
+          <td class="row-number"><%= index + 1 %></td>
+          <td><%= payment.payment_date %></td>
+          <td><%= payment.method %></td>
+          <td><%= payment.reference || '' %></td>
+          <td><%= payment.notes || '' %></td>
+          <td><%= money(payment.amount) %></td>
+          <td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Received' %></span></td>
+          <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (paymentAuditTime(payment.created_at)) { %> <small><%= paymentAuditTime(payment.created_at) %></small><% } %></td>
+          <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (paymentAuditTime(payment.updated_at)) { %> <small><%= paymentAuditTime(payment.updated_at) %></small><% } %></td>
+          <td>
+            <% if (docstatus === 'submitted' && payment.docstatus !== 'cancelled' && can('payments.sales.cancel')) { %>
+              <form method="post" action="/invoices/<%= invoice.id %>/payments/<%= payment.id %>/cancel" class="inline-form" data-confirm="Cancel this payment? Its ledger entry will be reversed.">
+                <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
+                <button type="submit" class="button-light">Cancel</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <% if (docstatus === 'submitted' && balanceDue > 0 && can('payments.sales.record')) { %>
+    <form method="post" action="/invoices/<%= invoice.id %>/payments" class="payment-form">
+      <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
+      <label>Payment Date<input type="date" name="payment_date" value="<%= today %>" required></label>
+      <label>Amount<input type="number" min="1" max="<%= balanceDue %>" step="1" name="amount" required></label>
+      <label>
+        Method
+        <select name="method" required>
+          <option value="cash">Cash</option>
+          <option value="mobile_money">Mobile Money</option>
+          <option value="bank">Bank</option>
+          <option value="card">Card</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Payment Reference<input name="reference" placeholder="Optional"></label>
+      <label class="wide">Notes<input name="notes" placeholder="Optional"></label>
+      <div class="payment-submit">
+        <span>Balance: <strong><%= money(balanceDue) %></strong></span>
+        <button type="submit">Add Payment</button>
+      </div>
+    </form>
+  <% } else if (docstatus === 'submitted' && balanceDue <= 0) { %>
+    <p class="empty paid-note">This invoice is fully paid.</p>
+  <% } else if (docstatus === 'submitted') { %>
+    <p class="empty paid-note">Your role cannot record payments.</p>
+  <% } else if (docstatus === 'cancelled') { %>
+    <p class="empty paid-note">This invoice was cancelled. Payments are shown for the record.</p>
+  <% } else { %>
+    <p class="empty paid-note">Submit the invoice before receiving payments.</p>
+  <% } %>
+</section>

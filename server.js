@@ -1,21 +1,46 @@
 const express = require('express');
+const compression = require('compression');
 const path = require('path');
-const { pool } = require('./src/db');
 const {
   initStore,
+  getCompanyInformation,
+  saveCompanyInformation,
   allInvoices,
+  paginatedInvoices,
+  invoiceWarehouses,
   findInvoice,
+  invoiceForPayment,
   createInvoice,
+  createCashSaleInvoice,
+  submitCashSaleInvoice,
   updateInvoice,
   submitInvoice,
+  cancelInvoice,
   addInvoicePayment,
-  updateInvoicePayment,
+  cancelInvoicePayment,
   invoiceSummary,
   topDebtors,
   debtorReport,
   stockSummary,
   stockBalances,
   localStockQuantity,
+  masterItemsWithStock,
+  masterItems,
+  masterCustomers,
+  masterSuppliers,
+  masterWarehouses,
+  masterEmployees,
+  masterCostCenters,
+  masterOptions,
+  findMasterRecord,
+  findMasterItem,
+  findMasterCustomer,
+  findMasterSupplier,
+  findMasterEmployee,
+  createMasterRecord,
+  updateMasterRecord,
+  submitMasterRecord,
+  cancelMasterRecord,
   createStockEntry,
   loadStockEntry,
   stockEntryCancelTemplate,
@@ -26,9 +51,12 @@ const {
   stockLedgerReport,
   stockLedgerVoucherDetails,
   stockMovementReport,
+  stockMovementDetails,
   grossProfitReport,
   generalLedgerReport,
   generalLedgerFilterOptions,
+  generalLedgerAccountOptions,
+  generalLedgerPartyOptions,
   journalReferenceOptions,
   trialBalanceReport,
   profitAndLossReport,
@@ -39,19 +67,88 @@ const {
   journalEntries,
   findJournalEntry,
   createJournalEntry,
+  updateJournalEntry,
+  submitJournalEntry,
+  cancelJournalEntry,
 } = require('./src/store');
+const { DEFAULT_IMPORT_FROM, importSalesInvoicesFromMysql } = require('./src/sales-invoice-importer');
+const { initAuth } = require('./src/auth');
+const { installAuth } = require('./src/auth-http');
+const { selectedCategories, scopeRestricted } = require('./src/access');
+const {
+  createPurchase,
+  updatePurchase,
+  listPurchases,
+  loadPurchase,
+  purchaseForPayment,
+  submitPurchase,
+  cancelPurchase,
+  addPurchasePayment,
+  cancelPurchasePayment,
+} = require('./src/purchases');
 require('dotenv').config({ quiet: true });
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const DASHBOARD_CACHE_MS = Number(process.env.DASHBOARD_CACHE_MS || 15000);
+const INVOICE_LIST_CACHE_MS = Number(process.env.INVOICE_LIST_CACHE_MS || 10000);
+const STATIC_MAX_AGE = process.env.STATIC_MAX_AGE || '3600';
+const SLOW_REQUEST_MS = Number(process.env.SLOW_REQUEST_MS || 300);
+const DEFAULT_OPTION_GROUPS = [
+  'item_category',
+  'stock_uom',
+  'customer_group',
+  'territory',
+  'supplier_type',
+  'warehouse_type',
+];
 let storeReady = false;
 let storeInitPromise = null;
+let dashboardCache = null;
+let salesInvoiceImportRunning = false;
+let lastSalesInvoiceImport = null;
+const invoiceListCache = new Map();
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
+app.disable('x-powered-by');
+app.locals.assetVersion = Date.now();
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  );
+  if (req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+app.use(compression({ threshold: 0 }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  maxAge: Number(STATIC_MAX_AGE) * 1000,
+  setHeaders(res) {
+    res.setHeader('Cache-Control', `public, max-age=${STATIC_MAX_AGE}`);
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+    if (elapsedMs >= SLOW_REQUEST_MS) {
+      console.warn(`slow_request method=${req.method} path=${req.originalUrl} status=${res.statusCode} duration_ms=${elapsedMs.toFixed(1)}`);
+    }
+  });
+  next();
+});
 
 app.use(async (_req, _res, next) => {
   try {
@@ -70,6 +167,7 @@ function ensureStoreInitialized() {
   }
   if (!storeInitPromise) {
     storeInitPromise = initStore()
+      .then(() => initAuth())
       .then(() => {
         storeReady = true;
       })
@@ -81,16 +179,95 @@ function ensureStoreInitialized() {
   return storeInitPromise;
 }
 
-app.get('/', async (_req, res, next) => {
+installAuth(app);
+
+app.get('/', async (req, res, next) => {
   try {
-    const summary = await invoiceSummary();
-    const recent = (await allInvoices()).slice(0, 10);
-    const debtors = await topDebtors();
+    if (!res.locals.can('vouchers.sales.view') || scopeRestricted(req.currentUser, 'customers')) {
+      res.set('Cache-Control', 'private, no-store');
+      res.render('index', { limited: true, summary: {}, recent: [], debtors: [], money });
+      return;
+    }
+    const { summary, recent, debtors } = await dashboardData();
+    res.set('Cache-Control', 'private, max-age=15');
     res.render('index', { summary, recent, debtors, money });
   } catch (err) {
     next(err);
   }
 });
+
+async function dashboardData() {
+  const now = Date.now();
+  if (dashboardCache && dashboardCache.expiresAt > now) {
+    return dashboardCache.data;
+  }
+  const [summary, invoicePage, debtors] = await Promise.all([
+    invoiceSummary(),
+    paginatedInvoices({ limit: 10 }),
+    topDebtors(),
+  ]);
+  const data = { summary, recent: invoicePage.rows, debtors };
+  dashboardCache = {
+    data,
+    expiresAt: now + DASHBOARD_CACHE_MS,
+  };
+  return data;
+}
+
+function clearDashboardCache() {
+  dashboardCache = null;
+}
+
+function invoiceListCacheKey(query = {}) {
+  return JSON.stringify({
+    q: String(query.q || ''),
+    from: String(query.from || ''),
+    to: String(query.to || ''),
+    warehouse: String(query.warehouse || ''),
+    page: String(query.page || '1'),
+    page_size: String(query.page_size || ''),
+    allowedGroups: query.allowedGroups || null,
+  });
+}
+
+async function cachedInvoiceList(query = {}) {
+  const key = invoiceListCacheKey(query);
+  const cached = invoiceListCache.get(key);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
+  }
+  const search = String(query.q || '').trim();
+  const data = await paginatedInvoices({
+    search,
+    from: query.from,
+    to: query.to,
+    warehouse: query.warehouse,
+    page: query.page,
+    page_size: query.page_size,
+    allowedGroups: query.allowedGroups,
+  });
+  invoiceListCache.set(key, { data, expiresAt: now + INVOICE_LIST_CACHE_MS });
+  return data;
+}
+
+function clearInvoiceListCache() {
+  invoiceListCache.clear();
+}
+
+function clearInvoiceCaches() {
+  clearDashboardCache();
+  clearInvoiceListCache();
+}
+
+function salesInvoiceSyncView(queryStatus = '') {
+  return {
+    import_from: DEFAULT_IMPORT_FROM,
+    running: salesInvoiceImportRunning,
+    query_status: String(queryStatus || ''),
+    last: lastSalesInvoiceImport,
+  };
+}
 
 app.get('/invoices/new', (_req, res) => {
   const today = new Date().toISOString().slice(0, 10);
@@ -104,19 +281,362 @@ app.get('/reports/debtors', async (req, res, next) => {
       customer: req.query.customer,
       from: req.query.from,
       to: req.query.to,
+      statementFrom: req.query.statement_from,
+      statementTo: req.query.statement_to,
+      page: req.query.page,
+      page_size: req.query.page_size,
     });
-    res.render('debtor-report', { report, money });
+    const paymentData = req.query.view === 'payment' && report.paymentInvoiceId
+      ? await loadInvoice(report.paymentInvoiceId)
+      : null;
+    res.render('debtor-report', {
+      report,
+      paymentData,
+      query: req.query,
+      today: todayString(),
+      money,
+    });
   } catch (err) {
     next(err);
   }
 });
 
-app.get('/purchases', (_req, res) => {
-  res.redirect('/reports/stock-ledger?entry_type=purchase');
+app.get('/purchases', async (req, res, next) => {
+  try {
+    const result = await listPurchases({ ...req.query, allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
+    res.render('purchases', { result, query: req.query, money: purchaseMoney });
+  } catch (err) { next(err); }
 });
 
-app.get('/settings', (_req, res) => {
-  res.render('settings');
+app.get('/purchases/new', (_req, res) => {
+  res.render('purchase-form', {
+    purchase: { posting_date: todayString(), due_date: '', items: [{}] },
+    error: null,
+  });
+});
+
+app.post('/purchases', async (req, res) => {
+  const purchase = purchasePayload(req.body);
+  try {
+    const id = await createPurchase(purchase);
+    res.redirect(`/purchases/${id}`);
+  } catch (err) {
+    const duplicateReference = err.code === '23505' && err.constraint === 'app_purchases_supplier_reference_idx';
+    res.status(duplicateReference ? 400 : err.status || 500).render('purchase-form', {
+      purchase,
+      error: duplicateReference ? 'This supplier reference is already used on another purchase.' : err.message,
+    });
+  }
+});
+
+app.get('/purchases/payments/:id', async (req, res, next) => {
+  try {
+    const purchaseId = await purchaseForPayment(req.params.id);
+    res.redirect(`/purchases/${purchaseId}`);
+  } catch (err) { next(err); }
+});
+
+app.get('/purchases/payments/:id/drawer', async (req, res, next) => {
+  try {
+    const purchaseId = await purchaseForPayment(req.params.id);
+    const purchase = await loadPurchase(purchaseId);
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('purchase-drawer', { purchase, today: todayString(), money: purchaseMoney, error: req.query.error || null });
+  } catch (err) { next(err); }
+});
+
+app.get('/purchases/:id', async (req, res, next) => {
+  try {
+    const purchase = await loadPurchase(req.params.id);
+    res.render('purchase', { purchase, today: todayString(), money: purchaseMoney, error: req.query.error || null });
+  } catch (err) { next(err); }
+});
+
+app.get('/purchases/:id/drawer', async (req, res, next) => {
+  try {
+    const purchase = await loadPurchase(req.params.id);
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('purchase-drawer', { purchase, today: todayString(), money: purchaseMoney, error: req.query.error || null });
+  } catch (err) { next(err); }
+});
+
+app.get('/purchases/:id/edit', async (req, res, next) => {
+  try {
+    const purchase = await loadPurchase(req.params.id);
+    if (purchase.docstatus !== 'draft') {
+      const err = new Error('Only draft purchases can be edited.');
+      err.status = 400;
+      throw err;
+    }
+    res.render('purchase-form', { purchase, error: null });
+  } catch (err) { next(err); }
+});
+
+app.post('/purchases/:id', async (req, res) => {
+  const purchase = { ...purchasePayload(req.body), id: Number(req.params.id) };
+  try {
+    await updatePurchase(req.params.id, purchase);
+    res.redirect(`/purchases/${req.params.id}`);
+  } catch (err) {
+    const duplicateReference = err.code === '23505' && err.constraint === 'app_purchases_supplier_reference_idx';
+    res.status(duplicateReference ? 400 : err.status || 500).render('purchase-form', {
+      purchase,
+      error: duplicateReference ? 'This supplier reference is already used on another purchase.' : err.message,
+    });
+  }
+});
+
+app.post('/purchases/:id/submit', async (req, res) => {
+  try {
+    await submitPurchase(req.params.id);
+    res.redirect(`/purchases/${req.params.id}`);
+  } catch (err) {
+    res.redirect(`/purchases/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+app.post('/purchases/:id/cancel', async (req, res) => {
+  try {
+    await cancelPurchase(req.params.id);
+    res.redirect(`/purchases/${req.params.id}`);
+  } catch (err) {
+    res.redirect(`/purchases/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+app.post('/purchases/:id/payments', async (req, res) => {
+  try {
+    await addPurchasePayment(req.params.id, req.body);
+    res.redirect(`/purchases/${req.params.id}`);
+  } catch (err) {
+    res.redirect(`/purchases/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+app.post('/purchases/:id/payments/:paymentNo/cancel', async (req, res) => {
+  try {
+    await cancelPurchasePayment(req.params.id, req.params.paymentNo);
+    res.redirect(`/purchases/${req.params.id}`);
+  } catch (err) {
+    res.redirect(`/purchases/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+app.get('/settings', async (req, res, next) => {
+  try {
+    res.render('settings', {
+      company: await getCompanyInformation(),
+      companySaved: req.query.company === 'saved',
+      companyError: null,
+      salesInvoiceSync: salesInvoiceSyncView(req.query.sync),
+    });
+  } catch (err) { next(err); }
+});
+
+app.post('/settings/company-information', async (req, res, next) => {
+  try {
+    await saveCompanyInformation(req.body);
+    res.redirect(303, '/settings?company=saved');
+  } catch (err) {
+    if (err.status === 400) {
+      res.status(400).render('settings', {
+        company: req.body,
+        companySaved: false,
+        companyError: err.message,
+        salesInvoiceSync: salesInvoiceSyncView(),
+      });
+      return;
+    }
+    next(err);
+  }
+});
+
+app.post('/settings/erpnext-sync/sales-invoices', async (_req, res, next) => {
+  if (salesInvoiceImportRunning) {
+    lastSalesInvoiceImport = {
+      ok: false,
+      running: true,
+      finished_at: new Date().toISOString(),
+      message: 'Sales invoice import is already running.',
+    };
+    res.redirect('/settings?sync=running');
+    return;
+  }
+
+  salesInvoiceImportRunning = true;
+  try {
+    const startedAt = new Date();
+    const summary = await importSalesInvoicesFromMysql({ from: DEFAULT_IMPORT_FROM });
+    lastSalesInvoiceImport = {
+      ok: true,
+      started_at: startedAt.toISOString(),
+      finished_at: new Date().toISOString(),
+      summary,
+    };
+    clearInvoiceCaches();
+    res.redirect('/settings?sync=success');
+  } catch (err) {
+    lastSalesInvoiceImport = {
+      ok: false,
+      finished_at: new Date().toISOString(),
+      message: err.message || 'Sales invoice import failed.',
+    };
+    res.redirect('/settings?sync=failed');
+  } finally {
+    salesInvoiceImportRunning = false;
+  }
+});
+
+app.get('/settings/:list/new', async (req, res, next) => {
+  try {
+    const config = masterListConfig(req.params.list);
+    await renderMasterForm(res, { config, record: newMasterRecord(config, req.query), error: null, mode: 'new' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+function newMasterRecord(config, query = {}) {
+  if (config.key !== 'options') {
+    return {};
+  }
+  return {
+    option_group: String(query.group || '').trim(),
+    option_value: String(query.value || '').trim(),
+  };
+}
+
+app.get('/settings/:list/:id/edit', async (req, res, next) => {
+  try {
+    const config = masterListConfig(req.params.list);
+    const id = decodeURIComponent(req.params.id);
+    const record = await findVisibleMasterRecord(config, id);
+    if (!record) {
+      const err = new Error(`${config.singular} not found.`);
+      err.status = 404;
+      throw err;
+    }
+    if (record.docstatus !== 'draft' && !(record.docstatus === 'submitted' && record.legacy_editable)) {
+      const err = new Error('Submitted or cancelled master records cannot be edited.');
+      err.status = 400;
+      throw err;
+    }
+    await renderMasterForm(res, { config, record, error: null, mode: 'edit' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function renderMasterForm(res, { config, record, error, mode }) {
+  const optionValues = await masterFormOptions(config);
+  if (config.key === 'customers' || config.key === 'suppliers') {
+    const allowed = selectedCategories(res.locals.currentUser, config.key);
+    const group = config.key === 'customers' ? 'customer_group' : 'supplier_type';
+    if (allowed !== null) {
+      const scopedValues = res.locals.currentUser.scopes[config.key].values;
+      optionValues[group] = [...new Set([...(optionValues[group] || []), ...scopedValues]
+        .filter((value) => allowed.includes(value.trim().toLowerCase())))].sort((a, b) => a.localeCompare(b));
+    }
+  }
+  res.render('master-form', { config, record, error, mode, optionValues });
+}
+
+async function masterFormOptions(config) {
+  const groups = [...new Set(config.fields
+    .map((field) => field.optionGroup)
+    .filter(Boolean))];
+  const entries = await Promise.all(groups.map(async (group) => {
+    const rows = await masterOptions({ group, limit: 500 });
+    let values = rows.map((row) => row.option_value);
+    if (group === 'option_group') {
+      const existingGroups = (await masterOptions({ limit: 500 })).map((row) => row.option_group);
+      values = [...DEFAULT_OPTION_GROUPS, ...existingGroups];
+    }
+    return [group, [...new Set(values)].sort((a, b) => a.localeCompare(b))];
+  }));
+  return Object.fromEntries(entries);
+}
+
+async function findVisibleMasterRecord(config, id) {
+  const exactId = String(id || '').trim();
+  const localRecord = await config.finder(exactId);
+  if (localRecord) {
+    return localRecord;
+  }
+  const rows = await config.loader({ search: exactId, limit: 500 });
+  return rows.find((row) => String(row[config.idField] || '') === exactId) || null;
+}
+
+app.get('/settings/:list', async (req, res, next) => {
+  try {
+    const config = masterListConfig(req.params.list);
+    const search = String(req.query.q || '').trim();
+    const rows = await config.loader({
+      search,
+      limit: 50,
+      page: req.query.page,
+      page_size: req.query.page_size,
+      paginate: true,
+      allowedGroups: config.key === 'customers' ? selectedCategories(req.currentUser, 'customers') : undefined,
+      allowedTypes: config.key === 'suppliers' ? selectedCategories(req.currentUser, 'suppliers') : undefined,
+    });
+    res.render('master-list', { config, rows, pagination: rows.pagination, query: req.query, search });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/settings/:list/:id/submit', async (req, res, next) => {
+  try {
+    const config = masterListConfig(req.params.list);
+    await submitMasterRecord(config.key, decodeURIComponent(req.params.id));
+    res.redirect(303, `/settings/${config.key}`);
+  } catch (err) { next(err); }
+});
+
+app.post('/settings/:list/:id/cancel', async (req, res, next) => {
+  try {
+    const config = masterListConfig(req.params.list);
+    await cancelMasterRecord(config.key, decodeURIComponent(req.params.id));
+    res.redirect(303, `/settings/${config.key}`);
+  } catch (err) { next(err); }
+});
+
+app.post('/settings/:list/:id', async (req, res, next) => {
+  const config = masterListConfig(req.params.list);
+  const id = decodeURIComponent(req.params.id);
+  try {
+    await updateMasterRecord(config.key, id, req.body);
+    res.redirect(`/settings/${config.key}`);
+  } catch (err) {
+    res.status(err.status || 500);
+    await renderMasterForm(res, {
+      config,
+      record: { ...req.body, [config.idField]: id },
+      error: err.message || `Could not update ${config.singular.toLowerCase()}.`,
+      mode: 'edit',
+    });
+  }
+});
+
+app.post('/settings/:list', async (req, res, next) => {
+  const config = masterListConfig(req.params.list);
+  try {
+    await createMasterRecord(config.key, req.body);
+    res.redirect(`/settings/${config.key}`);
+  } catch (err) {
+    if (err.code === '23505') {
+      err.message = `${config.singular} already exists.`;
+      err.status = 400;
+    }
+    res.status(err.status || 500);
+    await renderMasterForm(res, {
+      config,
+      record: req.body,
+      error: err.message || `Could not create ${config.singular.toLowerCase()}.`,
+      mode: 'new',
+    });
+  }
 });
 
 app.get('/stock', async (req, res, next) => {
@@ -126,11 +646,15 @@ app.get('/stock', async (req, res, next) => {
       stockBalances({
         search: req.query.q,
         warehouse: req.query.warehouse,
+        page: req.query.page,
+        page_size: req.query.page_size,
       }),
     ]);
     res.render('stock', {
       summary,
       balances,
+      pagination: balances.pagination,
+      query: req.query,
       filters: {
         search: String(req.query.q || '').trim(),
         warehouse: String(req.query.warehouse || '').trim(),
@@ -142,8 +666,9 @@ app.get('/stock', async (req, res, next) => {
   }
 });
 
-app.get('/stock/entries/new', (_req, res) => {
-  res.render('stock-entry', { today: todayString(), error: null, entry: null, items: [] });
+app.get('/stock/entries/new', (req, res) => {
+  const defaultEntryType = req.query.entry_type === 'purchase' ? 'purchase' : 'opening';
+  res.render('stock-entry', { today: todayString(), error: null, entry: null, items: [], defaultEntryType });
 });
 
 app.post('/stock/entries', async (req, res, next) => {
@@ -192,6 +717,16 @@ app.get('/stock/entries/:id', async (req, res, next) => {
   }
 });
 
+app.get('/stock/entries/:id/drawer', async (req, res, next) => {
+  try {
+    const data = await loadStockEntry(req.params.id);
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('stock-entry-drawer', { ...data, money });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/stock/entries/:id', async (req, res, next) => {
   try {
     const id = await updateStockEntry(req.params.id, parseStockEntryPayload(req.body));
@@ -219,8 +754,10 @@ app.get('/reports/stock-ledger', async (req, res, next) => {
       status: req.query.status,
       from: req.query.from,
       to: req.query.to,
+      page: req.query.page,
+      page_size: req.query.page_size,
     });
-    res.render('stock-ledger', { report, money });
+    res.render('stock-ledger', { report, query: req.query, money });
   } catch (err) {
     next(err);
   }
@@ -264,10 +801,27 @@ app.get('/reports/stock-movement', async (req, res, next) => {
       warehouse: req.query.warehouse,
       from: req.query.from,
       to: req.query.to,
+      page: req.query.page,
+      page_size: req.query.page_size,
     });
-    res.render('stock-movement', { report, money });
+    res.render('stock-movement', { report, query: req.query, money });
   } catch (err) {
     next(err);
+  }
+});
+
+app.get('/reports/stock-movement/details', async (req, res, next) => {
+  try {
+    const details = await stockMovementDetails({
+      item_code: req.query.item_code,
+      warehouse: req.query.warehouse,
+      direction: req.query.direction,
+      from: req.query.from,
+      to: req.query.to,
+    });
+    res.json(details);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Could not load stock movement details.' });
   }
 });
 
@@ -277,8 +831,10 @@ app.get('/reports/gross-profit', async (req, res, next) => {
       search: req.query.q,
       from: req.query.from,
       to: req.query.to,
+      page: req.query.page,
+      page_size: req.query.page_size,
     });
-    res.render('gross-profit', { report, money });
+    res.render('gross-profit', { report, query: req.query, money });
   } catch (err) {
     next(err);
   }
@@ -293,12 +849,14 @@ app.get('/reports/general-ledger', async (req, res, next) => {
       voucher_type: req.query.voucher_type,
       from: req.query.from,
       to: req.query.to,
+      page: req.query.page,
+      page_size: req.query.page_size,
     };
     const [report, filterOptions] = await Promise.all([
       generalLedgerReport(filters),
       generalLedgerFilterOptions(),
     ]);
-    res.render('general-ledger', { report, filterOptions, money });
+    res.render('general-ledger', { report, filterOptions, query: req.query, money });
   } catch (err) {
     next(err);
   }
@@ -387,8 +945,14 @@ app.post('/accounts', async (req, res, next) => {
 app.get('/journals', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const journals = await journalEntries({ search });
-    res.render('journals', { journals, search, money, journalTypeLabel });
+    const journals = await journalEntries({
+      search,
+      journal_type: req.query.journal_type,
+      status: req.query.status,
+      page: req.query.page,
+      page_size: req.query.page_size,
+    });
+    res.render('journals', { journals, pagination: journals.pagination, query: req.query, search, money, journalTypeLabel });
   } catch (err) {
     next(err);
   }
@@ -419,7 +983,7 @@ app.post('/journals', async (req, res, next) => {
   try {
     const payload = parseJournalEntryPayload(req.body);
     await validateJournalParty(payload);
-    const id = await createJournalEntry(payload);
+    const id = await createJournalEntry(payload, { submit: req.body.action !== 'save_draft' });
     res.redirect(`/journals/${id}`);
   } catch (err) {
     try {
@@ -437,6 +1001,31 @@ app.post('/journals', async (req, res, next) => {
       next(loadErr);
     }
   }
+});
+
+app.get('/journals/:id/edit', async (req, res, next) => {
+  try {
+    const [accounts, journal] = await Promise.all([postableAccountingAccounts(), findJournalEntry(req.params.id)]);
+    if (!journal) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
+    if (journal.docstatus !== 'draft') { const error = new Error('Only draft journals can be edited.'); error.status = 400; throw error; }
+    res.render('journal-entry', { accounts, journal, today: todayString(), error: null, readOnly: false, money, journalTypeLabel });
+  } catch (err) { next(err); }
+});
+
+app.post('/journals/:id', async (req, res, next) => {
+  try {
+    const payload = parseJournalEntryPayload(req.body);
+    await validateJournalParty(payload);
+    await updateJournalEntry(req.params.id, payload);
+    res.redirect(`/journals/${req.params.id}`);
+  } catch (err) { next(err); }
+});
+
+app.post('/journals/:id/submit', async (req, res, next) => {
+  try {
+    await submitJournalEntry(req.params.id);
+    res.redirect(`/journals/${req.params.id}`);
+  } catch (err) { next(err); }
 });
 
 app.get('/journals/:id', async (req, res, next) => {
@@ -464,10 +1053,46 @@ app.get('/journals/:id', async (req, res, next) => {
   }
 });
 
+app.get('/journals/:id/drawer', async (req, res, next) => {
+  try {
+    const journal = await findJournalEntry(req.params.id);
+    if (!journal) {
+      const err = new Error('Journal entry not found.');
+      err.status = 404;
+      throw err;
+    }
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('journal-drawer', { journal, money, journalTypeLabel });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/journals/:id/cancel', async (req, res, next) => {
+  try {
+    const id = await cancelJournalEntry(req.params.id);
+    res.redirect(`/journals/${id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/invoices', async (req, res, next) => {
   try {
     const payload = await buildInvoicePayload(req.body);
-    const id = await createInvoice(payload);
+    let id;
+    if (req.body.action === 'cash_sale') {
+      const payment = cashSalePayment(payload, req.body);
+      await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
+      id = await createCashSaleInvoice(payload, payment);
+    } else if (req.body.action === 'submit_invoice') {
+      await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
+      id = await createInvoice({ ...payload, payments: [], amount_paid: 0 });
+      await submitInvoice(id);
+    } else {
+      id = await createInvoice({ ...payload, payments: [], amount_paid: 0 });
+    }
+    clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
   } catch (err) {
     next(err);
@@ -477,24 +1102,34 @@ app.post('/invoices', async (req, res, next) => {
 app.get('/invoices', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    let invoices = await allInvoices();
-    if (search) {
-      invoices = invoices.filter((invoice) => (
-        matchesSearchPattern(invoice.invoice_no, search)
-        || matchesSearchPattern(invoice.invoice_date, search)
-        || matchesSearchPattern(invoice.customer_name, search)
-        || matchesSearchPattern(invoice.total, search)
-        || matchesSearchPattern(invoice.amount_paid, search)
-        || matchesSearchPattern(invoice.status, search)
-        || matchesSearchPattern(invoice.docstatus || 'submitted', search)
-      ));
-    }
-    invoices = invoices.slice(0, 100);
-    res.render('invoices', { invoices, search, money });
+    const [result, warehouses] = await Promise.all([
+      cachedInvoiceList({ ...req.query, allowedGroups: selectedCategories(req.currentUser, 'customers') }),
+      invoiceWarehouseOptions(),
+    ]);
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('invoices', {
+      invoices: result.rows,
+      pagination: result.pagination,
+      query: req.query,
+      search,
+      warehouses,
+      money,
+    });
   } catch (err) {
     next(err);
   }
 });
+
+async function invoiceWarehouseOptions() {
+  const [usedWarehouses, masterRows] = await Promise.all([
+    invoiceWarehouses().catch(() => []),
+    masterWarehouses({ limit: 200 }).catch(() => []),
+  ]);
+  return [...new Set([
+    ...usedWarehouses,
+    ...masterRows.map((row) => row.warehouse || row).filter(Boolean),
+  ])].sort();
+}
 
 app.get('/invoices/:id/edit', async (req, res, next) => {
   try {
@@ -516,24 +1151,18 @@ app.get('/invoices/:id/edit', async (req, res, next) => {
 app.post('/invoices/:id', async (req, res, next) => {
   try {
     const payload = await buildInvoicePayload(req.body);
-    const id = await updateInvoice(req.params.id, payload);
-    res.redirect(`/invoices/${id}`);
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/invoices/:id/submit', async (req, res, next) => {
-  try {
-    const invoice = await findInvoice(req.params.id);
-    if (!invoice) {
-      const err = new Error('Invoice not found.');
-      err.status = 404;
-      throw err;
+    const action = String(req.body.action || '').trim();
+    if (action === 'cash_sale' || action === 'submit_invoice') {
+      await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
     }
-    const warehouse = invoice.items && invoice.items[0] ? invoice.items[0].warehouse : '';
-    await validateDbItems(invoice.items, warehouse, { checkStock: true });
-    const id = await submitInvoice(req.params.id);
+    const id = await updateInvoice(req.params.id, { ...payload, payments: [], amount_paid: 0 });
+    if (action === 'cash_sale') {
+      const payment = cashSalePayment(payload, req.body);
+      await submitCashSaleInvoice(id, payment);
+    } else if (action === 'submit_invoice') {
+      await submitInvoice(id);
+    }
+    clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
   } catch (err) {
     if (err.code === 'INSUFFICIENT_STOCK') {
@@ -554,10 +1183,145 @@ app.post('/invoices/:id/submit', async (req, res, next) => {
   }
 });
 
+app.post('/invoices/:id/submit', async (req, res, next) => {
+  try {
+    const invoice = await findInvoice(req.params.id);
+    if (!invoice) {
+      const err = new Error('Invoice not found.');
+      err.status = 404;
+      throw err;
+    }
+    const warehouse = invoice.items && invoice.items[0] ? invoice.items[0].warehouse : '';
+    await validateDbItems(invoice.items, warehouse, { checkStock: true });
+    const id = await submitInvoice(req.params.id);
+    clearInvoiceCaches();
+    res.redirect(`/invoices/${id}`);
+  } catch (err) {
+    if (err.code === 'INSUFFICIENT_STOCK') {
+      try {
+        const data = await loadInvoice(req.params.id);
+        res.status(400).render('new-invoice', {
+          ...data,
+          today: data.invoice.invoice_date,
+          stockWarning: err.stockWarning,
+        });
+        return;
+      } catch (loadErr) {
+        next(loadErr);
+        return;
+      }
+    }
+    next(err);
+  }
+});
+
+app.post('/invoices/:id/submit-cash-sale', async (req, res, next) => {
+  try {
+    const invoice = await findInvoice(req.params.id);
+    if (!invoice) {
+      const err = new Error('Invoice not found.');
+      err.status = 404;
+      throw err;
+    }
+    const warehouse = invoice.items && invoice.items[0] ? invoice.items[0].warehouse : '';
+    await validateDbItems(invoice.items, warehouse, { checkStock: true });
+    const amount = Math.round(Number(invoice.total || 0));
+    if (amount <= 0) {
+      const err = new Error('Invoice total must be greater than zero.');
+      err.status = 400;
+      throw err;
+    }
+    const id = await submitCashSaleInvoice(req.params.id, {
+      payment_date: req.body.payment_date || invoice.invoice_date || todayString(),
+      amount,
+      method: req.body.cash_sale_method || 'cash',
+      reference: req.body.cash_sale_reference || '',
+      notes: req.body.cash_sale_notes || 'Cash sale',
+    });
+    clearInvoiceCaches();
+    res.redirect(`/invoices/${id}`);
+  } catch (err) {
+    if (err.code === 'INSUFFICIENT_STOCK') {
+      try {
+        const data = await loadInvoice(req.params.id);
+        res.status(400).render('new-invoice', {
+          ...data,
+          today: data.invoice.invoice_date,
+          stockWarning: err.stockWarning,
+        });
+        return;
+      } catch (loadErr) {
+        next(loadErr);
+        return;
+      }
+    }
+    if (err.status === 400) {
+      res.redirect(`/invoices/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+      return;
+    }
+    next(err);
+  }
+});
+
+app.post('/invoices/:id/cancel', async (req, res, next) => {
+  try {
+    const id = await cancelInvoice(req.params.id);
+    clearInvoiceCaches();
+    res.redirect(`/invoices/${id}`);
+  } catch (err) {
+    if (err.status === 400) {
+      res.redirect(`/invoices/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+      return;
+    }
+    next(err);
+  }
+});
+
+app.get('/invoices/payments/:id', async (req, res, next) => {
+  try {
+    const invoiceId = await invoiceForPayment(req.params.id);
+    res.redirect(`/invoices/${invoiceId}`);
+  } catch (err) { next(err); }
+});
+
+app.get('/invoices/payments/:id/drawer', async (req, res, next) => {
+  try {
+    const invoiceId = await invoiceForPayment(req.params.id);
+    const data = await loadInvoice(invoiceId);
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('invoice-drawer', {
+      ...data,
+      today: todayString(),
+      money,
+      error: req.query.error || null,
+      returnTo: '/invoices',
+    });
+  } catch (err) { next(err); }
+});
+
 app.get('/invoices/:id', async (req, res, next) => {
   try {
     const data = await loadInvoice(req.params.id);
-    res.render('invoice', { ...data, today: todayString(), money });
+    res.render('invoice', { ...data, today: todayString(), money, error: req.query.error || null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/invoices/:id/drawer', async (req, res, next) => {
+  try {
+    const data = await loadInvoice(req.params.id);
+    const returnTo = typeof req.query.return_to === 'string' && req.query.return_to.startsWith('/invoices?')
+      ? req.query.return_to
+      : '/invoices';
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('invoice-drawer', {
+      ...data,
+      today: todayString(),
+      money,
+      error: req.query.error || null,
+      returnTo,
+    });
   } catch (err) {
     next(err);
   }
@@ -572,23 +1336,27 @@ app.post('/invoices/:id/payments', async (req, res, next) => {
       reference: req.body.reference,
       notes: req.body.notes,
     });
-    res.redirect(`/invoices/${id}`);
+    clearInvoiceCaches();
+    res.redirect(paymentReturnPath(req.body.return_to, id));
   } catch (err) {
     next(err);
   }
 });
 
 app.post('/invoices/:id/payments/:paymentId', async (req, res, next) => {
+  res.status(405).send('Payments cannot be edited. Cancel the payment and record a new one.');
+});
+
+app.post('/invoices/:id/payments/:paymentId/cancel', async (req, res, next) => {
   try {
-    const id = await updateInvoicePayment(req.params.id, req.params.paymentId, {
-      payment_date: req.body.payment_date,
-      amount: req.body.amount,
-      method: req.body.method,
-      reference: req.body.reference,
-      notes: req.body.notes,
-    });
-    res.redirect(`/invoices/${id}`);
+    const id = await cancelInvoicePayment(req.params.id, req.params.paymentId);
+    clearInvoiceCaches();
+    res.redirect(paymentReturnPath(req.body.return_to, id));
   } catch (err) {
+    if (err.status === 400 || err.status === 404) {
+      res.redirect(`/invoices/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+      return;
+    }
     next(err);
   }
 });
@@ -605,64 +1373,12 @@ app.get('/invoices/:id/print', async (req, res, next) => {
 app.get('/api/items', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const q = sqlLikePattern(search);
     const warehouse = String(req.query.warehouse || '').trim();
     if (!warehouse) {
       res.status(400).json({ error: 'Warehouse is required.' });
       return;
     }
-    const [items] = await pool.query(
-      `
-      SELECT
-        i.name AS item_code,
-        i.item_name,
-        i.stock_uom,
-        i.category,
-        i.description,
-        ROUND(COALESCE(price.price_list_rate, i.rrp, i.rwp, i.cost, i.last_purchase_rate, 0), 0) AS unit_price,
-        ? AS warehouse
-      FROM \`tabItem\` i
-      LEFT JOIN (
-        SELECT item_code, MAX(price_list_rate) AS price_list_rate
-        FROM \`tabItem Price\`
-        WHERE selling = 1
-        GROUP BY item_code
-      ) price ON price.item_code = i.name
-      WHERE COALESCE(i.disabled, 0) = 0
-        AND COALESCE(i.is_sales_item, 1) = 1
-        AND (
-          i.name LIKE ?
-          OR i.item_name LIKE ?
-          OR i.description LIKE ?
-          OR i.category LIKE ?
-          OR i.stock_uom LIKE ?
-          OR ROUND(COALESCE(price.price_list_rate, i.rrp, i.rwp, i.cost, i.last_purchase_rate, 0), 0) LIKE ?
-        )
-      ORDER BY i.item_name
-      LIMIT 100
-      `,
-      [warehouse, q, q, q, q, q, q],
-    );
-    const filtered = items
-      .filter((item) => matchesSearchFields([
-        item.item_code,
-        item.item_name,
-        item.stock_uom,
-        item.description,
-        item.category,
-        item.unit_price,
-        item.warehouse,
-      ], search))
-      .slice(0, 25);
-    const withStock = await Promise.all(filtered.map(async (item) => {
-      const balance = await localStockQuantity(item.item_code, warehouse);
-      return {
-        ...item,
-        stock_balance: normalizeStockQuantity(balance.quantity),
-        valuation_rate: Number(balance.valuation_rate || 0),
-      };
-    }));
-    res.json(withStock);
+    res.json(await masterItemsWithStock({ search, warehouse, limit: 25 }));
   } catch (err) {
     next(err);
   }
@@ -671,50 +1387,18 @@ app.get('/api/items', async (req, res, next) => {
 app.get('/api/master-items', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const q = sqlLikePattern(search);
-    const [items] = await pool.query(
-      `
-      SELECT
-        i.name AS item_code,
-        i.item_name,
-        i.stock_uom,
-        i.category,
-        i.description,
-        ROUND(COALESCE(price.price_list_rate, i.rrp, i.rwp, i.cost, i.last_purchase_rate, 0), 0) AS default_rate
-      FROM \`tabItem\` i
-      LEFT JOIN (
-        SELECT item_code, MAX(price_list_rate) AS price_list_rate
-        FROM \`tabItem Price\`
-        WHERE buying = 1 OR selling = 1
-        GROUP BY item_code
-      ) price ON price.item_code = i.name
-      WHERE COALESCE(i.disabled, 0) = 0
-        AND (
-          i.name LIKE ?
-          OR i.item_name LIKE ?
-          OR i.description LIKE ?
-          OR i.category LIKE ?
-          OR i.stock_uom LIKE ?
-          OR ROUND(COALESCE(price.price_list_rate, i.rrp, i.rwp, i.cost, i.last_purchase_rate, 0), 0) LIKE ?
-        )
-      ORDER BY i.item_name
-      LIMIT 100
-      `,
-      [q, q, q, q, q, q],
-    );
-    res.json(items
-      .filter((item) => matchesSearchFields([
-        item.item_code,
-        item.item_name,
-        item.stock_uom,
-        item.description,
-        item.category,
-        item.default_rate,
-      ], search))
-      .slice(0, 50));
+    res.json(await masterItems({ search, limit: 50 }));
   } catch (err) {
     next(err);
   }
+});
+
+app.get('/api/report-items', async (req, res, next) => {
+  try {
+    const search = String(req.query.q || '').trim();
+    const rows = await masterItems({ search, limit: 50 });
+    res.json(rows.map((row) => ({ item_code: row.item_code, item_name: row.item_name })));
+  } catch (err) { next(err); }
 });
 
 app.get('/api/stock-balance', async (req, res, next) => {
@@ -725,10 +1409,7 @@ app.get('/api/stock-balance', async (req, res, next) => {
       res.json({ quantity: 0, valuation_rate: 0, stock_value: 0 });
       return;
     }
-    let balance = await localStockQuantity(itemCode, warehouse);
-    if (!Number(balance.quantity || 0) && !Number(balance.stock_value || 0)) {
-      balance = await erpStockQuantity(itemCode, warehouse);
-    }
+    const balance = await localStockQuantity(itemCode, warehouse);
     res.json({
       quantity: normalizeStockQuantity(balance.quantity),
       valuation_rate: Number(balance.valuation_rate || 0),
@@ -757,60 +1438,28 @@ app.get('/api/stock-entries', async (req, res, next) => {
   }
 });
 
-app.get('/api/warehouses', async (_req, res, next) => {
+app.get('/api/warehouses', async (req, res, next) => {
   try {
-    let warehouses;
-    try {
-      [warehouses] = await pool.query(
-        `
-        SELECT name AS warehouse
-        FROM \`tabWarehouse\`
-        WHERE COALESCE(disabled, 0) = 0
-          AND COALESCE(is_group, 0) = 0
-        ORDER BY name
-        `,
-      );
-    } catch {
-      [warehouses] = await pool.query(
-        `
-        SELECT Warehouse AS warehouse
-        FROM stock_balance
-        WHERE Warehouse IS NOT NULL
-          AND Warehouse <> ''
-        GROUP BY Warehouse
-        ORDER BY Warehouse
-        `,
-      );
-    }
-    res.json(warehouses.map((row) => row.warehouse));
+    const search = String(req.query.q || '').trim();
+    const localWarehouses = await masterWarehouses({ search, limit: 50 });
+    res.json(localWarehouses.map((row) => row.warehouse));
   } catch (err) {
     next(err);
   }
 });
 
+app.get('/api/report-warehouses', async (req, res, next) => {
+  try {
+    const search = String(req.query.q || '').trim();
+    const rows = await masterWarehouses({ search, limit: 50 });
+    res.json(rows.map((row) => row.warehouse));
+  } catch (err) { next(err); }
+});
+
 app.get('/api/customers', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const q = sqlLikePattern(search);
-    const [customers] = await pool.query(
-      `
-      SELECT name AS customer_id, customer_name, territory, customer_group
-      FROM \`tabCustomer\`
-      WHERE COALESCE(disabled, 0) = 0
-        AND (name LIKE ? OR customer_name LIKE ? OR territory LIKE ? OR customer_group LIKE ?)
-      ORDER BY customer_name
-      LIMIT 100
-      `,
-      [q, q, q, q],
-    );
-    res.json(customers
-      .filter((customer) => matchesSearchFields([
-        customer.customer_id,
-        customer.customer_name,
-        customer.territory,
-        customer.customer_group,
-      ], search))
-      .slice(0, 25));
+    res.json(await masterCustomers({ search, limit: 25, allowedGroups: selectedCategories(req.currentUser, 'customers') }));
   } catch (err) {
     next(err);
   }
@@ -819,23 +1468,32 @@ app.get('/api/customers', async (req, res, next) => {
 app.get('/api/suppliers', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const q = sqlLikePattern(search);
-    const [suppliers] = await pool.query(
-      `
-      SELECT name AS supplier_id, supplier_name
-      FROM \`tabSupplier\`
-      WHERE name LIKE ? OR supplier_name LIKE ?
-      ORDER BY supplier_name
-      LIMIT 100
-      `,
-      [q, q],
-    );
-    res.json(suppliers
-      .filter((supplier) => matchesSearchFields([
-        supplier.supplier_id,
-        supplier.supplier_name,
-      ], search))
-      .slice(0, 25));
+    res.json(await masterSuppliers({ search, limit: 25, allowedTypes: selectedCategories(req.currentUser, 'suppliers') }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/cost-centers', async (req, res, next) => {
+  try {
+    const search = String(req.query.q || '').trim();
+    res.json(await masterCostCenters({ search, limit: 25 }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/general-ledger/accounts', async (req, res, next) => {
+  try {
+    res.json(await generalLedgerAccountOptions(req.query.q));
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/general-ledger/parties', async (req, res, next) => {
+  try {
+    res.json(await generalLedgerPartyOptions(req.query.q));
   } catch (err) {
     next(err);
   }
@@ -844,23 +1502,7 @@ app.get('/api/suppliers', async (req, res, next) => {
 app.get('/api/employees', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const q = sqlLikePattern(search);
-    const [employees] = await pool.query(
-      `
-      SELECT name AS employee_id, employee_name
-      FROM \`tabEmployee\`
-      WHERE name LIKE ? OR employee_name LIKE ?
-      ORDER BY employee_name
-      LIMIT 100
-      `,
-      [q, q],
-    );
-    res.json(employees
-      .filter((employee) => matchesSearchFields([
-        employee.employee_id,
-        employee.employee_name,
-      ], search))
-      .slice(0, 25));
+    res.json(await masterEmployees({ search, limit: 25 }));
   } catch (err) {
     next(err);
   }
@@ -880,22 +1522,228 @@ app.get('/api/journal-reference-options', async (req, res, next) => {
   }
 });
 
+function masterListConfig(key) {
+  const configs = {
+    items: {
+      key: 'items',
+      idField: 'item_code',
+      title: 'Items',
+      singular: 'Item',
+      newLabel: 'New Item',
+      editLabel: 'Edit Item',
+      finder: (id) => findMasterRecord('items', id),
+      loader: (options) => masterItems({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'item_code', label: 'Code', strong: true },
+        { key: 'item_name', label: 'Item' },
+        { key: 'stock_uom', label: 'UOM' },
+        { key: 'category', label: 'Category' },
+        { key: 'default_rate', label: 'Default Rate' },
+        { key: 'unit_cost', label: 'Unit Cost' },
+        { key: 'status', label: 'Status' },
+      ],
+      fields: [
+        { name: 'item_code', label: 'Item Code', required: true, placeholder: 'ITEM-001', lockedOnEdit: true },
+        { name: 'item_name', label: 'Item Name', required: true, placeholder: 'Finished Product' },
+        { name: 'stock_uom', label: 'Stock UOM', placeholder: 'Nos', optionGroup: 'stock_uom' },
+        { name: 'category', label: 'Category', placeholder: 'Products', optionGroup: 'item_category' },
+        { name: 'default_rate', label: 'Default Rate', type: 'number', step: '1', min: '0', placeholder: '0' },
+        { name: 'unit_cost', label: 'Unit Cost', type: 'number', step: '1', min: '0', placeholder: '0' },
+        { name: 'markup', label: 'Markup', type: 'number', step: '0.01', min: '0', placeholder: '0' },
+        { name: 'qty_per_carton', label: 'Qty per Carton', type: 'number', step: '0.001', min: '0', placeholder: '0' },
+        { name: 'cbm_per_carton', label: 'CBM per Carton', type: 'number', step: '0.001', min: '0', placeholder: '0' },
+        { name: 'weight_per_carton', label: 'Weight per Carton', type: 'number', step: '0.001', min: '0', placeholder: '0' },
+        { name: 'import_fob', label: 'Import FOB', type: 'number', step: '0.01', min: '0', placeholder: '0' },
+        { name: 'exporter', label: 'Exporter', placeholder: 'Exporter name' },
+        {
+          name: 'source',
+          label: 'Source',
+          type: 'select',
+          options: [
+            { value: '', label: '' },
+            { value: 'Local', label: 'Local' },
+            { value: 'Import', label: 'Import' },
+          ],
+        },
+        { name: 'photo_count_id', label: 'Photo Count ID', placeholder: 'Photo Count ID' },
+        { name: 'description', label: 'Description', type: 'textarea', className: 'wide' },
+        {
+          name: 'disabled',
+          label: 'Status',
+          type: 'select',
+          options: [
+            { value: '0', label: 'Enabled' },
+            { value: '1', label: 'Disabled' },
+          ],
+        },
+      ],
+    },
+    customers: {
+      key: 'customers',
+      idField: 'customer_id',
+      title: 'Customers',
+      singular: 'Customer',
+      newLabel: 'New Customer',
+      editLabel: 'Edit Customer',
+      finder: (id) => findMasterRecord('customers', id),
+      loader: (options) => masterCustomers({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'customer_name', label: 'Customer', strong: true, secondaryKey: 'customer_id' },
+        { key: 'tin', label: 'TIN' },
+        { key: 'customer_group', label: 'Group' },
+        { key: 'territory', label: 'Territory' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'status', label: 'Status' },
+      ],
+      fields: [
+        { name: 'customer_id', label: 'Customer ID', placeholder: 'Leave blank to use customer name', lockedOnEdit: true },
+        { name: 'customer_name', label: 'Customer Name', required: true, placeholder: 'Customer Ltd' },
+        { name: 'tin', label: 'TIN (Tax Identification Number)', maxlength: 100 },
+        { name: 'customer_group', label: 'Group', placeholder: 'Commercial', optionGroup: 'customer_group' },
+        { name: 'territory', label: 'Territory', placeholder: 'Uganda', optionGroup: 'territory' },
+        { name: 'phone', label: 'Phone', autocomplete: 'tel' },
+        {
+          name: 'disabled',
+          label: 'Status',
+          type: 'select',
+          options: [
+            { value: '0', label: 'Active' },
+            { value: '1', label: 'Inactive' },
+          ],
+        },
+      ],
+    },
+    suppliers: {
+      key: 'suppliers',
+      idField: 'supplier_id',
+      title: 'Suppliers',
+      singular: 'Supplier',
+      newLabel: 'New Supplier',
+      editLabel: 'Edit Supplier',
+      finder: (id) => findMasterRecord('suppliers', id),
+      loader: (options) => masterSuppliers({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'supplier_id', label: 'ID', strong: true },
+        { key: 'supplier_name', label: 'Supplier' },
+        { key: 'supplier_type', label: 'Type' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'status', label: 'Status' },
+      ],
+      fields: [
+        { name: 'supplier_id', label: 'Supplier ID', placeholder: 'Leave blank to use supplier name', lockedOnEdit: true },
+        { name: 'supplier_name', label: 'Supplier Name', required: true, placeholder: 'Supplier Ltd' },
+        { name: 'supplier_type', label: 'Type', placeholder: 'Local', optionGroup: 'supplier_type' },
+        { name: 'phone', label: 'Phone', autocomplete: 'tel' },
+        {
+          name: 'disabled',
+          label: 'Status',
+          type: 'select',
+          options: [
+            { value: '0', label: 'Active' },
+            { value: '1', label: 'Inactive' },
+          ],
+        },
+      ],
+    },
+    warehouses: {
+      key: 'warehouses',
+      idField: 'warehouse',
+      title: 'Warehouses',
+      singular: 'Warehouse',
+      newLabel: 'New Warehouse',
+      editLabel: 'Edit Warehouse',
+      finder: (id) => findMasterRecord('warehouses', id),
+      loader: (options) => masterWarehouses({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'warehouse', label: 'Warehouse', strong: true },
+        { key: 'warehouse_type', label: 'Type' },
+        { key: 'status', label: 'Status' },
+      ],
+      fields: [
+        { name: 'warehouse', label: 'Warehouse Name', required: true, placeholder: 'Main Warehouse', lockedOnEdit: true },
+        { name: 'warehouse_type', label: 'Warehouse Type', type: 'option-select', optionGroup: 'warehouse_type' },
+        {
+          name: 'disabled',
+          label: 'Status',
+          type: 'select',
+          options: [
+            { value: '0', label: 'Enabled' },
+            { value: '1', label: 'Disabled' },
+          ],
+        },
+      ],
+    },
+    employees: {
+      key: 'employees',
+      idField: 'employee_id',
+      title: 'Employees',
+      singular: 'Employee',
+      newLabel: 'New Employee',
+      editLabel: 'Edit Employee',
+      finder: (id) => findMasterRecord('employees', id),
+      loader: (options) => masterEmployees({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'employee_id', label: 'ID', strong: true },
+        { key: 'employee_name', label: 'Employee' },
+        { key: 'department', label: 'Department' },
+        { key: 'designation', label: 'Designation' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'status_label', label: 'Status' },
+      ],
+      fields: [
+        { name: 'employee_id', label: 'Employee ID', placeholder: 'Leave blank to use employee name', lockedOnEdit: true },
+        { name: 'employee_name', label: 'Employee Name', required: true, placeholder: 'Employee Name' },
+        { name: 'status', label: 'Employment Status', placeholder: 'Active' },
+        { name: 'company', label: 'Company', placeholder: 'Company name' },
+        { name: 'department', label: 'Department', placeholder: 'Department' },
+        { name: 'designation', label: 'Designation', placeholder: 'Role / title' },
+        { name: 'phone', label: 'Phone', autocomplete: 'tel' },
+        { name: 'email', label: 'Email', type: 'email', autocomplete: 'email' },
+        {
+          name: 'disabled',
+          label: 'Status',
+          type: 'select',
+          options: [
+            { value: '0', label: 'Active' },
+            { value: '1', label: 'Inactive' },
+          ],
+        },
+      ],
+    },
+    options: {
+      key: 'options',
+      idField: 'id',
+      title: 'Options',
+      singular: 'Option',
+      newLabel: 'New Option',
+      editLabel: 'Edit Option',
+      finder: (id) => findMasterRecord('options', id),
+      loader: (options) => masterOptions({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'option_group', label: 'Group', strong: true },
+        { key: 'option_value', label: 'Value' },
+      ],
+      fields: [
+        { name: 'option_group', label: 'Group', required: true, placeholder: 'item_category', optionGroup: 'option_group' },
+        { name: 'option_value', label: 'Value', required: true, placeholder: 'Finished Goods' },
+      ],
+    },
+  };
+  const config = configs[key];
+  if (!config) {
+    const err = new Error('Master list not found.');
+    err.status = 404;
+    throw err;
+  }
+  return config;
+}
+
 async function findDbCustomer(customerId) {
   const id = String(customerId || '').trim();
   if (!id) {
     return null;
   }
-  const [customers] = await pool.query(
-    `
-    SELECT name AS customer_id, customer_name
-    FROM \`tabCustomer\`
-    WHERE name = ?
-      AND COALESCE(disabled, 0) = 0
-    LIMIT 1
-    `,
-    [id],
-  );
-  return customers[0] || null;
+  return findMasterCustomer(id);
 }
 
 async function findDbSupplier(supplierId) {
@@ -903,16 +1751,7 @@ async function findDbSupplier(supplierId) {
   if (!id) {
     return null;
   }
-  const [suppliers] = await pool.query(
-    `
-    SELECT name AS supplier_id, supplier_name
-    FROM \`tabSupplier\`
-    WHERE name = ?
-    LIMIT 1
-    `,
-    [id],
-  );
-  return suppliers[0] || null;
+  return findMasterSupplier(id);
 }
 
 async function findDbEmployee(employeeId) {
@@ -920,16 +1759,7 @@ async function findDbEmployee(employeeId) {
   if (!id) {
     return null;
   }
-  const [employees] = await pool.query(
-    `
-    SELECT name AS employee_id, employee_name
-    FROM \`tabEmployee\`
-    WHERE name = ?
-    LIMIT 1
-    `,
-    [id],
-  );
-  return employees[0] || null;
+  return findMasterEmployee(id);
 }
 
 async function validateDbItems(items, warehouse, options = {}) {
@@ -949,21 +1779,7 @@ async function validateDbItems(items, warehouse, options = {}) {
       continue;
     }
 
-    const [rows] = await pool.query(
-      `
-      SELECT
-        i.name AS item_code,
-        i.item_name
-      FROM \`tabItem\` i
-      WHERE i.name = ?
-        AND COALESCE(i.disabled, 0) = 0
-        AND COALESCE(i.is_sales_item, 1) = 1
-      LIMIT 1
-      `,
-      [itemCode],
-    );
-
-    const dbItem = rows[0];
+    const dbItem = await findDbItem(itemCode);
     if (!dbItem) {
       const err = new Error(`Item ${itemCode} is not available in ${selectedWarehouse}.`);
       err.status = 400;
@@ -998,6 +1814,14 @@ async function validateDbItems(items, warehouse, options = {}) {
   return validated;
 }
 
+async function findDbItem(itemCode) {
+  const code = String(itemCode || '').trim();
+  if (!code) {
+    return null;
+  }
+  return findMasterItem(code);
+}
+
 function normalizeStockQuantity(value) {
   const quantity = Number(value || 0);
   const rounded = Math.round(quantity);
@@ -1017,7 +1841,7 @@ async function loadInvoice(id) {
     err.status = 404;
     throw err;
   }
-  return { invoice, items: invoice.items || [] };
+  return { invoice, items: invoice.items || [], company: await getCompanyInformation() };
 }
 
 async function buildInvoicePayload(body) {
@@ -1052,7 +1876,58 @@ async function buildInvoicePayload(body) {
   return payload;
 }
 
+function cashSalePayment(payload, body = {}) {
+  const amount = invoicePayloadTotal(payload);
+  if (amount <= 0) {
+    const err = new Error('Cash sale total must be greater than zero.');
+    err.status = 400;
+    throw err;
+  }
+  return {
+    payment_date: body.payment_date || payload.invoice_date || todayString(),
+    amount,
+    method: body.cash_sale_method || 'cash',
+    reference: body.cash_sale_reference || '',
+    notes: body.cash_sale_notes || 'Cash sale',
+  };
+}
+
+function invoicePayloadTotal(payload) {
+  const subtotal = (payload.items || []).reduce((sum, item) => (
+    sum + (Number(item.quantity || 0) * Number(item.unit_price || 0))
+  ), 0);
+  const discount = Math.max(0, Number(payload.discount_amount || 0));
+  const tax = Math.max(0, Number(payload.tax_amount || 0));
+  return Math.round(Math.max(0, subtotal - discount + tax));
+}
+
+function purchasePayload(body) {
+  const ids = arrayField(body.item_id);
+  const codes = arrayField(body.item_code);
+  const names = arrayField(body.item_name);
+  const warehouses = arrayField(body.warehouse);
+  const quantities = arrayField(body.quantity);
+  const prices = arrayField(body.unit_price);
+  return {
+    posting_date: body.posting_date,
+    due_date: body.due_date,
+    supplier_id: body.supplier_id,
+    supplier_name: body.supplier_name,
+    supplier_reference: body.supplier_reference,
+    remarks: body.remarks,
+    items: codes.map((itemCode, index) => ({
+      id: ids[index],
+      item_code: itemCode,
+      item_name: names[index],
+      warehouse: warehouses[index],
+      quantity: quantities[index],
+      unit_price: prices[index],
+    })).filter((item) => item.item_code || item.warehouse || item.quantity || item.unit_price),
+  };
+}
+
 function parseStockEntryPayload(body) {
+  const ids = arrayField(body.id);
   const itemCodes = arrayField(body.item_code);
   const itemNames = arrayField(body.item_name);
   const warehouses = arrayField(body.warehouse);
@@ -1069,6 +1944,7 @@ function parseStockEntryPayload(body) {
     supplier_phone: body.supplier_phone,
     supplier_reference: body.supplier_reference,
     items: itemCodes.map((itemCode, index) => ({
+      id: ids[index],
       item_code: itemCode,
       item_name: itemNames[index],
       warehouse: warehouses[index],
@@ -1080,6 +1956,7 @@ function parseStockEntryPayload(body) {
 }
 
 function parseJournalEntryPayload(body) {
+  const ids = arrayField(body.line_id);
   const accountIds = arrayField(body.account_id);
   const debits = arrayField(body.debit);
   const credits = arrayField(body.credit);
@@ -1093,6 +1970,7 @@ function parseJournalEntryPayload(body) {
     reference_no: body.reference_no,
     remarks: body.remarks,
     lines: accountIds.map((accountId, index) => ({
+      id: ids[index],
       account_id: accountId,
       debit: debits[index],
       credit: credits[index],
@@ -1170,30 +2048,6 @@ function arrayField(value) {
     return [];
   }
   return [value];
-}
-
-async function erpStockQuantity(itemCode, warehouse) {
-  const [rows] = await pool.query(
-    `
-    SELECT
-      COALESCE(SUM(StockBalance), 0) AS quantity,
-      COALESCE(SUM(StockValue), 0) AS stock_value,
-      COALESCE(MAX(UnitCost), 0) AS valuation_rate
-    FROM stock_balance
-    WHERE ItemName = ?
-      AND Warehouse = ?
-    `,
-    [String(itemCode || '').trim(), String(warehouse || '').trim()],
-  );
-  return rows[0] || { quantity: 0, stock_value: 0, valuation_rate: 0 };
-}
-
-function sqlLikePattern(value) {
-  const pattern = String(value || '').trim();
-  if (!pattern.includes('%')) {
-    return `%${pattern}%`;
-  }
-  return pattern.endsWith('%') ? pattern : `${pattern}%`;
 }
 
 function sqlCandidatePattern(value) {
@@ -1282,8 +2136,21 @@ function money(value) {
   return Number(value || 0).toLocaleString('en-UG', {
     style: 'currency',
     currency: 'UGX',
+    currencyDisplay: 'code',
     maximumFractionDigits: 0,
-  });
+  }).replace('UGX', 'Ugx');
+}
+
+function purchaseMoney(value) {
+  return `Ugx ${Number(value || 0).toLocaleString('en-UG', { maximumFractionDigits: 0 })}`;
+}
+
+function paymentReturnPath(value, invoiceId) {
+  const returnTo = String(value || '');
+  if (returnTo.startsWith('/reports/debtors?') || returnTo.startsWith('/invoices?')) {
+    return returnTo;
+  }
+  return `/invoices/${invoiceId}`;
 }
 
 function todayString() {
@@ -1292,7 +2159,22 @@ function todayString() {
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;
-  res.status(status).render('error', { status, message: err.message || 'Server error' });
+  const exposeMessage = status < 500 && status !== 503;
+  if (!exposeMessage) {
+    console.error('request_error', {
+      status,
+      message: err.message,
+      stack: err.stack,
+      method: _req.method,
+      path: _req.originalUrl,
+    });
+  }
+  res.status(status).render('error', {
+    status,
+    message: exposeMessage
+      ? err.message || 'Server error'
+      : 'Something went wrong. Please try again or contact support.',
+  });
 });
 
 ensureStoreInitialized()
@@ -1302,6 +2184,6 @@ ensureStoreInitialized()
   })
   .finally(() => {
     app.listen(port, () => {
-      console.log(`Invoice app running on http://localhost:${port}`);
+      console.log(`Work Master running on http://localhost:${port}`);
     });
   });

@@ -1,0 +1,17 @@
+<% if (pagination && pagination.total > pagination.limit) { %>
+  <% const params = new URLSearchParams(query || {}); %>
+  <% const pageSize = pagination.limit; %>
+  <% const totalPages = pagination.total_pages; %>
+  <% const currentPage = pagination.page; %>
+  <% const pageHref = (page) => {
+    params.set('page', String(page));
+    params.set('page_size', String(pageSize));
+    return `${basePath || ''}?${params.toString()}`;
+  }; %>
+  <nav class="server-pagination" aria-label="Pagination">
+    <span><%= pagination.start %>-<%= pagination.end %> of <%= pagination.total %></span>
+    <a class="button button-light <%= currentPage <= 1 ? 'disabled' : '' %>" href="<%= currentPage <= 1 ? '#' : pageHref(currentPage - 1) %>">Prev</a>
+    <span>Page <%= currentPage %> of <%= totalPages %></span>
+    <a class="button button-light <%= currentPage >= totalPages ? 'disabled' : '' %>" href="<%= currentPage >= totalPages ? '#' : pageHref(currentPage + 1) %>">Next</a>
+  </nav>
+<% } %>

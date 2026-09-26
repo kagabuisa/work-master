@@ -1,0 +1,15 @@
+<% const voucherTitle = invoice.is_cash_sale ? 'Cash Sales Invoice' : 'Sales Invoice'; %>
+<div class="invoice-drawer-content" data-voucher-title="<%= invoice.invoice_no %>" data-voucher-eyebrow="<%= voucherTitle %>">
+  <header class="invoice-drawer-heading">
+    <div>
+      <p class="eyebrow"><%= voucherTitle %></p>
+      <h2><%= invoice.invoice_no %></h2>
+      <small><%= invoice.customer_name %></small>
+    </div>
+  </header>
+  <div class="invoice-drawer-actions">
+    <%- include('invoice-actions', { invoice }) %>
+  </div>
+  <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
+  <%- include('invoice-detail', { invoice, items, today, money, returnTo }) %>
+</div>

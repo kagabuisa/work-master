@@ -15,6 +15,9 @@ const cancelEntryButton = document.querySelector('#cancel-entry-button');
 const stockEntryPostingWrapper = document.querySelector('#stock-entry-posting-wrapper');
 const stockEntryRemarksWrapper = document.querySelector('#stock-entry-remarks-wrapper');
 const stockEntrySubmitButtons = [...document.querySelectorAll('#stock-entry-form button[type="submit"]')];
+const importStockEntryRowsButton = document.querySelector('#import-stock-entry-rows');
+const stockEntryImportFile = document.querySelector('#stock-entry-import-file');
+const stockEntryImportStatus = document.querySelector('#stock-entry-import-status');
 const initialStockEntry = window.STOCK_ENTRY_INITIAL || { entry: null, items: [] };
 const stockEntryReadOnly = Boolean(initialStockEntry.readOnly);
 const rowTemplate = tableBody.querySelector('tr').cloneNode(true);
@@ -42,6 +45,7 @@ addRowButton.addEventListener('click', () => {
   });
   resetBalanceDisplays(row);
   tableBody.appendChild(row);
+  updateStockEntryRowNumbers();
   applyLockedWarehouse(row);
   applyLockedTargetWarehouse(row);
   updateEntryTypeControls();
@@ -62,6 +66,7 @@ tableBody.addEventListener('click', (event) => {
     return;
   }
   event.target.closest('tr').remove();
+  updateStockEntryRowNumbers();
   updateLockedWarehouse();
 });
 
@@ -116,6 +121,13 @@ if (cancelEntrySource) {
 }
 if (cancelEntryButton) {
   cancelEntryButton.addEventListener('click', cancelSelectedStockEntry);
+}
+if (importStockEntryRowsButton && stockEntryImportFile) {
+  importStockEntryRowsButton.addEventListener('click', () => {
+    stockEntryImportFile.value = '';
+    stockEntryImportFile.click();
+  });
+  stockEntryImportFile.addEventListener('change', importStockEntryRowsFromFile);
 }
 document.addEventListener('click', (event) => {
   const sourceButton = event.target.closest('[data-cancel-entry-source]');
@@ -179,6 +191,151 @@ async function searchItems(input) {
     )).join('') || '<p>No matching items.</p>';
   } catch {
     results.innerHTML = '<p>Could not load items.</p>';
+  }
+}
+
+async function importStockEntryRowsFromFile() {
+  const file = stockEntryImportFile?.files?.[0];
+  if (!file) {
+    return;
+  }
+  setStockEntryImportStatus('Reading file');
+  try {
+    const text = await readTextFile(file);
+    const importedRows = parseStockEntryImport(text);
+    if (!importedRows.length) {
+      throw new Error('No valid stock entry rows found in the file.');
+    }
+    populateRows(importedRows);
+    setStockEntryImportStatus(`Imported ${importedRows.length} row${importedRows.length === 1 ? '' : 's'}.`);
+  } catch (err) {
+    setStockEntryImportStatus(err.message || 'Could not import stock entry rows.');
+  }
+}
+
+function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(String(reader.result || '')));
+    reader.addEventListener('error', () => reject(new Error('Could not read the selected file.')));
+    reader.readAsText(file);
+  });
+}
+
+function parseStockEntryImport(text) {
+  const rows = parseDelimitedRows(text);
+  if (!rows.length) {
+    return [];
+  }
+  const headers = rows[0].map(normalizeImportHeader);
+  const hasHeaders = headers.some((header) => [
+    'item_code',
+    'item_name',
+    'warehouse',
+    'target_warehouse',
+    'quantity',
+    'valuation_rate',
+  ].includes(header));
+  const dataRows = hasHeaders ? rows.slice(1) : rows;
+  return dataRows.map((row) => {
+    const value = (name, fallbackIndex) => {
+      if (hasHeaders) {
+        const index = headers.indexOf(name);
+        return index >= 0 ? String(row[index] || '').trim() : '';
+      }
+      return String(row[fallbackIndex] || '').trim();
+    };
+    const itemCode = value('item_code', 0);
+    return {
+      item_code: itemCode,
+      item_name: value('item_name', 5) || itemCode,
+      warehouse: value('warehouse', 1),
+      target_warehouse: value('target_warehouse', 2),
+      quantity: value('quantity', 3),
+      valuation_rate: value('valuation_rate', 4) || '0',
+    };
+  }).filter((row) => (
+    row.item_code
+    && row.warehouse
+    && Number(row.quantity || 0) !== 0
+  ));
+}
+
+function parseDelimitedRows(text) {
+  const normalizedText = String(text || '').replace(/^\uFEFF/, '');
+  const delimiter = normalizedText.split(/\r?\n/, 1)[0].includes('\t') ? '\t' : ',';
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  for (let index = 0; index < normalizedText.length; index += 1) {
+    const char = normalizedText[index];
+    const nextChar = normalizedText[index + 1];
+    if (char === '"') {
+      if (quoted && nextChar === '"') {
+        field += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    if (char === delimiter && !quoted) {
+      row.push(field);
+      field = '';
+      continue;
+    }
+    if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && nextChar === '\n') {
+        index += 1;
+      }
+      row.push(field);
+      if (row.some((value) => String(value || '').trim())) {
+        rows.push(row);
+      }
+      row = [];
+      field = '';
+      continue;
+    }
+    field += char;
+  }
+  row.push(field);
+  if (row.some((value) => String(value || '').trim())) {
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normalizeImportHeader(value) {
+  const header = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (['item', 'item_code', 'code'].includes(header)) {
+    return 'item_code';
+  }
+  if (['item_name', 'name', 'description'].includes(header)) {
+    return 'item_name';
+  }
+  if (['qty', 'quantity'].includes(header)) {
+    return 'quantity';
+  }
+  if (['rate', 'valuation_rate', 'valuation', 'cost'].includes(header)) {
+    return 'valuation_rate';
+  }
+  if (['target', 'target_warehouse', 'to_warehouse'].includes(header)) {
+    return 'target_warehouse';
+  }
+  if (['source_warehouse', 'from_warehouse'].includes(header)) {
+    return 'warehouse';
+  }
+  return header;
+}
+
+function setStockEntryImportStatus(message) {
+  if (stockEntryImportStatus) {
+    stockEntryImportStatus.textContent = message || '';
   }
 }
 
@@ -350,6 +507,13 @@ function populateRows(items, options = {}) {
     });
     resetBalanceDisplays(row);
     row.querySelector('.stock-item-results').innerHTML = '';
+    const idInput = row.querySelector('[name="id"]');
+    if (idInput) {
+      idInput.value = item.id || '';
+    }
+    if (stockEntryReadOnly) {
+      fillStockEntryAuditCells(row, item);
+    }
     row.querySelector('[name="item_code"]').value = item.item_code || '';
     row.querySelector('[name="item_name"]').value = item.item_name || item.item_code || '';
     row.querySelector('[name="warehouse"]').value = item.warehouse || '';
@@ -358,6 +522,7 @@ function populateRows(items, options = {}) {
     row.querySelector('[name="valuation_rate"]').value = item.valuation_rate || '0';
     tableBody.appendChild(row);
   });
+  updateStockEntryRowNumbers();
   lockedWarehouse = '';
   lockedTargetWarehouse = '';
   if (options.readOnly) {
@@ -394,6 +559,10 @@ function applyStockEntryReadOnlyView() {
   if (addRowButton) {
     addRowButton.hidden = true;
     addRowButton.disabled = true;
+  }
+  if (importStockEntryRowsButton) {
+    importStockEntryRowsButton.hidden = true;
+    importStockEntryRowsButton.disabled = true;
   }
   stockEntrySubmitButtons.forEach((button) => {
     button.hidden = true;
@@ -496,6 +665,11 @@ function updateCancelEntrySourceControls() {
     addRowButton.hidden = isCancelEntry;
     addRowButton.disabled = isCancelEntry;
   }
+  if (importStockEntryRowsButton) {
+    importStockEntryRowsButton.hidden = isCancelEntry;
+    importStockEntryRowsButton.disabled = isCancelEntry;
+  }
+  setStockEntryImportStatus('');
   stockEntrySubmitButtons.forEach((button) => {
     button.hidden = isCancelEntry;
     button.disabled = isCancelEntry;
@@ -540,6 +714,13 @@ function populateInitialStockEntry() {
       resetBalanceDisplays(row);
       tableBody.appendChild(row);
     }
+    const idInput = row.querySelector('[name="id"]');
+    if (idInput) {
+      idInput.value = item.id || '';
+    }
+    if (stockEntryReadOnly) {
+      fillStockEntryAuditCells(row, item);
+    }
     row.querySelector('[name="item_code"]').value = item.item_code || '';
     row.querySelector('[name="item_name"]').value = item.item_name || item.item_code || '';
     row.querySelector('[name="warehouse"]').value = item.warehouse || '';
@@ -547,8 +728,18 @@ function populateInitialStockEntry() {
     row.querySelector('[name="quantity"]').value = item.quantity || '';
     row.querySelector('[name="valuation_rate"]').value = item.valuation_rate || '0';
   });
+  updateStockEntryRowNumbers();
   updateLockedWarehouse();
   updateLockedTargetWarehouse();
+}
+
+function updateStockEntryRowNumbers() {
+  tableBody.querySelectorAll('tr').forEach((row, index) => {
+    const numberCell = row.querySelector('.row-number');
+    if (numberCell) {
+      numberCell.textContent = index + 1;
+    }
+  });
 }
 
 function defaultInputValue(input) {
@@ -617,6 +808,23 @@ function formatQuantity(value) {
     maximumFractionDigits: 3,
     minimumFractionDigits: 0,
   });
+}
+
+function fillStockEntryAuditCells(row, item) {
+  const cells = row.querySelectorAll('td');
+  const createdCell = cells[cells.length - 3];
+  const updatedCell = cells[cells.length - 2];
+  if (createdCell && updatedCell) {
+    createdCell.textContent = auditLineLabel(item.created_by, item.created_at);
+    updatedCell.textContent = auditLineLabel(item.updated_by, item.updated_at);
+  }
+}
+
+function auditLineLabel(user, value) {
+  const time = value && !Number.isNaN(new Date(value).getTime())
+    ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC')
+    : '';
+  return `${user || 'Unknown'}${time ? ` · ${time}` : ''}`;
 }
 
 function updateSupplierControls(promptWhenSelected) {

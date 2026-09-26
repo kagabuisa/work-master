@@ -1,10 +1,21 @@
 {
   "name": "work-master",
   "version": "1.0.0",
-  "description": "Sales invoice app with MySQL catalog reads and optional Postgres invoice storage",
+  "description": "Work Master with imported ERP master data and Postgres app storage",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/start.js",
+    "test": "node --test tests/audit.test.js",
+    "user:create": "node scripts/create-user.js",
+    "user:reset": "node scripts/reset-user-password.js",
+    "import:mysql-items": "node scripts/import-mysql-items-to-app.js",
+    "import:mysql-customers": "node scripts/import-mysql-customers-to-app.js",
+    "import:mysql-suppliers": "node scripts/import-mysql-suppliers-to-app.js",
+    "import:mysql-warehouses": "node scripts/import-mysql-warehouses-to-app.js",
+    "import:mysql-employees": "node scripts/import-mysql-employees-to-app.js",
+    "import:mysql-cost-centers": "node scripts/import-mysql-cost-centers-to-app.js",
+    "import:mysql-sales-invoices": "node scripts/import-mysql-sales-invoices-to-app.js",
+    "import:mysql-master-data": "node scripts/import-mysql-items-to-app.js && node scripts/import-mysql-customers-to-app.js && node scripts/import-mysql-suppliers-to-app.js && node scripts/import-mysql-warehouses-to-app.js && node scripts/import-mysql-employees-to-app.js && node scripts/import-mysql-cost-centers-to-app.js",
     "backfill:accounting": "node scripts/backfill-accounting-gl.js",
     "verify:accounting": "node scripts/verify-accounting.js",
     "seed:accounting-samples": "node scripts/seed-accounting-samples.js"
@@ -14,6 +25,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "compression": "^1.8.1",
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
     "express": "^5.2.1",

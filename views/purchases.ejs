@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Purchases</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Purchases</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchases' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
+    </header>
+    <form class="report-filters invoice-filters" method="get" action="/purchases">
+      <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Number or supplier"></label>
+      <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
+      <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/purchases">Reset</a>
+        <% if (can('vouchers.purchases.create')) { %><a class="button" href="/purchases/new">New Purchase</a><% } %>
+      </div>
+    </form>
+    <section class="invoice-card report-section">
+      <table>
+        <thead><tr><th>#</th><th>Purchase</th><th>Date</th><th>Supplier</th><th>Reference</th><th>Total</th><th>Paid</th><th>Balance</th><th>Document</th><th>Payment</th></tr></thead>
+        <tbody>
+          <% if (!result.rows.length) { %><tr><td colspan="10" class="empty">No purchases found.</td></tr><% } %>
+          <% result.rows.forEach((purchase, index) => { %>
+            <tr>
+              <td><%= (result.pagination ? result.pagination.offset : (result.page - 1) * 25) + index + 1 %></td>
+              <td><a href="/purchases/<%= purchase.id %>" data-voucher-drawer="/purchases/<%= purchase.id %>/drawer"><%= purchase.purchase_no %></a></td>
+              <td><%= purchase.posting_date %></td>
+              <td><%= purchase.supplier_name %></td>
+              <td><%= purchase.supplier_reference || '' %></td>
+              <td><%= money(purchase.total) %></td>
+              <td><%= money(purchase.amount_paid) %></td>
+              <td><%= money(purchase.total - purchase.amount_paid) %></td>
+              <td><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></td>
+              <td><span class="badge <%= purchase.status %>"><%= purchase.status %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <%- include('pagination', { pagination: result.pagination, query, basePath: '/purchases' }) %>
+    </section>
+  </main>
+</body>
+</html>

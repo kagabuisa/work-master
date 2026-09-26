@@ -1,0 +1,16 @@
+<% if ((invoice.docstatus || 'submitted') === 'draft') { %>
+  <% if (can('vouchers.sales.edit')) { %><a class="button" href="/invoices/<%= invoice.id %>/edit">Edit</a><% } %>
+  <% if (can('vouchers.sales.submit') && can('payments.sales.record')) { %><form method="post" action="/invoices/<%= invoice.id %>/submit-cash-sale" class="inline-form">
+    <button type="submit">Submit Cash Sale</button>
+  </form><% } %>
+  <% if (can('vouchers.sales.submit')) { %><form method="post" action="/invoices/<%= invoice.id %>/submit" class="inline-form">
+    <button type="submit">Submit Invoice</button>
+  </form><% } %>
+<% } else { %>
+  <a class="button" href="/invoices/<%= invoice.id %>/print" target="_blank">Print</a>
+  <% if ((invoice.docstatus || 'submitted') === 'submitted' && can('vouchers.sales.cancel')) { %>
+    <form method="post" action="/invoices/<%= invoice.id %>/cancel" class="inline-form" data-confirm="Cancel this invoice? Stock and ledger entries will be reversed.">
+      <button type="submit" class="button-light">Cancel Invoice</button>
+    </form>
+  <% } %>
+<% } %>
