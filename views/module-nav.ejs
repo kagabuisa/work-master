@@ -62,12 +62,12 @@
     </section>
     <% } %>
 
-    <% if (can('accounts.view') || can('vouchers.journals.view') && !scoped) { %>
+    <% if (can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts) || can('vouchers.journals.view') && !scoped) { %>
     <section class="module-nav-section <%= currentModule === 'accounts' ? 'active' : '' %>">
-      <a class="module-nav-primary" href="<%= can('accounts.view') ? '/accounts' : '/journals' %>">Accounts</a>
+      <a class="module-nav-primary" href="<%= can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts) ? '/accounts' : '/journals' %>">Accounts</a>
       <div class="module-nav-links">
         <% if (can('vouchers.journals.create') && !scoped) { %><a href="/journals/new">New Journal Entry</a><% } %>
-        <% if (can('accounts.view')) { %><a href="/accounts">Chart of Accounts</a><% } %>
+        <% if (can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts)) { %><a href="/accounts">Chart of Accounts</a><% } %>
         <% if (can('vouchers.journals.view') && !scoped) { %><a href="/journals">Journals</a><% } %>
       </div>
     </section>
@@ -82,18 +82,20 @@
     </section>
     <% } %>
 
-    <% if (currentUser.role === 'admin' || can('sync.run') || ['customers', 'suppliers', 'items', 'warehouses', 'options'].some((key) => can(`masters.${key}.view`))) { %>
+    <% if (currentUser.role === 'admin' || can('sync.run') || (typeof canManageNamedPriceLists !== 'undefined' && canManageNamedPriceLists) || (typeof canViewNamedWarehouses !== 'undefined' && canViewNamedWarehouses) || (typeof canCreateItemPrice !== 'undefined' && canCreateItemPrice) || ['customers', 'suppliers', 'items', 'price-lists', 'item-prices', 'warehouses', 'employees', 'options'].some((key) => can(`masters.${key}.view`))) { %>
     <section class="module-nav-section <%= currentModule === 'settings' ? 'active' : '' %>">
       <a class="module-nav-primary" href="/settings">Settings</a>
       <div class="module-nav-links">
         <% if (can('masters.customers.view')) { %><a href="/settings/customers">Customers</a><% } %>
         <% if (can('masters.suppliers.view')) { %><a href="/settings/suppliers">Suppliers</a><% } %>
         <% if (can('masters.items.view')) { %><a href="/settings/items">Items</a><% } %>
-        <% if (can('masters.warehouses.view')) { %><a href="/settings/warehouses">Warehouses</a><% } %>
+        <% if (can('masters.price-lists.view') || (typeof canManageNamedPriceLists !== 'undefined' && canManageNamedPriceLists)) { %><a href="/settings/price-lists">Price Lists</a><% } %>
+        <% if (can('masters.item-prices.view') || (typeof canCreateItemPrice !== 'undefined' && canCreateItemPrice)) { %><a href="/settings/item-prices">Item Prices</a><% } %>
+        <% if (can('masters.warehouses.view') || (typeof canViewNamedWarehouses !== 'undefined' && canViewNamedWarehouses)) { %><a href="/settings/warehouses">Warehouses</a><% } %>
         <% if (can('masters.employees.view')) { %><a href="/settings/employees">Employees</a><% } %>
         <% if (can('masters.options.view')) { %><a href="/settings/options">Options</a><% } %>
         <a href="/settings">Application Settings</a>
-        <% if (currentUser.role === 'admin') { %><a href="/settings/users">Users</a><a href="/settings/roles">Roles</a><% } %>
+        <% if (currentUser.role === 'admin') { %><a href="/settings/files">Project Files</a><a href="/settings/users">Users</a><a href="/settings/roles?tab=roles">Roles</a><a href="/settings/roles">Permissions</a><% } %>
       </div>
     </section>
     <% } %>

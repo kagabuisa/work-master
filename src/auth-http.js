@@ -2,6 +2,9 @@ const crypto = require('node:crypto');
 const { runWithAuditUser } = require('./audit');
 const { REPORTS } = require('./report-permissions');
 const { can, permissionCheck, scopeCheck } = require('./authorize');
+const { getPostgresPool } = require('./store');
+const { invoicePriceListAllowed, priceListActionAllowed, anyNamedPriceListAction,
+  anyNamedListView } = require('./access');
 const {
   SESSION_DAYS,
   userCount,
@@ -12,6 +15,8 @@ const {
   changePassword,
   createUser,
   listUsers,
+  saveUserPermissionOverrides,
+  applyPermissionOverrides,
   resetUserPassword,
   updateUserAccess,
   ROLE_RECORD_TYPES,
@@ -117,6 +122,81 @@ function requireAdmin(req, res, next) {
   return req.currentUser.role === 'admin' ? next() : denyAccess(req, res);
 }
 
+async function availableInvoicePriceLists() {
+  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') return [];
+  return (await getPostgresPool().query(`
+    SELECT price_list FROM app_master_price_lists
+    WHERE currency = 'UGX'
+      AND price_type IN ('selling', 'both') ORDER BY price_list`)).rows;
+}
+
+async function availablePermissionLists() {
+  const invoicePriceLists = await availableInvoicePriceLists();
+  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') {
+    return { invoicePriceLists, warehouses: [], accounts: [] };
+  }
+  const [warehouses, accounts] = await Promise.all([
+    getPostgresPool().query('SELECT warehouse FROM app_master_warehouses WHERE is_group = false ORDER BY warehouse'),
+    getPostgresPool().query('SELECT id::text AS id, account_code, account_name FROM app_accounts ORDER BY account_code, account_name'),
+  ]);
+  return { invoicePriceLists, warehouses: warehouses.rows, accounts: accounts.rows };
+}
+
+function effectiveRolePermissions(role, lists) {
+  if (!role) return [];
+  const visible = (kind, values) => {
+    const scope = role.scopes?.[kind];
+    const allowed = scope?.mode === 'selected' ? new Set(scope.values || []) : null;
+    return allowed === null ? values : values.filter((value) => allowed.has(value));
+  };
+  return [...role.permissions,
+    ...visible('invoicePriceLists', lists.invoicePriceLists.map((row) => row.price_list))
+      .map((name) => `invoice.price-list.view:${name}`),
+    ...visible('warehouses', lists.warehouses.map((row) => row.warehouse))
+      .map((name) => `warehouse.view:${name}`),
+    ...visible('accounts', lists.accounts.map((row) => row.id))
+      .map((id) => `account.view:${id}`)];
+}
+
+function priceListRecordTypes(invoicePriceLists) {
+  return invoicePriceLists.map(({ price_list: name }) => ({
+    key: `invoice-price-list:${name}`, label: name, group: 'Invoice price lists',
+    actions: RECORD_ACTIONS, permissions: Object.fromEntries(RECORD_ACTIONS.map((action) =>
+      [action, `invoice.price-list.${action}:${name}`])),
+  }));
+}
+
+function namedListRecordTypes(lists) {
+  return [
+    ...lists.warehouses.map((row) => ({ key: `warehouse:${row.warehouse}`, label: row.warehouse,
+      group: 'Warehouse list', actions: ['view'], permissions: { view: `warehouse.view:${row.warehouse}` } })),
+    ...lists.accounts.map((row) => ({ key: `account:${row.id}`,
+      label: `${row.account_code || row.id} · ${row.account_name}`, group: 'Accounts list',
+      actions: ['view'], permissions: { view: `account.view:${row.id}` } })),
+  ];
+}
+
+async function userPermissionContext(id) {
+  const user = (await listUsers()).find((row) => Number(row.id) === Number(id));
+  if (!user) { const error = new Error('User not found.'); error.status = 404; throw error; }
+  if (user.role === 'admin') { const error = new Error('Admin has full access.'); error.status = 400; throw error; }
+  const role = (await listRoles()).find((row) => row.slug === user.role);
+  const lists = await availablePermissionLists();
+  const types = [...ROLE_RECORD_TYPES, ...priceListRecordTypes(lists.invoicePriceLists), ...namedListRecordTypes(lists)];
+  const inherited = effectiveRolePermissions(role, lists);
+  return { user, types, inherited,
+    effective: applyPermissionOverrides(inherited, user.permission_grants, user.permission_denials) };
+}
+
+async function saveUserEffectivePermissions(context, desired) {
+  const inherited = new Set(context.inherited);
+  const effective = new Set(desired);
+  await saveUserPermissionOverrides(context.user.id,
+    [...effective].filter((key) => !inherited.has(key)),
+    [...inherited].filter((key) => !effective.has(key)));
+  return [...effective];
+}
+
 function installAuth(app) {
   app.use(rejectCrossOrigin);
 
@@ -178,6 +258,13 @@ function installAuth(app) {
       req.currentUser = user;
       res.locals.currentUser = user;
       res.locals.can = (permission) => can(user, permission);
+      res.locals.invoicePriceListAllowed = (name) => invoicePriceListAllowed(user, name);
+      res.locals.canPriceListAction = (name, action) => priceListActionAllowed(user, name, action);
+      res.locals.canCreateItemPrice = can(user, 'masters.item-prices.create') || anyNamedPriceListAction(user, 'create');
+      res.locals.canManageNamedPriceLists = ['view', 'edit', 'submit', 'cancel', 'delete']
+        .some((action) => anyNamedPriceListAction(user, action));
+      res.locals.canViewNamedWarehouses = anyNamedListView(user, 'warehouses');
+      res.locals.canViewNamedAccounts = anyNamedListView(user, 'accounts');
       res.locals.availableReports = REPORTS.filter((report) => can(user, report.permission));
       if (user.must_change_password && req.path !== '/account/password') {
         res.redirect(303, '/account/password');
@@ -266,12 +353,29 @@ function installAuth(app) {
 
   async function renderRoles(req, res, options = {}) {
     const roles = await listRoles();
+    const users = await listUsers();
+    const activeTab = options.activeTab || (['roles', 'users'].includes(req.query.tab) ? req.query.tab : 'permissions');
+    const selectedUser = users.find((user) => Number(user.id) === Number(options.selectedUser || req.query.user))
+      || users.find((user) => user.role !== 'admin') || users[0] || null;
     const selectedRole = roles.find((role) => role.slug === (options.selectedRole || req.query.role)) || roles.find((role) => role.slug === 'standard') || roles[0];
+    const lists = await availablePermissionLists();
+    const recordTypes = [...ROLE_RECORD_TYPES, ...priceListRecordTypes(lists.invoicePriceLists), ...namedListRecordTypes(lists)];
+    if (selectedRole) selectedRole.permissions = effectiveRolePermissions(selectedRole, lists);
+    const userRole = selectedUser && roles.find((role) => role.slug === selectedUser.role);
+    const inheritedPermissions = effectiveRolePermissions(userRole, lists);
+    const userPermissions = selectedUser
+      ? applyPermissionOverrides(inheritedPermissions, selectedUser.permission_grants, selectedUser.permission_denials) : [];
     res.set('Cache-Control', 'no-store');
     res.status(options.status || 200).render('roles', {
       roles,
+      users,
+      selectedUser,
+      activeTab,
+      inheritedPermissions,
+      userPermissions,
+      selectedUserRole: userRole,
       selectedRole,
-      recordTypes: ROLE_RECORD_TYPES,
+      recordTypes,
       recordActions: RECORD_ACTIONS,
       extraPermissions: EXTRA_PERMISSIONS,
       error: options.error || null,
@@ -283,12 +387,78 @@ function installAuth(app) {
     try { await renderRoles(req, res); } catch (error) { next(error); }
   });
 
+  async function finishUserPermissionChange(req, res, next, change) {
+    try {
+      const context = await userPermissionContext(req.params.id);
+      const permissions = await change(context);
+      if (req.get('Accept')?.includes('application/json')) return res.json({ permissions });
+      res.redirect(303, `/settings/roles?tab=users&user=${context.user.id}`);
+    } catch (error) {
+      if (req.get('Accept')?.includes('application/json')) return res.status(error.status || 500).json({ error: error.message });
+      try { await renderRoles(req, res, { activeTab: 'users', selectedUser: req.params.id,
+        status: error.status || 500, error: error.message }); }
+      catch (renderError) { next(renderError); }
+    }
+  }
+
+  app.post('/settings/users/:id/permissions/row', requireAdmin, (req, res, next) =>
+    finishUserPermissionChange(req, res, next, async (context) => {
+      const type = context.types.find((item) => item.key === req.body.record_type);
+      if (!type) { const error = new Error('Choose a valid record type.'); error.status = 400; throw error; }
+      const actions = req.body.actions === undefined ? [] : Array.isArray(req.body.actions) ? req.body.actions : [req.body.actions];
+      if (!actions.length || actions.some((action) => !type.actions.includes(action))) {
+        const error = new Error('Choose valid actions for this record type.'); error.status = 400; throw error;
+      }
+      const desired = new Set(context.effective);
+      for (const permission of Object.values(type.permissions)) desired.delete(permission);
+      for (const action of actions) desired.add(type.permissions[action]);
+      if (type.permissions.view && actions.some((action) => action !== 'view')) desired.add(type.permissions.view);
+      if (type.key === 'payments.sales') desired.add('vouchers.sales.view');
+      if (type.key === 'payments.purchases') desired.add('vouchers.purchases.view');
+      if (type.key === 'accounts') desired.add('accounts.view');
+      return saveUserEffectivePermissions(context, desired);
+    }));
+
+  app.post('/settings/users/:id/permissions/row/remove', requireAdmin, (req, res, next) =>
+    finishUserPermissionChange(req, res, next, async (context) => {
+      const type = context.types.find((item) => item.key === req.body.record_type);
+      if (!type) { const error = new Error('Choose a valid record type.'); error.status = 400; throw error; }
+      const desired = new Set(context.effective);
+      for (const permission of Object.values(type.permissions)) desired.delete(permission);
+      if (type.key === 'vouchers.sales') for (const permission of desired) {
+        if (permission.startsWith('payments.sales.')) desired.delete(permission);
+      }
+      if (type.key === 'vouchers.purchases') for (const permission of desired) {
+        if (permission.startsWith('payments.purchases.')) desired.delete(permission);
+      }
+      if (type.key === 'chart-of-accounts') desired.delete('accounts.manage');
+      return saveUserEffectivePermissions(context, desired);
+    }));
+
+  app.post('/settings/users/:id/permissions/extra', requireAdmin, (req, res, next) =>
+    finishUserPermissionChange(req, res, next, async (context) => {
+      const requested = req.body.permissions === undefined ? [] : Array.isArray(req.body.permissions)
+        ? req.body.permissions : [req.body.permissions];
+      const allowed = new Set(EXTRA_PERMISSIONS.map((permission) => permission.key));
+      if (requested.some((permission) => !allowed.has(permission))) {
+        const error = new Error('Choose valid additional permissions.'); error.status = 400; throw error;
+      }
+      const desired = new Set(context.effective);
+      for (const permission of allowed) desired.delete(permission);
+      for (const permission of requested) desired.add(permission);
+      return saveUserEffectivePermissions(context, desired);
+    }));
+
+  app.post('/settings/users/:id/permissions/reset', requireAdmin, (req, res, next) =>
+    finishUserPermissionChange(req, res, next, async (context) =>
+      saveUserEffectivePermissions(context, context.inherited)));
+
   app.post('/settings/roles', requireAdmin, async (req, res, next) => {
     try {
       const role = await createRole(req.body.name, []);
-      res.redirect(303, `/settings/roles?role=${encodeURIComponent(role.slug)}`);
+      res.redirect(303, `/settings/roles?tab=roles&role=${encodeURIComponent(role.slug)}`);
     } catch (error) {
-      try { await renderRoles(req, res, { status: error.status || 500, error: error.message }); }
+      try { await renderRoles(req, res, { activeTab: 'roles', status: error.status || 500, error: error.message }); }
       catch (renderError) { next(renderError); }
     }
   });
@@ -298,7 +468,7 @@ function installAuth(app) {
       await saveRoleRecordPermissions(req.params.slug, req.body.record_type, req.body.actions);
       if (req.get('Accept') === 'application/json') {
         const role = (await listRoles()).find((item) => item.slug === req.params.slug);
-        return res.json({ permissions: role.permissions });
+        return res.json({ permissions: effectiveRolePermissions(role, await availablePermissionLists()) });
       }
       res.redirect(303, `/settings/roles?role=${encodeURIComponent(req.params.slug)}`);
     } catch (error) {
@@ -313,7 +483,7 @@ function installAuth(app) {
       await removeRoleRecordPermissions(req.params.slug, req.body.record_type);
       if (req.get('Accept') === 'application/json') {
         const role = (await listRoles()).find((item) => item.slug === req.params.slug);
-        return res.json({ permissions: role.permissions });
+        return res.json({ permissions: effectiveRolePermissions(role, await availablePermissionLists()) });
       }
       res.redirect(303, `/settings/roles?role=${encodeURIComponent(req.params.slug)}`);
     } catch (error) {
@@ -336,9 +506,9 @@ function installAuth(app) {
   app.post('/settings/roles/:slug', requireAdmin, async (req, res, next) => {
     try {
       await updateRoleDetails(req.params.slug, req.body.name);
-      res.redirect(303, `/settings/roles?role=${encodeURIComponent(req.params.slug)}`);
+      res.redirect(303, `/settings/roles?tab=roles&role=${encodeURIComponent(req.params.slug)}`);
     } catch (error) {
-      try { await renderRoles(req, res, { selectedRole: req.params.slug, status: error.status || 500, error: error.message }); }
+      try { await renderRoles(req, res, { activeTab: 'roles', selectedRole: req.params.slug, status: error.status || 500, error: error.message }); }
       catch (renderError) { next(renderError); }
     }
   });
@@ -346,9 +516,9 @@ function installAuth(app) {
   app.post('/settings/roles/:slug/delete', requireAdmin, async (req, res, next) => {
     try {
       await deleteRole(req.params.slug);
-      res.redirect(303, '/settings/roles');
+      res.redirect(303, '/settings/roles?tab=roles');
     } catch (error) {
-      try { await renderRoles(req, res, { status: error.status || 500, error: error.message }); }
+      try { await renderRoles(req, res, { activeTab: 'roles', status: error.status || 500, error: error.message }); }
       catch (renderError) { next(renderError); }
     }
   });

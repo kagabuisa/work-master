@@ -40,7 +40,12 @@
 
       <div>
         <div class="section-title"><h2>Users</h2></div>
-        <a href="/settings/users">Manage users</a> · <a href="/settings/roles">Manage roles</a>
+        <a href="/settings/users">Manage users</a> · <a href="/settings/roles?tab=roles">Manage roles</a> · <a href="/settings/roles">Permissions</a>
+      </div>
+      <div>
+        <div class="section-title"><h2>Project Files</h2></div>
+        <p class="muted-text">Browse project files and manage shared uploads.</p>
+        <a href="/settings/files">Open Project Files →</a>
       </div>
       <% } %>
       <% if (can('sync.run')) { %>
@@ -100,6 +105,24 @@
         <a href="/settings/items">Open Items</a>
       </div>
       <% } %>
+      <% if (can('masters.price-lists.view') || canManageNamedPriceLists) { %>
+      <div>
+        <div class="section-title">
+          <h2>Price Lists</h2>
+          <% if (can('masters.price-lists.create')) { %><a class="button" href="/settings/price-lists/new">Add</a><% } %>
+        </div>
+        <a href="/settings/price-lists">Open Price Lists</a>
+      </div>
+      <% } %>
+      <% if (can('masters.item-prices.view') || canCreateItemPrice) { %>
+      <div>
+        <div class="section-title">
+          <h2>Item Prices</h2>
+          <% if (canCreateItemPrice) { %><a class="button" href="/settings/item-prices/new">Add</a><% } %>
+        </div>
+        <a href="/settings/item-prices">Open Item Prices</a>
+      </div>
+      <% } %>
       <% if (can('masters.suppliers.view')) { %>
       <div>
         <div class="section-title">
@@ -118,7 +141,7 @@
         <a href="/settings/customers">Open Customers</a>
       </div>
       <% } %>
-      <% if (can('masters.warehouses.view')) { %>
+      <% if (can('masters.warehouses.view') || canViewNamedWarehouses) { %>
       <div>
         <div class="section-title">
           <h2>Warehouses</h2>

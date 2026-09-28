@@ -12,22 +12,19 @@ const SESSION_DAYS = 7;
 const PASSWORD_MIN_LENGTH = 12;
 const MASTER_LISTS = [
   ['customers', 'Customers'], ['suppliers', 'Suppliers'], ['items', 'Items'],
+  ['price-lists', 'Price Lists'], ['item-prices', 'Item Prices'],
   ['warehouses', 'Warehouses'], ['employees', 'Employees'], ['options', 'Options'],
 ];
 const VOUCHER_TYPES = [
-  ['sales', 'Sales invoices', ['view', 'create', 'edit', 'submit', 'cancel']],
-  ['purchases', 'Purchases', ['view', 'create', 'edit', 'submit', 'cancel']],
-  ['stock', 'Stock entries', ['view', 'create', 'edit', 'submit', 'cancel']],
-  ['journals', 'Journals', ['view', 'create', 'edit', 'submit', 'cancel']],
+  ['sales', 'Sales invoices', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
+  ['purchases', 'Purchases', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
+  ['stock', 'Stock entries', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
+  ['journals', 'Journals', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
 ];
 const PERMISSIONS = [
-  ...MASTER_LISTS.flatMap(([key, label]) => [
-    { key: `masters.${key}.view`, label: `View ${label}`, group: 'Master lists' },
-    { key: `masters.${key}.create`, label: `Create ${label}`, group: 'Master lists' },
-    { key: `masters.${key}.edit`, label: `Edit ${label}`, group: 'Master lists' },
-    { key: `masters.${key}.submit`, label: `Submit ${label}`, group: 'Master lists' },
-    { key: `masters.${key}.cancel`, label: `Cancel ${label}`, group: 'Master lists' },
-  ]),
+  ...MASTER_LISTS.flatMap(([key, label]) => ['view', 'create', 'edit', 'submit', 'cancel', 'delete']
+    .map((action) => ({ key: `masters.${key}.${action}`,
+      label: `${action[0].toUpperCase()}${action.slice(1)} ${label}`, group: 'Master lists' }))),
   ...VOUCHER_TYPES.flatMap(([key, label, actions]) => actions.map((action) => (
     { key: `vouchers.${key}.${action}`, label: `${action[0].toUpperCase()}${action.slice(1)} ${label}`, group: 'Vouchers' }
   ))),
@@ -40,16 +37,19 @@ const PERMISSIONS = [
   ...REPORTS.map((report) => ({ key: report.permission, label: `View ${report.label}`, group: 'Reports' })),
   { key: 'sync.run', label: 'Run ERPNext sync', group: 'Administration' },
 ];
-const RECORD_ACTIONS = ['create', 'view', 'edit', 'submit', 'cancel'];
+const RECORD_ACTIONS = ['create', 'view', 'edit', 'submit', 'cancel', 'delete'];
 const RECORD_TITLES = {
   sales: 'Sales Invoice', purchases: 'Purchase', stock: 'Stock Entry', journals: 'Journal Entry',
+  'price-lists': 'Price List', 'item-prices': 'Item Price',
   customers: 'Customer', suppliers: 'Supplier', items: 'Item', warehouses: 'Warehouse', employees: 'Employee', options: 'Option',
 };
 const ROLE_RECORD_TYPES = [
   ...VOUCHER_TYPES.map(([key, , actions]) => ({ key: `vouchers.${key}`, label: RECORD_TITLES[key], group: 'Voucher types',
     actions, permissions: Object.fromEntries(actions.map((action) => [action, `vouchers.${key}.${action}`])) })),
   ...MASTER_LISTS.map(([key]) => ({ key: `masters.${key}`, label: RECORD_TITLES[key], group: 'Master lists',
-    actions: RECORD_ACTIONS, permissions: Object.fromEntries(RECORD_ACTIONS.map((action) => [action, `masters.${key}.${action}`])) })),
+    actions: ['view', 'create', 'edit', 'submit', 'cancel', 'delete'],
+    permissions: Object.fromEntries(['view', 'create', 'edit', 'submit', 'cancel', 'delete']
+      .map((action) => [action, `masters.${key}.${action}`])) })),
   { key: 'payments.sales', label: 'Customer Payment', group: 'Payments', actions: ['create', 'cancel'],
     permissions: { create: 'payments.sales.record', cancel: 'payments.sales.cancel' } },
   { key: 'payments.purchases', label: 'Supplier Payment', group: 'Payments', actions: ['create', 'cancel'],
@@ -62,14 +62,16 @@ const ROLE_RECORD_TYPES = [
 const RECORD_PERMISSION_KEYS = new Set(ROLE_RECORD_TYPES.flatMap((type) => Object.values(type.permissions)));
 const EXTRA_PERMISSIONS = PERMISSIONS.filter((permission) => !RECORD_PERMISSION_KEYS.has(permission.key));
 const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('masters.')
-  && !item.key.endsWith('.cancel') && item.key !== 'sync.run').map((item) => item.key);
+  && !item.key.endsWith('.cancel') && !item.key.endsWith('.delete') && item.key !== 'sync.run').map((item) => item.key);
 const PREVIOUS_ROUTINE_PERMISSIONS = [...ROUTINE_PERMISSIONS,
   ...PERMISSIONS.filter((item) => item.key.startsWith('masters.') && item.key.endsWith('.view')).map((item) => item.key)];
 const OLDER_ROUTINE_PERMISSIONS = PREVIOUS_ROUTINE_PERMISSIONS.filter((permission) =>
   !['vouchers.journals.edit', 'vouchers.journals.submit'].includes(permission));
 const ELEVATED_PERMISSIONS = PERMISSIONS.filter((item) => item.key.endsWith('.cancel') || item.key === 'sync.run'
   || item.key.startsWith('masters.') && !item.key.endsWith('.view')).map((item) => item.key);
-const DEFAULT_SCOPES = { customers: { mode: 'all', values: [] }, suppliers: { mode: 'all', values: [] } };
+const DEFAULT_SCOPES = { customers: { mode: 'all', values: [] }, suppliers: { mode: 'all', values: [] },
+  invoicePriceLists: { mode: 'all', values: [] }, warehouses: { mode: 'all', values: [] },
+  accounts: { mode: 'all', values: [] } };
 const BUILT_IN_ROLES = [
   { slug: 'standard', name: 'Standard', permissions: ROUTINE_PERMISSIONS },
   { slug: 'privileged', name: 'Privileged', permissions: PERMISSIONS.map((item) => item.key) },
@@ -83,19 +85,30 @@ const BUILT_IN_ROLES = [
 
 function normalizeScopes(value = DEFAULT_SCOPES) {
   const scopes = {};
-  for (const kind of ['customers', 'suppliers']) {
+  for (const kind of ['customers', 'suppliers', 'invoicePriceLists', 'warehouses', 'accounts']) {
     const input = value?.[kind] || DEFAULT_SCOPES[kind];
     const mode = input.mode;
     if (!['all', 'selected'].includes(mode)) {
       const error = new Error(`Choose a valid ${kind} scope.`); error.status = 400; throw error;
     }
     const raw = Array.isArray(input.values) ? input.values : input.values ? [input.values] : [];
-    if (raw.length > 200 || raw.some((entry) => typeof entry !== 'string' || !entry.trim() || entry.length > 100)) {
+    if (raw.length > (['invoicePriceLists', 'warehouses', 'accounts'].includes(kind) ? 5000 : 200)
+        || raw.some((entry) => typeof entry !== 'string' || !entry.trim()
+        || entry.length > (['invoicePriceLists', 'warehouses', 'accounts'].includes(kind) ? 140 : 100))) {
       const error = new Error(`Choose valid ${kind} categories.`); error.status = 400; throw error;
     }
     scopes[kind] = { mode, values: mode === 'selected' ? [...new Set(raw.map((entry) => entry.trim()))] : [] };
   }
   return scopes;
+}
+
+function normalizeInvoicePriceListScope(mode, values) {
+  const raw = values === undefined ? [] : Array.isArray(values) ? values : [values];
+  if (!['all', 'selected'].includes(mode) || raw.length > 5000
+      || raw.some((entry) => typeof entry !== 'string' || !entry.trim() || entry.length > 140)) {
+    const error = new Error('Choose valid invoice price lists.'); error.status = 400; throw error;
+  }
+  return { mode, values: mode === 'selected' ? [...new Set(raw.map((entry) => entry.trim()))] : [] };
 }
 
 function migratePermissions(oldPermissions) {
@@ -114,7 +127,8 @@ function migratePermissions(oldPermissions) {
 function migrateCurrentPermissions(role) {
   const previous = role.permissions_version < 2 ? migratePermissions(role.permissions) : role.permissions;
   const allowed = new Set(PERMISSIONS.map((permission) => permission.key));
-  const filtered = previous.filter((permission) => allowed.has(permission));
+  const filtered = previous.filter((permission) => allowed.has(permission)
+    || validInvoicePriceListPermission(permission) || validNamedListPermission(permission));
   if (previous.includes('reports.view')) {
     for (const report of REPORTS) if (!filtered.includes(report.permission)) filtered.push(report.permission);
   }
@@ -125,11 +139,6 @@ function migrateCurrentPermissions(role) {
       || matchesRoutine(OLDER_ROUTINE_PERMISSIONS))) return ROUTINE_PERMISSIONS;
   if (role.permissions_version < 6) {
     if (role.slug === 'privileged' || role.slug === 'admin') return PERMISSIONS.map((permission) => permission.key);
-    if (role.permissions_version < 5) {
-      for (const [key] of MASTER_LISTS) {
-        if (filtered.includes(`masters.${key}.create`)) filtered.push(`masters.${key}.submit`);
-      }
-    }
     if (filtered.includes('vouchers.journals.create')) {
       filtered.push('vouchers.journals.edit', 'vouchers.journals.submit');
     }
@@ -140,19 +149,47 @@ function migrateCurrentPermissions(role) {
 function normalizePermissions(value) {
   const items = value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value];
   const allowed = new Set(PERMISSIONS.map((permission) => permission.key));
-  if (items.some((permission) => typeof permission !== 'string' || !allowed.has(permission))) {
+  if (items.some((permission) => typeof permission !== 'string' || !allowed.has(permission)
+      && !validInvoicePriceListPermission(permission) && !validNamedListPermission(permission))) {
     const error = new Error('Choose valid role permissions.'); error.status = 400; throw error;
   }
   const permissions = new Set(items);
   for (const permission of items) {
-    if (/^(masters|vouchers)\.[^.]+\.(create|edit|submit|cancel)$/.test(permission)) {
-      permissions.add(permission.replace(/\.(create|edit|submit|cancel)$/, '.view'));
+    if (/^(masters|vouchers)\.[^.]+\.(create|edit|submit|cancel|delete)$/.test(permission)) {
+      permissions.add(permission.replace(/\.(create|edit|submit|cancel|delete)$/, '.view'));
     }
     if (permission.startsWith('payments.sales.')) permissions.add('vouchers.sales.view');
     if (permission.startsWith('payments.purchases.')) permissions.add('vouchers.purchases.view');
     if (permission === 'accounts.manage') permissions.add('accounts.view');
   }
   return [...permissions];
+}
+
+function validatePermissionKeys(value) {
+  const items = value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value];
+  const allowed = new Set(PERMISSIONS.map((permission) => permission.key));
+  if (items.some((permission) => typeof permission !== 'string' || !allowed.has(permission)
+      && !validInvoicePriceListPermission(permission) && !validNamedListPermission(permission))) {
+    const error = new Error('Choose valid permissions.'); error.status = 400; throw error;
+  }
+  return [...new Set(items)];
+}
+
+function applyPermissionOverrides(rolePermissions, grants = [], denials = []) {
+  const effective = new Set(Array.isArray(rolePermissions) ? rolePermissions : []);
+  for (const permission of Array.isArray(grants) ? grants : []) effective.add(permission);
+  for (const permission of Array.isArray(denials) ? denials : []) effective.delete(permission);
+  return [...effective];
+}
+
+function validInvoicePriceListPermission(permission) {
+  const match = /^invoice\.price-list\.(view|create|edit|submit|cancel|delete):(.+)$/.exec(String(permission || ''));
+  return Boolean(match && match[2].length <= 140 && match[2] === match[2].trim());
+}
+
+function validNamedListPermission(permission) {
+  const match = /^(warehouse|account)\.view:(.+)$/.exec(String(permission || ''));
+  return Boolean(match && match[2].length <= 140 && match[2] === match[2].trim());
 }
 
 function cleanRoleName(value) {
@@ -219,9 +256,13 @@ async function initAuth() {
         active BOOLEAN NOT NULL DEFAULT true,
         must_change_password BOOLEAN NOT NULL DEFAULT false,
         role TEXT NOT NULL DEFAULT 'standard',
+        permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb,
+        permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb");
+    await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb");
     const roleColumn = await pool.query(`
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = current_schema() AND table_name = 'app_users' AND column_name = 'role'
@@ -239,7 +280,7 @@ async function initAuth() {
         name TEXT NOT NULL,
         permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
         scopes JSONB NOT NULL DEFAULT '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb,
-        permissions_version INTEGER NOT NULL DEFAULT 8,
+        permissions_version INTEGER NOT NULL DEFAULT 9,
         built_in BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
@@ -249,13 +290,13 @@ async function initAuth() {
     await initRecordAudit(pool, ['app_users', 'app_roles']);
     for (const role of BUILT_IN_ROLES) {
       await pool.query(
-        'INSERT INTO app_roles (slug, name, permissions, built_in, permissions_version) VALUES ($1, $2, $3::jsonb, true, 8) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, built_in = true',
+        'INSERT INTO app_roles (slug, name, permissions, built_in, permissions_version) VALUES ($1, $2, $3::jsonb, true, 9) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, built_in = true',
         [role.slug, role.name, JSON.stringify(role.permissions)],
       );
     }
-    const oldRoles = await pool.query('SELECT slug, permissions, permissions_version FROM app_roles WHERE permissions_version < 8');
+    const oldRoles = await pool.query('SELECT slug, permissions, permissions_version FROM app_roles WHERE permissions_version < 9');
     for (const role of oldRoles.rows) {
-      await pool.query('UPDATE app_roles SET permissions = $1::jsonb, scopes = $2::jsonb, permissions_version = 8 WHERE slug = $3',
+      await pool.query('UPDATE app_roles SET permissions = $1::jsonb, scopes = $2::jsonb, permissions_version = 9 WHERE slug = $3',
         [JSON.stringify(migrateCurrentPermissions(role)), JSON.stringify(DEFAULT_SCOPES), role.slug]);
     }
     await pool.query(`
@@ -297,7 +338,7 @@ async function initAuth() {
   for (const builtIn of BUILT_IN_ROLES) {
     const role = data.roles.find((row) => row.slug === builtIn.slug);
     if (!role) {
-      data.roles.push({ ...builtIn, scopes: structuredClone(DEFAULT_SCOPES), permissions_version: 8, built_in: true });
+      data.roles.push({ ...builtIn, scopes: structuredClone(DEFAULT_SCOPES), permissions_version: 9, built_in: true });
       changed = true;
     } else if (!role.built_in || role.name !== builtIn.name) {
       role.built_in = true;
@@ -306,10 +347,10 @@ async function initAuth() {
     }
   }
   for (const role of data.roles) {
-    if (!role.permissions_version || role.permissions_version < 8) {
+    if (!role.permissions_version || role.permissions_version < 9) {
       role.permissions = migrateCurrentPermissions({ ...role, permissions_version: role.permissions_version || 1 });
       role.scopes = structuredClone(DEFAULT_SCOPES);
-      role.permissions_version = 8;
+      role.permissions_version = 9;
       changed = true;
     }
     if (!role.scopes) { role.scopes = structuredClone(DEFAULT_SCOPES); changed = true; }
@@ -346,7 +387,7 @@ async function createRole(nameValue, permissionValues, scopeValues = DEFAULT_SCO
   if (usePostgres()) {
     try {
       const { rows } = await getPostgresPool().query(
-        'INSERT INTO app_roles (slug, name, permissions, scopes, permissions_version) VALUES ($1, $2, $3::jsonb, $4::jsonb, 8) RETURNING slug, name, permissions, scopes, built_in',
+        'INSERT INTO app_roles (slug, name, permissions, scopes, permissions_version) VALUES ($1, $2, $3::jsonb, $4::jsonb, 9) RETURNING slug, name, permissions, scopes, built_in',
         [slug, name, JSON.stringify(permissions), JSON.stringify(scopes)],
       );
       return rows[0];
@@ -359,7 +400,7 @@ async function createRole(nameValue, permissionValues, scopeValues = DEFAULT_SCO
   if (data.roles.some((role) => role.slug === slug)) {
     const error = new Error('A role with that name already exists.'); error.status = 409; throw error;
   }
-  const role = { slug, name, permissions, scopes, permissions_version: 8, built_in: false };
+  const role = { slug, name, permissions, scopes, permissions_version: 9, built_in: false };
   data.roles.push(role);
   await writeAuthFile(data);
   return role;
@@ -372,7 +413,7 @@ async function updateRole(slug, nameValue, permissionValues, scopeValues = DEFAU
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
   if (usePostgres()) {
     const { rows } = await getPostgresPool().query(
-      'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, permissions = $2::jsonb, scopes = $3::jsonb, permissions_version = 8 WHERE slug = $4 RETURNING slug',
+      'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, permissions = $2::jsonb, scopes = $3::jsonb, permissions_version = 9 WHERE slug = $4 RETURNING slug',
       [name, JSON.stringify(permissions), JSON.stringify(scopes), slug],
     );
     if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
@@ -409,6 +450,82 @@ async function updateRoleDetails(slug, nameValue, scopeValues) {
   await writeAuthFile(data);
 }
 
+const INVOICE_PRICE_LIST_TYPE_PREFIX = 'invoice-price-list:';
+const INVOICE_PRICE_LIST_ACTIONS = ['create', 'view', 'edit', 'submit', 'cancel', 'delete'];
+const invoicePriceListPermission = (action, name) => `invoice.price-list.${action}:${name}`;
+const NAMED_LISTS = [
+  { prefix: 'warehouse:', scope: 'warehouses', permission: 'warehouse.view:',
+    query: 'SELECT warehouse AS name FROM app_master_warehouses WHERE is_group = false ORDER BY warehouse' },
+  { prefix: 'account:', scope: 'accounts', permission: 'account.view:',
+    query: 'SELECT id::text AS name FROM app_accounts ORDER BY account_code, account_name' },
+];
+
+function nextInvoicePriceListScope(current, activeNames, name, grant) {
+  const values = new Set(current?.mode === 'selected' ? current.values || [] : activeNames);
+  if (grant) values.add(name); else values.delete(name);
+  return normalizeInvoicePriceListScope('selected', [...values]);
+}
+
+async function saveRoleNamedListPermissions(slug, typeKey, actions) {
+  if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
+  const type = NAMED_LISTS.find((item) => String(typeKey || '').startsWith(item.prefix));
+  const name = type && String(typeKey).slice(type.prefix.length);
+  if (!type || !name || !usePostgres() || actions.some((action) => action !== 'view')) {
+    const error = new Error('Choose valid list permissions.'); error.status = 400; throw error;
+  }
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    const lists = (await client.query(type.query)).rows.map((row) => row.name);
+    if (!lists.includes(name)) { const error = new Error('Choose an existing list entry.'); error.status = 400; throw error; }
+    const { rows } = await client.query('SELECT scopes FROM app_roles WHERE slug = $1 FOR UPDATE', [slug]);
+    if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
+    const scope = nextInvoicePriceListScope(rows[0].scopes?.[type.scope], lists, name, actions.includes('view'));
+    await client.query(`UPDATE app_roles SET scopes = jsonb_set(COALESCE(scopes, '{}'::jsonb),
+      $1::text[], $2::jsonb, true) WHERE slug = $3`, [[type.scope], JSON.stringify(scope), slug]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
+
+async function saveRoleInvoicePriceListPermissions(slug, typeKey, actions) {
+  if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
+  const name = String(typeKey || '').startsWith(INVOICE_PRICE_LIST_TYPE_PREFIX)
+    ? String(typeKey).slice(INVOICE_PRICE_LIST_TYPE_PREFIX.length) : '';
+  if (!name || !usePostgres() || actions.some((action) => !INVOICE_PRICE_LIST_ACTIONS.includes(action))) {
+    const error = new Error('Choose valid price list permissions.'); error.status = 400; throw error;
+  }
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: lists } = await client.query(`
+      SELECT price_list FROM app_master_price_lists
+      WHERE currency = 'UGX'
+        AND price_type IN ('selling', 'both') ORDER BY price_list`);
+    if (!lists.some((row) => row.price_list === name)) {
+      const error = new Error('Choose an active UGX selling price list.'); error.status = 400; throw error;
+    }
+    const { rows } = await client.query('SELECT scopes, permissions FROM app_roles WHERE slug = $1 FOR UPDATE', [slug]);
+    if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
+    const current = rows[0].scopes?.invoicePriceLists;
+    const scope = nextInvoicePriceListScope(current, lists.map((row) => row.price_list), name, actions.length > 0);
+    const rowPermissions = new Set(INVOICE_PRICE_LIST_ACTIONS.map((action) => invoicePriceListPermission(action, name)));
+    const permissions = normalizePermissions([
+      ...rows[0].permissions.filter((key) => !rowPermissions.has(key)),
+      ...actions.filter((action) => action !== 'view').map((action) => invoicePriceListPermission(action, name)),
+    ]);
+    await client.query(`UPDATE app_roles SET scopes = jsonb_set(COALESCE(scopes, '{}'::jsonb),
+      '{invoicePriceLists}', $1::jsonb, true), permissions = $2::jsonb WHERE slug = $3`,
+    [JSON.stringify(scope), JSON.stringify(permissions), slug]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+}
+
 async function mutateRolePermissions(slug, change) {
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
   if (usePostgres()) {
@@ -434,6 +551,17 @@ async function mutateRolePermissions(slug, change) {
 }
 
 async function saveRoleRecordPermissions(slug, typeKey, actionValues) {
+  const namedType = NAMED_LISTS.find((item) => String(typeKey || '').startsWith(item.prefix));
+  if (namedType) {
+    const actions = actionValues === undefined ? [] : Array.isArray(actionValues) ? actionValues : [actionValues];
+    if (!actions.length) { const error = new Error('Choose Read, or remove the row.'); error.status = 400; throw error; }
+    return saveRoleNamedListPermissions(slug, typeKey, actions);
+  }
+  if (String(typeKey || '').startsWith(INVOICE_PRICE_LIST_TYPE_PREFIX)) {
+    const actions = actionValues === undefined ? [] : Array.isArray(actionValues) ? actionValues : [actionValues];
+    if (!actions.length) { const error = new Error('Choose at least one permission, or remove the row.'); error.status = 400; throw error; }
+    return saveRoleInvoicePriceListPermissions(slug, typeKey, actions);
+  }
   const type = ROLE_RECORD_TYPES.find((item) => item.key === typeKey);
   if (!type) { const error = new Error('Choose a valid record type.'); error.status = 400; throw error; }
   const actions = actionValues === undefined ? [] : Array.isArray(actionValues) ? actionValues : [actionValues];
@@ -449,6 +577,12 @@ async function saveRoleRecordPermissions(slug, typeKey, actionValues) {
 }
 
 async function removeRoleRecordPermissions(slug, typeKey) {
+  if (NAMED_LISTS.some((item) => String(typeKey || '').startsWith(item.prefix))) {
+    return saveRoleNamedListPermissions(slug, typeKey, []);
+  }
+  if (String(typeKey || '').startsWith(INVOICE_PRICE_LIST_TYPE_PREFIX)) {
+    return saveRoleInvoicePriceListPermissions(slug, typeKey, []);
+  }
   const type = ROLE_RECORD_TYPES.find((item) => item.key === typeKey);
   if (!type) {
     const error = new Error('Choose a valid record type.'); error.status = 400; throw error;
@@ -533,7 +667,8 @@ async function createUser(usernameValue, password, options = {}) {
     error.status = 409;
     throw error;
   }
-  const user = { id: data.nextId++, username, password_hash: hash, active: true, must_change_password: mustChange, role };
+  const user = { id: data.nextId++, username, password_hash: hash, active: true, must_change_password: mustChange, role,
+    permission_grants: [], permission_denials: [] };
   data.users.push(user);
   await writeAuthFile(data);
   return { id: user.id, username: user.username, role: user.role };
@@ -585,7 +720,7 @@ async function sessionUser(token) {
   const hash = tokenHash(token);
   if (usePostgres()) {
     const { rows } = await getPostgresPool().query(`
-      SELECT u.id, u.username, u.must_change_password, u.role,
+      SELECT u.id, u.username, u.must_change_password, u.role, u.permission_grants, u.permission_denials,
              COALESCE(r.name, u.role) AS role_name,
              COALESCE(r.permissions, '[]'::jsonb) AS permissions,
              COALESCE(r.scopes, '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb) AS scopes
@@ -594,27 +729,55 @@ async function sessionUser(token) {
       LEFT JOIN app_roles r ON r.slug = u.role
       WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true
     `, [hash]);
-    return rows[0] || null;
+    const user = rows[0];
+    if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
+    return user || null;
   }
   const data = await readAuthFile();
   const session = data.sessions.find((row) => row.token_hash === hash && Date.parse(row.expires_at) > Date.now());
   const user = session && data.users.find((row) => row.id === session.user_id && row.active);
   const role = user && data.roles.find((row) => row.slug === user.role);
   return user ? { id: user.id, username: user.username, role: user.role, role_name: role?.name || user.role,
-    permissions: role?.permissions || [], scopes: role?.scopes || DEFAULT_SCOPES,
+    permissions: applyPermissionOverrides(role?.permissions || [], user.permission_grants, user.permission_denials),
+    permission_grants: user.permission_grants || [], permission_denials: user.permission_denials || [],
+    scopes: role?.scopes || DEFAULT_SCOPES,
     must_change_password: user.must_change_password } : null;
 }
 
 async function listUsers() {
   if (usePostgres()) {
     const { rows } = await getPostgresPool().query(
-      'SELECT id, username, role, active, must_change_password, created_at FROM app_users ORDER BY username',
+      'SELECT id, username, role, active, must_change_password, permission_grants, permission_denials, created_at FROM app_users ORDER BY username',
     );
     return rows;
   }
-  return (await readAuthFile()).users.map(({ id, username, role, active, must_change_password }) => (
-    { id, username, role, active, must_change_password }
+  return (await readAuthFile()).users.map(({ id, username, role, active, must_change_password, permission_grants, permission_denials }) => (
+    { id, username, role, active, must_change_password, permission_grants: permission_grants || [], permission_denials: permission_denials || [] }
   )).sort((a, b) => a.username.localeCompare(b.username));
+}
+
+async function saveUserPermissionOverrides(targetId, grants, denials) {
+  const id = Number(targetId);
+  if (!Number.isSafeInteger(id) || id < 1) { const error = new Error('User not found.'); error.status = 404; throw error; }
+  const additions = validatePermissionKeys(grants);
+  const removals = validatePermissionKeys(denials);
+  if (additions.some((key) => removals.includes(key))) {
+    const error = new Error('A permission cannot be both allowed and denied.'); error.status = 400; throw error;
+  }
+  if (usePostgres()) {
+    const result = await getPostgresPool().query(
+      `UPDATE app_users SET permission_grants = $1::jsonb, permission_denials = $2::jsonb
+       WHERE id = $3 AND role <> 'admin'`, [JSON.stringify(additions), JSON.stringify(removals), id],
+    );
+    if (!result.rowCount) { const error = new Error('User not found or has full Admin access.'); error.status = 404; throw error; }
+    return;
+  }
+  const data = await readAuthFile();
+  const user = data.users.find((row) => row.id === id && row.role !== 'admin');
+  if (!user) { const error = new Error('User not found or has full Admin access.'); error.status = 404; throw error; }
+  user.permission_grants = additions;
+  user.permission_denials = removals;
+  await writeAuthFile(data);
 }
 
 async function updateUserAccess(actorId, targetId, changes) {
@@ -779,10 +942,13 @@ module.exports = {
   changePassword,
   resetUserPassword,
   PERMISSIONS,
+  normalizePermissions,
+  applyPermissionOverrides,
   ROLE_RECORD_TYPES,
   RECORD_ACTIONS,
   EXTRA_PERMISSIONS,
   DEFAULT_SCOPES,
+  nextInvoicePriceListScope,
   listRoles,
   createRole,
   updateRole,
@@ -792,5 +958,6 @@ module.exports = {
   saveRoleExtraPermissions,
   deleteRole,
   listUsers,
+  saveUserPermissionOverrides,
   updateUserAccess,
 };

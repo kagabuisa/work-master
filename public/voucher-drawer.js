@@ -6,7 +6,7 @@
   layer.className = 'statement-drawer-layer';
   layer.setAttribute('data-voucher-layer', '');
   layer.innerHTML = `
-    <button type="button" class="statement-drawer-backdrop" aria-label="Close voucher" data-voucher-close></button>
+    <button type="button" class="statement-drawer-backdrop" aria-label="Close voucher" tabindex="-1" data-voucher-close></button>
     <aside class="statement-drawer voucher-drawer" role="dialog" aria-modal="true" aria-labelledby="voucher-drawer-title" tabindex="-1">
       <header class="statement-drawer-header voucher-drawer-header">
         <div>
@@ -33,14 +33,22 @@
   let lastTrigger = null;
   let requestId = 0;
   let closeToken = 0;
+  const background = new Map();
 
   const setOpen = (open) => {
     layer.classList.toggle('is-open', open);
     document.body.classList.toggle('drawer-open', open);
     if (open) {
+      for (const element of document.body.children) {
+        if (element === layer || element.matches('script, dialog') || background.has(element)) continue;
+        background.set(element, element.inert);
+        element.inert = true;
+      }
       layer.removeAttribute('inert');
       layer.removeAttribute('aria-hidden');
     } else {
+      for (const [element, inert] of background) element.inert = inert;
+      background.clear();
       layer.setAttribute('inert', '');
       layer.setAttribute('aria-hidden', 'true');
     }
@@ -122,20 +130,26 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    if (document.querySelector('dialog[open]')) return;
     if (event.key === 'Escape' && layer.classList.contains('is-open')) {
       close();
     }
     if (event.key === 'Tab' && layer.classList.contains('is-open') && drawer) {
       const focusable = [...drawer.querySelectorAll(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )].filter((element) => !element.hidden);
-      if (!focusable.length) return;
+      )].filter((element) => element.getClientRects().length && !element.closest('[inert]'));
+      if (!focusable.length) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      const outsideControls = !focusable.includes(document.activeElement);
+      if (event.shiftKey && (document.activeElement === first || outsideControls)) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || outsideControls)) {
         event.preventDefault();
         first.focus();
       }

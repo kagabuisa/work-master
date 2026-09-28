@@ -22,6 +22,7 @@
       <p><span class="badge <%= invoice.status %>"><%- include('invoice-payment-status', { invoice, money }) -%></span></p>
     </div>
   </div>
+  <% if (invoice.price_list) { %><p>Price List: <strong><%= invoice.price_list %></strong></p><% } %>
 
   <table>
     <thead>

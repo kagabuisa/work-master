@@ -1,6 +1,8 @@
 const express = require('express');
 const compression = require('compression');
+const multer = require('multer');
 const path = require('path');
+const { listDirectory, downloadableFile, saveUploads } = require('./src/project-files');
 const {
   initStore,
   getCompanyInformation,
@@ -16,6 +18,7 @@ const {
   updateInvoice,
   submitInvoice,
   cancelInvoice,
+  deleteDraftVoucher,
   addInvoicePayment,
   cancelInvoicePayment,
   invoiceSummary,
@@ -25,6 +28,7 @@ const {
   stockBalances,
   localStockQuantity,
   masterItemsWithStock,
+  invoiceItemPrices,
   masterItems,
   masterCustomers,
   masterSuppliers,
@@ -32,15 +36,23 @@ const {
   masterEmployees,
   masterCostCenters,
   masterOptions,
+  masterPriceLists,
+  masterItemPrices,
+  itemPriceListFilters,
+  itemPriceCodeSuggestions,
   findMasterRecord,
+  priceListNeighbors,
+  masterRecordNeighbors,
   findMasterItem,
   findMasterCustomer,
   findMasterSupplier,
   findMasterEmployee,
   createMasterRecord,
   updateMasterRecord,
-  submitMasterRecord,
-  cancelMasterRecord,
+  setPriceListActive,
+  setMasterRecordActive,
+  deletePriceList,
+  deleteMasterRecord,
   createStockEntry,
   loadStockEntry,
   stockEntryCancelTemplate,
@@ -74,7 +86,20 @@ const {
 const { DEFAULT_IMPORT_FROM, importSalesInvoicesFromMysql } = require('./src/sales-invoice-importer');
 const { initAuth } = require('./src/auth');
 const { installAuth } = require('./src/auth-http');
-const { selectedCategories, scopeRestricted } = require('./src/access');
+const { invoiceFormState } = require('./src/invoice-form-state');
+const { selectedCategories, scopeRestricted, allowedInvoicePriceLists, requireInvoicePriceList,
+  namedPriceListsForActions, warehouseAllowed, allowedNamedListValues,
+  deniedNamedListValues } = require('./src/access');
+
+function warehouseAccessOptions(user) {
+  return { allowedWarehouses: allowedNamedListValues(user, 'warehouses'),
+    deniedWarehouses: deniedNamedListValues(user, 'warehouses') };
+}
+
+function accountAccessOptions(user) {
+  return { allowedAccounts: allowedNamedListValues(user, 'accounts'),
+    deniedAccounts: deniedNamedListValues(user, 'accounts') };
+}
 const {
   createPurchase,
   updatePurchase,
@@ -137,7 +162,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
     res.setHeader('Cache-Control', `public, max-age=${STATIC_MAX_AGE}`);
   },
 }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '3mb', parameterLimit: 35000 }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
   const start = process.hrtime.bigint();
@@ -352,6 +377,11 @@ app.get('/purchases/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+app.post('/purchases/:id/delete', async (req, res, next) => {
+  try { await deleteDraftVoucher('purchases', req.params.id); res.redirect(303, '/purchases'); }
+  catch (error) { next(error); }
+});
+
 app.get('/purchases/:id/drawer', async (req, res, next) => {
   try {
     const purchase = await loadPurchase(req.params.id);
@@ -433,6 +463,67 @@ app.get('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+function projectFilesAdmin(req, res, next) {
+  if (req.currentUser.role !== 'admin') {
+    const error = new Error('Your account does not have permission for this action.');
+    error.status = 403;
+    return next(error);
+  }
+  return next();
+}
+
+const projectUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 10, parts: 12 },
+}).array('files', 10);
+
+async function renderProjectFiles(req, res, options = {}) {
+  const listing = await listDirectory(String(options.dir ?? req.query.dir ?? ''));
+  res.set('Cache-Control', 'private, no-store');
+  res.status(options.status || 200).render('project-files', {
+    ...listing,
+    error: options.error || null,
+    uploaded: Number(req.query.uploaded) || 0,
+  });
+}
+
+app.get('/settings/files', projectFilesAdmin, async (req, res, next) => {
+  try { await renderProjectFiles(req, res); } catch (error) { next(error); }
+});
+
+app.get('/settings/files/download', projectFilesAdmin, async (req, res, next) => {
+  try {
+    const file = await downloadableFile(req.query.path);
+    res.set('Cache-Control', 'private, no-store');
+    res.download(file.filePath, file.name, (error) => { if (error && !res.headersSent) next(error); });
+  } catch (error) { next(error); }
+});
+
+app.post('/settings/files/upload', projectFilesAdmin, (req, res, next) => {
+  projectUpload(req, res, async (uploadError) => {
+    try {
+      if (uploadError) {
+        const message = uploadError.code === 'LIMIT_FILE_SIZE' ? 'Each file must be 20 MB or smaller.'
+          : uploadError.code === 'LIMIT_FILE_COUNT' ? 'Choose up to 10 files at a time.'
+            : 'The upload could not be completed.';
+        await renderProjectFiles(req, res, { dir: 'uploads', error: message, status: 400 });
+        return;
+      }
+      if (!req.files?.length) {
+        await renderProjectFiles(req, res, { dir: 'uploads', error: 'Choose at least one file to upload.', status: 400 });
+        return;
+      }
+      const saved = await saveUploads(req.files);
+      res.redirect(303, `/settings/files?dir=uploads&uploaded=${saved.length}`);
+    } catch (error) {
+      if (error.status === 400) {
+        try { await renderProjectFiles(req, res, { dir: 'uploads', error: error.message, status: 400 }); }
+        catch (renderError) { next(renderError); }
+      } else next(error);
+    }
+  });
+});
+
 app.post('/settings/company-information', async (req, res, next) => {
   try {
     await saveCompanyInformation(req.body);
@@ -497,6 +588,7 @@ app.get('/settings/:list/new', async (req, res, next) => {
 });
 
 function newMasterRecord(config, query = {}) {
+  if (config.key === 'price-lists') return { currency: 'UGX', price_type: 'selling' };
   if (config.key !== 'options') {
     return {};
   }
@@ -516,19 +608,27 @@ app.get('/settings/:list/:id/edit', async (req, res, next) => {
       err.status = 404;
       throw err;
     }
-    if (record.docstatus !== 'draft' && !(record.docstatus === 'submitted' && record.legacy_editable)) {
-      const err = new Error('Submitted or cancelled master records cannot be edited.');
-      err.status = 400;
-      throw err;
-    }
-    await renderMasterForm(res, { config, record, error: null, mode: 'edit' });
+    await renderMasterForm(res, {
+      config, record, error: null, mode: 'edit',
+      editSubmitted: record.docstatus === 'submitted'
+        && (config.key === 'price-lists' ? res.locals.canPriceListAction(record.price_list, 'edit')
+          : res.locals.can(`masters.${config.key}.edit`))
+        && (config.key !== 'price-lists' || req.query.editing === '1'),
+    });
   } catch (err) {
     next(err);
   }
 });
 
-async function renderMasterForm(res, { config, record, error, mode }) {
+async function renderMasterForm(res, { config, record, error, mode, editSubmitted = false }) {
+  if (config.key !== 'item-prices' && config.key !== 'price-lists' && mode === 'edit') {
+    record.active = record.disabled === '0' && record.docstatus === 'submitted' ? 1 : 0;
+  }
   const optionValues = await masterFormOptions(config);
+  const neighbors = mode === 'edit'
+    ? config.key === 'price-lists' ? await priceListNeighbors(record.price_list)
+      : await masterRecordNeighbors(config.key, record[config.idField])
+    : null;
   if (config.key === 'customers' || config.key === 'suppliers') {
     const allowed = selectedCategories(res.locals.currentUser, config.key);
     const group = config.key === 'customers' ? 'customer_group' : 'supplier_type';
@@ -538,7 +638,7 @@ async function renderMasterForm(res, { config, record, error, mode }) {
         .filter((value) => allowed.includes(value.trim().toLowerCase())))].sort((a, b) => a.localeCompare(b));
     }
   }
-  res.render('master-form', { config, record, error, mode, optionValues });
+  res.render('master-form', { config, record, error, mode, optionValues, editSubmitted, neighbors });
 }
 
 async function masterFormOptions(config) {
@@ -571,34 +671,95 @@ app.get('/settings/:list', async (req, res, next) => {
   try {
     const config = masterListConfig(req.params.list);
     const search = String(req.query.q || '').trim();
+    const priceList = config.key === 'item-prices' ? String(req.query.price_list || '').trim() : '';
+    const itemCode = config.key === 'item-prices' ? String(req.query.item_code || '').trim() : '';
+    const itemCodeExact = req.query.item_code_exact === '1';
+    const priceListOptions = config.key === 'item-prices'
+      ? (await itemPriceListFilters()).filter((name) => res.locals.can('masters.item-prices.view')
+        || namedPriceListsForActions(req.currentUser, ['create']).includes(name)) : [];
     const rows = await config.loader({
       search,
+      priceList,
+      priceListExact: priceListOptions.includes(priceList),
+      itemCode,
+      itemCodeExact,
       limit: 50,
       page: req.query.page,
       page_size: req.query.page_size,
       paginate: true,
       allowedGroups: config.key === 'customers' ? selectedCategories(req.currentUser, 'customers') : undefined,
       allowedTypes: config.key === 'suppliers' ? selectedCategories(req.currentUser, 'suppliers') : undefined,
+      ...(config.key === 'warehouses' ? warehouseAccessOptions(req.currentUser) : {}),
+      allowedPriceLists: config.key === 'price-lists' && !res.locals.can('masters.price-lists.view')
+        ? allowedInvoicePriceLists(req.currentUser) || undefined
+        : config.key === 'item-prices' && !res.locals.can('masters.item-prices.view')
+          ? namedPriceListsForActions(req.currentUser, ['create']) : undefined,
+      deniedPriceLists: config.key === 'price-lists' ? (req.currentUser.permission_denials || [])
+        .filter((key) => key.startsWith('invoice.price-list.view:'))
+        .map((key) => key.slice('invoice.price-list.view:'.length)) : undefined,
     });
-    res.render('master-list', { config, rows, pagination: rows.pagination, query: req.query, search });
+    if (config.key !== 'item-prices' && config.key !== 'price-lists') {
+      for (const row of rows) row.active = row.disabled === '0' && row.docstatus === 'submitted' ? 1 : 0;
+    }
+    res.render('master-list', { config, rows, pagination: rows.pagination, query: req.query, search,
+      priceList, priceListOptions, itemCode, itemCodeExact });
   } catch (err) {
     next(err);
   }
 });
 
-app.post('/settings/:list/:id/submit', async (req, res, next) => {
+app.post('/settings/price-lists/:id/active', async (req, res, next) => {
   try {
-    const config = masterListConfig(req.params.list);
-    await submitMasterRecord(config.key, decodeURIComponent(req.params.id));
-    res.redirect(303, `/settings/${config.key}`);
+    const id = decodeURIComponent(req.params.id);
+    const active = req.body.active === '1' ? true : req.body.active === '0' ? false : null;
+    await setPriceListActive(id, active);
+    if (req.body.return_to === 'edit') {
+      res.redirect(303, `/settings/price-lists/${encodeURIComponent(id)}/edit?editing=1`);
+      return;
+    }
+    const query = new URLSearchParams();
+    for (const key of ['q', 'page', 'page_size']) {
+      if (req.body[key]) query.set(key, String(req.body[key]));
+    }
+    res.redirect(303, `/settings/price-lists${query.size ? `?${query}` : ''}`);
   } catch (err) { next(err); }
 });
 
-app.post('/settings/:list/:id/cancel', async (req, res, next) => {
+app.post('/settings/:list/:id/active', async (req, res, next) => {
   try {
     const config = masterListConfig(req.params.list);
-    await cancelMasterRecord(config.key, decodeURIComponent(req.params.id));
-    res.redirect(303, `/settings/${config.key}`);
+    if (config.key === 'price-lists') { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
+    const id = decodeURIComponent(req.params.id);
+    const active = req.body.active === '1' ? true : req.body.active === '0' ? false : null;
+    await setMasterRecordActive(config.key, id, active);
+    if (req.body.return_to === 'edit') {
+      res.redirect(303, `/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
+      return;
+    }
+    const query = new URLSearchParams();
+    for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) if (req.body[key]) query.set(key, String(req.body[key]));
+    res.redirect(303, `/settings/${config.key}${query.size ? `?${query}` : ''}`);
+  } catch (err) { next(err); }
+});
+
+app.post('/settings/price-lists/:id/delete', async (req, res, next) => {
+  try {
+    await deletePriceList(decodeURIComponent(req.params.id));
+    const query = new URLSearchParams();
+    for (const key of ['q', 'page', 'page_size']) {
+      if (req.body[key]) query.set(key, String(req.body[key]));
+    }
+    res.redirect(303, `/settings/price-lists${query.size ? `?${query}` : ''}`);
+  } catch (err) { next(err); }
+});
+
+app.post('/settings/:list/:id/delete', async (req, res, next) => {
+  try {
+    const config = masterListConfig(req.params.list);
+    await deleteMasterRecord(config.key, decodeURIComponent(req.params.id));
+    const query = new URLSearchParams();
+    for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) if (req.body[key]) query.set(key, String(req.body[key]));
+    res.redirect(303, `/settings/${config.key}${query.size ? `?${query}` : ''}`);
   } catch (err) { next(err); }
 });
 
@@ -607,14 +768,19 @@ app.post('/settings/:list/:id', async (req, res, next) => {
   const id = decodeURIComponent(req.params.id);
   try {
     await updateMasterRecord(config.key, id, req.body);
-    res.redirect(`/settings/${config.key}`);
+    res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
+    if (err.status === 403) return next(err);
     res.status(err.status || 500);
+    const persisted = await config.finder(id);
     await renderMasterForm(res, {
       config,
-      record: { ...req.body, [config.idField]: id },
+      record: { ...persisted, ...req.body, [config.idField]: id },
       error: err.message || `Could not update ${config.singular.toLowerCase()}.`,
       mode: 'edit',
+      editSubmitted: persisted?.docstatus === 'submitted'
+        && (config.key === 'price-lists' ? res.locals.canPriceListAction(persisted?.price_list, 'edit')
+          : res.locals.can(`masters.${config.key}.edit`)),
     });
   }
 });
@@ -622,8 +788,8 @@ app.post('/settings/:list/:id', async (req, res, next) => {
 app.post('/settings/:list', async (req, res, next) => {
   const config = masterListConfig(req.params.list);
   try {
-    await createMasterRecord(config.key, req.body);
-    res.redirect(`/settings/${config.key}`);
+    const id = await createMasterRecord(config.key, req.body);
+    res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
     if (err.code === '23505') {
       err.message = `${config.singular} already exists.`;
@@ -715,6 +881,11 @@ app.get('/stock/entries/:id', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+app.post('/stock/entries/:id/delete', async (req, res, next) => {
+  try { await deleteDraftVoucher('stock', req.params.id); res.redirect(303, '/stock'); }
+  catch (error) { next(error); }
 });
 
 app.get('/stock/entries/:id/drawer', async (req, res, next) => {
@@ -897,9 +1068,9 @@ app.get('/reports/balance-sheet', async (req, res, next) => {
   }
 });
 
-app.get('/accounts', async (_req, res, next) => {
+app.get('/accounts', async (req, res, next) => {
   try {
-    const accounts = await accountingAccounts();
+    const accounts = await accountingAccounts(accountAccessOptions(req.currentUser));
     res.render('accounts', { accounts });
   } catch (err) {
     next(err);
@@ -960,7 +1131,7 @@ app.get('/journals', async (req, res, next) => {
 
 app.get('/journals/new', async (req, res, next) => {
   try {
-    const accounts = await postableAccountingAccounts();
+    const accounts = await postableAccountingAccounts(accountAccessOptions(req.currentUser));
     res.render('journal-entry', {
       accounts,
       journal: {
@@ -987,7 +1158,7 @@ app.post('/journals', async (req, res, next) => {
     res.redirect(`/journals/${id}`);
   } catch (err) {
     try {
-      const accounts = await postableAccountingAccounts();
+      const accounts = await postableAccountingAccounts(accountAccessOptions(req.currentUser));
       res.status(err.status || 500).render('journal-entry', {
         accounts,
         journal: journalPayloadForRender(req.body),
@@ -1005,7 +1176,8 @@ app.post('/journals', async (req, res, next) => {
 
 app.get('/journals/:id/edit', async (req, res, next) => {
   try {
-    const [accounts, journal] = await Promise.all([postableAccountingAccounts(), findJournalEntry(req.params.id)]);
+    const [accounts, journal] = await Promise.all([
+      postableAccountingAccounts(accountAccessOptions(req.currentUser)), findJournalEntry(req.params.id)]);
     if (!journal) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
     if (journal.docstatus !== 'draft') { const error = new Error('Only draft journals can be edited.'); error.status = 400; throw error; }
     res.render('journal-entry', { accounts, journal, today: todayString(), error: null, readOnly: false, money, journalTypeLabel });
@@ -1031,7 +1203,7 @@ app.post('/journals/:id/submit', async (req, res, next) => {
 app.get('/journals/:id', async (req, res, next) => {
   try {
     const [accounts, journal] = await Promise.all([
-      postableAccountingAccounts(),
+      postableAccountingAccounts(accountAccessOptions(req.currentUser)),
       findJournalEntry(req.params.id),
     ]);
     if (!journal) {
@@ -1051,6 +1223,11 @@ app.get('/journals/:id', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+app.post('/journals/:id/delete', async (req, res, next) => {
+  try { await deleteDraftVoucher('journals', req.params.id); res.redirect(303, '/journals'); }
+  catch (error) { next(error); }
 });
 
 app.get('/journals/:id/drawer', async (req, res, next) => {
@@ -1078,9 +1255,9 @@ app.post('/journals/:id/cancel', async (req, res, next) => {
 });
 
 app.post('/invoices', async (req, res, next) => {
+  let id;
   try {
-    const payload = await buildInvoicePayload(req.body);
-    let id;
+    const payload = await buildInvoicePayload(req.body, req.currentUser);
     if (req.body.action === 'cash_sale') {
       const payment = cashSalePayment(payload, req.body);
       await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
@@ -1095,7 +1272,12 @@ app.post('/invoices', async (req, res, next) => {
     clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
   } catch (err) {
-    next(err);
+    if (id) {
+      clearInvoiceCaches();
+      res.redirect(`/invoices/${id}?error=${encodeURIComponent('Invoice saved, but submission failed. Review it before submitting again.')}`);
+      return;
+    }
+    renderInvoiceFormError(res, req.body, null, err);
   }
 });
 
@@ -1104,7 +1286,7 @@ app.get('/invoices', async (req, res, next) => {
     const search = String(req.query.q || '').trim();
     const [result, warehouses] = await Promise.all([
       cachedInvoiceList({ ...req.query, allowedGroups: selectedCategories(req.currentUser, 'customers') }),
-      invoiceWarehouseOptions(),
+      invoiceWarehouseOptions(req.currentUser),
     ]);
     res.set('Cache-Control', 'private, max-age=10');
     res.render('invoices', {
@@ -1120,15 +1302,15 @@ app.get('/invoices', async (req, res, next) => {
   }
 });
 
-async function invoiceWarehouseOptions() {
+async function invoiceWarehouseOptions(user) {
   const [usedWarehouses, masterRows] = await Promise.all([
     invoiceWarehouses().catch(() => []),
-    masterWarehouses({ limit: 200 }).catch(() => []),
+    masterWarehouses({ limit: 200, ...warehouseAccessOptions(user) }).catch(() => []),
   ]);
   return [...new Set([
     ...usedWarehouses,
     ...masterRows.map((row) => row.warehouse || row).filter(Boolean),
-  ])].sort();
+  ])].filter((name) => warehouseAllowed(user, name)).sort();
 }
 
 app.get('/invoices/:id/edit', async (req, res, next) => {
@@ -1150,7 +1332,7 @@ app.get('/invoices/:id/edit', async (req, res, next) => {
 
 app.post('/invoices/:id', async (req, res, next) => {
   try {
-    const payload = await buildInvoicePayload(req.body);
+    const payload = await buildInvoicePayload(req.body, req.currentUser);
     const action = String(req.body.action || '').trim();
     if (action === 'cash_sale' || action === 'submit_invoice') {
       await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
@@ -1165,21 +1347,18 @@ app.post('/invoices/:id', async (req, res, next) => {
     clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
   } catch (err) {
-    if (err.code === 'INSUFFICIENT_STOCK') {
-      try {
-        const data = await loadInvoice(req.params.id);
-        res.status(400).render('new-invoice', {
-          ...data,
-          today: data.invoice.invoice_date,
-          stockWarning: err.stockWarning,
-        });
-        return;
-      } catch (loadErr) {
-        next(loadErr);
+    try {
+      const savedInvoice = await findInvoice(req.params.id);
+      if (!savedInvoice || (savedInvoice.docstatus || 'submitted') !== 'draft') {
+        next(err);
         return;
       }
+      renderInvoiceFormError(res, req.body, savedInvoice, err);
+    } catch (loadErr) {
+      // The store may still be unavailable; keep the user's edits without
+      // requiring another successful read just to display the form.
+      renderInvoiceFormError(res, req.body, { id: req.params.id, invoice_no: req.params.id }, err);
     }
-    next(err);
   }
 });
 
@@ -1191,6 +1370,7 @@ app.post('/invoices/:id/submit', async (req, res, next) => {
       err.status = 404;
       throw err;
     }
+    requireInvoicePriceList(req.currentUser, invoice.price_list);
     const warehouse = invoice.items && invoice.items[0] ? invoice.items[0].warehouse : '';
     await validateDbItems(invoice.items, warehouse, { checkStock: true });
     const id = await submitInvoice(req.params.id);
@@ -1223,6 +1403,7 @@ app.post('/invoices/:id/submit-cash-sale', async (req, res, next) => {
       err.status = 404;
       throw err;
     }
+    requireInvoicePriceList(req.currentUser, invoice.price_list);
     const warehouse = invoice.items && invoice.items[0] ? invoice.items[0].warehouse : '';
     await validateDbItems(invoice.items, warehouse, { checkStock: true });
     const amount = Math.round(Number(invoice.total || 0));
@@ -1308,6 +1489,11 @@ app.get('/invoices/:id', async (req, res, next) => {
   }
 });
 
+app.post('/invoices/:id/delete', async (req, res, next) => {
+  try { await deleteDraftVoucher('sales', req.params.id); clearInvoiceCaches(); res.redirect(303, '/invoices'); }
+  catch (error) { next(error); }
+});
+
 app.get('/invoices/:id/drawer', async (req, res, next) => {
   try {
     const data = await loadInvoice(req.params.id);
@@ -1374,20 +1560,84 @@ app.get('/api/items', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
     const warehouse = String(req.query.warehouse || '').trim();
+    const priceList = String(req.query.price_list || '').trim();
     if (!warehouse) {
       res.status(400).json({ error: 'Warehouse is required.' });
       return;
     }
-    res.json(await masterItemsWithStock({ search, warehouse, limit: 25 }));
+    if (!warehouseAllowed(req.currentUser, warehouse)) {
+      res.status(403).json({ error: 'Warehouse is not permitted.' }); return;
+    }
+    if (!priceList) { res.status(400).json({ error: 'Price list is required.' }); return; }
+    requireInvoicePriceList(req.currentUser, priceList);
+    res.json(await masterItemsWithStock({ search, warehouse, priceList, limit: 25 }));
   } catch (err) {
     next(err);
   }
 });
 
+app.post('/api/invoice-item-prices', async (req, res, next) => {
+  try {
+    const priceListName = String(req.body.price_list || '').trim();
+    const itemCodes = Array.isArray(req.body.item_codes)
+      ? [...new Set(req.body.item_codes.map((code) => String(code || '').trim()).filter(Boolean))] : [];
+    if (!priceListName || !itemCodes.length || itemCodes.length > 200) {
+      res.status(400).json({ error: 'Choose a price list and up to 200 invoice items.' });
+      return;
+    }
+    requireInvoicePriceList(req.currentUser, priceListName);
+    const priceList = await findMasterRecord('price-lists', priceListName);
+    if (!priceList || priceList.active !== 1 || priceList.currency !== 'UGX' || !['selling', 'both'].includes(priceList.price_type)) {
+      res.status(400).json({ error: 'Select an active UGX selling price list.' });
+      return;
+    }
+    const prices = await invoiceItemPrices(itemCodes, priceListName);
+    if (prices.length !== itemCodes.length) {
+      res.status(400).json({ error: 'One or more invoice items are no longer available.' });
+      return;
+    }
+    res.json(prices);
+  } catch (err) { next(err); }
+});
+
+app.get('/api/price-lists', async (req, res, next) => {
+  try {
+    const rows = await masterPriceLists({ search: String(req.query.q || ''), priceType: String(req.query.type || ''),
+      allowedPriceLists: req.query.invoice === '1' ? allowedInvoicePriceLists(req.currentUser)
+        : req.query.item_price === '1' && !['view', 'create', 'edit'].some((action) =>
+          res.locals.can(`masters.item-prices.${action}`))
+          ? namedPriceListsForActions(req.currentUser, ['create']) : undefined,
+      deniedPriceLists: req.query.invoice === '1' ? (req.currentUser.permission_denials || [])
+        .filter((key) => key.startsWith('invoice.price-list.view:'))
+        .map((key) => key.slice('invoice.price-list.view:'.length)) : undefined,
+      currency: ['buying', 'selling'].includes(String(req.query.type || '')) ? 'UGX' : undefined, limit: 200 });
+    res.json(rows.map((row) => ({ value: row.price_list, label: `${row.currency} · ${row.type_label}` })));
+  } catch (err) { next(err); }
+});
+
+app.get('/api/pricing-items', async (req, res, next) => {
+  try {
+    const rows = await masterItems({ search: String(req.query.q || ''), limit: 25 });
+    res.json(rows.map((row) => ({ value: row.item_code, label: `${row.item_name} · ${row.stock_uom || ''}` })));
+  } catch (err) { next(err); }
+});
+
+app.get('/api/item-price-codes', async (req, res, next) => {
+  try {
+    const codes = await itemPriceCodeSuggestions({
+      search: String(req.query.q || ''),
+      priceList: String(req.query.price_list || ''),
+      priceListExact: req.query.price_list_exact === '1',
+      limit: 20,
+    });
+    res.json(codes);
+  } catch (err) { next(err); }
+});
+
 app.get('/api/master-items', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    res.json(await masterItems({ search, limit: 50 }));
+    res.json(await masterItems({ search, priceList: String(req.query.price_list || ''), limit: 50 }));
   } catch (err) {
     next(err);
   }
@@ -1409,6 +1659,9 @@ app.get('/api/stock-balance', async (req, res, next) => {
       res.json({ quantity: 0, valuation_rate: 0, stock_value: 0 });
       return;
     }
+    if (!warehouseAllowed(req.currentUser, warehouse)) {
+      res.status(403).json({ error: 'Warehouse is not permitted.' }); return;
+    }
     const balance = await localStockQuantity(itemCode, warehouse);
     res.json({
       quantity: normalizeStockQuantity(balance.quantity),
@@ -1423,6 +1676,10 @@ app.get('/api/stock-balance', async (req, res, next) => {
 app.get('/api/stock-entry-cancel-template', async (req, res, next) => {
   try {
     const template = await stockEntryCancelTemplate(req.query.entry);
+    if (template.items.some((item) => item.warehouse && !warehouseAllowed(req.currentUser, item.warehouse)
+        || item.target_warehouse && !warehouseAllowed(req.currentUser, item.target_warehouse))) {
+      res.status(403).json({ error: 'Warehouse is not permitted.' }); return;
+    }
     res.json(template);
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message || 'Could not load stock entry.' });
@@ -1441,7 +1698,7 @@ app.get('/api/stock-entries', async (req, res, next) => {
 app.get('/api/warehouses', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const localWarehouses = await masterWarehouses({ search, limit: 50 });
+    const localWarehouses = await masterWarehouses({ search, limit: 50, ...warehouseAccessOptions(req.currentUser) });
     res.json(localWarehouses.map((row) => row.warehouse));
   } catch (err) {
     next(err);
@@ -1451,7 +1708,7 @@ app.get('/api/warehouses', async (req, res, next) => {
 app.get('/api/report-warehouses', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    const rows = await masterWarehouses({ search, limit: 50 });
+    const rows = await masterWarehouses({ search, limit: 50, ...warehouseAccessOptions(req.currentUser) });
     res.json(rows.map((row) => row.warehouse));
   } catch (err) { next(err); }
 });
@@ -1485,7 +1742,7 @@ app.get('/api/cost-centers', async (req, res, next) => {
 
 app.get('/api/general-ledger/accounts', async (req, res, next) => {
   try {
-    res.json(await generalLedgerAccountOptions(req.query.q));
+    res.json(await generalLedgerAccountOptions(req.query.q, accountAccessOptions(req.currentUser)));
   } catch (err) {
     next(err);
   }
@@ -1524,6 +1781,84 @@ app.get('/api/journal-reference-options', async (req, res, next) => {
 
 function masterListConfig(key) {
   const configs = {
+    'price-lists': {
+      key: 'price-lists', staticLabels: true, idField: 'price_list', title: 'Price Lists', singular: 'Price List',
+      newLabel: 'New Price List', editLabel: 'Edit Price List', createSubmitLabel: 'Save', editSubmitLabel: 'Save',
+      finder: (id) => findMasterRecord('price-lists', id),
+      loader: (options) => masterPriceLists({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'price_list', label: 'Price List', strong: true },
+        { key: 'currency', label: 'Currency' },
+        { key: 'type_label', label: 'Buying/Selling' },
+        { key: 'pricelist_type', label: 'Pricelist Type', fallback: 'Unspecified' },
+      ],
+      fields: [
+        { name: 'price_list', label: 'Price List Name', required: true, maxlength: 140, lockedOnEdit: true, placeholder: 'Retail Selling' },
+        { name: 'currency', label: 'Currency', required: true, maxlength: 3, placeholder: 'UGX' },
+        { name: 'price_type', label: 'Buying/Selling', type: 'select', required: true, options: [
+          { value: 'selling', label: 'Selling' }, { value: 'buying', label: 'Buying' }, { value: 'both', label: 'Buying and Selling' },
+        ] },
+        { name: 'pricelist_type', label: 'Pricelist Type', type: 'select', required: true, options: [
+          { value: '', label: 'Select pricelist type' },
+          { value: 'Retail', label: 'Retail' }, { value: 'Wholesale', label: 'Wholesale' },
+          { value: 'Distribution', label: 'Distribution' },
+        ] },
+      ],
+      hint: 'The name stays fixed after creation. Currency can change until item prices are added.',
+    },
+    'item-prices': {
+      key: 'item-prices', staticLabels: true, idField: 'id', title: 'Item Prices', singular: 'Item Price',
+      newLabel: 'New Item Price', editLabel: 'Edit Item Price',
+      finder: (id) => findMasterRecord('item-prices', id),
+      loader: (options) => masterItemPrices({ ...options, includeDisabled: true }),
+      columns: [
+        { key: 'item_code', label: 'Item Code', strong: true },
+        { key: 'price_list', label: 'Price List' }, { key: 'currency', label: 'Currency' },
+        { key: 'stock_uom', label: 'UOM' }, { key: 'price_list_rate', label: 'Rate' },
+      ],
+      fields: [
+        { name: 'item_code', label: 'Item', section: 'Item and rate', required: true, lookup: '/api/pricing-items', placeholder: 'Search item code or name' },
+        { name: 'price_list', label: 'Price List', required: true, lookup: '/api/price-lists?item_price=1', placeholder: 'Search active price lists' },
+        { name: 'price_list_rate', label: 'Rate (price list currency)', type: 'number', required: true, min: 0, step: '0.000001' },
+        { name: 'item_name', label: 'Item Name' },
+        { name: 'item_description', label: 'Item Description', type: 'textarea', className: 'wide' },
+        { name: 'currency', label: 'Currency', maxlength: 3 },
+        { name: 'buying', label: 'Buying', type: 'select', options: [
+          { value: '', label: 'From price list' }, { value: '1', label: 'Yes' }, { value: '0', label: 'No' },
+        ] },
+        { name: 'selling', label: 'Selling', type: 'select', options: [
+          { value: '', label: 'From price list' }, { value: '1', label: 'Yes' }, { value: '0', label: 'No' },
+        ] },
+        { name: 'price_type', label: 'Price Type' },
+        { name: 'erpnext_type', label: 'ERPNext Type', editOnly: true, readonly: true },
+        { name: 'item_category', label: 'Item Category' },
+        { name: 'cost_center', label: 'Cost Center', section: 'Cost and price history' },
+        { name: 'cost', label: 'Cost', type: 'number', step: '0.000001' },
+        { name: 'unit_cost', label: 'Unit Cost', type: 'number', step: '0.000001' },
+        { name: 'new_price', label: 'New Price', type: 'number', step: '0.000001' },
+        { name: 'old_price', label: 'Old Price', type: 'number', step: '0.000001' },
+        { name: 'margin', label: 'Margin', type: 'number', step: '0.000001' },
+        { name: 'price_update', label: 'Price Update' },
+        { name: 'price_update_on', label: 'Price Update On', type: 'date' },
+        { name: 'stock_balance', label: 'Stock Balance', section: 'Stock and packaging', type: 'number', step: '0.000001' },
+        { name: 'incarton', label: 'In Carton', type: 'number', step: '0.000001' },
+        { name: 'carton_price', label: 'Carton Price', type: 'number', step: '0.000001' },
+        { name: 'dealer_price', label: 'Dealer Price', type: 'number', step: '0.000001' },
+        { name: 'promo_start_date', label: 'Promo Start Date', section: 'Promotion', type: 'date' },
+        { name: 'promo_expiry_date', label: 'Promo Expiry Date', type: 'date' },
+        { name: 'promo_warehouse', label: 'Promo Warehouse' },
+        { name: 'promo_customer', label: 'Promo Customer' },
+        { name: 'warehouse_type', label: 'Warehouse Type' },
+        { name: 'promo_rate', label: 'Promo Rate', type: 'number', step: '0.000001' },
+        { name: 'promo_qty', label: 'Promo Qty', type: 'number', step: '0.000001' },
+        { name: 'erpnext_name', label: 'ERPNext ID', section: 'ERPNext source', editOnly: true, readonly: true },
+        { name: 'erpnext_created_at', label: 'ERPNext Created', editOnly: true, readonly: true },
+        { name: 'erpnext_modified_at', label: 'ERPNext Modified', editOnly: true, readonly: true },
+        { name: 'erpnext_owner', label: 'ERPNext Owner', editOnly: true, readonly: true },
+        { name: 'erpnext_modified_by', label: 'ERPNext Modified By', editOnly: true, readonly: true },
+      ],
+      hint: 'An active item price overrides the item’s default base rate for this price list. New item prices are saved inactive.',
+    },
     items: {
       key: 'items',
       idField: 'item_code',
@@ -1735,6 +2070,11 @@ function masterListConfig(key) {
     err.status = 404;
     throw err;
   }
+  config.staticLabels = true;
+  config.createSubmitLabel = 'Save';
+  config.editSubmitLabel = 'Update';
+  config.fields = config.fields.filter((field) => field.name !== 'disabled');
+  config.columns = config.columns.filter((column) => !['status', 'status_label'].includes(column.key));
   return config;
 }
 
@@ -1844,13 +2184,23 @@ async function loadInvoice(id) {
   return { invoice, items: invoice.items || [], company: await getCompanyInformation() };
 }
 
-async function buildInvoicePayload(body) {
+function renderInvoiceFormError(res, body, savedInvoice, err) {
+  const status = err instanceof SyntaxError ? 400 : err.status || 500;
+  res.status(status).render('new-invoice', {
+    ...invoiceFormState(body, savedInvoice),
+    stockWarning: err.stockWarning || null,
+    formError: status < 500 ? (err instanceof SyntaxError ? 'Could not read the invoice items. Review them and try again.' : err.message) : 'Could not save the invoice. Please try again.',
+  });
+}
+
+async function buildInvoicePayload(body, user) {
   const payload = {
     invoice_date: body.invoice_date,
     due_date: body.due_date,
     customer_id: body.customer_id,
     customer_name: String(body.customer_name || '').trim(),
     customer_phone: String(body.customer_phone || '').trim(),
+    price_list: String(body.price_list || '').trim(),
     warehouse: String(body.warehouse || '').trim(),
     notes: String(body.notes || '').trim(),
     discount_amount: body.discount_amount,
@@ -1872,6 +2222,11 @@ async function buildInvoicePayload(body) {
   }
   payload.customer_id = customer.customer_id;
   payload.customer_name = customer.customer_name;
+  const priceList = await findMasterRecord('price-lists', payload.price_list);
+  if (!priceList || priceList.active !== 1 || priceList.currency !== 'UGX' || !['selling', 'both'].includes(priceList.price_type)) {
+    const err = new Error('Select an active UGX selling price list.'); err.status = 400; throw err;
+  }
+  requireInvoicePriceList(user, payload.price_list);
   payload.items = await validateDbItems(payload.items, payload.warehouse);
   return payload;
 }
@@ -1913,6 +2268,7 @@ function purchasePayload(body) {
     due_date: body.due_date,
     supplier_id: body.supplier_id,
     supplier_name: body.supplier_name,
+    price_list: body.price_list,
     supplier_reference: body.supplier_reference,
     remarks: body.remarks,
     items: codes.map((itemCode, index) => ({

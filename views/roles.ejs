@@ -1,25 +1,34 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>Roles · Work Master</title>
+  <title>Permissions · Work Master</title>
   <%- include('partials-head') %>
-  <script src="/roles.js?v=<%= assetVersion %>-autosave-v1" defer></script>
+  <script src="/roles.js?v=<%= assetVersion %>-autosave-v2" defer></script>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div>
         <p class="eyebrow">Administration</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Roles' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Permissions' }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
     </header>
     <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
     <% if (notice) { %><section class="notice" role="status"><strong><%= notice %></strong></section><% } %>
 
+    <nav class="module-tabs" aria-label="Permission settings">
+      <a href="/settings/roles?tab=roles" <%= activeTab === 'roles' ? 'aria-current="page"' : '' %>>Roles</a>
+      <a href="/settings/roles" <%= activeTab === 'permissions' ? 'aria-current="page"' : '' %>>Role permissions</a>
+      <a href="/settings/roles?tab=users" <%= activeTab === 'users' ? 'aria-current="page"' : '' %>>User permissions</a>
+    </nav>
+
+    <% if (activeTab === 'permissions') { %>
     <section class="invoice-card report-section">
       <div class="section-title"><h1>Role permissions</h1><a href="/settings/users">Assign roles to users</a></div>
-      <p>Pick a role, then add one row for each type. Tick any supported actions and save. Read is included automatically when another action needs the record.</p>
+      <p>Pick a role, then add one row for each type. Tick the actions to allow and save. Turning off Read removes the other actions for that row.</p>
+      <p>For a named price list, Read allows invoice use, Create adds item prices to it, Write edits it, Submit activates it, Cancel deactivates it, and Delete removes it.</p>
+      <p>For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p>
       <form method="get" action="/settings/roles" class="role-picker">
         <label>Search roles <input type="search" id="role-search" placeholder="Type a role name" autocomplete="off"></label>
         <label>Role <select name="role" id="role-select" required>
@@ -37,14 +46,14 @@
         <% } else { %>
           <% const configuredTypes = recordTypes.filter((type) => type.actions.some((action) => selectedRole.permissions.includes(type.permissions[action]))); %>
           <div class="role-table-wrap"><table class="role-permission-table" data-auto-permissions>
-            <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Remove</th></tr></thead>
+            <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Delete</th><th>Remove</th></tr></thead>
             <tbody>
-              <% if (!configuredTypes.length) { %><tr><td colspan="7" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
+              <% if (!configuredTypes.length) { %><tr><td colspan="8" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
               <% configuredTypes.forEach((type, index) => { const formId = `role-row-${index}`; %>
                 <tr>
                   <td data-label="Permission type"><strong><%= type.label %></strong><form id="<%= formId %>" method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions"><input type="hidden" name="record_type" value="<%= type.key %>"></form></td>
                   <% recordActions.forEach((action) => { %>
-                    <td class="role-check-cell" data-label="<%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %>"><label><input type="checkbox" form="<%= formId %>" name="actions" value="<%= action %>" data-permission="<%= type.permissions[action] || '' %>" aria-label="<%= action %> <%= type.label %>" <%= type.actions.includes(action) ? '' : 'disabled' %> <%= selectedRole.permissions.includes(type.permissions[action]) ? 'checked' : '' %>></label></td>
+                    <td class="role-check-cell" data-label="<%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %>"><% if (type.actions.includes(action)) { %><label><input type="checkbox" form="<%= formId %>" name="actions" value="<%= action %>" data-permission="<%= type.permissions[action] %>" aria-label="<%= action %> <%= type.label %>" <%= selectedRole.permissions.includes(type.permissions[action]) ? 'checked' : '' %>></label><% } else { %><span aria-label="Not applicable">—</span><% } %></td>
                   <% }) %>
                   <td data-label="Remove"><form method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions/remove" data-confirm="<%= type.key === 'vouchers.sales' ? 'Removing Sales Invoice also removes Customer Payment permissions.' : type.key === 'vouchers.purchases' ? 'Removing Purchase also removes Supplier Payment permissions.' : type.key === 'chart-of-accounts' ? 'Removing Chart of Accounts also removes account creation permission.' : `Remove all permissions for ${type.label}?` %>"><input type="hidden" name="record_type" value="<%= type.key %>"><button type="submit" class="button-light">Remove</button></form></td>
                 </tr>
@@ -78,26 +87,113 @@
             <button type="submit">Save other access</button>
           </form>
         </section>
-        <% if (!selectedRole.built_in) { %>
-          <section class="invoice-card report-section">
-            <h2>Role details</h2>
-            <form method="post" action="/settings/roles/<%= selectedRole.slug %>" class="role-form">
-              <label>Role name <input name="name" value="<%= selectedRole.name %>" minlength="3" maxlength="64" required></label>
-              <button type="submit">Save role name</button>
+      <% } %>
+    <% } %>
+    <% } else if (activeTab === 'roles') { %>
+      <section class="invoice-card report-section">
+        <div class="section-title"><h1>Roles</h1><a href="/settings/users">Assign roles to users</a></div>
+        <p>Manage role names and open each role's permissions. Built-in roles have fixed names; unused custom roles can be deleted.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Role</th><th>Users</th><th>Permissions</th><th>Manage</th></tr></thead>
+          <tbody>
+            <% roles.forEach((role) => { %>
+              <tr>
+                <td><strong><%= role.name %></strong><% if (role.built_in) { %><span class="muted-text"> · Built in</span><% } %></td>
+                <td><%= role.user_count %></td>
+                <td><a href="/settings/roles?role=<%= encodeURIComponent(role.slug) %>">Open permissions</a></td>
+                <td>
+                  <% if (!role.built_in) { %>
+                    <form method="post" action="/settings/roles/<%= role.slug %>" class="role-form">
+                      <label class="visually-hidden" for="role-name-<%= role.slug %>">Name for <%= role.name %></label>
+                      <input id="role-name-<%= role.slug %>" name="name" value="<%= role.name %>" minlength="3" maxlength="64" required>
+                      <button type="submit" class="button-light">Rename</button>
+                    </form>
+                    <% if (role.user_count === 0) { %><form method="post" action="/settings/roles/<%= role.slug %>/delete" data-confirm="Delete this unused role?"><button type="submit" class="button-light">Delete</button></form><% } %>
+                  <% } else { %><span class="muted-text">Fixed name</span><% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table></div>
+      </section>
+      <section class="invoice-card report-section">
+        <h2>Add role</h2>
+        <form method="post" action="/settings/roles" class="role-form">
+          <label>Role name <input name="name" placeholder="For example, Stock Supervisor" minlength="3" maxlength="64" required></label>
+          <button type="submit">Create role</button>
+        </form>
+      </section>
+    <% } else { %>
+      <section class="invoice-card report-section">
+        <div class="section-title"><h1>User permissions</h1><a href="/settings/users">Manage users</a></div>
+        <p>Choose a user, then add one row for each type. Tick the actions to allow; changes save automatically. User choices override the role, and the role still supplies access where no override is set.</p>
+        <p>For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p>
+        <form method="get" action="/settings/roles" class="role-picker">
+          <input type="hidden" name="tab" value="users">
+          <label>Search users <input type="search" id="user-search" placeholder="Type a username" autocomplete="off"></label>
+          <label>User <select name="user" required>
+            <% users.forEach((user) => { %><option value="<%= user.id %>" <%= selectedUser && Number(selectedUser.id) === Number(user.id) ? 'selected' : '' %>><%= user.username %></option><% }) %>
+          </select></label>
+          <button type="submit">Open user</button>
+        </form>
+      </section>
+      <% if (selectedUser) { %>
+        <section class="invoice-card report-section">
+          <div class="section-title"><h2><%= selectedUser.username %></h2><span class="muted-text">Role: <%= selectedUserRole?.name || selectedUser.role %></span></div>
+          <% if (selectedUser.role === 'admin') { %>
+            <p>Admin has full access. Its permissions cannot be changed.</p>
+          <% } else { %>
+            <% const configuredTypes = recordTypes.filter((type) => type.actions.some((action) => userPermissions.includes(type.permissions[action]))); %>
+            <div class="role-table-wrap"><table class="role-permission-table" data-auto-permissions>
+              <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Delete</th><th>Remove</th></tr></thead>
+              <tbody>
+                <% if (!configuredTypes.length) { %><tr><td colspan="8" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
+                <% configuredTypes.forEach((type, index) => { const formId = `user-row-${index}`; %>
+                  <tr>
+                    <td data-label="Permission type"><strong><%= type.label %></strong><form id="<%= formId %>" method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row"><input type="hidden" name="record_type" value="<%= type.key %>"></form></td>
+                    <% recordActions.forEach((action) => { %>
+                      <td class="role-check-cell" data-label="<%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %>"><% if (type.actions.includes(action)) { %><label><input type="checkbox" form="<%= formId %>" name="actions" value="<%= action %>" data-permission="<%= type.permissions[action] %>" aria-label="<%= action %> <%= type.label %>" <%= userPermissions.includes(type.permissions[action]) ? 'checked' : '' %>></label><% } else { %><span aria-label="Not applicable">—</span><% } %></td>
+                    <% }) %>
+                    <td data-label="Remove"><form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row/remove" data-confirm="Remove all permissions for <%= type.label %> from <%= selectedUser.username %>?"><input type="hidden" name="record_type" value="<%= type.key %>"><button type="submit" class="button-light">Remove</button></form></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table></div>
+            <p role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</p>
+            <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row" class="role-add-row" data-role-add-row>
+              <label>Permission type <select name="record_type" required data-record-type>
+                <option value="">Select a type</option>
+                <% [...new Set(recordTypes.map((type) => type.group))].forEach((group) => { %>
+                  <optgroup label="<%= group %>">
+                    <% recordTypes.filter((type) => type.group === group).forEach((type) => { %><option value="<%= type.key %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
+                  </optgroup>
+                <% }) %>
+              </select></label>
+              <div class="role-add-actions" aria-label="Actions">
+                <% recordActions.forEach((action) => { %><label><input type="checkbox" name="actions" value="<%= action %>"> <%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %></label><% }) %>
+              </div>
+              <button type="submit">Save permission row</button>
             </form>
-            <% if (selectedRole.user_count === 0) { %><form method="post" action="/settings/roles/<%= selectedRole.slug %>/delete" data-confirm="Delete this unused role?"><button type="submit" class="button-light">Delete role</button></form><% } %>
+          <% } %>
+        </section>
+        <% if (selectedUser.role !== 'admin') { %>
+          <section class="invoice-card report-section">
+            <h2>Other access</h2>
+            <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/extra" class="role-form">
+              <div class="role-extra-list">
+                <% extraPermissions.forEach((permission) => { %><label><input type="checkbox" name="permissions" value="<%= permission.key %>" <%= userPermissions.includes(permission.key) ? 'checked' : '' %>> <%= permission.label %></label><% }) %>
+              </div>
+              <button type="submit">Save other access</button>
+            </form>
+          </section>
+          <section class="invoice-card report-section">
+            <h2>Role defaults</h2>
+            <p>Reset this user's permissions to the current <%= selectedUserRole?.name || selectedUser.role %> role.</p>
+            <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/reset" data-confirm="Reset all user permission overrides for <%= selectedUser.username %>?"><button type="submit" class="button-light">Reset to role permissions</button></form>
           </section>
         <% } %>
       <% } %>
     <% } %>
-
-    <section class="invoice-card report-section">
-      <h2>Add role</h2>
-      <form method="post" action="/settings/roles" class="role-form">
-        <label>Role name <input name="name" placeholder="For example, Stock Supervisor" minlength="3" maxlength="64" required></label>
-        <button type="submit">Create role</button>
-      </form>
-    </section>
   </main>
 </body>
 </html>

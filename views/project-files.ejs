@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Project Files · Work Master</title>
+  <%- include('partials-head') %>
+  <script src="/project-files.js?v=<%= assetVersion %>" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Administration</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Project Files' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
+    </header>
+
+    <section class="files-hero">
+      <div>
+        <span class="files-kicker">FILE LIBRARY</span>
+        <h1>Project Files</h1>
+        <p>Browse and download project files. Keep shared uploads in one secure place.</p>
+      </div>
+      <a class="files-hero-action" href="/settings/files?dir=uploads">Open uploads <span aria-hidden="true">↗</span></a>
+    </section>
+
+    <nav class="files-tabs" aria-label="Project files sections">
+      <a href="/settings/files" <%= path !== 'uploads' ? 'aria-current="page"' : '' %>>Project browser</a>
+      <a href="/settings/files?dir=uploads" <%= path === 'uploads' ? 'aria-current="page"' : '' %>>Uploads</a>
+    </nav>
+
+    <% if (error) { %><div class="notice warning files-notice" role="alert"><%= error %></div><% } %>
+    <% if (uploaded) { %><div class="notice files-notice" role="status"><%= uploaded %> <%= uploaded === 1 ? 'file' : 'files' %> uploaded successfully.</div><% } %>
+
+    <div class="files-layout">
+      <section class="files-browser" aria-labelledby="files-browser-title">
+        <div class="files-browser-top">
+          <div>
+            <p class="files-overline">BROWSE</p>
+            <h2 id="files-browser-title"><%= path === 'uploads' ? 'Uploaded files' : path ? breadcrumbs[breadcrumbs.length - 1].name : 'Project root' %></h2>
+            <p class="files-subtitle"><%= path === 'uploads' ? 'Files added by administrators' : 'Select a folder to explore its contents' %></p>
+          </div>
+          <span class="files-count"><%= items.length %> <%= items.length === 1 ? 'item' : 'items' %></span>
+        </div>
+
+        <nav class="files-path" aria-label="Folder path">
+          <a href="/settings/files">Project</a>
+          <% breadcrumbs.forEach((crumb) => { %>
+            <span aria-hidden="true">/</span>
+            <a href="/settings/files?dir=<%= encodeURIComponent(crumb.path) %>" <%= crumb.path === path ? 'aria-current="page"' : '' %>><%= crumb.name %></a>
+          <% }) %>
+        </nav>
+
+        <label class="files-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+          <span class="sr-only">Search this folder</span>
+          <input type="search" placeholder="Search this folder..." data-files-search>
+        </label>
+
+        <div class="files-table-wrap">
+          <table class="files-table">
+            <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th><span class="sr-only">Action</span></th></tr></thead>
+            <tbody>
+              <% items.forEach((item) => { %>
+                <tr data-file-row data-file-name="<%= item.name.toLowerCase() %>">
+                  <td>
+                    <div class="files-name-cell">
+                      <span class="files-icon <%= item.folder ? 'files-icon-folder' : 'files-icon-file' %>" aria-hidden="true">
+                        <% if (item.folder) { %>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                        <% } else { %>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2.5h8l4 4V21H6a2 2 0 0 1-2-2V4.5a2 2 0 0 1 2-2z"/><path d="M14 2.5V7h4M8 12h8M8 16h8"/></svg>
+                        <% } %>
+                      </span>
+                      <span class="files-name-stack">
+                        <% if (item.folder) { %><a href="/settings/files?dir=<%= encodeURIComponent(item.path) %>"><%= item.name %></a><small>Folder</small>
+                        <% } else { %><a href="/settings/files/download?path=<%= encodeURIComponent(item.path) %>"><%= item.name %></a><small>File</small><% } %>
+                      </span>
+                    </div>
+                  </td>
+                  <td class="files-meta"><%= item.folder ? '—' : item.size < 1024 ? item.size + ' B' : item.size < 1048576 ? (item.size / 1024).toFixed(1) + ' KB' : (item.size / 1048576).toFixed(1) + ' MB' %></td>
+                  <td class="files-meta"><%= new Date(item.modified).toLocaleDateString('en-UG', { year: 'numeric', month: 'short', day: 'numeric' }) %></td>
+                  <td class="files-action"><a href="<%= item.folder ? '/settings/files?dir=' + encodeURIComponent(item.path) : '/settings/files/download?path=' + encodeURIComponent(item.path) %>" aria-label="<%= item.folder ? 'Open' : 'Download' %> <%= item.name %>"><%= item.folder ? 'Open' : 'Download' %> <span aria-hidden="true"><%= item.folder ? '→' : '↓' %></span></a></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+          <% if (!items.length) { %><div class="files-empty"><span aria-hidden="true">◇</span><strong>This folder is empty</strong><p>Uploaded files will appear here after you add them.</p></div><% } %>
+          <div class="files-empty" data-files-no-results hidden><strong>No matching files</strong><p>Try a different search term.</p></div>
+        </div>
+      </section>
+
+      <aside class="files-side" aria-label="Upload files">
+        <div class="files-upload-card">
+          <span class="files-upload-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V3m0 0L7 8m5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span>
+          <h2>Add files</h2>
+          <p>Upload documents and other files for administrators to download later.</p>
+          <form method="post" action="/settings/files/upload" enctype="multipart/form-data" data-files-upload>
+            <label class="files-dropzone" data-files-dropzone>
+              <input type="file" name="files" multiple required data-files-input>
+              <span class="files-drop-icon" aria-hidden="true">＋</span>
+              <strong>Choose files or drag them here</strong>
+              <small data-files-selection>Up to 10 files · 20 MB each</small>
+            </label>
+            <button type="submit" class="files-upload-button">Upload files <span aria-hidden="true">↑</span></button>
+          </form>
+        </div>
+        <div class="files-info-card">
+          <strong>Where uploads go</strong>
+          <p>Uploaded files are stored in the app’s persistent data folder and appear under <a href="/settings/files?dir=uploads">Uploads</a>. Existing files keep their names; duplicates receive a number.</p>
+        </div>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>

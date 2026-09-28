@@ -19,6 +19,7 @@
   }
 
   function enhanceLabel(field) {
+    if (field.closest('[data-static-labels]')) return;
     if (field.matches('.general-ledger-floating-field, .app-floating-field') || field.closest('table, .results, .table-pagination')) return;
     const controls = Array.from(field.children).filter((child) => child.matches(controlSelector));
     if (controls.length !== 1) return;
@@ -37,6 +38,7 @@
   }
 
   function enhanceSeparateLabel(label) {
+    if (label.closest('[data-static-labels]')) return;
     if (label.parentElement.classList.contains('app-floating-field')) return;
     const control = document.getElementById(label.htmlFor);
     if (!control || control.parentElement !== label.parentElement || !control.matches(controlSelector)) return;

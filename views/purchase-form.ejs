@@ -14,7 +14,7 @@
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
-    <form method="post" action="<%= purchase.id ? `/purchases/${purchase.id}` : '/purchases' %>" class="invoice-form" id="purchase-form">
+    <form method="post" action="<%= purchase.id ? `/purchases/${purchase.id}` : '/purchases' %>" class="invoice-form entry-form" id="purchase-form" data-static-labels>
       <datalist id="purchase-suppliers"></datalist>
       <datalist id="purchase-items-list"></datalist>
       <datalist id="purchase-warehouses"></datalist>
@@ -23,26 +23,33 @@
         <label>Due Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
         <label>Supplier ID<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" required></label>
         <label>Supplier Name<input name="supplier_name" id="purchase-supplier-name" value="<%= purchase.supplier_name || '' %>" readonly></label>
+        <label>Price List<select name="price_list" id="purchase-price-list" required><option value="<%= purchase.price_list || '' %>"><%= purchase.price_list || 'Loading price lists...' %></option></select></label>
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
         <label class="wide">Remarks<input name="remarks" value="<%= purchase.remarks || '' %>"></label>
       </section>
-      <table class="editable" id="purchase-items">
+      <div id="purchase-lookup-status" class="notice" hidden>
+        <p role="status" data-lookup-message></p>
+        <button type="button" class="button-light" data-lookup-retry hidden>Retry lookup</button>
+      </div>
+      <div class="entry-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
+      <table class="editable entry-table" id="purchase-items">
         <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Warehouse</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
         <tbody>
           <% (purchase.items && purchase.items.length ? purchase.items : [{}]).forEach((item, index) => { %>
             <tr>
-              <td class="row-number"><%= index + 1 %></td>
-              <td><input type="hidden" name="item_id" value="<%= item.id || '' %>"><input name="item_code" list="purchase-items-list" autocomplete="off" value="<%= item.item_code || '' %>" required></td>
-              <td><input name="item_name" value="<%= item.item_name || '' %>" readonly></td>
-              <td><input name="warehouse" list="purchase-warehouses" autocomplete="off" value="<%= item.warehouse || '' %>" required></td>
-              <td><input name="quantity" type="number" min="0.001" step="0.001" value="<%= item.quantity || '' %>" required></td>
-              <td><input name="unit_price" type="number" min="0.01" step="0.01" value="<%= item.unit_price != null ? item.unit_price : '' %>" required></td>
-              <td class="purchase-line-total"><%= item.line_total || 0 %></td>
-              <td><button type="button" class="button-light" data-remove-purchase-row>Remove</button></td>
+              <td class="row-number" data-label="Item"><%= index + 1 %></td>
+              <td data-label="Item Code"><input type="hidden" name="item_id" value="<%= item.id || '' %>"><input aria-label="Item Code" name="item_code" list="purchase-items-list" autocomplete="off" value="<%= item.item_code || '' %>" required></td>
+              <td data-label="Item Name"><input aria-label="Item Name" name="item_name" value="<%= item.item_name || '' %>" readonly></td>
+              <td data-label="Warehouse"><input aria-label="Warehouse" name="warehouse" list="purchase-warehouses" autocomplete="off" value="<%= item.warehouse || '' %>" required></td>
+              <td data-label="Qty"><input aria-label="Qty" name="quantity" type="number" min="0.001" step="0.001" value="<%= item.quantity || '' %>" required></td>
+              <td data-label="Unit Cost"><input aria-label="Unit Cost" name="unit_price" type="number" min="0.01" step="0.01" value="<%= item.unit_price != null ? item.unit_price : '' %>" required></td>
+              <td class="purchase-line-total" data-label="Total"><%= item.line_total || 0 %></td>
+              <td class="entry-row-actions"><button type="button" class="button-light" data-remove-purchase-row>Remove</button></td>
             </tr>
           <% }) %>
         </tbody>
       </table>
+      </div>
       <div class="actions">
         <button type="button" class="button-light" id="add-purchase-row">Add Item</button>
         <div class="live-total"><span>Total</span><strong id="purchase-total">Ugx 0</strong></div>
@@ -50,6 +57,6 @@
       </div>
     </form>
   </main>
-  <script src="/purchase-form.js"></script>
+  <script src="/purchase-form.js?v=<%= assetVersion %>"></script>
 </body>
 </html>
