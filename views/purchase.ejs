@@ -21,6 +21,7 @@
         <% if (purchase.docstatus === 'draft') { %>
           <div class="actions">
             <% if (can('vouchers.purchases.edit')) { %><a class="button button-light" href="/purchases/<%= purchase.id %>/edit">Edit</a><% } %>
+            <% if (can('vouchers.purchases.delete')) { %><form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this draft purchase? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
             <% if (can('vouchers.purchases.submit')) { %><form method="post" action="/purchases/<%= purchase.id %>/submit" class="inline-form" data-confirm="Submit this purchase? This receives the stock and creates the amount payable."><button type="submit">Submit &amp; Receive Stock</button></form><% } %>
           </div>
         <% } else if (purchase.docstatus === 'submitted' && can('vouchers.purchases.cancel')) { %>
@@ -34,6 +35,7 @@
         <div><span>Date</span><strong><%= purchase.posting_date %></strong><% if (purchase.due_date) { %><p>Due <%= purchase.due_date %></p><% } %></div>
         <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
       </div>
+      <% if (purchase.price_list) { %><p>Price List: <strong><%= purchase.price_list %></strong></p><% } %>
       <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
       <table>
         <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th>Unit Cost</th><th>Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>

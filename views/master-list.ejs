@@ -13,27 +13,49 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'settings' }) %>
-        <% if (can(`masters.${config.key}.create`)) { %><a class="button" href="/settings/<%= config.key %>/new"><%= config.newLabel %></a><% } %>
+        <% if (can(`masters.${config.key}.create`) || config.key === 'item-prices' && canCreateItemPrice) { %><a class="button" href="/settings/<%= config.key %>/new"><%= config.newLabel %></a><% } %>
       </nav>
     </header>
 
-    <form class="search" method="get">
-      <label><input name="q" value="<%= search %>" placeholder="Search <%= config.title.toLowerCase() %>" autocomplete="off">Search <%= config.title %></label>
-      <button type="submit">Search</button>
-      <% if (search) { %>
-        <a class="button button-light" href="/settings/<%= config.key %>">Reset</a>
-      <% } %>
-    </form>
+    <% if (config.key === 'item-prices') { %>
+      <form class="item-price-filters" method="get" data-static-labels>
+        <label class="app-floating-field app-floating-choice"><span class="app-floating-label">Search Item Prices</span>
+          <input name="q" value="<%= search %>" type="search" placeholder="Item code, name, or price list" autocomplete="off" data-item-price-search>
+        </label>
+        <label class="app-floating-field app-floating-choice"><span class="app-floating-label">Price List</span>
+          <input name="price_list" value="<%= priceList %>" type="search" list="item-price-list-options" placeholder="Type a price list" autocomplete="off" data-price-list-filter>
+          <datalist id="item-price-list-options">
+            <% priceListOptions.forEach((name) => { %><option value="<%= name %>"></option><% }) %>
+          </datalist>
+        </label>
+        <label class="app-floating-field app-floating-choice"><span class="app-floating-label">Item Code</span>
+          <input name="item_code" value="<%= itemCode %>" type="search" list="item-price-code-options" placeholder="Type an item code" autocomplete="off" aria-describedby="item-price-code-status" data-item-code-filter>
+          <input name="item_code_exact" value="<%= itemCodeExact ? '1' : '0' %>" type="hidden" data-item-code-exact>
+          <datalist id="item-price-code-options"></datalist>
+        </label>
+        <div class="item-price-filter-actions">
+          <button type="submit">Search</button>
+          <a class="button button-light" href="/settings/item-prices">Reset</a>
+        </div>
+        <span class="field-hint item-price-filter-status" id="item-price-code-status" role="status"></span>
+      </form>
+    <% } else { %>
+      <form class="search" method="get">
+        <label><input name="q" value="<%= search %>" placeholder="Search <%= config.title.toLowerCase() %>" autocomplete="off">Search <%= config.title %></label>
+        <button type="submit">Search</button>
+        <% if (search) { %><a class="button button-light" href="/settings/<%= config.key %>">Reset</a><% } %>
+      </form>
+    <% } %>
 
     <section class="invoice-card report-section">
-      <table class="<%= config.key === 'customers' ? 'customers-table' : '' %>">
+      <table class="master-list-table <%= config.key === 'customers' ? 'customers-table' : '' %>">
         <thead>
           <tr>
             <th class="row-number">#</th>
             <% config.columns.forEach((column) => { %>
               <th class="master-col-<%= column.key %>"><%= column.label %></th>
             <% }) %>
-            <th>Document state</th>
+            <th>Active</th>
             <th class="actions-cell">Actions</th>
           </tr>
         </thead>
@@ -41,26 +63,53 @@
           <% if (!rows.length) { %>
             <tr><td colspan="<%= config.columns.length + 3 %>" class="empty">No <%= config.title.toLowerCase() %> found.</td></tr>
           <% } %>
-          <% rows.forEach((row, index) => { %>
-            <tr>
+          <% rows.forEach((row, index) => { const priceListEditHref = (config.key === 'price-lists'
+            ? canPriceListAction(row.price_list, 'edit') : can(`masters.${config.key}.edit`))
+            ? '/settings/' + config.key + '/' + encodeURIComponent(row[config.idField]) + '/edit' + (config.key === 'price-lists' && row.docstatus === 'submitted' ? '?editing=1' : '') : null; %>
+            <tr <% if (priceListEditHref) { %>data-edit-href="<%= priceListEditHref %>"<% } %>>
               <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
               <% config.columns.forEach((column) => { %>
                 <td class="master-col-<%= column.key %>">
                   <% if (column.strong) { %>
-                    <strong><%= row[column.key] || '' %></strong>
+                    <% if (priceListEditHref) { %>
+                      <strong><a class="inline-link" href="<%= priceListEditHref %>"><%= row[column.key] %></a></strong>
+                    <% } else { %>
+                      <strong><%= row[column.key] || '' %></strong>
+                    <% } %>
                   <% } else { %>
-                    <%= row[column.key] || '' %>
+                    <%= config.key === 'item-prices' && column.key === 'price_list_rate'
+                      ? Math.round(Number(row[column.key])).toLocaleString('en-UG')
+                      : row[column.key] || column.fallback || '' %>
                   <% } %>
                   <% if (column.secondaryKey && row[column.secondaryKey] && row[column.secondaryKey] !== row[column.key]) { %>
                     <small class="master-secondary">ID: <%= row[column.secondaryKey] %></small>
                   <% } %>
                 </td>
               <% }) %>
-              <td><%= row.docstatus === 'draft' ? 'Draft' : row.docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></td>
+              <% { const isActive = row.active === 1; %>
+                <td>
+                  <form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/active">
+                    <input type="hidden" name="active" value="<%= isActive ? '0' : '1' %>">
+                    <% for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) { if (query[key]) { %><input type="hidden" name="<%= key %>" value="<%= query[key] %>"><% } } %>
+                    <button type="submit" class="price-list-active-button" role="switch" aria-checked="<%= isActive %>" aria-label="<%= isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= row[config.idField] %>" <%= (config.key === 'price-lists' ? canPriceListAction(row.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
+                      <span class="price-list-active-track" aria-hidden="true"><span class="price-list-active-thumb"></span></span>
+                      <span>Active</span>
+                    </button>
+                  </form>
+                </td>
+              <% } %>
               <td class="actions-cell">
-                <% if (can(`masters.${config.key}.edit`) && (row.docstatus === 'draft' || row.docstatus === 'submitted' && row.legacy_editable)) { %><a class="button button-light" href="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/edit">Edit</a><% } %>
-                <% if (row.docstatus === 'draft' && can(`masters.${config.key}.submit`)) { %><form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/submit"><button type="submit">Submit</button></form><% } %>
-                <% if (row.docstatus === 'submitted' && can(`masters.${config.key}.cancel`)) { %><form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/cancel" data-confirm="Cancel this <%= config.singular.toLowerCase() %>?"><button type="submit" class="button-light">Cancel</button></form><% } %>
+                <div class="master-row-actions">
+                <% if (priceListEditHref) { %><a class="button button-light master-action-icon" href="<%= priceListEditHref %>" title="Edit" aria-label="Edit <%= config.singular.toLowerCase() %> <%= row[config.idField] %>">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16 3 5 5L8 21H3v-5Z"/><path d="m14 5 5 5"/></svg>
+                </a><% } %>
+                <% if (config.key === 'price-lists' ? canPriceListAction(row.price_list, 'delete') : can(`masters.${config.key}.delete`)) { %><form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/delete" data-confirm="Delete <%= config.singular.toLowerCase() %> <%= row[config.idField] %> permanently? This cannot be undone.">
+                  <% for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) { if (query[key]) { %><input type="hidden" name="<%= key %>" value="<%= query[key] %>"><% } } %>
+                  <button type="submit" class="button-light master-action-icon master-action-cancel" title="Delete" aria-label="Delete <%= config.singular.toLowerCase() %> <%= row[config.idField] %>">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v6m4-6v6"/></svg>
+                  </button>
+                </form><% } %>
+                </div>
               </td>
             </tr>
           <% }) %>
@@ -69,5 +118,7 @@
       <%- include('pagination', { pagination, query, basePath: `/settings/${config.key}` }) %>
     </section>
   </main>
+  <script src="/master-row-navigation.js?v=<%= assetVersion %>" defer></script>
+  <% if (config.key === 'item-prices') { %><script src="/item-price-list-filter.js?v=<%= assetVersion %>" defer></script><% } %>
 </body>
 </html>

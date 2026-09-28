@@ -23,14 +23,14 @@
     <% } %>
     <section class="invoice-card report-section">
       <div class="section-title"><h1>Users</h1></div>
-      <p>Assign a built-in or custom role to each user. <a href="/settings/roles">Manage roles and permissions</a>.</p>
+      <p>Assign a built-in or custom role to each user. <a href="/settings/roles?tab=roles">Manage roles</a> or <a href="/settings/roles?tab=users">set user permissions</a>.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Username</th><th>Role and status</th><th>Save access</th><th>Password</th></tr></thead>
           <tbody>
             <% users.forEach((user) => { %>
               <tr>
-                <td><strong><%= user.username %></strong><% if (Number(user.id) === Number(currentUser.id)) { %> · You<% } %></td>
+                <td><strong><%= user.username %></strong><% if (Number(user.id) === Number(currentUser.id)) { %> · You<% } %><br><a href="/settings/roles?tab=users&amp;user=<%= user.id %>">Permissions</a></td>
                 <td>
                   <form method="post" action="/settings/users/<%= user.id %>/access" id="access-<%= user.id %>" class="user-access-form">
                     <select name="role" aria-label="Role for <%= user.username %>">

@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const search = document.querySelector('#role-search');
-  const select = document.querySelector('#role-select');
+  const search = document.querySelector('#role-search, #user-search');
+  const select = document.querySelector('#role-select, select[name="user"]');
   if (search && select) {
     const options = [...select.options];
     search.addEventListener('input', () => {
@@ -20,10 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const input = event.target;
       if (!input.matches('input[name="actions"]')) return;
       const form = input.form;
-      const body = new URLSearchParams(new FormData(form));
       const controls = [...table.querySelectorAll('input, button'), ...addForm.querySelectorAll('input, select, button')];
       const disabled = controls.map((control) => control.disabled);
       const previous = [...table.querySelectorAll('input[name="actions"]')].map((control) => [control, control === input ? !control.checked : control.checked]);
+      if (input.value === 'view' && !input.checked) {
+        for (const [control] of previous) if (control.form === form) control.checked = false;
+      } else if (input.value !== 'view' && input.checked) {
+        for (const [control] of previous) {
+          if (control.form === form && control.value === 'view') control.checked = true;
+        }
+      }
+      const body = new URLSearchParams(new FormData(form));
       controls.forEach((control) => { control.disabled = true; });
       status.textContent = 'Saving…';
       try {
@@ -58,10 +65,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const granted = new Set(typeSelect.selectedOptions[0]?.dataset.grantedActions?.split(',') || []);
       for (const input of addForm.querySelectorAll('input[name="actions"]')) {
         input.disabled = !actions.has(input.value);
+        input.parentElement.hidden = input.disabled;
         input.checked = !input.disabled && granted.has(input.value);
       }
     };
     typeSelect.addEventListener('change', updateActions);
+    addForm.addEventListener('change', (event) => {
+      const input = event.target;
+      if (!input.matches('input[name="actions"]')) return;
+      const read = addForm.querySelector('input[name="actions"][value="view"]');
+      if (!read || read.disabled) return;
+      if (input === read && !read.checked) {
+        for (const action of addForm.querySelectorAll('input[name="actions"]')) action.checked = false;
+      } else if (input !== read && input.checked) {
+        read.checked = true;
+      }
+    });
     updateActions();
   }
 });

@@ -48,10 +48,12 @@ function normalizePurchase(payload) {
   const postingDate = String(payload.posting_date || '').trim();
   const dueDate = String(payload.due_date || '').trim();
   const supplierId = String(payload.supplier_id || '').trim();
+  const priceList = String(payload.price_list || '').trim();
   if (!validDate(postingDate)) throw badRequest('Choose a valid purchase date.');
   if (dueDate && !validDate(dueDate)) throw badRequest('Choose a valid due date.');
   if (dueDate && dueDate < postingDate) throw badRequest('Due date cannot be before the purchase date.');
   if (!supplierId) throw badRequest('Select a supplier.');
+  if (!priceList) throw badRequest('Select a price list.');
   const rows = Array.isArray(payload.items) ? payload.items : [];
   const items = rows.map((row, index) => {
     const itemCode = String(row.item_code || '').trim();
@@ -65,8 +67,8 @@ function normalizePurchase(payload) {
     if (Math.round(quantity * 1000) !== quantity * 1000) {
       throw badRequest(`Quantity on row ${index + 1} can have at most three decimal places.`);
     }
-    if (Math.round(unitPrice) !== unitPrice) {
-      throw badRequest(`Unit price on row ${index + 1} must be a whole number.`);
+    if (Math.round(unitPrice * 100) !== unitPrice * 100) {
+      throw badRequest(`Unit price on row ${index + 1} can have at most two decimal places.`);
     }
     return {
       id: Number(row.id || 0),
@@ -85,6 +87,7 @@ function normalizePurchase(payload) {
     posting_date: postingDate,
     due_date: dueDate || null,
     supplier_id: supplierId,
+    price_list: priceList,
     supplier_reference: String(payload.supplier_reference || '').trim() || null,
     remarks: String(payload.remarks || '').trim() || null,
     subtotal: total,
@@ -94,6 +97,9 @@ function normalizePurchase(payload) {
 }
 
 async function resolvePurchaseMasters(client, purchase) {
+  const priceList = await client.query(`SELECT 1 FROM app_master_price_lists
+    WHERE price_list = $1 AND active = 1 AND currency = 'UGX' AND price_type IN ('buying', 'both')`, [purchase.price_list]);
+  if (!priceList.rows.length) throw badRequest('Select an active UGX buying price list.');
   const supplierResult = await client.query(
     'SELECT supplier_name FROM app_master_suppliers WHERE supplier_id = $1 AND disabled = false',
     [purchase.supplier_id],
@@ -202,11 +208,11 @@ async function createPurchase(payload) {
     const { rows } = await client.query(`
       INSERT INTO app_purchases (
         posting_date, due_date, supplier_id, supplier_name, supplier_reference, remarks,
-        subtotal, total
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+        subtotal, total, price_list
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
     `, [purchase.posting_date, purchase.due_date, purchase.supplier_id,
       purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
-      purchase.subtotal, purchase.total]);
+      purchase.subtotal, purchase.total, purchase.price_list]);
     const id = Number(rows[0].id);
     await client.query('UPDATE app_purchases SET purchase_no = $1 WHERE id = $2',
       [`PUR-${String(id).padStart(6, '0')}`, id]);
@@ -229,11 +235,11 @@ async function updatePurchase(id, payload) {
     await client.query(`
       UPDATE app_purchases SET posting_date = $1, due_date = $2, supplier_id = $3,
         supplier_name = $4, supplier_reference = $5, remarks = $6,
-        subtotal = $7, total = $8, updated_at = now()
+        subtotal = $7, total = $8, price_list = $10, updated_at = now()
       WHERE id = $9
     `, [purchase.posting_date, purchase.due_date, purchase.supplier_id,
       purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
-      purchase.subtotal, purchase.total, purchaseId]);
+      purchase.subtotal, purchase.total, purchaseId, purchase.price_list]);
     await syncItems(client, purchaseId, purchase.items);
     return purchaseId;
   });
@@ -299,7 +305,7 @@ async function loadPurchase(id) {
   const result = await pool.query(`
     SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
       id, purchase_no, docstatus, posting_date::text, due_date::text,
-      supplier_id, supplier_name, supplier_reference, remarks,
+      supplier_id, supplier_name, price_list, supplier_reference, remarks,
       subtotal::float, submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at,
       total::float, amount_paid::float, status

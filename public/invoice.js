@@ -2,6 +2,9 @@ const items = [];
 const itemSearch = document.querySelector('#item-search');
 const itemResults = document.querySelector('#item-results');
 const warehouseSelect = document.querySelector('#warehouse-select');
+const priceListSelect = document.querySelector('#invoice-price-list');
+const refreshPricesButton = document.querySelector('#refresh-invoice-prices');
+const priceUpdateStatus = document.querySelector('#invoice-price-update-status');
 const customerSearch = document.querySelector('#customer-search');
 const customerResults = document.querySelector('#customer-results');
 const customerId = document.querySelector('#customer-id');
@@ -23,7 +26,22 @@ const paymentNotes = document.querySelector('#payment-notes');
 const addPaymentButton = document.querySelector('#add-payment');
 const formError = document.querySelector('#invoice-form-error');
 const initialData = window.invoiceInitial || {};
+const editSaveButton = document.querySelector('[data-edit-save]');
+const editSubmitActions = [...document.querySelectorAll('[data-edit-submit-action]')];
 let activeWarehouse = initialData.warehouse || '';
+let activePriceList = initialData.invoice?.price_list || '';
+let repricing = false;
+let dirty = Boolean(initialData.recovered);
+let saving = false;
+let savedInvoiceState = null;
+form.addEventListener('input', () => { dirty = true; updateEditActions(); });
+form.addEventListener('change', () => { dirty = true; updateEditActions(); });
+window.addEventListener('beforeunload', (event) => {
+  if (saving || (initialData.invoice?.id ? !isInvoiceChanged() : !dirty)) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+window.addEventListener('pageshow', () => { saving = false; });
 
 const money = new Intl.NumberFormat('en-UG', {
   style: 'currency',
@@ -63,11 +81,13 @@ itemSearch.addEventListener('blur', () => {
 
 warehouseSelect.addEventListener('change', async () => {
   const nextWarehouse = warehouseSelect.value;
-  if (items.length && nextWarehouse !== activeWarehouse) {
+  if (nextWarehouse === activeWarehouse) return;
+  if (items.length) {
     const confirmed = await confirmWithDialog(`Changing the warehouse will remove ${items.length} line item${items.length === 1 ? '' : 's'}. Continue?`);
     if (!confirmed) {
       warehouseSelect.value = activeWarehouse;
       syncWarehouseFields();
+      updateEditActions();
       return;
     }
   }
@@ -128,12 +148,20 @@ form.addEventListener('input', clearFormError);
 
 initializeInvoiceForm();
 initializePayments();
+savedInvoiceState = JSON.stringify(invoiceState());
+updateEditActions();
 loadWarehouses();
+loadPriceLists();
 preloadCustomers();
 
 addPaymentButton.addEventListener('click', addPaymentFromForm);
 
 form.addEventListener('submit', (event) => {
+  if (repricing) {
+    event.preventDefault();
+    showFormError('Wait for the item prices to update before saving.');
+    return;
+  }
   if (hasPendingPaymentInput()) {
     if (!addPaymentFromForm()) {
       event.preventDefault();
@@ -143,6 +171,11 @@ form.addEventListener('submit', (event) => {
   if (!customerId.value) {
     event.preventDefault();
     showFormError('Select a customer from the database.', customerSearch);
+    return;
+  }
+  if (!priceListSelect.value) {
+    event.preventDefault();
+    showFormError('Select a price list.', priceListSelect);
     return;
   }
   if (!items.length) {
@@ -157,6 +190,7 @@ form.addEventListener('submit', (event) => {
   }
   itemsJson.value = JSON.stringify(items);
   paymentsJson.value = JSON.stringify(payments);
+  saving = true;
 });
 
 form.addEventListener('keydown', (event) => {
@@ -205,17 +239,19 @@ async function searchItems() {
   const requestId = ++itemRequestId;
   const q = itemSearch.value.trim();
   const warehouse = warehouseSelect.value;
-  if (!warehouse) {
-    itemResults.innerHTML = '<p>Choose a warehouse before searching items.</p>';
+  const priceList = priceListSelect.value;
+  if (!warehouse || !priceListSelect.value) {
+    itemResults.innerHTML = '<p>Choose a price list and warehouse before searching items.</p>';
     return;
   }
   const isCurrentSearch = () => requestId === itemRequestId
     && warehouse === warehouseSelect.value
+    && priceList === priceListSelect.value
     && q === itemSearch.value.trim()
     && (document.activeElement === itemSearch || itemResults.contains(document.activeElement));
   itemResults.innerHTML = '<p>Loading items...</p>';
   try {
-    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}`);
+    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}&price_list=${encodeURIComponent(priceList)}`);
     if (!response.ok) {
       throw new Error('Item request failed.');
     }
@@ -323,15 +359,109 @@ async function loadWarehouses() {
     }
     syncWarehouseFields();
   } catch {
-    warehouseSelect.innerHTML = '<option value="">Could not load warehouses</option>';
+    warehouseSelect.innerHTML = initialData.warehouse
+      ? `<option value="${escapeAttr(initialData.warehouse)}">${escapeHtml(initialData.warehouse)}</option>`
+      : '<option value="">Could not load warehouses</option>';
   } finally {
     syncWarehouseFields();
+    updateEditActions();
   }
 }
 
 function syncWarehouseFields() {
-  itemSearch.disabled = !warehouseSelect.value;
-  itemSearch.placeholder = warehouseSelect.value ? 'Search item name, code, category' : 'Choose a warehouse first';
+  itemSearch.disabled = repricing || !warehouseSelect.value || !priceListSelect.value;
+  itemSearch.placeholder = !priceListSelect.value ? 'Choose a price list first' : warehouseSelect.value ? 'Search item name, code, category' : 'Choose a warehouse first';
+}
+
+async function loadPriceLists() {
+  try {
+    const response = await fetch('/api/price-lists?type=selling&invoice=1');
+    if (!response.ok) throw new Error('Price lists unavailable');
+    const rows = await response.json();
+    const selected = initialData.invoice?.price_list || priceListSelect.value;
+    priceListSelect.replaceChildren(new Option('Choose price list', ''));
+    for (const row of rows) priceListSelect.add(new Option(`${row.value} · ${row.label}`, row.value));
+    if (selected && !rows.some((row) => row.value === selected)) {
+      const unavailable = new Option(`${selected} · No longer available to this role`, selected);
+      unavailable.disabled = true;
+      priceListSelect.add(unavailable);
+    }
+    priceListSelect.value = selected || '';
+    activePriceList = priceListSelect.value;
+  } catch {
+    priceListSelect.replaceChildren(new Option(activePriceList || 'Could not load price lists', activePriceList));
+  }
+  syncWarehouseFields();
+  updateEditActions();
+}
+
+priceListSelect.addEventListener('change', () => updateInvoiceItemPrices());
+refreshPricesButton?.addEventListener('click', () => updateInvoiceItemPrices(true));
+
+async function updateInvoiceItemPrices(force = false) {
+  const nextPriceList = priceListSelect.value;
+  if (repricing || !force && nextPriceList === activePriceList) return;
+  clearTimeout(itemTimer);
+  itemRequestId += 1;
+  itemResults.innerHTML = '';
+  if (!items.length) {
+    activePriceList = nextPriceList;
+    if (force) showFormError('Add an item before refreshing prices.', itemSearch);
+    syncWarehouseFields();
+    updateEditActions();
+    return;
+  }
+  if (!nextPriceList) {
+    priceListSelect.value = activePriceList;
+    showFormError('Select a price list to update the item prices.', priceListSelect);
+    return;
+  }
+  repricing = true;
+  updateEditActions();
+  priceListSelect.disabled = true;
+  if (refreshPricesButton) refreshPricesButton.disabled = true;
+  if (priceUpdateStatus) {
+    priceUpdateStatus.textContent = 'Updating item prices…';
+    priceUpdateStatus.hidden = false;
+  }
+  syncWarehouseFields();
+  try {
+    const response = await fetch('/api/invoice-item-prices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price_list: nextPriceList, item_codes: items.map((item) => item.item_code) }),
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `Price lookup failed (${response.status}).`);
+    }
+    const prices = await response.json();
+    const byCode = new Map(prices.map((row) => [row.item_code, row]));
+    if (items.some((item) => !byCode.has(item.item_code))) throw new Error('An item price is missing.');
+    const changed = items.filter((item) => item.unit_price !== roundMoney(byCode.get(item.item_code).unit_price)).length;
+    const missing = items.filter((item) => !byCode.get(item.item_code).has_list_price).map((item) => item.item_code);
+    for (const item of items) item.unit_price = roundMoney(byCode.get(item.item_code).unit_price);
+    activePriceList = nextPriceList;
+    renderItems();
+    clearFormError();
+    if (priceUpdateStatus) {
+      const summary = changed ? `Updated ${changed} item rate${changed === 1 ? '' : 's'}.` : 'Item rates already match this price list.';
+      priceUpdateStatus.textContent = missing.length
+        ? `${summary} No price in ${nextPriceList} for ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? ` and ${missing.length - 3} more` : ''}; item default rates were used.`
+        : summary;
+    }
+  } catch (error) {
+    priceListSelect.value = activePriceList;
+    priceListSelect.disabled = false;
+    if (priceUpdateStatus) priceUpdateStatus.hidden = true;
+    showFormError(`Could not update item prices: ${error.message}`, priceListSelect);
+  } finally {
+    repricing = false;
+    priceListSelect.disabled = false;
+    if (refreshPricesButton) refreshPricesButton.disabled = false;
+    syncWarehouseFields();
+    updateEditActions();
+  }
 }
 
 function confirmWithDialog(message) {
@@ -416,6 +546,7 @@ function renderCustomerResults(rows) {
 }
 
 function addItem(source, quantity = 1) {
+  dirty = true;
   quantity = normalizeQuantity(quantity);
   if (quantity <= 0) {
     return;
@@ -502,13 +633,13 @@ function renderItems() {
     const total = quantity * item.unit_price;
     return `
       <tr>
-        <td class="row-number">${index + 1}</td>
-        <td class="item-code-col"><strong>${escapeHtml(item.item_code)}</strong></td>
-        <td>${formatQuantity(item.stock_at_sale)}</td>
-        <td><input type="text" inputmode="decimal" value="${formatQuantity(quantity)}" data-index="${index}" data-field="quantity"></td>
-        <td><input type="number" min="0" step="1" value="${roundMoney(item.unit_price)}" data-index="${index}" data-field="unit_price"></td>
-        <td data-line-total="${index}">${formatMoney(total || 0)}</td>
-        <td><button type="button" class="icon" data-remove="${index}">Remove</button></td>
+        <td class="row-number" data-label="Item">${index + 1}</td>
+        <td class="item-code-col" data-label="Item Name"><strong>${escapeHtml(item.item_code)}</strong></td>
+        <td data-label="Stock">${formatQuantity(item.stock_at_sale)}</td>
+        <td data-label="Qty"><input aria-label="Quantity" type="text" inputmode="decimal" value="${formatQuantity(quantity)}" data-index="${index}" data-field="quantity"></td>
+        <td data-label="Unit Price"><input aria-label="Unit price" type="number" min="0" step="1" value="${roundMoney(item.unit_price)}" data-index="${index}" data-field="unit_price"></td>
+        <td data-label="Total" data-line-total="${index}">${formatMoney(total || 0)}</td>
+        <td class="entry-row-actions"><button type="button" class="icon" data-remove="${index}">Remove</button></td>
       </tr>
     `;
   }).join('');
@@ -549,6 +680,7 @@ function renderItems() {
 
   tbody.querySelectorAll('[data-remove]').forEach((button) => {
     button.addEventListener('click', () => {
+      dirty = true;
       items.splice(Number(button.dataset.remove), 1);
       renderItems();
     });
@@ -690,6 +822,47 @@ function renderTotals() {
   if (paymentStatus) {
     paymentStatus.textContent = formatPaymentStatus(total, paid);
   }
+  updateEditActions();
+}
+
+function invoiceState() {
+  return {
+    invoice_date: document.querySelector('#invoice-date').value,
+    due_date: document.querySelector('#due-date').value,
+    customer_id: customerId.value,
+    customer_name: customerSearch.value.trim(),
+    price_list: priceListSelect.value,
+    warehouse: warehouseSelect.value,
+    discount_amount: Number(form.elements.discount_amount.value || 0),
+    tax_amount: Number(form.elements.tax_amount.value || 0),
+    notes: form.elements.notes.value.trim(),
+    items: items.map((item) => ({
+      id: item.id || 0,
+      item_code: item.item_code,
+      warehouse: item.warehouse,
+      quantity: normalizeQuantity(item.quantity),
+      unit_price: roundMoney(item.unit_price),
+    })),
+    payments: payments.map((payment) => ({
+      id: payment.id || 0,
+      payment_date: payment.payment_date,
+      amount: roundMoney(payment.amount),
+      method: payment.method,
+      reference: payment.reference,
+      notes: payment.notes,
+    })),
+  };
+}
+
+function isInvoiceChanged() {
+  return Boolean(initialData.recovered) || savedInvoiceState !== JSON.stringify(invoiceState());
+}
+
+function updateEditActions() {
+  if (!initialData.invoice?.id || savedInvoiceState === null || !editSubmitActions.length) return;
+  const showSave = repricing || isInvoiceChanged();
+  editSaveButton.hidden = !showSave;
+  editSubmitActions.forEach((action) => { action.hidden = showSave; });
 }
 
 function calculateGrandTotal() {
@@ -799,10 +972,13 @@ function clearUnselectedCustomer() {
   }
   customerSearch.value = '';
   customerResults.innerHTML = '';
+  updateEditActions();
 }
 
 function selectCustomer(button) {
+  dirty = true;
   customerId.value = button.dataset.id;
   customerSearch.value = button.dataset.name;
   customerResults.innerHTML = '';
+  updateEditActions();
 }

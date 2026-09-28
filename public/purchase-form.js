@@ -5,6 +5,7 @@ const supplierName = document.querySelector('#purchase-supplier-name');
 const supplierList = document.querySelector('#purchase-suppliers');
 const itemList = document.querySelector('#purchase-items-list');
 const warehouseList = document.querySelector('#purchase-warehouses');
+const priceListSelect = document.querySelector('#purchase-price-list');
 const totalLabel = document.querySelector('#purchase-total');
 let suppliers = [];
 let items = [];
@@ -29,10 +30,70 @@ function setOptions(list, rows, valueKey, labelKey) {
   }
 }
 
-async function search(url) {
-  const response = await fetch(url);
-  if (!response.ok) return [];
-  return response.json();
+const lookupStatus = document.querySelector('#purchase-lookup-status');
+const lookupMessage = lookupStatus.querySelector('[data-lookup-message]');
+const retryLookup = lookupStatus.querySelector('[data-lookup-retry]');
+const failures = new Map();
+const requests = new WeakMap();
+
+function showLookupStatus(message = '') {
+  const errors = [...failures.values()];
+  lookupMessage.textContent = errors.length
+    ? `Could not load ${errors.map((error) => error.label).join(', ')}. Check your connection and retry.`
+    : message;
+  lookupStatus.hidden = !lookupMessage.textContent;
+  lookupStatus.classList.toggle('warning', Boolean(errors.length));
+  retryLookup.hidden = !errors.length;
+}
+
+async function lookup(list, input, endpoint, label, apply, filter = (rows) => rows) {
+  const query = input ? input.value.trim() : '';
+  const request = {};
+  requests.set(list, request);
+  failures.delete(list);
+  setOptions(list, [], '');
+  showLookupStatus(`Loading ${label}…`);
+  const current = () => requests.get(list) === request && (!input || input.isConnected && input.value.trim() === query)
+    && (!endpoint.startsWith('/api/master-items?') || endpoint.includes(`price_list=${encodeURIComponent(priceListSelect.value)}`));
+  try {
+    const response = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Lookup failed');
+    const result = await response.json();
+    if (!Array.isArray(result)) throw new Error('Invalid lookup result');
+    if (!current()) return;
+    const rows = filter(result);
+    apply(rows);
+    showLookupStatus(rows.length ? '' : `No matching ${label}. Try a different search.`);
+  } catch {
+    if (!current()) return;
+    failures.set(list, { label, retry: () => lookup(list, input, endpoint, label, apply, filter) });
+    showLookupStatus();
+  }
+}
+
+retryLookup.addEventListener('click', () => {
+  [...failures.values()].forEach((failure) => failure.retry());
+});
+
+function loadSuppliers() {
+  return lookup(supplierList, supplierInput, '/api/suppliers', 'suppliers', (rows) => {
+    suppliers = rows;
+    setOptions(supplierList, rows, 'supplier_id', 'supplier_name');
+    updateSupplierName();
+  });
+}
+
+function loadItems(input) {
+  if (!priceListSelect.value) { showLookupStatus('Choose a price list first.'); return; }
+  return lookup(itemList, input, `/api/master-items?price_list=${encodeURIComponent(priceListSelect.value)}`, 'items', (rows) => {
+    items = rows;
+    setOptions(itemList, rows, 'item_code', 'item_name');
+    updateItemName(input);
+  }, (rows) => rows.filter((item) => item.is_purchase_item && item.disabled !== '1'));
+}
+
+function loadWarehouses(input = null) {
+  return lookup(warehouseList, input, '/api/warehouses', 'warehouses', (rows) => setOptions(warehouseList, rows));
 }
 
 function updateTotals() {
@@ -53,13 +114,13 @@ function updateSupplierName() {
   supplierName.value = selected ? selected.supplier_name : '';
 }
 
-function updateItemName(input) {
+function updateItemName(input, applyRate = false) {
   const row = input.closest('tr');
   const selected = items.find((item) => item.item_code === input.value.trim());
   if (selected) {
     row.querySelector('[name="item_name"]').value = selected.item_name;
     const rate = row.querySelector('[name="unit_price"]');
-    if (!rate.value) rate.value = selected.unit_cost || 0;
+    if (applyRate) rate.value = selected.unit_cost || 0;
   } else {
     row.querySelector('[name="item_name"]').value = '';
   }
@@ -68,35 +129,24 @@ function updateItemName(input) {
 
 supplierInput.addEventListener('input', () => {
   updateSupplierName();
-  scheduleSearch(supplierInput, async () => {
-    suppliers = await search(`/api/suppliers?q=${encodeURIComponent(supplierInput.value.trim())}`);
-    setOptions(supplierList, suppliers, 'supplier_id', 'supplier_name');
-    updateSupplierName();
-  });
+  scheduleSearch(supplierInput, loadSuppliers);
 });
 supplierInput.addEventListener('change', updateSupplierName);
+supplierInput.addEventListener('focus', loadSuppliers);
 
 purchaseRows.addEventListener('input', (event) => {
-  if (event.target.matches('[name="item_code"]')) {
-    const input = event.target;
-    scheduleSearch(input, async () => {
-      items = (await search(`/api/master-items?q=${encodeURIComponent(input.value.trim())}`))
-        .filter((item) => item.is_purchase_item && item.disabled !== '1');
-      setOptions(itemList, items, 'item_code', 'item_name');
-      updateItemName(input);
-    });
-  }
-  if (event.target.matches('[name="warehouse"]')) {
-    const input = event.target;
-    scheduleSearch(input, async () => {
-      const warehouses = await search(`/api/warehouses?q=${encodeURIComponent(input.value.trim())}`);
-      setOptions(warehouseList, warehouses);
-    });
-  }
+  const input = event.target;
+  if (input.matches('[name="item_code"]')) scheduleSearch(input, () => loadItems(input));
+  if (input.matches('[name="warehouse"]')) scheduleSearch(input, () => loadWarehouses(input));
   updateTotals();
 });
+purchaseRows.addEventListener('focusin', (event) => {
+  const input = event.target;
+  if (input.matches('[name="item_code"]')) loadItems(input);
+  if (input.matches('[name="warehouse"]')) loadWarehouses(input);
+});
 purchaseRows.addEventListener('change', (event) => {
-  if (event.target.matches('[name="item_code"]')) updateItemName(event.target);
+  if (event.target.matches('[name="item_code"]')) updateItemName(event.target, true);
 });
 purchaseRows.addEventListener('click', (event) => {
   const remove = event.target.closest('[data-remove-purchase-row]');
@@ -124,5 +174,27 @@ purchaseForm.addEventListener('submit', (event) => {
   updateTotals();
 });
 
-search('/api/warehouses').then((rows) => setOptions(warehouseList, rows));
+loadWarehouses();
+async function loadPriceLists() {
+  const selected = priceListSelect.value;
+  try {
+    const response = await fetch('/api/price-lists?type=buying');
+    if (!response.ok) throw new Error('Price lists unavailable');
+    const rows = await response.json();
+    priceListSelect.replaceChildren(new Option('Choose price list', ''));
+    for (const row of rows) priceListSelect.add(new Option(`${row.value} · ${row.label}`, row.value));
+    if (selected && !rows.some((row) => row.value === selected)) priceListSelect.add(new Option(selected, selected));
+    priceListSelect.value = selected;
+  } catch { showLookupStatus('Could not load price lists. Retry the page.'); }
+}
+priceListSelect.addEventListener('change', () => {
+  items = [];
+  for (const row of purchaseRows.rows) {
+    row.querySelector('[name="item_code"]').value = '';
+    row.querySelector('[name="item_name"]').value = '';
+    row.querySelector('[name="unit_price"]').value = '';
+  }
+  updateTotals();
+});
+loadPriceLists();
 updateTotals();

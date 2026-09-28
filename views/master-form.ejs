@@ -20,22 +20,40 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <form method="post" action="<%= mode === 'edit' ? '/settings/' + config.key + '/' + encodeURIComponent(record[config.idField]) : '/settings/' + config.key %>" class="invoice-form">
+    <% if (config.hint) { %><p class="muted-text"><%= config.hint %></p><% } %>
+    <% const editingSubmittedPriceList = mode === 'edit' && record.docstatus === 'submitted' && editSubmitted; %>
+    <% const submittedPriceListLocked = config.key === 'price-lists' && mode === 'edit' && record.docstatus === 'submitted' && !editingSubmittedPriceList; %>
+    <form method="post" action="<%= mode === 'edit' ? '/settings/' + config.key + '/' + encodeURIComponent(record[config.idField]) : '/settings/' + config.key %>" class="invoice-form<%= config.staticLabels ? ' entry-form pricing-master-form' : '' %>" <% if (config.staticLabels) { %>data-static-labels<% } %> <% if (editingSubmittedPriceList) { %>data-pricelist-change-tracking data-record-id-field="<%= config.idField %>"<% } %>>
+      <% if (mode === 'edit') { const navigationSuffix = editSubmitted ? '?editing=1' : ''; %>
+        <nav class="price-list-record-navigation" aria-label="Master records">
+          <% if (neighbors.previous) { %>
+            <a class="button button-light" href="/settings/<%= config.key %>/<%= encodeURIComponent(neighbors.previous) %>/edit<%= navigationSuffix %>" title="<%= neighbors.previous %>">Previous</a>
+          <% } else { %>
+            <span class="button button-light" aria-disabled="true">Previous</span>
+          <% } %>
+          <% if (neighbors.next) { %>
+            <a class="button button-light" href="/settings/<%= config.key %>/<%= encodeURIComponent(neighbors.next) %>/edit<%= navigationSuffix %>" title="<%= neighbors.next %>">Next</a>
+          <% } else { %>
+            <span class="button button-light" aria-disabled="true">Next</span>
+          <% } %>
+        </nav>
+      <% } %>
       <section class="form-grid">
-        <% config.fields.forEach((field) => { %>
+        <% config.fields.forEach((field) => { if (field.editOnly && mode !== 'edit') return; %>
+          <% if (field.section) { %><h3 class="wide"><%= field.section %></h3><% } %>
           <label class="<%= field.className || '' %>">
             <%= field.label %>
             <% if (field.type === 'textarea') { %>
-              <textarea name="<%= field.name %>" rows="3" <%= field.required ? 'required' : '' %>><%= record[field.name] || '' %></textarea>
+              <textarea name="<%= field.name %>" rows="3" <%= field.required ? 'required' : '' %> <%= submittedPriceListLocked || field.readonly ? 'readonly' : '' %>><%= record[field.name] || '' %></textarea>
             <% } else if (field.type === 'option-select') { %>
-              <select name="<%= field.name %>" <%= field.required ? 'required' : '' %>>
+              <select name="<%= field.name %>" <%= field.required ? 'required' : '' %> <%= submittedPriceListLocked ? 'disabled' : '' %>>
                 <option value=""></option>
                 <% (optionValues[field.optionGroup] || []).forEach((value) => { %>
                   <option value="<%= value %>" <%= String(record[field.name] ?? '') === String(value) ? 'selected' : '' %>><%= value %></option>
                 <% }) %>
               </select>
             <% } else if (field.type === 'select') { %>
-              <select name="<%= field.name %>" <%= field.required ? 'required' : '' %>>
+              <select name="<%= field.name %>" <%= field.required ? 'required' : '' %> <%= submittedPriceListLocked ? 'disabled' : '' %>>
                 <% (field.options || []).forEach((option) => { %>
                   <option value="<%= option.value %>" <%= String(record[field.name] ?? option.defaultValue ?? '') === String(option.value) ? 'selected' : '' %>><%= option.label %></option>
                 <% }) %>
@@ -47,13 +65,19 @@
                 type="<%= field.type || 'text' %>"
                 <% if (field.maxlength) { %>maxlength="<%= field.maxlength %>"<% } %>
                 <% if (field.step) { %>step="<%= field.step %>"<% } %>
-                <% if (field.min) { %>min="<%= field.min %>"<% } %>
+                <% if (field.min != null) { %>min="<%= field.min %>"<% } %>
                 <% if (field.placeholder) { %>placeholder="<%= field.placeholder %>"<% } %>
                 <% if (field.autocomplete) { %>autocomplete="<%= field.autocomplete %>"<% } %>
+                <% if (field.lookup) { %>data-master-lookup="<%= field.lookup %>" list="lookup-<%= field.name %>" autocomplete="off" aria-describedby="lookup-status-<%= field.name %>"<% } %>
                 <% if (field.optionGroup) { %>list="options-<%= field.name %>"<% } %>
                 <% if (field.required) { %>required<% } %>
-                <% if (mode === 'edit' && field.lockedOnEdit) { %>readonly<% } %>
+                <% if (field.readonly || mode === 'edit' && (field.lockedOnEdit || submittedPriceListLocked)) { %>readonly<% } %>
               >
+              <% if (field.lookup) { %>
+                <datalist id="lookup-<%= field.name %>"></datalist>
+                <span class="field-hint" id="lookup-status-<%= field.name %>" role="status"></span>
+                <button type="button" class="button-light" data-lookup-retry="<%= field.name %>" hidden>Retry</button>
+              <% } %>
               <% if (field.optionGroup) { %>
                 <datalist id="options-<%= field.name %>">
                   <% (optionValues[field.optionGroup] || []).forEach((value) => { %>
@@ -68,12 +92,32 @@
           </label>
         <% }) %>
       </section>
-      <div class="actions">
-        <a class="button button-light" href="/settings/<%= config.key %>">Cancel</a>
-        <button type="submit"><%= mode === 'edit' ? 'Save ' : 'Create ' %><%= config.singular %></button>
+      <div class="actions<%= mode === 'edit' ? ' price-list-actions' : '' %>">
+        <% if (mode === 'edit') { const isActive = record.active === 1; %>
+          <button type="submit" form="master-active-form" class="price-list-active-button price-list-action-switch" role="switch" aria-checked="<%= isActive %>" aria-label="<%= isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= record[config.idField] %>" <%= (config.key === 'price-lists' ? canPriceListAction(record.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
+            <span class="price-list-active-track" aria-hidden="true"><span class="price-list-active-thumb"></span></span>
+            <span>Active</span>
+          </button>
+        <% } %>
+        <a class="button button-light" href="/settings/<%= config.key %>"><%= 'Back to ' + config.title %></a>
+        <% if (editingSubmittedPriceList) { %>
+          <button type="submit" data-pricelist-update hidden>Update</button>
+        <% } else if (config.key === 'price-lists' && mode === 'edit' && record.docstatus === 'submitted') { %>
+          <% if (canPriceListAction(record.price_list, 'edit')) { %><a class="button button-light" href="/settings/price-lists/<%= encodeURIComponent(record.price_list) %>/edit?editing=1">Edit</a><% } %>
+        <% } else { %>
+          <button type="submit"><%= mode === 'edit' ? (config.editSubmitLabel || 'Save ' + config.singular) : (config.createSubmitLabel || 'Create ' + config.singular) %></button>
+        <% } %>
       </div>
     </form>
+    <% if (mode === 'edit') { const isActive = record.active === 1; %>
+      <form id="master-active-form" method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(record[config.idField]) %>/active">
+        <input type="hidden" name="active" value="<%= isActive ? '0' : '1' %>">
+        <input type="hidden" name="return_to" value="edit">
+      </form>
+    <% } %>
     <% if (mode === 'edit') { %><%- include('record-audit', { record: record }) %><% } %>
   </main>
+  <% if (config.fields.some((field) => field.lookup)) { %><script src="/master-lookups.js?v=<%= assetVersion %>"></script><% } %>
+  <% if (editingSubmittedPriceList) { %><script src="/pricelist-change-tracking.js?v=<%= assetVersion %>" defer></script><% } %>
 </body>
 </html>

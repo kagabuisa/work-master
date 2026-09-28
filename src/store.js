@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const pricing = require('./pricing');
 const { AuditPool, auditActor, initRecordAudit, recordAuditFields, stampRecord, stampRecordList } = require('./audit');
 require('dotenv').config({ quiet: true });
 
@@ -861,9 +862,14 @@ async function initPostgresStore() {
       UNIQUE (option_group, option_value)
     )
   `);
+  await pricing.initPricingTables(pool);
   for (const table of ['app_master_items', 'app_master_customers', 'app_master_suppliers', 'app_master_warehouses', 'app_master_employees', 'app_master_options']) {
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS docstatus TEXT NOT NULL DEFAULT 'submitted'`);
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS legacy_editable BOOLEAN NOT NULL DEFAULT true`);
+    await pool.query(`UPDATE ${table} SET disabled = true, docstatus = 'submitted' WHERE docstatus IN ('draft', 'cancelled')`);
+    await pool.query(`ALTER TABLE ${table} ALTER COLUMN docstatus SET DEFAULT 'submitted'`);
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS active SMALLINT
+      GENERATED ALWAYS AS (CASE WHEN NOT disabled AND docstatus = 'submitted' THEN 1 ELSE 0 END) STORED`);
   }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_company_information (
@@ -881,6 +887,7 @@ async function initPostgresStore() {
       customer_id TEXT,
       customer_name TEXT NOT NULL,
       customer_phone TEXT,
+      price_list TEXT,
       notes TEXT,
       subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
       tax_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
@@ -893,6 +900,7 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS is_cash_sale BOOLEAN');
+  await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS price_list TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_invoice_items (
       id BIGSERIAL PRIMARY KEY,
@@ -934,6 +942,7 @@ async function initPostgresStore() {
       due_date DATE,
       supplier_id TEXT NOT NULL,
       supplier_name TEXT NOT NULL,
+      price_list TEXT,
       supplier_reference TEXT,
       remarks TEXT,
       subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
@@ -958,6 +967,7 @@ async function initPostgresStore() {
       UNIQUE (purchase_id, line_no)
     )
   `);
+  await pool.query('ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS price_list TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_purchase_payments (
       id BIGSERIAL PRIMARY KEY,
@@ -1423,6 +1433,7 @@ async function paginatedPostgresInvoices(options = {}) {
         invoice.customer_id,
         invoice.customer_name,
         invoice.customer_phone,
+        invoice.price_list,
         invoice.subtotal,
         invoice.tax_amount,
         invoice.discount_amount,
@@ -1464,6 +1475,7 @@ async function paginatedPostgresInvoices(options = {}) {
       customer_id,
       customer_name,
       customer_phone,
+      price_list,
       subtotal::float,
       tax_amount::float,
       discount_amount::float,
@@ -1496,6 +1508,7 @@ function postgresInvoiceListRow(row) {
     customer_id: row.customer_id,
     customer_name: row.customer_name,
     customer_phone: row.customer_phone,
+    price_list: row.price_list,
     subtotal: Number(row.subtotal || 0),
     tax_amount: Number(row.tax_amount || 0),
     discount_amount: Number(row.discount_amount || 0),
@@ -1527,11 +1540,11 @@ async function createPostgresInvoice(payload) {
       `
       INSERT INTO app_invoices (
         docstatus, invoice_date, due_date, customer_id, customer_name, customer_phone,
-        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, is_cash_sale
+        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale
       )
       VALUES (
         'draft', $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11, $12, $13
+        $6, $7, $8, $9, $10, $11, $12, $13, $14
       )
       RETURNING id
       `,
@@ -1563,11 +1576,11 @@ async function createCashSaleInvoice(payload, payment) {
       `
       INSERT INTO app_invoices (
         docstatus, invoice_date, due_date, customer_id, customer_name, customer_phone,
-        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, is_cash_sale
+        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale
       )
       VALUES (
         'draft', $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11, $12, $13
+        $6, $7, $8, $9, $10, $11, $12, $13, $14
       )
       RETURNING id
       `,
@@ -1690,8 +1703,9 @@ async function updatePostgresInvoice(id, payload) {
         total = $10,
         amount_paid = $11,
         status = $12,
+        price_list = $13,
         updated_at = now()
-      WHERE id = $13
+      WHERE id = $14
       `,
       [...invoiceParams(invoiceData), Number(id)],
     );
@@ -2305,6 +2319,7 @@ async function masterItemsWithStock(options = {}) {
     `,
     params,
   );
+  await applySelectedItemPrices(rows, options.priceList);
   return rows.map((row) => ({
     ...row,
     stock_balance: normalizeStockQuantity(row.stock_balance),
@@ -2383,6 +2398,37 @@ async function masterItems(options = {}) {
   if (countResult) {
     rows.pagination = paginationResult(Number(countResult.rows[0].total || 0), pagination);
   }
+  await applySelectedItemPrices(rows, options.priceList);
+  return rows;
+}
+
+async function applySelectedItemPrices(rows, priceList) {
+  const selected = String(priceList || '').trim();
+  if (!selected || !rows.length) return;
+  const codes = rows.map((row) => row.item_code);
+  const { rows: prices } = await getPostgresPool().query(`
+    SELECT item_code, price_list_rate::float FROM app_master_item_prices
+    WHERE price_list = $1 AND item_code = ANY($2::text[]) AND active = 1
+  `, [selected, codes]);
+  const byCode = new Map(prices.map((row) => [row.item_code, row.price_list_rate]));
+  for (const row of rows) {
+    if (!byCode.has(row.item_code)) continue;
+    row.unit_price = byCode.get(row.item_code);
+    row.unit_cost = byCode.get(row.item_code);
+  }
+}
+
+async function invoiceItemPrices(itemCodes, priceList) {
+  assertPostgresInventory();
+  const { rows } = await getPostgresPool().query(`
+    SELECT item.item_code,
+      COALESCE(price.price_list_rate, item.default_rate, 0)::float AS unit_price,
+      price.id IS NOT NULL AS has_list_price
+    FROM app_master_items item
+    LEFT JOIN app_master_item_prices price
+      ON price.item_code = item.item_code AND price.price_list = $2 AND price.active = 1
+    WHERE item.item_code = ANY($1::text[])
+  `, [itemCodes, priceList]);
   return rows;
 }
 
@@ -2502,6 +2548,14 @@ async function masterWarehouses(options = {}) {
   assertPostgresInventory();
   const params = [];
   const where = ['is_group = false'];
+  if (Array.isArray(options.allowedWarehouses)) {
+    params.push(options.allowedWarehouses);
+    where.push(`warehouse = ANY($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedWarehouses) && options.deniedWarehouses.length) {
+    params.push(options.deniedWarehouses);
+    where.push(`warehouse <> ALL($${params.length}::text[])`);
+  }
   if (!options.includeDisabled) {
     where.push('disabled = false');
     where.push("docstatus = 'submitted'");
@@ -2652,6 +2706,25 @@ async function masterCostCenters(options = {}) {
   return rows;
 }
 
+async function masterPricingRecords(kind, options = {}) {
+  assertPostgresInventory();
+  const pagination = paginationOptions(options, Number(options.limit || 50), 200);
+  const { rows, total } = await pricing.listPricingRecords(getPostgresPool(), kind, options, pagination);
+  if (options.paginate) rows.pagination = paginationResult(Number(total || 0), pagination);
+  return rows;
+}
+
+async function masterPriceLists(options = {}) { return masterPricingRecords('price-lists', options); }
+async function masterItemPrices(options = {}) { return masterPricingRecords('item-prices', options); }
+async function itemPriceListFilters() {
+  assertPostgresInventory();
+  return pricing.listItemPricePriceLists(getPostgresPool());
+}
+async function itemPriceCodeSuggestions(options = {}) {
+  assertPostgresInventory();
+  return pricing.listItemPriceCodes(getPostgresPool(), options);
+}
+
 async function masterOptions(options = {}) {
   assertPostgresInventory();
   const params = [];
@@ -2678,7 +2751,8 @@ async function masterOptions(options = {}) {
   params.push(pagination.limit, pagination.offset);
   const { rows } = await getPostgresPool().query(
     `
-    SELECT id, option_group, option_value, docstatus, legacy_editable
+    SELECT id, option_group, option_value, docstatus, legacy_editable,
+      CASE WHEN disabled THEN '1' ELSE '0' END AS disabled
     FROM app_master_options
     ${whereSql}
     ORDER BY option_group, option_value
@@ -2694,6 +2768,7 @@ async function masterOptions(options = {}) {
 
 async function findMasterRecord(kind, id) {
   assertPostgresInventory();
+  if (kind === 'price-lists' || kind === 'item-prices') return pricing.findPricingRecord(getPostgresPool(), kind, id);
   if (kind === 'items') {
     return findMasterItem(id, { includeDisabled: true });
   }
@@ -2718,6 +2793,23 @@ async function findMasterRecord(kind, id) {
   const err = new Error('Unknown master list.');
   err.status = 404;
   throw err;
+}
+
+async function priceListNeighbors(id) {
+  assertPostgresInventory();
+  return pricing.findPriceListNeighbors(getPostgresPool(), id);
+}
+
+async function masterRecordNeighbors(kind, id) {
+  const fields = MASTER_RECORD_TABLES[kind];
+  if (!fields) return null;
+  const [table, key] = fields;
+  const visible = kind === 'warehouses' ? ' AND is_group = false' : '';
+  const [previous, next] = await Promise.all([
+    getPostgresPool().query(`SELECT ${key} AS id FROM ${table} WHERE ${key} < $1${visible} ORDER BY ${key} DESC LIMIT 1`, [id]),
+    getPostgresPool().query(`SELECT ${key} AS id FROM ${table} WHERE ${key} > $1${visible} ORDER BY ${key} ASC LIMIT 1`, [id]),
+  ]);
+  return { previous: previous.rows[0]?.id ?? null, next: next.rows[0]?.id ?? null };
 }
 
 async function findMasterItem(itemCode, options = {}) {
@@ -2919,7 +3011,8 @@ async function findMasterOption(optionId) {
   }
   const { rows } = await getPostgresPool().query(
     `
-    SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at, id, option_group, option_value, docstatus, legacy_editable
+    SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at, id, option_group, option_value, docstatus, legacy_editable,
+      CASE WHEN disabled THEN '1' ELSE '0' END AS disabled
     FROM app_master_options
     WHERE id = $1
     LIMIT 1
@@ -2931,6 +3024,7 @@ async function findMasterOption(optionId) {
 
 async function createMasterRecord(kind, payload) {
   assertPostgresInventory();
+  if (kind === 'price-lists' || kind === 'item-prices') return pricing.savePricingRecord(getPostgresPool(), kind, payload);
   if (kind === 'items') {
     return createMasterItem(payload);
   }
@@ -2955,6 +3049,7 @@ async function createMasterRecord(kind, payload) {
 }
 
 const MASTER_RECORD_TABLES = {
+  'item-prices': ['app_master_item_prices', 'id'],
   items: ['app_master_items', 'item_code'],
   customers: ['app_master_customers', 'customer_id'],
   suppliers: ['app_master_suppliers', 'supplier_id'],
@@ -2963,43 +3058,49 @@ const MASTER_RECORD_TABLES = {
   options: ['app_master_options', 'id'],
 };
 
-async function masterRecordState(kind, id) {
-  const fields = MASTER_RECORD_TABLES[kind];
-  if (!fields) { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
-  const { rows } = await getPostgresPool().query(
-    `SELECT docstatus, legacy_editable FROM ${fields[0]} WHERE ${fields[1]} = $1`, [id],
-  );
-  if (!rows[0]) { const error = new Error('Master record not found.'); error.status = 404; throw error; }
-  return rows[0];
-}
-
-async function submitMasterRecord(kind, id) {
+async function setMasterRecordActive(kind, id, active) {
+  if (typeof active !== 'boolean') { const error = new Error('Choose an active state.'); error.status = 400; throw error; }
+  if (kind === 'item-prices') return pricing.setItemPriceActive(getPostgresPool(), id, active);
   const fields = MASTER_RECORD_TABLES[kind];
   if (!fields) { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
   const { rowCount } = await getPostgresPool().query(
-    `UPDATE ${fields[0]} SET docstatus = 'submitted', legacy_editable = false, updated_at = now()
-     WHERE ${fields[1]} = $1 AND docstatus = 'draft'`, [id],
+    `UPDATE ${fields[0]} SET disabled = $2, docstatus = 'submitted', updated_at = now() WHERE ${fields[1]} = $1`,
+    [id, !active],
   );
-  if (!rowCount) { const error = new Error('Only draft master records can be submitted.'); error.status = 400; throw error; }
+  if (!rowCount) { const error = new Error('Master record not found.'); error.status = 404; throw error; }
 }
 
-async function cancelMasterRecord(kind, id) {
+async function setPriceListActive(id, active) {
+  assertPostgresInventory();
+  return pricing.setPriceListActive(getPostgresPool(), id, active);
+}
+
+async function deletePriceList(id) {
+  assertPostgresInventory();
+  return pricing.deletePriceList(getPostgresPool(), id);
+}
+
+async function deleteMasterRecord(kind, id) {
+  assertPostgresInventory();
+  if (kind === 'price-lists') return deletePriceList(id);
   const fields = MASTER_RECORD_TABLES[kind];
   if (!fields) { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
-  const { rowCount } = await getPostgresPool().query(
-    `UPDATE ${fields[0]} SET docstatus = 'cancelled', legacy_editable = false, disabled = true, updated_at = now()
-     WHERE ${fields[1]} = $1 AND docstatus = 'submitted'`, [id],
-  );
-  if (!rowCount) { const error = new Error('Only submitted master records can be cancelled.'); error.status = 400; throw error; }
+  try {
+    const { rowCount } = await getPostgresPool().query(`DELETE FROM ${fields[0]} WHERE ${fields[1]} = $1`, [id]);
+    if (!rowCount) { const error = new Error('Master record not found.'); error.status = 404; throw error; }
+  } catch (error) {
+    if (error.code === '23503') { const blocked = new Error('This record is used elsewhere and cannot be deleted. Deactivate it instead.'); blocked.status = 400; throw blocked; }
+    throw error;
+  }
 }
 
 async function updateMasterRecord(kind, id, payload) {
   assertPostgresInventory();
+  if (kind === 'price-lists' || kind === 'item-prices') return pricing.savePricingRecord(getPostgresPool(), kind, payload, id);
   if (MASTER_RECORD_TABLES[kind]) {
-    const state = await masterRecordState(kind, id);
-    if (state.docstatus !== 'draft' && !(state.docstatus === 'submitted' && state.legacy_editable)) {
-      const error = new Error('Submitted or cancelled master records cannot be edited.'); error.status = 400; throw error;
-    }
+    const [table, key] = MASTER_RECORD_TABLES[kind];
+    const { rowCount } = await getPostgresPool().query(`SELECT 1 FROM ${table} WHERE ${key} = $1`, [id]);
+    if (!rowCount) { const error = new Error('Master record not found.'); error.status = 404; throw error; }
   }
   if (kind === 'items') {
     return updateMasterItem(id, payload);
@@ -3030,7 +3131,7 @@ async function updateMasterRecord(kind, id, payload) {
 async function createMasterItem(payload) {
   const itemCode = requiredValue(payload.item_code, 'Item code is required.');
   const itemName = requiredValue(payload.item_name, 'Item name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   await getPostgresPool().query(
     `
     INSERT INTO app_master_items (
@@ -3041,7 +3142,7 @@ async function createMasterItem(payload) {
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      $11, $12, $13, $14, $15, $16, $17, $18, 'draft', false
+      $11, $12, $13, $14, $15, $16, $17, $18, 'submitted', false
     )
     `,
     [
@@ -3071,7 +3172,7 @@ async function createMasterItem(payload) {
 async function updateMasterItem(id, payload) {
   const itemCode = requiredValue(id, 'Item code is required.');
   const itemName = requiredValue(payload.item_name, 'Item name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   const { rowCount } = await getPostgresPool().query(
     `
     INSERT INTO app_master_items (
@@ -3101,10 +3202,8 @@ async function updateMasterItem(id, payload) {
       photo_count_id = EXCLUDED.photo_count_id,
       is_sales_item = EXCLUDED.is_sales_item,
       is_purchase_item = EXCLUDED.is_purchase_item,
-      disabled = EXCLUDED.disabled,
+      disabled = app_master_items.disabled,
       updated_at = now()
-    WHERE app_master_items.docstatus = 'draft'
-       OR (app_master_items.docstatus = 'submitted' AND app_master_items.legacy_editable)
     `,
     [
       itemCode,
@@ -3144,14 +3243,14 @@ function customerTin(value) {
 async function createMasterCustomer(payload) {
   const customerName = requiredValue(payload.customer_name, 'Customer name is required.');
   const customerId = optionalValue(payload.customer_id) || customerName;
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   const tin = customerTin(payload.tin);
   await getPostgresPool().query(
     `
     INSERT INTO app_master_customers (
       customer_id, customer_name, customer_group, territory, phone, disabled, tin, docstatus, legacy_editable
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', false)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, 'submitted', false)
     `,
     [
       customerId,
@@ -3169,7 +3268,7 @@ async function createMasterCustomer(payload) {
 async function updateMasterCustomer(id, payload) {
   const customerId = requiredValue(id, 'Customer ID is required.');
   const customerName = requiredValue(payload.customer_name, 'Customer name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   const tin = customerTin(payload.tin);
   const { rowCount } = await getPostgresPool().query(
     `
@@ -3182,11 +3281,9 @@ async function updateMasterCustomer(id, payload) {
       customer_group = EXCLUDED.customer_group,
       territory = EXCLUDED.territory,
       phone = EXCLUDED.phone,
-      disabled = EXCLUDED.disabled,
+      disabled = app_master_customers.disabled,
       tin = CASE WHEN $8::boolean THEN EXCLUDED.tin ELSE app_master_customers.tin END,
       updated_at = now()
-    WHERE app_master_customers.docstatus = 'draft'
-       OR (app_master_customers.docstatus = 'submitted' AND app_master_customers.legacy_editable)
     `,
     [
       customerId,
@@ -3206,13 +3303,13 @@ async function updateMasterCustomer(id, payload) {
 async function createMasterSupplier(payload) {
   const supplierName = requiredValue(payload.supplier_name, 'Supplier name is required.');
   const supplierId = optionalValue(payload.supplier_id) || supplierName;
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   await getPostgresPool().query(
     `
     INSERT INTO app_master_suppliers (
       supplier_id, supplier_name, supplier_type, phone, disabled, docstatus, legacy_editable
     )
-    VALUES ($1, $2, $3, $4, $5, 'draft', false)
+    VALUES ($1, $2, $3, $4, $5, 'submitted', false)
     `,
     [
       supplierId,
@@ -3228,7 +3325,7 @@ async function createMasterSupplier(payload) {
 async function updateMasterSupplier(id, payload) {
   const supplierId = requiredValue(id, 'Supplier ID is required.');
   const supplierName = requiredValue(payload.supplier_name, 'Supplier name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   const { rowCount } = await getPostgresPool().query(
     `
     INSERT INTO app_master_suppliers (
@@ -3239,10 +3336,8 @@ async function updateMasterSupplier(id, payload) {
       supplier_name = EXCLUDED.supplier_name,
       supplier_type = EXCLUDED.supplier_type,
       phone = EXCLUDED.phone,
-      disabled = EXCLUDED.disabled,
+      disabled = app_master_suppliers.disabled,
       updated_at = now()
-    WHERE app_master_suppliers.docstatus = 'draft'
-       OR (app_master_suppliers.docstatus = 'submitted' AND app_master_suppliers.legacy_editable)
     `,
     [
       supplierId,
@@ -3258,11 +3353,11 @@ async function updateMasterSupplier(id, payload) {
 
 async function createMasterWarehouse(payload) {
   const warehouse = requiredValue(payload.warehouse, 'Warehouse name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   await getPostgresPool().query(
     `
     INSERT INTO app_master_warehouses (warehouse, warehouse_type, disabled, docstatus, legacy_editable)
-    VALUES ($1, $2, $3, 'draft', false)
+    VALUES ($1, $2, $3, 'submitted', false)
     `,
     [warehouse, optionalValue(payload.warehouse_type), disabled],
   );
@@ -3271,7 +3366,7 @@ async function createMasterWarehouse(payload) {
 
 async function updateMasterWarehouse(id, payload) {
   const warehouse = requiredValue(id, 'Warehouse name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   const { rowCount } = await getPostgresPool().query(
     `
     INSERT INTO app_master_warehouses (warehouse, warehouse_type, is_group, disabled)
@@ -3279,10 +3374,8 @@ async function updateMasterWarehouse(id, payload) {
     ON CONFLICT (warehouse) DO UPDATE SET
       warehouse_type = EXCLUDED.warehouse_type,
       is_group = false,
-      disabled = EXCLUDED.disabled,
+      disabled = app_master_warehouses.disabled,
       updated_at = now()
-    WHERE app_master_warehouses.docstatus = 'draft'
-       OR (app_master_warehouses.docstatus = 'submitted' AND app_master_warehouses.legacy_editable)
     `,
     [warehouse, optionalValue(payload.warehouse_type), disabled],
   );
@@ -3297,14 +3390,14 @@ function assertMasterUpdateApplied(rowCount) {
 async function createMasterEmployee(payload) {
   const employeeName = requiredValue(payload.employee_name, 'Employee name is required.');
   const employeeId = optionalValue(payload.employee_id) || employeeName;
-  const disabled = String(payload.disabled || '0') === '1';
+  const disabled = true;
   await getPostgresPool().query(
     `
     INSERT INTO app_master_employees (
       employee_id, employee_name, status, company, department, designation,
       phone, email, disabled, docstatus, legacy_editable
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft', false)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'submitted', false)
     `,
     [
       employeeId,
@@ -3324,7 +3417,6 @@ async function createMasterEmployee(payload) {
 async function updateMasterEmployee(id, payload) {
   const employeeId = requiredValue(id, 'Employee ID is required.');
   const employeeName = requiredValue(payload.employee_name || id, 'Employee name is required.');
-  const disabled = String(payload.disabled || '0') === '1';
   const { rowCount } = await getPostgresPool().query(
     `
     UPDATE app_master_employees
@@ -3335,13 +3427,8 @@ async function updateMasterEmployee(id, payload) {
         designation = $6,
         phone = $7,
         email = $8,
-        disabled = $9,
         updated_at = now()
     WHERE employee_id = $1
-      AND (
-        docstatus = 'draft'
-        OR (docstatus = 'submitted' AND legacy_editable)
-      )
     `,
     [
       employeeId,
@@ -3352,7 +3439,6 @@ async function updateMasterEmployee(id, payload) {
       optionalValue(payload.designation),
       optionalValue(payload.phone),
       optionalValue(payload.email),
-      disabled,
     ],
   );
   assertMasterUpdateApplied(rowCount);
@@ -3398,8 +3484,8 @@ async function createMasterOption(payload) {
   const optionValue = requiredValue(payload.option_value, 'Option value is required.');
   const { rows } = await getPostgresPool().query(
     `
-    INSERT INTO app_master_options (option_group, option_value, docstatus, legacy_editable)
-    VALUES ($1, $2, 'draft', false)
+    INSERT INTO app_master_options (option_group, option_value, disabled, docstatus, legacy_editable)
+    VALUES ($1, $2, true, 'submitted', false)
     RETURNING id
     `,
     [optionGroup, optionValue],
@@ -3421,11 +3507,8 @@ async function updateMasterOption(id, payload) {
     UPDATE app_master_options
     SET option_group = $1,
       option_value = $2,
-      disabled = false,
       updated_at = now()
     WHERE id = $3
-      AND disabled = false
-      AND (docstatus = 'draft' OR (docstatus = 'submitted' AND legacy_editable))
     `,
     [optionGroup, optionValue, optionId],
   );
@@ -4519,21 +4602,32 @@ async function grossProfitReport(filters = {}) {
   };
 }
 
-async function accountingAccounts() {
+async function accountingAccounts(options = {}) {
   assertPostgresAccounting();
+  const params = [];
+  const where = [];
+  if (Array.isArray(options.allowedAccounts)) {
+    params.push(options.allowedAccounts);
+    where.push(`id::text = ANY($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedAccounts) && options.deniedAccounts.length) {
+    params.push(options.deniedAccounts);
+    where.push(`id::text <> ALL($${params.length}::text[])`);
+  }
   const { rows } = await getPostgresPool().query(`
     SELECT id, account_code, account_name, account_type, normal_balance, is_group, is_active
     FROM app_accounts
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY account_code, account_name
-  `);
+  `, params);
   return rows.map((row) => ({
     ...row,
     id: Number(row.id),
   }));
 }
 
-async function postableAccountingAccounts() {
-  return (await accountingAccounts())
+async function postableAccountingAccounts(options = {}) {
+  return (await accountingAccounts(options))
     .filter((account) => account.is_active && !account.is_group);
 }
 
@@ -5092,10 +5186,18 @@ async function generalLedgerFilterOptions() {
   };
 }
 
-async function generalLedgerAccountOptions(search = '') {
+async function generalLedgerAccountOptions(search = '', options = {}) {
   assertPostgresAccounting();
   const params = [];
   const where = [];
+  if (Array.isArray(options.allowedAccounts)) {
+    params.push(options.allowedAccounts);
+    where.push(`account.id::text = ANY($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedAccounts) && options.deniedAccounts.length) {
+    params.push(options.deniedAccounts);
+    where.push(`account.id::text <> ALL($${params.length}::text[])`);
+  }
   const q = String(search || '').trim().toLowerCase();
   if (q) {
     params.push(sqlLikePattern(q));
@@ -5756,6 +5858,7 @@ async function hydratePostgresInvoices(invoiceRows) {
     customer_id: row.customer_id,
     customer_name: row.customer_name,
     customer_phone: row.customer_phone,
+    price_list: row.price_list,
     notes: row.notes,
     subtotal: Number(row.subtotal || 0),
     tax_amount: Number(row.tax_amount || 0),
@@ -5790,6 +5893,7 @@ function invoiceParams(invoiceData) {
     invoiceData.total,
     invoiceData.amount_paid,
     invoiceData.status,
+    invoiceData.price_list,
   ];
 }
 
@@ -5947,6 +6051,36 @@ async function withPostgresTransaction(callback) {
   } finally {
     client.release();
   }
+}
+
+async function deleteDraftVoucher(kind, value) {
+  const tables = { sales: 'app_invoices', purchases: 'app_purchases', stock: 'app_stock_entries', journals: 'app_journal_entries' };
+  const table = tables[kind];
+  const id = Number(value);
+  if (!table || !Number.isSafeInteger(id) || id < 1) {
+    const error = new Error('Voucher not found.'); error.status = 404; throw error;
+  }
+  if (!usePostgresStore()) {
+    if (kind !== 'sales') { const error = new Error('Voucher not found.'); error.status = 404; throw error; }
+    return withStoreLock(async () => {
+      const data = await readStore();
+      const index = data.invoices.findIndex((row) => Number(row.id) === id);
+      if (index < 0) { const error = new Error('Invoice not found.'); error.status = 404; throw error; }
+      if (data.invoices[index].docstatus !== 'draft') {
+        const error = new Error('Only draft vouchers can be deleted.'); error.status = 400; throw error;
+      }
+      data.invoices.splice(index, 1);
+      await writeStore(data);
+    });
+  }
+  return withPostgresTransaction(async (client) => {
+    const result = await client.query(`SELECT docstatus FROM ${table} WHERE id = $1 FOR UPDATE`, [id]);
+    if (!result.rowCount) { const error = new Error('Voucher not found.'); error.status = 404; throw error; }
+    if (result.rows[0].docstatus !== 'draft') {
+      const error = new Error('Only draft vouchers can be deleted.'); error.status = 400; throw error;
+    }
+    await client.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+  });
 }
 
 async function postSalesInvoiceGlEntry(client, invoice) {
@@ -7073,6 +7207,7 @@ function buildInvoiceData(payload) {
     customer_id: payload.customer_id || null,
     customer_name: payload.customer_name,
     customer_phone: payload.customer_phone || null,
+    price_list: payload.price_list || null,
     notes: payload.notes || null,
     subtotal: roundMoney(subtotal),
     tax_amount: roundMoney(tax),
@@ -7504,6 +7639,7 @@ function paginationResult(total, pagination) {
   };
 }
 
+
 function matchesSearchPattern(value, pattern) {
   const text = normalizeSearchText(value);
   const search = normalizeSearchPattern(pattern);
@@ -7661,6 +7797,7 @@ module.exports = {
   updateInvoice,
   submitInvoice,
   cancelInvoice,
+  deleteDraftVoucher,
   addInvoicePayment,
   cancelInvoicePayment,
   invoiceSummary,
@@ -7670,6 +7807,7 @@ module.exports = {
   stockBalances,
   localStockQuantity,
   masterItemsWithStock,
+  invoiceItemPrices,
   masterItems,
   masterCustomers,
   masterSuppliers,
@@ -7677,7 +7815,13 @@ module.exports = {
   masterEmployees,
   masterCostCenters,
   masterOptions,
+  masterPriceLists,
+  masterItemPrices,
+  itemPriceListFilters,
+  itemPriceCodeSuggestions,
   findMasterRecord,
+  priceListNeighbors,
+  masterRecordNeighbors,
   findMasterItem,
   findMasterCustomer,
   findMasterSupplier,
@@ -7685,8 +7829,10 @@ module.exports = {
   findMasterCostCenter,
   createMasterRecord,
   updateMasterRecord,
-  submitMasterRecord,
-  cancelMasterRecord,
+  setMasterRecordActive,
+  setPriceListActive,
+  deletePriceList,
+  deleteMasterRecord,
   createStockEntry,
   loadStockEntry,
   stockEntryCancelTemplate,

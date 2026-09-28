@@ -5,10 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node scripts/start.js",
-    "test": "node --test tests/audit.test.js",
+    "test": "node --test tests/audit.test.js tests/invoice-form-state.test.js tests/pricing.test.js tests/project-files.test.js tests/user-permissions.test.js",
     "user:create": "node scripts/create-user.js",
     "user:reset": "node scripts/reset-user-password.js",
     "import:mysql-items": "node scripts/import-mysql-items-to-app.js",
+    "import:mysql-price-lists": "node scripts/import-mysql-price-lists-to-app.js",
+    "import:mysql-item-prices": "node scripts/import-mysql-item-prices-to-app.js",
     "import:mysql-customers": "node scripts/import-mysql-customers-to-app.js",
     "import:mysql-suppliers": "node scripts/import-mysql-suppliers-to-app.js",
     "import:mysql-warehouses": "node scripts/import-mysql-warehouses-to-app.js",
@@ -29,6 +31,7 @@
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
+    "multer": "^2.4.0",
     "mysql2": "^3.22.5",
     "pg": "^8.22.0"
   }

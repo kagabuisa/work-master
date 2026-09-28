@@ -27,6 +27,7 @@
         <strong><%- include('invoice-payment-status', { invoice, money }) -%></strong>
       </div>
     </section>
+    <% if (invoice.price_list) { %><p>Price List: <strong><%= invoice.price_list %></strong></p><% } %>
 
     <table class="print-invoice-table print-items-table">
       <colgroup>
@@ -100,6 +101,7 @@
               <th>Method</th>
               <th>Payment Reference</th>
               <th>Amount</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +112,7 @@
                 <td><%= payment.method %></td>
                 <td><%= payment.reference || '' %></td>
                 <td><%= money(payment.amount) %></td>
+                <td><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Received' %></td>
               </tr>
             <% }) %>
           </tbody>

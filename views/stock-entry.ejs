@@ -23,6 +23,7 @@
     <% } %>
     <% if (stockEntryReadOnly && entry) { %>
       <section class="notice"><strong><%= entry.entry_no %></strong> is <%= entry.docstatus || 'submitted' %>.</section>
+      <% if (entry.docstatus === 'draft' && can('vouchers.stock.delete')) { %><form method="post" action="/stock/entries/<%= entry.id %>/delete" data-confirm="Delete this draft stock entry? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
     <% } %>
 
     <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form" id="stock-entry-form">
