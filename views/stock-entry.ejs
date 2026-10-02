@@ -1,7 +1,7 @@
 <!doctype html>
 <% const stockEntryReadOnly = Boolean(typeof readOnly !== 'undefined' && readOnly); %>
 <% const selectedEntryType = entry ? entry.entry_type : (typeof defaultEntryType !== 'undefined' ? defaultEntryType : 'opening'); %>
-<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <html lang="en">
 <head>
   <title><%= stockEntryReadOnly && entry ? 'Stock Entry' : entry ? 'Edit Stock Entry' : 'New Stock Entry' %></title>
@@ -26,7 +26,7 @@
       <% if (entry.docstatus === 'draft' && can('vouchers.stock.delete')) { %><form method="post" action="/stock/entries/<%= entry.id %>/delete" data-confirm="Delete this draft stock entry? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
     <% } %>
 
-    <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form" id="stock-entry-form">
+    <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form" id="stock-entry-form" <%= stockEntryReadOnly ? '' : 'data-voucher-form' %>>
       <datalist id="stock-warehouses"></datalist>
       <section class="form-grid">
         <label>
@@ -48,6 +48,10 @@
         <label id="stock-entry-posting-wrapper">
           Posting Date
           <input type="date" name="posting_date" value="<%= entry ? entry.posting_date : today %>" required>
+        </label>
+        <label>
+          Posting Time
+          <input type="time" name="posting_time" value="<%= typeof postingTime !== 'undefined' ? postingTime : entry && entry.posting_time ? entry.posting_time : currentPostingTime() %>" required <%= stockEntryReadOnly ? 'readonly' : '' %>>
         </label>
         <label class="wide" id="stock-entry-remarks-wrapper">
           <span class="label-row">
@@ -118,7 +122,7 @@
           <span class="field-hint" id="stock-entry-import-status"></span>
         <% } %>
         <% if (!stockEntryReadOnly) { %>
-          <button type="submit" class="button-light" name="action" value="save_draft">Save Stock Entry</button>
+          <button type="submit" class="button-light" name="action" value="save_draft" data-voucher-save>Save Stock Entry</button>
           <% if (can('vouchers.stock.submit')) { %><button type="submit" name="action" value="submit">Submit</button><% } %>
         <% } %>
         <% if (can('vouchers.stock.cancel')) { %><button type="button" class="button-light" id="cancel-entry-button" hidden disabled>Cancel Stock Entry</button><% } %>

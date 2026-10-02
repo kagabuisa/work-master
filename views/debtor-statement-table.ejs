@@ -19,7 +19,7 @@
       <% statement.forEach((entry, index) => { %>
         <tr>
           <td class="row-number"><%= index + 1 %></td>
-          <td><%= entry.date %></td>
+          <td><%= formatDate(entry.date) %></td>
           <td><span class="transaction-type transaction-type-<%= entry.type.toLowerCase() %>"><%= entry.type %></span></td>
           <td>
             <% if (entry.invoice_id) { %>

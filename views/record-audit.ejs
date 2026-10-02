@@ -1,5 +1,5 @@
 <% if (record && (record.created_at || record.updated_at || Object.prototype.hasOwnProperty.call(record, 'created_by'))) { %>
-  <% const auditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : 'Unknown'; %>
+  <% const auditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : 'Unknown'; %>
   <div class="record-audit no-print">
     <button type="button" class="tracking-toggle" data-tracking-toggle aria-expanded="false">Show tracking</button>
     <dl class="tracking-info">

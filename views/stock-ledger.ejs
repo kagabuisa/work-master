@@ -67,7 +67,7 @@
           <% report.rows.forEach((row, index) => { %>
             <tr class="<%= row.stock_entry_status === 'cancelled' || row.is_reversal ? 'ledger-cancelled-row' : '' %>">
               <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
-              <td><%= row.posting_date %></td>
+              <td><%= formatDate(row.posting_date) %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
               <td><%= row.stock_entry_type || '' %></td>

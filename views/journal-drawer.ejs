@@ -14,7 +14,7 @@
       <% if (can('vouchers.journals.submit')) { %><form method="post" action="/journals/<%= journal.id %>/submit" class="inline-form"><button type="submit">Submit Journal</button></form><% } %>
     <% } %>
     <% if (journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button button-light" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
-    <% if (['cash_receipt', 'journal_entry'].includes(journal.journal_type) && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
+    <% if (journal.can_cancel && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
       <form method="post" action="/journals/<%= journal.id %>/cancel" class="inline-form" data-confirm="Cancel this journal? This will reverse its ledger entries.">
         <button type="submit" class="button-light">Cancel Journal</button>
       </form>
@@ -22,7 +22,7 @@
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
-      <div><span>Posting Date</span><strong><%= journal.posting_date %></strong></div>
+      <div><span>Posting Date/Time</span><strong><%= formatDateTime(journal.posting_date, journal.posting_time || '00:00') %></strong></div>
       <div><span>Status</span><strong><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
       <div><span>Reference</span><strong><%= journal.reference_no || '' %></strong></div>
     </div>

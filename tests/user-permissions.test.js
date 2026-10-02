@@ -7,8 +7,23 @@ const { permissionCheck, scopeCheck } = require('../src/authorize');
 const { allowedInvoicePriceLists, invoicePriceListAllowed, priceListActionAllowed,
   warehouseAllowed, accountAllowed, allowedNamedListValues } = require('../src/access');
 
+test('project file browsing, downloading, and uploading are admin only', () => {
+  const request = (role, route, method) => ({ currentUser: { role, permissions: [] }, path: route, method, body: {} });
+  for (const [route, method] of [
+    ['/settings/files', 'GET'],
+    ['/settings/files/download', 'GET'],
+    ['/settings/files/upload', 'POST'],
+  ]) {
+    assert.equal(permissionCheck(request('admin', route, method)), true, `${method} ${route} should allow admin`);
+    assert.equal(permissionCheck(request('standard', route, method)), false, `${method} ${route} should deny standard users`);
+  }
+  assert.equal(permissionCheck(request('admin', '/settings/files/upload', 'GET')), false);
+  assert.equal(permissionCheck(request('admin', '/settings/files/download', 'POST')), false);
+});
+
 test('every voucher exposes all six actions and Delete checks its own permission', () => {
   const routes = { sales: '/invoices/4/delete', purchases: '/purchases/4/delete',
+    'purchase-orders': '/purchase-orders/4/delete',
     stock: '/stock/entries/4/delete', journals: '/journals/4/delete' };
   for (const [type, route] of Object.entries(routes)) {
     const row = ROLE_RECORD_TYPES.find((entry) => entry.key === `vouchers.${type}`);
@@ -20,6 +35,30 @@ test('every voucher exposes all six actions and Delete checks its own permission
     assert.equal(permissionCheck(request([`vouchers.${type}.delete`])), true);
     assert.equal(permissionCheck(request([`vouchers.${type}.delete`], 'GET')), false);
   }
+});
+
+test('cost centers use master list permissions and sales can search them', () => {
+  const record = ROLE_RECORD_TYPES.find((entry) => entry.key === 'masters.cost-centers');
+  assert(record);
+  assert.deepEqual(record.actions, ['view', 'create', 'edit', 'submit', 'cancel', 'delete']);
+  const request = (permissions, path, method = 'GET') => ({ currentUser: { role: 'standard', permissions }, path, method, body: {} });
+  assert.equal(permissionCheck(request(['masters.cost-centers.view'], '/settings/cost-centers')), true);
+  assert.equal(permissionCheck(request(['masters.cost-centers.edit'], '/settings/cost-centers/CC-1/edit')), true);
+  assert.equal(permissionCheck(request(['masters.cost-centers.view'], '/settings/cost-centers/CC-1', 'POST')), false);
+  assert.equal(permissionCheck(request(['vouchers.sales.create'], '/api/cost-centers')), true);
+});
+
+test('submitted cost centers expose an editable master form', async () => {
+  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'master-form.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', username: 'test' }, can: () => true,
+    availableReports: [], error: null, mode: 'edit', editSubmitted: true,
+    neighbors: { previous: null, next: null }, optionValues: {},
+    config: { key: 'cost-centers', idField: 'cost_center', title: 'Cost Centers', singular: 'Cost Center',
+      editLabel: 'Edit Cost Center', fields: [{ name: 'cost_center_name', label: 'Cost Center Name', required: true }] },
+    record: { cost_center: 'CC-1', cost_center_name: 'Retail', docstatus: 'submitted', active: 1 },
+  });
+  assert.match(html, /Save Cost Center<\/button>/);
+  assert.doesNotMatch(html, /data-pricelist-change-tracking/);
 });
 
 test('user grants and denials override inherited role permissions', () => {
@@ -61,6 +100,46 @@ test('individual warehouse and account Read permissions scope list and voucher u
     body: { warehouse: ['Main'] } }), false);
   assert.equal(await scopeCheck({ currentUser: user, path: '/journals', method: 'POST',
     body: { account_id: ['7'] } }), false);
+});
+
+test('chart of accounts editing requires account management permission', () => {
+  const request = (permissions, path, method = 'GET') => ({
+    currentUser: { role: 'standard', permissions }, path, method, body: {},
+  });
+  assert.equal(permissionCheck(request(['accounts.view'], '/accounts/12/edit')), false);
+  assert.equal(permissionCheck(request(['accounts.view'], '/accounts/12', 'POST')), false);
+  assert.equal(permissionCheck(request(['accounts.manage'], '/accounts/12/edit')), true);
+  assert.equal(permissionCheck(request(['accounts.manage'], '/accounts/12', 'POST')), true);
+  assert.equal(permissionCheck(request(['accounts.view'], '/accounts/12', 'GET')), false);
+});
+
+test('changing voucher posting time requires edit permission', () => {
+  for (const [type, route] of Object.entries({
+    sales: '/invoices/4/posting-time', purchases: '/purchases/4/posting-time',
+    stock: '/stock/entries/4/posting-time', journals: '/journals/4/posting-time',
+  })) {
+    const request = (permissions, method) => ({ currentUser: { role: 'standard', permissions },
+      path: route, method, body: {} });
+    assert.equal(permissionCheck(request([`vouchers.${type}.view`], 'POST')), false);
+    assert.equal(permissionCheck(request([`vouchers.${type}.edit`], 'POST')), true);
+    assert.equal(permissionCheck(request([`vouchers.${type}.edit`], 'GET')), false);
+  }
+});
+
+test('changing a non-system invoice number requires sales edit permission', () => {
+  const request = (permissions, method) => ({ currentUser: { role: 'standard', permissions },
+    path: '/invoices/4/non-system-invoice', method, body: {} });
+  assert.equal(permissionCheck(request(['vouchers.sales.view'], 'POST')), false);
+  assert.equal(permissionCheck(request(['vouchers.sales.edit'], 'POST')), true);
+  assert.equal(permissionCheck(request(['vouchers.sales.edit'], 'GET')), false);
+});
+
+test('date and time display settings can only be changed by an admin', () => {
+  const request = (role, method) => ({ currentUser: { role, permissions: [] },
+    path: '/settings/date-time', method, body: {} });
+  assert.equal(permissionCheck(request('admin', 'POST')), true);
+  assert.equal(permissionCheck(request('admin', 'GET')), false);
+  assert.equal(permissionCheck(request('standard', 'POST')), false);
 });
 
 test('user permissions use the role row workflow', async () => {

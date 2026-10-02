@@ -77,6 +77,9 @@ async function fetchSalesInvoices(from) {
       ${sqlColumn('si', invoiceColumns, ['due_date'])} AS due_date,
       ${sqlColumn('si', invoiceColumns, ['customer'])} AS customer_id,
       ${sqlColumn('si', invoiceColumns, ['customer_name'], sqlColumn('si', invoiceColumns, ['customer']))} AS customer_name,
+      ${sqlColumn('si', invoiceColumns, ['cost_center'])} AS cost_center,
+      ${sqlColumn('si', invoiceColumns, ['invoice_by'])} AS invoicer_id,
+      ${sqlColumn('si', invoiceColumns, ['invoicer_name', 'invoice_by'])} AS invoicer,
       ${sqlColumn('si', invoiceColumns, ['contact_mobile', 'mobile_no', 'contact_phone', 'phone'])} AS customer_phone,
       ${sqlColumn('si', invoiceColumns, ['remarks', 'remark', 'terms'])} AS notes,
       ${sqlNumber('si', invoiceColumns, ['base_net_total', 'net_total'])} AS subtotal,
@@ -144,6 +147,9 @@ function normalizeInvoice(row, items) {
     due_date: dateOnly(row.due_date),
     customer_id: text(row.customer_id) || null,
     customer_name: text(row.customer_name || row.customer_id || 'Unknown Customer'),
+    cost_center: text(row.cost_center) || null,
+    invoicer_id: text(row.invoicer_id) || null,
+    invoicer: text(row.invoicer) || null,
     customer_phone: text(row.customer_phone) || null,
     notes: text(row.notes) || null,
     subtotal: money(row.subtotal),
@@ -161,13 +167,13 @@ async function insertInvoice(client, invoice) {
     `
     INSERT INTO app_invoices (
       invoice_no, docstatus, invoice_date, due_date, customer_id, customer_name,
-      customer_phone, notes, subtotal, tax_amount, discount_amount, total,
+      customer_phone, cost_center, invoicer_id, invoicer, notes, subtotal, tax_amount, discount_amount, total,
       amount_paid, status, submitted_by, submitted_by_user_id, submitted_at
     )
     VALUES (
       $1, 'submitted', $2, $3, $4, $5,
-      $6, $7, $8, $9, $10, $11,
-      $12, $13, 'System', NULL, now()
+      $6, $7, $8, $9, $10, $11, $12, $13, $14,
+      $15, $16, 'System', NULL, now()
     )
     ON CONFLICT (invoice_no) DO NOTHING
     RETURNING id
@@ -179,6 +185,9 @@ async function insertInvoice(client, invoice) {
       invoice.customer_id,
       invoice.customer_name,
       invoice.customer_phone,
+      invoice.cost_center,
+      invoice.invoicer_id,
+      invoice.invoicer,
       invoice.notes,
       invoice.subtotal,
       invoice.tax_amount,

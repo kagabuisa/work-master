@@ -5,9 +5,10 @@
   <%- include('partials-head') %>
 </head>
 <body class="auth-page">
-  <main class="auth-card">
-    <div class="auth-brand">Work Master</div>
-    <h1>Log in</h1>
+  <main class="auth-card auth-login">
+    <%- include('auth-brand') %>
+    <h1>Welcome back</h1>
+    <p class="auth-intro">Log in to your workspace.</p>
     <% if (error) { %><p class="auth-error" role="alert"><%= error %></p><% } %>
     <% if (setupNeeded) { %><p>No users have been created. Run <code>npm run user:create -- admin</code> on the app server to create the first account.</p><% } %>
     <form method="post" action="/login">

@@ -1,0 +1,7 @@
+<% if (invoice.price_list || invoice.cost_center || invoice.invoicer) { %>
+  <div class="invoice-detail-attributes">
+    <% if (invoice.price_list) { %><p><span>Price list</span><strong><%= invoice.price_list %></strong></p><% } %>
+    <% if (invoice.cost_center) { %><p><span>Cost center</span><strong><%= invoice.cost_center %></strong></p><% } %>
+    <% if (invoice.invoicer) { %><p><span>Invoicer</span><strong><%= invoice.invoicer %></strong></p><% } %>
+  </div>
+<% } %>

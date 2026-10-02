@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><title>Purchase Orders</title><%- include('partials-head') %></head>
+<body><main class="shell">
+  <header class="topbar"><div><p class="eyebrow">Purchase Orders</p>
+    <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchase Orders' }] }) %>
+  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav></header>
+  <form class="report-filters invoice-filters" method="get" action="/purchase-orders">
+    <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Number or supplier"></label>
+    <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
+    <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
+    <div class="report-filter-actions"><button type="submit">Apply</button>
+      <a class="button button-light" href="/purchase-orders">Reset</a>
+      <% if (can('vouchers.purchase-orders.create')) { %><a class="button" href="/purchase-orders/new">New Purchase Order</a><% } %>
+    </div>
+  </form>
+  <section class="invoice-card report-section"><table>
+    <thead><tr><th>#</th><th>Order</th><th>Date/Time</th><th>Expected Delivery</th><th>Supplier</th><th>Reference</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      <% if (!result.rows.length) { %><tr><td colspan="8" class="empty">No purchase orders found.</td></tr><% } %>
+      <% result.rows.forEach((order, index) => { %><tr>
+        <td><%= result.pagination.offset + index + 1 %></td>
+        <td><a href="/purchase-orders/<%= order.id %>"><%= order.order_no %></a></td>
+        <td><%= formatDateTime(order.posting_date, order.posting_time || '00:00') %></td>
+        <td><%= order.due_date ? formatDate(order.due_date) : '' %></td>
+        <td><%= order.supplier_name %></td><td><%= order.supplier_reference || '' %></td>
+        <td><%= money(order.total) %></td><td><span class="badge <%= order.docstatus %>"><%= order.docstatus %></span></td>
+      </tr><% }) %>
+    </tbody>
+  </table><%- include('pagination', { pagination: result.pagination, query, basePath: '/purchase-orders' }) %></section>
+</main></body></html>

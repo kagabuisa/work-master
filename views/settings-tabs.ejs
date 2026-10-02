@@ -1,0 +1,6 @@
+<nav class="settings-tabs" aria-label="Settings sections">
+  <a href="/settings" <%= activeSettingsTab === 'general' ? 'aria-current="page"' : '' %>>General</a>
+  <a href="/settings/files" <%= activeSettingsTab === 'files' ? 'aria-current="page"' : '' %>>Project files</a>
+  <a href="/settings/users" <%= activeSettingsTab === 'users' ? 'aria-current="page"' : '' %>>Users</a>
+  <a href="/settings/roles?tab=roles" <%= activeSettingsTab === 'roles' ? 'aria-current="page"' : '' %>>Roles & permissions</a>
+</nav>

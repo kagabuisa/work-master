@@ -12,22 +12,22 @@
     </div>
     <%- include('invoice-header', { voucherTitle }) %>
     <section class="invoice-meta">
-      <div>
+      <div class="invoice-bill-to">
         <span>Bill To</span>
         <strong><%= invoice.customer_name %></strong>
         <% if (invoice.customer_phone) { %><p><%= invoice.customer_phone %></p><% } %>
       </div>
       <div>
         <span>Invoice Date</span>
-        <strong><%= invoice.invoice_date %></strong>
-        <% if (invoice.due_date) { %><p>Due <%= invoice.due_date %></p><% } %>
+        <strong><%= formatDateTime(invoice.invoice_date, invoice.posting_time || '00:00') %></strong>
+        <% if (invoice.due_date) { %><p>Due <%= formatDate(invoice.due_date) %></p><% } %>
       </div>
       <div>
         <span>Payment Status</span>
         <strong><%- include('invoice-payment-status', { invoice, money }) -%></strong>
       </div>
     </section>
-    <% if (invoice.price_list) { %><p>Price List: <strong><%= invoice.price_list %></strong></p><% } %>
+    <%- include('invoice-attributes', { invoice }) %>
 
     <table class="print-invoice-table print-items-table">
       <colgroup>
@@ -93,12 +93,20 @@
     <% if (payments.length) { %>
       <section class="print-payments">
         <h2>Payments</h2>
-        <table class="print-invoice-table">
+        <table class="print-invoice-table print-payment-table">
+          <colgroup>
+            <col class="print-payment-number-column">
+            <col class="print-payment-date-column">
+            <col class="print-payment-account-column">
+            <col class="print-payment-reference-column">
+            <col class="print-payment-amount-column">
+            <col class="print-payment-status-column">
+          </colgroup>
           <thead>
             <tr>
               <th class="row-number">#</th>
               <th>Date</th>
-              <th>Method</th>
+              <th>Account</th>
               <th>Payment Reference</th>
               <th>Amount</th>
               <th>Status</th>
@@ -108,8 +116,8 @@
             <% payments.forEach((payment, index) => { %>
               <tr>
                 <td class="row-number"><%= index + 1 %></td>
-                <td><%= payment.payment_date %></td>
-                <td><%= payment.method %></td>
+                <td><%= formatDate(payment.payment_date) %></td>
+                <td><%= payment.account_name || payment.method %></td>
                 <td><%= payment.reference || '' %></td>
                 <td><%= money(payment.amount) %></td>
                 <td><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Received' %></td>

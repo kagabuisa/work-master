@@ -1,5 +1,5 @@
 <% const entryStatus = entry.docstatus || 'submitted'; %>
-<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <div class="invoice-drawer-content" data-voucher-title="<%= entry.entry_no %>" data-voucher-eyebrow="Stock Entry">
   <div class="invoice-drawer-heading">
     <div>
@@ -14,7 +14,7 @@
   <section class="invoice-card">
     <div class="invoice-meta">
       <div><span>Type</span><strong><%= entry.entry_type %></strong></div>
-      <div><span>Posting Date</span><strong><%= entry.posting_date %></strong></div>
+      <div><span>Posting Date/Time</span><strong><%= formatDateTime(entry.posting_date, entry.posting_time || '00:00') %></strong></div>
       <div><span>Status</span><strong><span class="badge <%= entryStatus %>"><%= entryStatus === 'draft' ? 'Draft' : entryStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
     </div>
     <% if (entry.entry_type === 'purchase' && (entry.supplier_name || entry.supplier_reference)) { %>

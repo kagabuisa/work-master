@@ -58,11 +58,11 @@
         </datalist>
       </label>
       <label class="debtor-date-filter">
-        <span>From:</span>
+        <span>Invoice from:</span>
         <input type="date" name="from" value="<%= report.filters.from %>" aria-label="From date" title="From date">
       </label>
       <label class="debtor-date-filter">
-        <span>To:</span>
+        <span>Invoice to:</span>
         <input type="date" name="to" value="<%= report.filters.to %>" aria-label="To date" title="To date">
       </label>
       <div class="report-filter-actions">
@@ -90,6 +90,13 @@
       </article>
     </section>
 
+    <% if (Number(report.summary.unallocated_balance || 0) !== 0) { %>
+      <section class="notice warning">
+        <strong>Unallocated Accounts Receivable <%= report.summary.unallocated_balance < 0 ? 'credit' : 'debit' %>: <%= money(Math.abs(report.summary.unallocated_balance)) %></strong>
+        <span> This is the all-date general ledger amount without a matching submitted sales invoice. Check journal customer and invoice references in the <a href="/reports/general-ledger?account=Accounts%20Receivable">Accounts Receivable ledger</a>.</span>
+      </section>
+    <% } %>
+
     <section class="invoice-card report-section">
       <div class="section-title">
         <h2>Debtor Aging</h2>
@@ -105,13 +112,14 @@
             <th>31-60</th>
             <th>61-90</th>
             <th>Over 90</th>
+            <th>Unallocated</th>
             <th>Balance</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           <% if (!report.debtors.length) { %>
-            <tr><td colspan="10" class="empty">No debtor balances found.</td></tr>
+            <tr><td colspan="11" class="empty">No debtor balances found.</td></tr>
           <% } %>
           <% report.debtors.forEach((debtor, index) => { const customerParams = new URLSearchParams(statementParams); customerParams.set('customer', debtor.customer_key); customerParams.delete('view'); %>
             <tr class="debtor-row" data-statement-href="/reports/debtors?<%= customerParams.toString() %>" tabindex="0" role="link" aria-label="Open statement for <%= debtor.customer_name %>">
@@ -125,6 +133,7 @@
               <td><%= money(debtor.days_31_60) %></td>
               <td><%= money(debtor.days_61_90) %></td>
               <td><%= money(debtor.days_over_90) %></td>
+              <td><%= money(debtor.unallocated || 0) %></td>
               <td><strong><%= money(debtor.balance_due) %></strong></td>
               <td class="actions-cell">
                 <a href="/reports/debtors?<%= customerParams.toString() %>">View</a>
@@ -135,14 +144,15 @@
         <% if (report.debtors.length) { %>
           <tfoot>
             <tr>
-              <th colspan="2">Total</th>
+              <th colspan="2">Page total</th>
               <th><%= report.debtors.reduce((sum, row) => sum + Number(row.invoice_count || 0), 0) %></th>
-              <th><%= money(report.summary.current) %></th>
-              <th><%= money(report.summary.days_1_30) %></th>
-              <th><%= money(report.summary.days_31_60) %></th>
-              <th><%= money(report.summary.days_61_90) %></th>
-              <th><%= money(report.summary.days_over_90) %></th>
-              <th><%= money(report.summary.balance_due) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.current || 0), 0)) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.days_1_30 || 0), 0)) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.days_31_60 || 0), 0)) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.days_61_90 || 0), 0)) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.days_over_90 || 0), 0)) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.unallocated || 0), 0)) %></th>
+              <th><%= money(report.debtors.reduce((sum, row) => sum + Number(row.balance_due || 0), 0)) %></th>
               <th></th>
             </tr>
           </tfoot>
@@ -162,7 +172,7 @@
           </div>
           <div class="statement-balance">
             <span>Balance due</span>
-            <strong><%= money(report.selected.balance_due) %></strong>
+            <strong><%= money(report.statementBalance) %></strong>
           </div>
         </div>
         <div class="statement-actions no-print">
@@ -206,7 +216,7 @@
         <div class="statement-drawer-body">
           <div class="statement-balance-card">
             <span>Balance</span>
-            <strong><%= money(report.selected.balance_due) %></strong>
+            <strong><%= money(report.statementBalance) %></strong>
             <small><%= report.selected.invoice_count %> invoice<%= Number(report.selected.invoice_count) === 1 ? '' : 's' %></small>
           </div>
           <form class="statement-date-range" method="get" action="/reports/debtors">

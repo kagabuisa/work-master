@@ -74,7 +74,7 @@ function anyNamedListView(user, kind) {
   const allowed = allowedNamedListValues(user, kind);
   if (allowed !== null) return allowed.length > 0;
   const generic = kind === 'warehouses'
-    ? ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.stock.create']
+    ? ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.stock.create']
     : ['accounts.view', 'vouchers.journals.create'];
   const prefix = kind === 'warehouses' ? 'warehouse.view:' : 'account.view:';
   return Boolean(generic.some((permission) => user?.permissions?.includes(permission))
@@ -93,7 +93,7 @@ async function voucherWarehousesAllowed(user, kind, id) {
     const invoice = await findInvoice(id);
     return Boolean(invoice && (invoice.items || []).every((item) => !item.warehouse || warehouseAllowed(user, item.warehouse)));
   }
-  const tables = { purchases: ['app_purchase_items', 'purchase_id'], stock: ['app_stock_entry_items', 'stock_entry_id'] };
+  const tables = { purchases: ['app_purchase_items', 'purchase_id'], 'purchase-orders': ['app_purchase_order_items', 'purchase_order_id'], stock: ['app_stock_entry_items', 'stock_entry_id'] };
   const [table, column] = tables[kind] || [];
   if (!table) return true;
   const { rows } = await getPostgresPool().query(
@@ -186,6 +186,12 @@ async function purchaseAllowed(user, id) {
   return Boolean(rows[0] && await masterRecordAllowed(user, 'suppliers', rows[0].supplier_id));
 }
 
+async function purchaseOrderAllowed(user, id) {
+  if (!scopeRestricted(user, 'suppliers')) return true;
+  const { rows } = await getPostgresPool().query('SELECT supplier_id FROM app_purchase_orders WHERE id = $1', [id]);
+  return Boolean(rows[0] && await masterRecordAllowed(user, 'suppliers', rows[0].supplier_id));
+}
+
 async function purchasePaymentAllowed(user, paymentId) {
   if (!scopeRestricted(user, 'suppliers')) return true;
   try { return purchaseAllowed(user, await purchaseForPayment(paymentId)); }
@@ -215,5 +221,6 @@ module.exports = {
   masterRecordAllowed,
   invoiceAllowed,
   purchaseAllowed,
+  purchaseOrderAllowed,
   purchasePaymentAllowed,
 };

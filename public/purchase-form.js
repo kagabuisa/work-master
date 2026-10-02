@@ -1,4 +1,5 @@
 const purchaseForm = document.querySelector('#purchase-form');
+const fromPurchaseOrder = Boolean(purchaseForm.dataset.purchaseOrderId);
 const purchaseRows = document.querySelector('#purchase-items tbody');
 const supplierInput = document.querySelector('#purchase-supplier');
 const supplierName = document.querySelector('#purchase-supplier-name');
@@ -152,6 +153,7 @@ purchaseRows.addEventListener('click', (event) => {
   const remove = event.target.closest('[data-remove-purchase-row]');
   if (!remove) return;
   if (purchaseRows.rows.length === 1) {
+    if (fromPurchaseOrder) return;
     purchaseRows.querySelectorAll('input').forEach((input) => { input.value = ''; });
   } else {
     remove.closest('tr').remove();
@@ -159,6 +161,7 @@ purchaseRows.addEventListener('click', (event) => {
   updateTotals();
 });
 document.querySelector('#add-purchase-row').addEventListener('click', () => {
+  if (fromPurchaseOrder) return;
   const row = purchaseRows.rows[0].cloneNode(true);
   row.querySelectorAll('input').forEach((input) => { input.value = ''; });
   purchaseRows.appendChild(row);
@@ -188,6 +191,7 @@ async function loadPriceLists() {
   } catch { showLookupStatus('Could not load price lists. Retry the page.'); }
 }
 priceListSelect.addEventListener('change', () => {
+  if (fromPurchaseOrder) return;
   items = [];
   for (const row of purchaseRows.rows) {
     row.querySelector('[name="item_code"]').value = '';

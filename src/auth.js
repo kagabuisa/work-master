@@ -13,11 +13,12 @@ const PASSWORD_MIN_LENGTH = 12;
 const MASTER_LISTS = [
   ['customers', 'Customers'], ['suppliers', 'Suppliers'], ['items', 'Items'],
   ['price-lists', 'Price Lists'], ['item-prices', 'Item Prices'],
-  ['warehouses', 'Warehouses'], ['employees', 'Employees'], ['options', 'Options'],
+  ['warehouses', 'Warehouses'], ['employees', 'Employees'], ['cost-centers', 'Cost Centers'], ['options', 'Options'],
 ];
 const VOUCHER_TYPES = [
   ['sales', 'Sales invoices', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
   ['purchases', 'Purchases', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
+  ['purchase-orders', 'Purchase orders', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
   ['stock', 'Stock entries', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
   ['journals', 'Journals', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
 ];
@@ -33,15 +34,15 @@ const PERMISSIONS = [
     { key: `payments.${key}.cancel`, label: `Cancel ${key === 'sales' ? 'customer' : 'supplier'} payments`, group: 'Payments' },
   ]),
   { key: 'accounts.view', label: 'View chart of accounts', group: 'Accounts and reports' },
-  { key: 'accounts.manage', label: 'Create accounts', group: 'Accounts and reports' },
+  { key: 'accounts.manage', label: 'Create and edit accounts', group: 'Accounts and reports' },
   ...REPORTS.map((report) => ({ key: report.permission, label: `View ${report.label}`, group: 'Reports' })),
   { key: 'sync.run', label: 'Run ERPNext sync', group: 'Administration' },
 ];
 const RECORD_ACTIONS = ['create', 'view', 'edit', 'submit', 'cancel', 'delete'];
 const RECORD_TITLES = {
-  sales: 'Sales Invoice', purchases: 'Purchase', stock: 'Stock Entry', journals: 'Journal Entry',
+  sales: 'Sales Invoice', purchases: 'Purchase', 'purchase-orders': 'Purchase Order', stock: 'Stock Entry', journals: 'Journal Entry',
   'price-lists': 'Price List', 'item-prices': 'Item Price',
-  customers: 'Customer', suppliers: 'Supplier', items: 'Item', warehouses: 'Warehouse', employees: 'Employee', options: 'Option',
+  customers: 'Customer', suppliers: 'Supplier', items: 'Item', warehouses: 'Warehouse', employees: 'Employee', 'cost-centers': 'Cost Center', options: 'Option',
 };
 const ROLE_RECORD_TYPES = [
   ...VOUCHER_TYPES.map(([key, , actions]) => ({ key: `vouchers.${key}`, label: RECORD_TITLES[key], group: 'Voucher types',
@@ -131,6 +132,11 @@ function migrateCurrentPermissions(role) {
     || validInvoicePriceListPermission(permission) || validNamedListPermission(permission));
   if (previous.includes('reports.view')) {
     for (const report of REPORTS) if (!filtered.includes(report.permission)) filtered.push(report.permission);
+  }
+  if (role.permissions_version < 10 && BUILT_IN_ROLES.some((entry) => entry.slug === role.slug)) {
+    for (const action of ['view', 'create', 'edit', 'submit', 'cancel', 'delete']) {
+      if (filtered.includes(`vouchers.purchases.${action}`)) filtered.push(`vouchers.purchase-orders.${action}`);
+    }
   }
   const lowPrivilegeRole = ['standard', 'retail', 'wholesale', 'finance', 'logistics', 'management'].includes(role.slug);
   const matchesRoutine = (list) => filtered.length === list.length
@@ -280,7 +286,7 @@ async function initAuth() {
         name TEXT NOT NULL,
         permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
         scopes JSONB NOT NULL DEFAULT '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb,
-        permissions_version INTEGER NOT NULL DEFAULT 9,
+        permissions_version INTEGER NOT NULL DEFAULT 10,
         built_in BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
@@ -290,14 +296,15 @@ async function initAuth() {
     await initRecordAudit(pool, ['app_users', 'app_roles']);
     for (const role of BUILT_IN_ROLES) {
       await pool.query(
-        'INSERT INTO app_roles (slug, name, permissions, built_in, permissions_version) VALUES ($1, $2, $3::jsonb, true, 9) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, built_in = true',
+        'INSERT INTO app_roles (slug, name, permissions, built_in, permissions_version) VALUES ($1, $2, $3::jsonb, true, 10) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, built_in = true',
         [role.slug, role.name, JSON.stringify(role.permissions)],
       );
     }
-    const oldRoles = await pool.query('SELECT slug, permissions, permissions_version FROM app_roles WHERE permissions_version < 9');
+    const oldRoles = await pool.query('SELECT slug, permissions, scopes, permissions_version FROM app_roles WHERE permissions_version < 10');
     for (const role of oldRoles.rows) {
-      await pool.query('UPDATE app_roles SET permissions = $1::jsonb, scopes = $2::jsonb, permissions_version = 9 WHERE slug = $3',
-        [JSON.stringify(migrateCurrentPermissions(role)), JSON.stringify(DEFAULT_SCOPES), role.slug]);
+      await pool.query('UPDATE app_roles SET permissions = $1::jsonb, scopes = $2::jsonb, permissions_version = 10 WHERE slug = $3',
+        [JSON.stringify(migrateCurrentPermissions(role)),
+          JSON.stringify(role.permissions_version >= 9 ? role.scopes : DEFAULT_SCOPES), role.slug]);
     }
     await pool.query(`
       DO $$ BEGIN
@@ -338,7 +345,7 @@ async function initAuth() {
   for (const builtIn of BUILT_IN_ROLES) {
     const role = data.roles.find((row) => row.slug === builtIn.slug);
     if (!role) {
-      data.roles.push({ ...builtIn, scopes: structuredClone(DEFAULT_SCOPES), permissions_version: 9, built_in: true });
+      data.roles.push({ ...builtIn, scopes: structuredClone(DEFAULT_SCOPES), permissions_version: 10, built_in: true });
       changed = true;
     } else if (!role.built_in || role.name !== builtIn.name) {
       role.built_in = true;
@@ -347,10 +354,11 @@ async function initAuth() {
     }
   }
   for (const role of data.roles) {
-    if (!role.permissions_version || role.permissions_version < 9) {
+    if (!role.permissions_version || role.permissions_version < 10) {
+      const previousVersion = role.permissions_version || 1;
       role.permissions = migrateCurrentPermissions({ ...role, permissions_version: role.permissions_version || 1 });
-      role.scopes = structuredClone(DEFAULT_SCOPES);
-      role.permissions_version = 9;
+      if (previousVersion < 9) role.scopes = structuredClone(DEFAULT_SCOPES);
+      role.permissions_version = 10;
       changed = true;
     }
     if (!role.scopes) { role.scopes = structuredClone(DEFAULT_SCOPES); changed = true; }
@@ -387,7 +395,7 @@ async function createRole(nameValue, permissionValues, scopeValues = DEFAULT_SCO
   if (usePostgres()) {
     try {
       const { rows } = await getPostgresPool().query(
-        'INSERT INTO app_roles (slug, name, permissions, scopes, permissions_version) VALUES ($1, $2, $3::jsonb, $4::jsonb, 9) RETURNING slug, name, permissions, scopes, built_in',
+        'INSERT INTO app_roles (slug, name, permissions, scopes, permissions_version) VALUES ($1, $2, $3::jsonb, $4::jsonb, 10) RETURNING slug, name, permissions, scopes, built_in',
         [slug, name, JSON.stringify(permissions), JSON.stringify(scopes)],
       );
       return rows[0];
@@ -400,7 +408,7 @@ async function createRole(nameValue, permissionValues, scopeValues = DEFAULT_SCO
   if (data.roles.some((role) => role.slug === slug)) {
     const error = new Error('A role with that name already exists.'); error.status = 409; throw error;
   }
-  const role = { slug, name, permissions, scopes, permissions_version: 9, built_in: false };
+  const role = { slug, name, permissions, scopes, permissions_version: 10, built_in: false };
   data.roles.push(role);
   await writeAuthFile(data);
   return role;
@@ -413,7 +421,7 @@ async function updateRole(slug, nameValue, permissionValues, scopeValues = DEFAU
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
   if (usePostgres()) {
     const { rows } = await getPostgresPool().query(
-      'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, permissions = $2::jsonb, scopes = $3::jsonb, permissions_version = 9 WHERE slug = $4 RETURNING slug',
+      'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, permissions = $2::jsonb, scopes = $3::jsonb, permissions_version = 10 WHERE slug = $4 RETURNING slug',
       [name, JSON.stringify(permissions), JSON.stringify(scopes), slug],
     );
     if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }

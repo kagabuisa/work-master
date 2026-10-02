@@ -15,6 +15,8 @@
       <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
     </header>
 
+    <%- include('settings-tabs', { activeSettingsTab: 'files' }) %>
+
     <section class="files-hero">
       <div>
         <span class="files-kicker">FILE LIBRARY</span>
@@ -79,7 +81,7 @@
                     </div>
                   </td>
                   <td class="files-meta"><%= item.folder ? '—' : item.size < 1024 ? item.size + ' B' : item.size < 1048576 ? (item.size / 1024).toFixed(1) + ' KB' : (item.size / 1048576).toFixed(1) + ' MB' %></td>
-                  <td class="files-meta"><%= new Date(item.modified).toLocaleDateString('en-UG', { year: 'numeric', month: 'short', day: 'numeric' }) %></td>
+                  <td class="files-meta"><%= formatTimestamp(item.modified).split(' ')[0] %></td>
                   <td class="files-action"><a href="<%= item.folder ? '/settings/files?dir=' + encodeURIComponent(item.path) : '/settings/files/download?path=' + encodeURIComponent(item.path) %>" aria-label="<%= item.folder ? 'Open' : 'Download' %> <%= item.name %>"><%= item.folder ? 'Open' : 'Download' %> <span aria-hidden="true"><%= item.folder ? '→' : '↓' %></span></a></td>
                 </tr>
               <% }) %>
@@ -102,6 +104,7 @@
               <strong>Choose files or drag them here</strong>
               <small data-files-selection>Up to 10 files · 20 MB each</small>
             </label>
+            <p class="files-upload-error" data-files-upload-error role="alert" hidden></p>
             <button type="submit" class="files-upload-button">Upload files <span aria-hidden="true">↑</span></button>
           </form>
         </div>

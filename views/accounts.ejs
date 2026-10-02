@@ -24,14 +24,16 @@
             <th class="row-number">#</th>
             <th>Code</th>
             <th>Account</th>
-            <th>Type</th>
+            <th>Root Type</th>
+            <th>Account Type</th>
             <th>Normal Balance</th>
             <th>Status</th>
+            <% if (can('accounts.manage')) { %><th>Action</th><% } %>
           </tr>
         </thead>
         <tbody>
           <% if (!accounts.length) { %>
-            <tr><td colspan="6" class="empty">No accounts found.</td></tr>
+            <tr><td colspan="<%= can('accounts.manage') ? 8 : 7 %>" class="empty">No accounts found.</td></tr>
           <% } %>
           <% accounts.forEach((account, index) => { %>
             <tr>
@@ -39,8 +41,10 @@
               <td><strong><%= account.account_code %></strong></td>
               <td><%= account.account_name %></td>
               <td><%= account.account_type %></td>
+              <td><%= account.account_detail_type || '' %></td>
               <td><%= account.normal_balance %></td>
               <td><span class="badge <%= account.is_active ? 'submitted' : 'draft' %>"><%= account.is_active ? 'Active' : 'Inactive' %></span></td>
+              <% if (can('accounts.manage')) { %><td><a href="/accounts/<%= account.id %>/edit">Edit</a></td><% } %>
             </tr>
           <% }) %>
         </tbody>

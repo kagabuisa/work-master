@@ -2,8 +2,8 @@
 <% const journalReadOnly = Boolean(readOnly); %>
 <% const journalLines = Array.isArray(journal.lines) && journal.lines.length ? journal.lines : [{}, {}]; %>
 <% const journalStatus = journal.docstatus || (journalReadOnly ? 'submitted' : 'draft'); %>
-<% const manualJournal = ['cash_receipt', 'journal_entry'].includes(journal.journal_type); %>
-<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<% const manualJournal = Boolean(journal.can_cancel); %>
+<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <html lang="en">
 <head>
   <title><%= journal.id ? journal.journal_no : 'New Journal' %></title>
@@ -25,7 +25,7 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <form method="post" action="<%= journal.id ? `/journals/${journal.id}` : '/journals' %>" class="invoice-form" id="journal-entry-form">
+    <form method="post" action="<%= journal.id ? `/journals/${journal.id}` : '/journals' %>" class="invoice-form" id="journal-entry-form" <%= journalReadOnly ? '' : 'data-voucher-form' %>>
       <section class="form-grid">
         <label>
           Type
@@ -41,8 +41,8 @@
           <input type="date" name="posting_date" value="<%= journal.posting_date || today %>" required <%= journalReadOnly ? 'readonly' : '' %>>
         </label>
         <label>
-          Status
-          <input value="<%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %>" readonly>
+          Posting Time
+          <input type="time" name="posting_time" value="<%= journal.posting_time !== undefined ? journal.posting_time : currentPostingTime() %>" required <%= journalReadOnly ? 'readonly' : '' %>>
         </label>
         <label>
           Party Type
@@ -66,10 +66,7 @@
             <div id="party-results" class="results"></div>
           </label>
         <% } %>
-        <label>
-          Party Name
-          <input name="party_name" id="party-name" value="<%= journal.party_name || '' %>" readonly>
-        </label>
+        <input type="hidden" name="party_name" id="party-name" value="<%= journal.party_name || '' %>">
         <% if (journalReadOnly) { %>
           <label>
             Reference
@@ -88,6 +85,26 @@
         </label>
       </section>
 
+      <section id="journal-selection-summary" class="journal-selection-summary" aria-label="Selected party and reference" <%= journal.party_name || journalReadOnly && journal.reference_no ? '' : 'hidden' %>>
+        <div id="party-selection-detail" class="journal-selection-detail" data-detail-title="Selected party" role="status" <%= journal.party_name ? '' : 'hidden' %>><%= journal.party_name || '' %></div>
+        <% if (journalReadOnly) { %>
+          <% if (journal.reference_no) { const detail = typeof selectedReference !== 'undefined' ? selectedReference : null; %>
+            <div class="journal-selection-detail" data-detail-title="Selected reference">
+              <% if (detail) { %>
+                <%= [detail.type, detail.posting_date].filter(Boolean).join(' · ') %>
+                <% if (detail.amount != null) { %> · Amount <%= money(detail.amount) %><% } %>
+                <% if (detail.balance != null) { %> · Balance <%= money(detail.balance) %><% } %>
+              <% } else { %><%= journal.reference_no %><% } %>
+            </div>
+          <% } %>
+        <% } else { %>
+          <div id="reference-selection-detail" class="journal-selection-detail" data-detail-title="Selected reference" role="status" hidden></div>
+        <% } %>
+      </section>
+
+      <% if (!journalReadOnly) { %>
+        <script id="journal-account-data" type="application/json"><%- JSON.stringify(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))).replace(/</g, '\\u003c') %></script>
+      <% } %>
       <table class="editable" id="journal-lines">
         <thead>
           <tr>
@@ -107,12 +124,14 @@
               <td class="row-number"><%= index + 1 %></td>
               <td>
                 <input type="hidden" name="line_id" value="<%= line.id || '' %>">
-                <select name="account_id" required <%= journalReadOnly ? 'disabled' : '' %>>
-                  <option value="">Choose account</option>
-                  <% accounts.forEach((account) => { %>
-                    <option value="<%= account.id %>" <%= Number(line.account_id || 0) === Number(account.id) ? 'selected' : '' %>><%= account.account_code %> - <%= account.account_name %></option>
-                  <% }) %>
-                </select>
+                <% if (journalReadOnly) { %>
+                  <span><%= line.account_code || accounts.find((account) => Number(account.id) === Number(line.account_id))?.account_code || '' %> - <%= line.account_name || accounts.find((account) => Number(account.id) === Number(line.account_id))?.account_name || '' %></span>
+                <% } else { const selectedAccount = accounts.find((account) => Number(account.id) === Number(line.account_id)); %>
+                  <div class="journal-account-picker">
+                    <input type="hidden" name="account_id" value="<%= selectedAccount ? selectedAccount.id : '' %>">
+                    <input type="text" data-account-search autocomplete="off" role="combobox" aria-label="Account" aria-autocomplete="list" aria-controls="journal-account-menu" aria-expanded="false" placeholder="Search code or name (% wildcard)" value="<%= selectedAccount ? `${selectedAccount.account_code} - ${selectedAccount.account_name}` : '' %>">
+                  </div>
+                <% } %>
               </td>
               <td><input class="journal-money" name="debit" type="number" step="1" min="0" value="<%= line.debit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
               <td><input class="journal-money" name="credit" type="number" step="1" min="0" value="<%= line.credit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
@@ -136,7 +155,7 @@
       <div class="actions">
         <% if (!journalReadOnly) { %>
           <button type="button" class="button-light" id="add-journal-row">Add Row</button>
-          <button type="submit" name="action" value="save_draft">Save Draft</button>
+          <button type="submit" name="action" value="save_draft" data-voucher-save>Save Draft</button>
           <% if (!journal.id && can('vouchers.journals.submit')) { %><button type="submit" name="action" value="submit">Post Journal</button><% } %>
         <% } %>
         <% if (journalReadOnly) { %>
@@ -155,7 +174,8 @@
     <% if (journal && journal.id) { %><%- include('record-audit', { record: journal }) %><% } %>
   </main>
   <% if (!journalReadOnly) { %>
-    <script src="/journal-entry.js"></script>
+    <script src="/journal-account-match.js?v=<%= assetVersion %>"></script>
+    <script src="/journal-entry.js?v=<%= assetVersion %>"></script>
   <% } %>
 </body>
 </html>

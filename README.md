@@ -79,6 +79,7 @@ With the included Compose file, created invoices are stored in Postgres by defau
 - In Postgres mode, submitted invoices reduce local stock, calculate COGS/gross profit, and post local GL entries.
 - In Postgres mode, stock entries, customer payments, cancellations, and manual journals post to the local double-entry ledger.
 - Creates combined Purchase vouchers: choose a supplier, items, warehouse, quantities, and costs; save a draft, then submit to receive stock and create the payable. Record one or more supplier payments on the same voucher. Purchases require Postgres storage and active supplier, item, and warehouse master records.
+- Creates Purchase Order vouchers with supplier, expected delivery date, warehouse, items, quantities, and costs. Orders can be saved as drafts, submitted, or cancelled. They require Postgres storage and active buying master records. Submitting an order does not receive stock or create a payable; record the delivery separately as a Purchase voucher.
 - Includes accounting reports for General Ledger, Trial Balance, Profit and Loss, and Balance Sheet.
 
 Purchase vouchers currently cover stock items and supplier payments. They do not yet calculate purchase tax or discounts, or support cancellation, returns, or payment edits after submission. Existing Purchase Receipt stock entries remain in the stock ledger; do not record the same delivery again as a Purchase voucher.

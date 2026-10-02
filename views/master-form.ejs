@@ -21,7 +21,7 @@
     <% } %>
 
     <% if (config.hint) { %><p class="muted-text"><%= config.hint %></p><% } %>
-    <% const editingSubmittedPriceList = mode === 'edit' && record.docstatus === 'submitted' && editSubmitted; %>
+    <% const editingSubmittedPriceList = config.key === 'price-lists' && mode === 'edit' && record.docstatus === 'submitted' && editSubmitted; %>
     <% const submittedPriceListLocked = config.key === 'price-lists' && mode === 'edit' && record.docstatus === 'submitted' && !editingSubmittedPriceList; %>
     <form method="post" action="<%= mode === 'edit' ? '/settings/' + config.key + '/' + encodeURIComponent(record[config.idField]) : '/settings/' + config.key %>" class="invoice-form<%= config.staticLabels ? ' entry-form pricing-master-form' : '' %>" <% if (config.staticLabels) { %>data-static-labels<% } %> <% if (editingSubmittedPriceList) { %>data-pricelist-change-tracking data-record-id-field="<%= config.idField %>"<% } %>>
       <% if (mode === 'edit') { const navigationSuffix = editSubmitted ? '?editing=1' : ''; %>
