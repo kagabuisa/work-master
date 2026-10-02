@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>New Account</title>
+  <title><%= editing ? 'Edit Account' : 'New Account' %></title>
   <%- include('partials-head') %>
 </head>
 <body>
@@ -9,7 +9,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'New Account' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: editing ? 'Edit Account' : 'New Account' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
@@ -20,7 +20,7 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <form method="post" action="/accounts" class="invoice-form">
+    <form method="post" action="<%= editing ? `/accounts/${account.id}` : '/accounts' %>" class="invoice-form">
       <section class="form-grid">
         <label>
           Account Code
@@ -31,7 +31,7 @@
           <input name="account_name" value="<%= account.account_name || '' %>" placeholder="Bank Charges" required>
         </label>
         <label>
-          Type
+          Root Type
           <select name="account_type" required>
             <option value="asset" <%= account.account_type === 'asset' ? 'selected' : '' %>>Asset</option>
             <option value="liability" <%= account.account_type === 'liability' ? 'selected' : '' %>>Liability</option>
@@ -41,16 +41,34 @@
           </select>
         </label>
         <label>
+          Account Type
+          <select name="account_detail_type">
+            <option value="" <%= !account.account_detail_type ? 'selected' : '' %>></option>
+            <% accountDetailTypes.forEach((type) => { %>
+              <option value="<%= type %>" <%= account.account_detail_type === type ? 'selected' : '' %>><%= type %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>
           Normal Balance
           <select name="normal_balance" required>
             <option value="debit" <%= account.normal_balance === 'debit' ? 'selected' : '' %>>Debit</option>
             <option value="credit" <%= account.normal_balance === 'credit' ? 'selected' : '' %>>Credit</option>
           </select>
         </label>
+        <% if (editing) { %>
+          <label>
+            Status
+            <select name="is_active">
+              <option value="1" <%= account.is_active === true || account.is_active === '1' ? 'selected' : '' %>>Active</option>
+              <option value="0" <%= account.is_active === false || account.is_active === '0' ? 'selected' : '' %>>Inactive</option>
+            </select>
+          </label>
+        <% } %>
       </section>
       <div class="actions">
         <a class="button button-light" href="/accounts">Cancel</a>
-        <button type="submit">Create Account</button>
+        <button type="submit"><%= editing ? 'Save Changes' : 'Create Account' %></button>
       </div>
     </form>
   </main>

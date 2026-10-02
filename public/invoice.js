@@ -3,11 +3,16 @@ const itemSearch = document.querySelector('#item-search');
 const itemResults = document.querySelector('#item-results');
 const warehouseSelect = document.querySelector('#warehouse-select');
 const priceListSelect = document.querySelector('#invoice-price-list');
+const costCenterInput = document.querySelector('#invoice-cost-center');
+const costCenterOptions = document.querySelector('#invoice-cost-centers');
 const refreshPricesButton = document.querySelector('#refresh-invoice-prices');
 const priceUpdateStatus = document.querySelector('#invoice-price-update-status');
 const customerSearch = document.querySelector('#customer-search');
 const customerResults = document.querySelector('#customer-results');
 const customerId = document.querySelector('#customer-id');
+const invoicerSearch = document.querySelector('#invoice-invoicer');
+const invoicerId = document.querySelector('#invoice-invoicer-id');
+const invoicerResults = document.querySelector('#invoice-invoicer-results');
 const tbody = document.querySelector('#invoice-items tbody');
 const payments = [];
 const paymentsTbody = document.querySelector('#invoice-payments tbody');
@@ -20,7 +25,7 @@ const balanceTotal = document.querySelector('#balance-total');
 const paymentStatus = document.querySelector('#payment-status');
 const paymentDate = document.querySelector('#payment-date');
 const paymentAmount = document.querySelector('#payment-amount');
-const paymentMethod = document.querySelector('#payment-method');
+const paymentAccount = document.querySelector('#payment-account');
 const paymentReference = document.querySelector('#payment-reference');
 const paymentNotes = document.querySelector('#payment-notes');
 const addPaymentButton = document.querySelector('#add-payment');
@@ -55,6 +60,33 @@ const formatMoney = (value) => money.format(value).replace('UGX', 'Ugx');
 let preloadedCustomers = [];
 let itemRequestId = 0;
 let customersLoading = false;
+let costCenterTimer;
+let costCenterRequestId = 0;
+
+async function loadCostCenters() {
+  const requestId = ++costCenterRequestId;
+  const query = costCenterInput.value.trim();
+  try {
+    const response = await fetch(`/api/cost-centers?q=${encodeURIComponent(query)}`);
+    if (!response.ok) return;
+    const rows = await response.json();
+    if (requestId !== costCenterRequestId || query !== costCenterInput.value.trim()) return;
+    costCenterOptions.replaceChildren(...rows.map((row) => {
+      const option = document.createElement('option');
+      option.value = row.cost_center;
+      option.label = row.cost_center_name;
+      return option;
+    }));
+  } catch {
+    // The saved value remains available if suggestions cannot be loaded.
+  }
+}
+
+costCenterInput.addEventListener('focus', loadCostCenters);
+costCenterInput.addEventListener('input', () => {
+  clearTimeout(costCenterTimer);
+  costCenterTimer = setTimeout(loadCostCenters, 220);
+});
 let editingPaymentIndex = null;
 
 let itemTimer;
@@ -99,6 +131,58 @@ warehouseSelect.addEventListener('change', async () => {
 });
 
 let customerTimer;
+let invoicerTimer;
+let invoicerRequestId = 0;
+
+async function searchInvoicers() {
+  const requestId = ++invoicerRequestId;
+  const query = invoicerSearch.value.trim();
+  invoicerResults.innerHTML = '<p>Loading employees...</p>';
+  try {
+    const response = await fetch(`/api/employees?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Employee request failed.');
+    const rows = await response.json();
+    if (requestId !== invoicerRequestId || query !== invoicerSearch.value.trim()) return;
+    invoicerResults.innerHTML = rows.map((employee) => `
+      <button type="button" data-id="${escapeAttr(employee.employee_id)}" data-name="${escapeAttr(employee.employee_name)}">
+        <strong>${escapeHtml(employee.employee_name)}</strong>
+        <span>${escapeHtml([employee.employee_id, employee.department].filter(Boolean).join(' · '))}</span>
+      </button>
+    `).join('') || '<p>No matching employees.</p>';
+    invoicerResults.querySelectorAll('[data-id]').forEach((button) => {
+      button.addEventListener('mousedown', (event) => { event.preventDefault(); selectInvoicer(button); });
+      button.addEventListener('click', () => selectInvoicer(button));
+    });
+  } catch {
+    if (requestId === invoicerRequestId) invoicerResults.innerHTML = '<p>Could not load employees.</p>';
+  }
+}
+
+function selectInvoicer(button) {
+  clearTimeout(invoicerTimer);
+  invoicerRequestId += 1;
+  invoicerId.value = button.dataset.id;
+  invoicerSearch.value = button.dataset.name;
+  invoicerResults.innerHTML = '';
+  dirty = true;
+  updateEditActions();
+}
+
+function clearUnselectedInvoicer() {
+  if (!invoicerId.value) invoicerSearch.value = '';
+  invoicerResults.innerHTML = '';
+  updateEditActions();
+}
+
+invoicerSearch.addEventListener('input', () => {
+  invoicerId.value = '';
+  clearTimeout(invoicerTimer);
+  invoicerTimer = setTimeout(searchInvoicers, 220);
+});
+invoicerSearch.addEventListener('focus', searchInvoicers);
+invoicerSearch.addEventListener('click', searchInvoicers);
+invoicerSearch.addEventListener('blur', () => setTimeout(clearUnselectedInvoicer, 150));
+
 customerSearch.addEventListener('input', () => {
   customerId.value = '';
   clearTimeout(customerTimer);
@@ -138,6 +222,7 @@ document.addEventListener('click', (event) => {
     itemSearch.value = '';
   });
   closeResultsOnOutsideClick(event, customerSearch, customerResults, clearUnselectedCustomer);
+  closeResultsOnOutsideClick(event, invoicerSearch, invoicerResults, clearUnselectedInvoicer);
 });
 
 document.querySelectorAll('[name="discount_amount"], [name="tax_amount"]').forEach((input) => {
@@ -171,6 +256,11 @@ form.addEventListener('submit', (event) => {
   if (!customerId.value) {
     event.preventDefault();
     showFormError('Select a customer from the database.', customerSearch);
+    return;
+  }
+  if (!invoicerId.value) {
+    event.preventDefault();
+    showFormError('Select an invoicer from the employee list.', invoicerSearch);
     return;
   }
   if (!priceListSelect.value) {
@@ -218,19 +308,23 @@ form.addEventListener('keydown', (event) => {
       return;
     }
   }
+  if (event.target === invoicerSearch) {
+    const firstInvoicer = invoicerResults.querySelector('[data-id]');
+    if (firstInvoicer) {
+      selectInvoicer(firstInvoicer);
+      return;
+    }
+  }
   focusNextField(event.target);
 });
 
 form.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && event.ctrlKey) {
-    event.preventDefault();
-    form.requestSubmit();
-  }
   if (event.key === 'Escape') {
     clearTimeout(itemTimer);
     itemRequestId += 1;
     itemResults.innerHTML = '';
     customerResults.innerHTML = '';
+    invoicerResults.innerHTML = '';
   }
 });
 
@@ -583,7 +677,7 @@ function initializeInvoiceForm() {
       warehouse: item.warehouse || '',
       quantity: normalizeQuantity(item.quantity),
       unit_price: roundMoney(item.unit_price),
-      stock_at_sale: normalizeQuantity(item.stock_at_sale),
+      stock_at_sale: item.stock_at_sale == null ? null : normalizeQuantity(item.stock_at_sale),
     });
   });
   renderItems();
@@ -600,6 +694,8 @@ function initializePayments() {
       payment_date: payment.payment_date || payment.date || initialData.invoice.invoice_date,
       amount: roundMoney(payment.amount),
       method: payment.method || 'cash',
+      account_id: payment.account_id || '',
+      account_name: payment.account_name || '',
       reference: payment.reference || '',
       notes: payment.notes || '',
       created_at: payment.created_at || '',
@@ -612,6 +708,8 @@ function initializePayments() {
       payment_date: initialData.invoice.invoice_date,
       amount: roundMoney(initialData.invoice.amount_paid),
       method: 'legacy',
+      account_id: '',
+      account_name: '',
       reference: '',
       notes: 'Recorded before payment history was added',
       created_at: initialData.invoice.created_at || '',
@@ -635,7 +733,7 @@ function renderItems() {
       <tr>
         <td class="row-number" data-label="Item">${index + 1}</td>
         <td class="item-code-col" data-label="Item Name"><strong>${escapeHtml(item.item_code)}</strong></td>
-        <td data-label="Stock">${formatQuantity(item.stock_at_sale)}</td>
+        <td data-label="Stock">${item.stock_at_sale == null ? '—' : formatQuantity(item.stock_at_sale)}</td>
         <td data-label="Qty"><input aria-label="Quantity" type="text" inputmode="decimal" value="${formatQuantity(quantity)}" data-index="${index}" data-field="quantity"></td>
         <td data-label="Unit Price"><input aria-label="Unit price" type="number" min="0" step="1" value="${roundMoney(item.unit_price)}" data-index="${index}" data-field="unit_price"></td>
         <td data-label="Total" data-line-total="${index}">${formatMoney(total || 0)}</td>
@@ -708,12 +806,17 @@ function addPaymentFromForm() {
     showFormError(`Payment cannot exceed the current balance of ${formatMoney(balance)}.`, paymentAmount);
     return false;
   }
+  if (!paymentAccount.value) {
+    showFormError('Choose a cash or bank account.', paymentAccount);
+    return false;
+  }
 
   const payment = {
     id: editingPaymentIndex == null ? 0 : payments[editingPaymentIndex].id,
     payment_date: paymentDate.value,
     amount,
-    method: paymentMethod.value,
+    account_id: paymentAccount.value,
+    account_name: paymentAccount.selectedOptions[0].textContent.trim(),
     reference: paymentReference.value.trim(),
     notes: paymentNotes.value.trim(),
     created_at: editingPaymentIndex == null ? '' : payments[editingPaymentIndex].created_at,
@@ -754,7 +857,7 @@ function renderPayments() {
     <tr>
       <td class="row-number">${index + 1}</td>
       <td>${escapeHtml(payment.payment_date)}</td>
-      <td>${escapeHtml(payment.method)}</td>
+      <td>${escapeHtml(payment.account_name || payment.method || '')}</td>
       <td>${escapeHtml(payment.reference || '')}</td>
       <td>${escapeHtml(payment.notes || '')}</td>
       <td>${formatMoney(payment.amount || 0)}</td>
@@ -797,7 +900,7 @@ function editPayment(index) {
   editingPaymentIndex = index;
   paymentDate.value = payment.payment_date;
   paymentAmount.value = payment.amount;
-  paymentMethod.value = payment.method;
+  paymentAccount.value = payment.account_id || '';
   paymentReference.value = payment.reference || '';
   paymentNotes.value = payment.notes || '';
   addPaymentButton.textContent = 'Update Payment';
@@ -828,10 +931,15 @@ function renderTotals() {
 function invoiceState() {
   return {
     invoice_date: document.querySelector('#invoice-date').value,
+    posting_time: document.querySelector('#invoice-posting-time').value,
     due_date: document.querySelector('#due-date').value,
+    non_system_invoice: document.querySelector('#non-system-invoice').value.trim(),
     customer_id: customerId.value,
     customer_name: customerSearch.value.trim(),
     price_list: priceListSelect.value,
+    cost_center: costCenterInput.value.trim(),
+    invoicer_id: invoicerId.value,
+    invoicer: document.querySelector('#invoice-invoicer').value.trim(),
     warehouse: warehouseSelect.value,
     discount_amount: Number(form.elements.discount_amount.value || 0),
     tax_amount: Number(form.elements.tax_amount.value || 0),
@@ -847,7 +955,7 @@ function invoiceState() {
       id: payment.id || 0,
       payment_date: payment.payment_date,
       amount: roundMoney(payment.amount),
-      method: payment.method,
+      account_id: payment.account_id,
       reference: payment.reference,
       notes: payment.notes,
     })),

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><title><%= order.order_no %></title><%- include('partials-head') %></head>
+<body><main class="shell">
+  <header class="topbar"><div><p class="eyebrow">Purchase Order</p>
+    <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: order.order_no }] }) %>
+  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav></header>
+  <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
+  <section class="invoice-card">
+    <div class="section-title"><h2><%= order.order_no %></h2><div class="actions">
+      <% if (order.docstatus === 'draft') { %>
+        <% if (can('vouchers.purchase-orders.edit')) { %><a class="button button-light" href="/purchase-orders/<%= order.id %>/edit">Edit</a><% } %>
+        <% if (can('vouchers.purchase-orders.delete')) { %><form method="post" action="/purchase-orders/<%= order.id %>/delete" class="inline-form" data-confirm="Delete this draft purchase order? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
+        <% if (can('vouchers.purchase-orders.submit')) { %><form method="post" action="/purchase-orders/<%= order.id %>/submit" class="inline-form" data-confirm="Submit this purchase order?"><button type="submit">Submit Order</button></form><% } %>
+      <% } else if (order.docstatus === 'submitted' && can('vouchers.purchase-orders.cancel') && !(order.invoices || []).some((invoice) => invoice.docstatus === 'submitted')) { %>
+        <form method="post" action="/purchase-orders/<%= order.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase order?"><button type="submit" class="button-light">Cancel Order</button></form>
+      <% } %>
+      <% if (order.docstatus === 'submitted' && order.items.some((item) => Number(item.quantity) > Number(item.received || 0)) && can('vouchers.purchases.create')) { %>
+        <a class="button" href="/purchases/new?purchase_order_id=<%= order.id %>">Receive into Purchase Invoice</a>
+      <% } %>
+    </div></div>
+    <div class="invoice-meta">
+      <div><span>Supplier</span><strong><%= order.supplier_name %></strong><p><%= order.supplier_id %></p></div>
+      <div><span>Order Date/Time</span><strong><%= formatDateTime(order.posting_date, order.posting_time || '00:00') %></strong><% if (order.due_date) { %><p>Expected <%= formatDate(order.due_date) %></p><% } %></div>
+      <div><span>Status</span><strong><span class="badge <%= order.docstatus %>"><%= order.docstatus %></span></strong></div>
+    </div>
+    <p>Price List: <strong><%= order.price_list %></strong></p>
+    <% if (order.supplier_reference) { %><p>Supplier reference: <strong><%= order.supplier_reference %></strong></p><% } %>
+    <table><thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Ordered</th><th>Qty Received</th><th>Remaining</th><th>Unit Cost</th><th>Total</th></tr></thead>
+      <tbody><% order.items.forEach((item, index) => { %><tr>
+        <td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td>
+        <td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td>
+        <td><%= Number(item.received || 0).toLocaleString() %></td><td><%= Math.max(0, Math.round((Number(item.quantity) - Number(item.received || 0)) * 1000) / 1000).toLocaleString() %></td>
+        <td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td>
+      </tr><% }) %></tbody>
+    </table>
+    <dl class="totals"><div class="grand"><dt>Total</dt><dd><%= money(order.total) %></dd></div></dl>
+    <% if (order.remarks) { %><p class="notes"><%= order.remarks %></p><% } %>
+    <% if (order.invoices && order.invoices.length && can('vouchers.purchases.view')) { %><p>Purchase invoices: <% order.invoices.forEach((invoice, index) => { %><% if (index) { %>, <% } %><a href="/purchases/<%= invoice.id %>"><%= invoice.purchase_no %></a> (<%= invoice.docstatus %>)<% }) %></p><% } %>
+  </section>
+  <%- include('record-audit', { record: order }) %>
+</main></body></html>

@@ -20,19 +20,19 @@
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
         <a class="button button-light" href="/purchases">Reset</a>
-        <% if (can('vouchers.purchases.create')) { %><a class="button" href="/purchases/new">New Purchase</a><% } %>
+        <% if (can('vouchers.purchases.create')) { %><a class="button" href="/purchases/new">New Purchase Invoice</a><% } %>
       </div>
     </form>
     <section class="invoice-card report-section">
       <table>
-        <thead><tr><th>#</th><th>Purchase</th><th>Date</th><th>Supplier</th><th>Reference</th><th>Total</th><th>Paid</th><th>Balance</th><th>Document</th><th>Payment</th></tr></thead>
+        <thead><tr><th>#</th><th>Purchase</th><th>Date/Time</th><th>Supplier</th><th>Reference</th><th>Total</th><th>Paid</th><th>Balance</th><th>Document</th><th>Payment</th></tr></thead>
         <tbody>
           <% if (!result.rows.length) { %><tr><td colspan="10" class="empty">No purchases found.</td></tr><% } %>
           <% result.rows.forEach((purchase, index) => { %>
             <tr>
               <td><%= (result.pagination ? result.pagination.offset : (result.page - 1) * 25) + index + 1 %></td>
               <td><a href="/purchases/<%= purchase.id %>" data-voucher-drawer="/purchases/<%= purchase.id %>/drawer"><%= purchase.purchase_no %></a></td>
-              <td><%= purchase.posting_date %></td>
+              <td><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></td>
               <td><%= purchase.supplier_name %></td>
               <td><%= purchase.supplier_reference || '' %></td>
               <td><%= money(purchase.total) %></td>

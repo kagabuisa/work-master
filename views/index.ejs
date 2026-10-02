@@ -4,7 +4,7 @@
   <title>Work Master</title>
   <%- include('partials-head') %>
 </head>
-<body>
+<body class="dashboard-page">
   <main class="shell">
     <header class="topbar">
       <div>
@@ -88,9 +88,10 @@
               <tr><td colspan="3" class="empty">No debtor balances.</td></tr>
             <% } %>
             <% debtors.forEach((debtor, index) => { %>
-              <tr>
+              <% const statementUrl = `/reports/debtors?customer=${encodeURIComponent(debtor.customer_key)}`; %>
+              <tr class="debtor-row dashboard-debtor-row" data-dashboard-statement tabindex="0" role="link" aria-label="Open statement for <%= debtor.customer_name %>">
                 <td class="row-number"><%= index + 1 %></td>
-                <td><%= debtor.customer_name %></td>
+                <td><a class="debtor-name" href="<%= statementUrl %>"><%= debtor.customer_name %></a></td>
                 <td><%= money(debtor.balance_due) %></td>
               </tr>
             <% }) %>
@@ -100,5 +101,6 @@
     </section>
     <% } %>
   </main>
+  <script src="/dashboard-statement.js?v=<%= assetVersion %>" defer></script>
 </body>
 </html>

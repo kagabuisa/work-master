@@ -1,0 +1,19 @@
+<div class="invoice-drawer-content" data-voucher-title="<%= payment.reference || `Payment ${payment.id}` %>" data-voucher-eyebrow="Sales Invoice Payment">
+  <div class="invoice-drawer-heading">
+    <div>
+      <p class="eyebrow">Sales Invoice Payment</p>
+      <h2><%= payment.reference || `Payment ${payment.id}` %></h2>
+      <small><%= invoice.customer_name %></small>
+    </div>
+  </div>
+  <section class="invoice-card">
+    <div class="invoice-meta">
+      <div><span>Invoice</span><strong><a href="/invoices/<%= invoice.id %>"><%= invoice.invoice_no %></a></strong></div>
+      <div><span>Payment Date</span><strong><%= formatDate(payment.payment_date) %></strong></div>
+      <div><span>Status</span><strong><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Received' %></strong></div>
+      <div><span>Account</span><strong><%= payment.account_name || payment.method %></strong></div>
+      <div><span>Amount</span><strong><%= money(payment.amount) %></strong></div>
+    </div>
+    <% if (payment.notes) { %><p class="notes"><%= payment.notes %></p><% } %>
+  </section>
+</div>

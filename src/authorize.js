@@ -5,6 +5,7 @@ const {
   masterRecordAllowed,
   invoiceAllowed,
   purchaseAllowed,
+  purchaseOrderAllowed,
   purchasePaymentAllowed,
   priceListActionAllowed,
   anyNamedPriceListAction,
@@ -16,7 +17,7 @@ const {
 } = require('./access');
 const { REPORTS } = require('./report-permissions');
 
-const MASTER_KEYS = new Set(['customers', 'suppliers', 'items', 'warehouses', 'employees', 'options', 'price-lists', 'item-prices']);
+const MASTER_KEYS = new Set(['customers', 'suppliers', 'items', 'warehouses', 'employees', 'cost-centers', 'options', 'price-lists', 'item-prices']);
 
 function can(user, permission) {
   return user?.role === 'admin' || Array.isArray(user?.permissions) && user.permissions.includes(permission);
@@ -36,8 +37,16 @@ function permissionCheck(req) {
   if (!parts.length) return true;
   if (parts[0] === 'settings') {
     if (parts[1] === 'company-information') return user.role === 'admin';
+    if (parts[1] === 'date-time') return parts.length === 2 && user.role === 'admin' && method === 'POST';
     if (parts[1] === 'erpnext-sync') return has('sync.run');
     if (parts[1] === 'users' || parts[1] === 'roles') return user.role === 'admin';
+    if (parts[1] === 'files') {
+      if (user.role !== 'admin') return false;
+      if (parts.length === 2 || parts[2] === 'download' && parts.length === 3) {
+        return method === 'GET' || method === 'HEAD';
+      }
+      return parts[2] === 'upload' && parts.length === 3 && method === 'POST';
+    }
     if (parts.length === 1) return user.role === 'admin' || has('sync.run')
       || [...MASTER_KEYS].some((key) => has(`masters.${key}.view`))
       || anyNamedListView(user, 'warehouses')
@@ -95,6 +104,9 @@ function permissionCheck(req) {
     if (parts[1] === 'new') return has(prefix + 'create');
     if (parts[2] === 'payments') return has('payments.sales.' + (parts[4] === 'cancel' ? 'cancel' : 'record'));
     if (parts[2] === 'edit') return has(prefix + 'edit');
+    if (parts[2] === 'duplicate') return method === 'GET' && all(prefix + 'view', prefix + 'create');
+    if (parts[2] === 'posting-time') return method === 'POST' && has(prefix + 'edit');
+    if (parts[2] === 'non-system-invoice') return method === 'POST' && has(prefix + 'edit');
     if (parts[2] === 'submit') return has(prefix + 'submit');
     if (parts[2] === 'submit-cash-sale') return all(prefix + 'submit', 'payments.sales.record');
     if (parts[2] === 'cancel') return has(prefix + 'cancel');
@@ -113,8 +125,19 @@ function permissionCheck(req) {
     if (parts[1] === 'payments') return has(prefix + 'view');
     if (parts[2] === 'payments') return has('payments.purchases.' + (parts[4] === 'cancel' ? 'cancel' : 'record'));
     if (parts[2] === 'edit') return has(prefix + 'edit');
+    if (parts[2] === 'posting-time') return method === 'POST' && has(prefix + 'edit');
     if (parts[2] === 'submit') return has(prefix + 'submit');
     if (parts[2] === 'cancel') return has(prefix + 'cancel');
+    if (parts[2] === 'delete') return method === 'POST' && has(prefix + 'delete');
+    return has(prefix + (method === 'POST' ? 'edit' : 'view'));
+  }
+  if (parts[0] === 'purchase-orders') {
+    const prefix = 'vouchers.purchase-orders.';
+    if (parts.length === 1) return has(prefix + (method === 'POST' ? 'create' : 'view'));
+    if (parts[1] === 'new') return method === 'GET' && has(prefix + 'create');
+    if (parts[2] === 'edit') return method === 'GET' && has(prefix + 'edit');
+    if (parts[2] === 'submit') return method === 'POST' && has(prefix + 'submit');
+    if (parts[2] === 'cancel') return method === 'POST' && has(prefix + 'cancel');
     if (parts[2] === 'delete') return method === 'POST' && has(prefix + 'delete');
     return has(prefix + (method === 'POST' ? 'edit' : 'view'));
   }
@@ -130,6 +153,7 @@ function permissionCheck(req) {
     if (parts[3] === 'cancel') return has(prefix + 'cancel');
     if (parts[3] === 'delete') return method === 'POST' && has(prefix + 'delete');
     if (parts[3] === 'supplier') return has(prefix + 'edit');
+    if (parts[3] === 'posting-time') return method === 'POST' && has(prefix + 'edit');
     if (parts[3] === 'edit') return has(prefix + 'edit');
     if (parts.length === 3 && method === 'POST') {
       return all(prefix + 'edit', ...(req.body.action === 'save_draft' ? [] : [prefix + 'submit']),
@@ -145,12 +169,17 @@ function permissionCheck(req) {
     if (parts[2] === 'cancel') return has('vouchers.journals.cancel');
     if (parts[2] === 'delete') return method === 'POST' && has('vouchers.journals.delete');
     if (parts[2] === 'submit') return has('vouchers.journals.submit');
+    if (parts[2] === 'posting-time') return method === 'POST' && has('vouchers.journals.edit');
     if (parts[2] === 'edit' || method === 'POST') return has('vouchers.journals.edit');
     return has('vouchers.journals.view');
   }
   if (parts[0] === 'accounts') {
-    return parts[1] === 'new' || method === 'POST' ? has('accounts.manage')
-      : has('accounts.view') || anyNamedListView(user, 'accounts');
+    if (parts.length === 1) return method === 'POST' ? has('accounts.manage')
+      : method === 'GET' && (has('accounts.view') || anyNamedListView(user, 'accounts'));
+    if (parts[1] === 'new') return parts.length === 2 && method === 'GET' && has('accounts.manage');
+    if (parts.length === 3 && parts[2] === 'edit') return method === 'GET' && has('accounts.manage');
+    if (parts.length === 2 && method === 'POST') return has('accounts.manage');
+    return false;
   }
   if (parts[0] === 'reports') {
     const report = REPORTS.find((item) => item.slug === parts[1]);
@@ -164,17 +193,18 @@ function permissionCheck(req) {
     if (name === 'price-lists' || name === 'pricing-items') return method === 'GET' && (
       anyNamedPriceListAction(user, 'create') || canAny(user,
         ['masters.item-prices.view', ...(name === 'price-lists'
-          ? ['masters.price-lists.view', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.purchases.create', 'vouchers.purchases.edit']
+          ? ['masters.price-lists.view', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.purchases.create', 'vouchers.purchases.edit', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit']
           : ['masters.items.view'])]));
     if (name === 'customers') return canAny(user, ['masters.customers.view', 'vouchers.sales.create']);
-    if (name === 'suppliers') return canAny(user, ['masters.suppliers.view', 'vouchers.purchases.create', 'vouchers.stock.create']);
+    if (name === 'suppliers') return canAny(user, ['masters.suppliers.view', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create']);
     if (name === 'items' || name === 'master-items') return canAny(user,
-      ['masters.items.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.stock.create']);
+      ['masters.items.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create']);
     if (name === 'report-items' || name === 'report-warehouses') return canAny(user,
       ['vouchers.stock.view', 'reports.stock-ledger.view', 'reports.stock-movement.view', 'reports.gross-profit.view']);
     if (name === 'warehouses' || name === 'stock-balance') return canAny(user,
-      ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.stock.create']);
-    if (name === 'cost-centers' || name === 'employees') return has('vouchers.journals.create');
+      ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create']);
+    if (name === 'cost-centers') return canAny(user, ['masters.cost-centers.view', 'masters.cost-centers.create', 'masters.cost-centers.edit', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.journals.create']);
+    if (name === 'employees') return canAny(user, ['masters.employees.view', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.journals.create']);
     if (name === 'stock-entry-cancel-template' || name === 'stock-entries') return has('vouchers.stock.cancel');
     if (name === 'general-ledger') return has('reports.general-ledger.view');
     if (name === 'journal-reference-options') return has('vouchers.journals.create');
@@ -197,7 +227,7 @@ async function scopeCheck(req) {
   if (parts[0] === 'settings' && parts[1] === 'warehouses'
       && parts[2] && parts[2] !== 'new' && !warehouseAllowed(user, decodeURIComponent(parts[2]))) return false;
 
-  if (method === 'POST' && ['invoices', 'purchases', 'stock'].includes(parts[0])) {
+  if (method === 'POST' && ['invoices', 'purchases', 'purchase-orders', 'stock'].includes(parts[0])) {
     for (const field of ['warehouse', 'target_warehouse']) {
       const values = Array.isArray(req.body[field]) ? req.body[field] : req.body[field] ? [req.body[field]] : [];
       if (values.some((value) => value && !warehouseAllowed(user, value))) return false;
@@ -224,11 +254,21 @@ async function scopeCheck(req) {
         && !await masterRecordAllowed(user, 'customers', req.body.customer_id)) return false;
   }
   if (parts[0] === 'purchases') {
+    if (method === 'POST' && (parts.length === 1 || parts.length === 2) && req.body.purchase_order_id
+        && (!await purchaseOrderAllowed(user, req.body.purchase_order_id)
+          || !await voucherWarehousesAllowed(user, 'purchase-orders', req.body.purchase_order_id))) return false;
     if (parts[1] === 'payments' && parts[2] && !await purchasePaymentAllowed(user, parts[2])) return false;
     if (parts[1] && parts[1] !== 'new' && parts[1] !== 'payments'
         && !await purchaseAllowed(user, parts[1])) return false;
     if (parts[1] && parts[1] !== 'new' && parts[1] !== 'payments'
         && !await voucherWarehousesAllowed(user, 'purchases', parts[1])) return false;
+    if (method === 'POST' && (parts.length === 1 || parts.length === 2)
+        && !await masterRecordAllowed(user, 'suppliers', req.body.supplier_id)) return false;
+  }
+  if (parts[0] === 'purchase-orders') {
+    if (parts[1] && parts[1] !== 'new' && !await purchaseOrderAllowed(user, parts[1])) return false;
+    if (parts[1] && parts[1] !== 'new'
+        && !await voucherWarehousesAllowed(user, 'purchase-orders', parts[1])) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2)
         && !await masterRecordAllowed(user, 'suppliers', req.body.supplier_id)) return false;
   }

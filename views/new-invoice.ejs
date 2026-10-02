@@ -18,17 +18,20 @@
         <div class="actions page-actions">
           <button type="button" class="button-light" id="refresh-invoice-prices">Refresh Prices</button>
           <% if (editing && savedListAllowed && can('vouchers.sales.submit') && can('payments.sales.record')) { %>
-            <button type="button" data-edit-submit-action data-cash-sale-url="/invoices/<%= invoice.id %>/submit-cash-sale" data-cash-sale-total="<%= invoice.total %>" data-cash-sale-date="<%= invoice.invoice_date %>">Submit Cash Sale</button>
+            <button type="button" data-edit-submit-action data-cash-sale-url="/invoices/<%= invoice.id %>/submit-cash-sale" data-cash-sale-total="<%= invoice.total %>" data-cash-sale-date="<%= invoice.invoice_date %>" data-cash-sale-invoice="<%= invoice.invoice_no %>" data-cash-sale-customer="<%= invoice.customer_name %>" data-cash-sale-accounts="<%= JSON.stringify(typeof receiptAccounts !== 'undefined' ? receiptAccounts : []) %>">Submit Cash Sale</button>
           <% } %>
           <% if (editing && savedListAllowed && can('vouchers.sales.submit')) { %>
             <form method="post" action="/invoices/<%= invoice.id %>/submit" class="inline-form" data-edit-submit-action data-confirm="Submit this credit invoice? Stock will be reduced and the total will remain outstanding on the customer's account.">
               <button type="submit" class="button-light">Submit Invoice</button>
             </form>
           <% } %>
-          <button type="submit" form="invoice-form" data-edit-save<%= editing && savedListAllowed && can('vouchers.sales.submit') ? ' hidden' : '' %>>Save</button>
+          <button type="submit" form="invoice-form" data-voucher-save data-edit-save<%= editing && savedListAllowed && can('vouchers.sales.submit') ? ' hidden' : '' %>>Save</button>
         </div>
       </nav>
     </header>
+    <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %>
+      <section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft.</section>
+    <% } %>
     <% if (typeof stockWarning !== 'undefined' && stockWarning) { %>
       <section class="notice warning">
         <strong>Adjust quantity before submitting.</strong>
@@ -47,27 +50,48 @@
       <strong></strong>
     </section>
 
-    <form id="invoice-form" method="post" action="<%= editing ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form entry-form new-invoice-form" data-static-labels>
+    <form id="invoice-form" method="post" action="<%= editing ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form entry-form new-invoice-form" data-static-labels data-voucher-form>
       <section class="invoice-entry-row">
         <div class="form-field app-floating-field app-floating-choice">
           <label class="field-label app-floating-label" for="invoice-date">Invoice Date</label>
           <input id="invoice-date" type="date" name="invoice_date" value="<%= invoice ? invoice.invoice_date : today %>" required>
         </div>
         <div class="form-field app-floating-field app-floating-choice">
+          <label class="field-label app-floating-label" for="invoice-posting-time">Posting Time</label>
+          <input id="invoice-posting-time" type="time" name="posting_time" value="<%= invoice && invoice.posting_time !== undefined ? invoice.posting_time : currentPostingTime() %>" required>
+        </div>
+        <div class="form-field app-floating-field app-floating-choice">
           <label class="field-label app-floating-label" for="due-date">Due Date</label>
           <input id="due-date" type="date" name="due_date" value="<%= invoice && invoice.due_date ? invoice.due_date : '' %>">
         </div>
-        <div class="form-field lookup-field app-floating-field app-floating-choice">
+        <div class="form-field app-floating-field app-floating-choice">
+          <label class="field-label app-floating-label" for="non-system-invoice">Non-System Invoice</label>
+          <input id="non-system-invoice" name="non_system_invoice" value="<%= invoice && invoice.non_system_invoice || '' %>" maxlength="100" autocomplete="off">
+        </div>
+        <div class="form-field lookup-field app-floating-field app-floating-choice invoice-customer-field">
           <label class="field-label app-floating-label" for="customer-search">Customer</label>
           <input id="customer-search" name="customer_name" autocomplete="off" placeholder="Search and select customer" value="<%= invoice ? invoice.customer_name : '' %>" required>
           <input type="hidden" name="customer_id" id="customer-id" value="<%= invoice && invoice.customer_id ? invoice.customer_id : '' %>">
           <div id="customer-results" class="results"></div>
         </div>
-        <div class="form-field app-floating-field app-floating-choice">
-          <label class="field-label app-floating-label" for="invoice-price-list">Price List</label>
-          <select id="invoice-price-list" name="price_list" required>
-            <option value="<%= invoice && invoice.price_list || '' %>"><%= invoice && invoice.price_list || 'Loading price lists...' %></option>
-          </select>
+        <div class="invoice-context-row">
+          <div class="form-field app-floating-field app-floating-choice">
+            <label class="field-label app-floating-label" for="invoice-price-list">Price List</label>
+            <select id="invoice-price-list" name="price_list" required>
+              <option value="<%= invoice && invoice.price_list || '' %>"><%= invoice && invoice.price_list || 'Loading price lists...' %></option>
+            </select>
+          </div>
+          <div class="form-field app-floating-field app-floating-choice">
+            <label class="field-label app-floating-label" for="invoice-cost-center">Cost Center</label>
+            <input id="invoice-cost-center" name="cost_center" list="invoice-cost-centers" value="<%= invoice && invoice.cost_center || '' %>" autocomplete="off" placeholder="Search cost centers">
+            <datalist id="invoice-cost-centers"></datalist>
+          </div>
+          <div class="form-field lookup-field app-floating-field app-floating-choice">
+            <label class="field-label app-floating-label" for="invoice-invoicer">Invoicer</label>
+            <input id="invoice-invoicer" name="invoicer" value="<%= invoice && invoice.invoicer || '' %>" autocomplete="off" placeholder="Search and select employee" required>
+            <input type="hidden" id="invoice-invoicer-id" name="invoicer_id" value="<%= invoice && invoice.invoicer_id || '' %>">
+            <div id="invoice-invoicer-results" class="results"></div>
+          </div>
         </div>
         <div class="form-field app-floating-field app-floating-choice">
           <label class="field-label app-floating-label" for="warehouse-select">Warehouse</label>
@@ -142,7 +166,7 @@
             <tr>
               <th class="row-number">#</th>
               <th>Date</th>
-              <th>Method</th>
+              <th>Account</th>
               <th>Payment Reference</th>
               <th>Notes</th>
               <th>Amount</th>
@@ -163,13 +187,12 @@
             <input type="number" min="1" step="1" id="payment-amount">
           </label>
           <label>
-            Method
-            <select id="payment-method">
-              <option value="cash">Cash</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="bank">Bank</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
+            Account
+            <select id="payment-account">
+              <option value="">Choose cash or bank account</option>
+              <% (typeof receiptAccounts !== 'undefined' ? receiptAccounts : []).forEach((account) => { %>
+                <option value="<%= account.id %>"><%= account.account_code ? `${account.account_code} · ` : '' %><%= account.account_name %></option>
+              <% }) %>
             </select>
           </label>
           <label>

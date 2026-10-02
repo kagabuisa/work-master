@@ -10,7 +10,7 @@
     <small>Dashboard</small>
   </a>
 
-  <% if (can('vouchers.sales.create') || can('vouchers.purchases.create') || can('vouchers.stock.create') && !supplierScoped || can('vouchers.journals.create') && !scoped) { %>
+  <% if (can('vouchers.sales.create') || can('vouchers.purchases.create') || can('vouchers.purchase-orders.create') || can('vouchers.stock.create') && !supplierScoped || can('vouchers.journals.create') && !scoped) { %>
   <div class="module-nav-actions" aria-label="Create">
     <div class="module-nav-new" data-new-menu>
       <button class="module-nav-action module-nav-new-trigger" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="module-nav-new-options" data-new-menu-trigger>
@@ -20,6 +20,7 @@
       <div class="module-nav-new-options" id="module-nav-new-options" role="menu" hidden data-new-menu-options>
         <% if (can('vouchers.sales.create')) { %><a href="/invoices/new" role="menuitem"><span>Sales Invoice</span><small>Bill a customer</small></a><% } %>
         <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new" role="menuitem"><span>Purchase</span><small>Receive stock and track payment</small></a><% } %>
+        <% if (can('vouchers.purchase-orders.create')) { %><a href="/purchase-orders/new" role="menuitem"><span>Purchase Order</span><small>Order goods from a supplier</small></a><% } %>
         <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/entries/new" role="menuitem"><span>Stock Entry</span><small>Record stock movement</small></a><% } %>
         <% if (can('vouchers.journals.create') && !scoped) { %><a href="/journals/new" role="menuitem"><span>Journal Entry</span><small>Record accounting entry</small></a><% } %>
       </div>
@@ -39,12 +40,14 @@
     </section>
     <% } %>
 
-    <% if (can('vouchers.purchases.view') || can('vouchers.purchases.create')) { %>
+    <% if (can('vouchers.purchases.view') || can('vouchers.purchases.create') || can('vouchers.purchase-orders.view') || can('vouchers.purchase-orders.create')) { %>
     <section class="module-nav-section <%= currentModule === 'purchases' ? 'active' : '' %>">
-      <a class="module-nav-primary" href="<%= can('vouchers.purchases.view') ? '/purchases' : '/purchases/new' %>">Purchases</a>
+      <a class="module-nav-primary" href="<%= can('vouchers.purchases.view') ? '/purchases' : can('vouchers.purchase-orders.view') ? '/purchase-orders' : can('vouchers.purchases.create') ? '/purchases/new' : '/purchase-orders/new' %>">Purchases</a>
       <div class="module-nav-links">
-        <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new">New Purchase</a><% } %>
+        <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new">New Purchase Invoice</a><% } %>
+        <% if (can('vouchers.purchase-orders.create')) { %><a href="/purchase-orders/new">New Purchase Order</a><% } %>
         <% if (can('vouchers.purchases.view')) { %><a href="/purchases">Purchases</a><% } %>
+        <% if (can('vouchers.purchase-orders.view')) { %><a href="/purchase-orders">Purchase Orders</a><% } %>
         <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger?entry_type=purchase">Purchase Stock Ledger</a><% } %>
       </div>
     </section>
@@ -82,7 +85,7 @@
     </section>
     <% } %>
 
-    <% if (currentUser.role === 'admin' || can('sync.run') || (typeof canManageNamedPriceLists !== 'undefined' && canManageNamedPriceLists) || (typeof canViewNamedWarehouses !== 'undefined' && canViewNamedWarehouses) || (typeof canCreateItemPrice !== 'undefined' && canCreateItemPrice) || ['customers', 'suppliers', 'items', 'price-lists', 'item-prices', 'warehouses', 'employees', 'options'].some((key) => can(`masters.${key}.view`))) { %>
+    <% if (currentUser.role === 'admin' || can('sync.run') || (typeof canManageNamedPriceLists !== 'undefined' && canManageNamedPriceLists) || (typeof canViewNamedWarehouses !== 'undefined' && canViewNamedWarehouses) || (typeof canCreateItemPrice !== 'undefined' && canCreateItemPrice) || ['customers', 'suppliers', 'items', 'price-lists', 'item-prices', 'warehouses', 'employees', 'cost-centers', 'options'].some((key) => can(`masters.${key}.view`))) { %>
     <section class="module-nav-section <%= currentModule === 'settings' ? 'active' : '' %>">
       <a class="module-nav-primary" href="/settings">Settings</a>
       <div class="module-nav-links">
@@ -93,6 +96,7 @@
         <% if (can('masters.item-prices.view') || (typeof canCreateItemPrice !== 'undefined' && canCreateItemPrice)) { %><a href="/settings/item-prices">Item Prices</a><% } %>
         <% if (can('masters.warehouses.view') || (typeof canViewNamedWarehouses !== 'undefined' && canViewNamedWarehouses)) { %><a href="/settings/warehouses">Warehouses</a><% } %>
         <% if (can('masters.employees.view')) { %><a href="/settings/employees">Employees</a><% } %>
+        <% if (can('masters.cost-centers.view')) { %><a href="/settings/cost-centers">Cost Centers</a><% } %>
         <% if (can('masters.options.view')) { %><a href="/settings/options">Options</a><% } %>
         <a href="/settings">Application Settings</a>
         <% if (currentUser.role === 'admin') { %><a href="/settings/files">Project Files</a><a href="/settings/users">Users</a><a href="/settings/roles?tab=roles">Roles</a><a href="/settings/roles">Permissions</a><% } %>

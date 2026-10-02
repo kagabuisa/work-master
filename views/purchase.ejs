@@ -1,4 +1,4 @@
-<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <!doctype html>
 <html lang="en">
 <head>
@@ -32,10 +32,11 @@
       </div>
       <div class="invoice-meta">
         <div><span>Supplier</span><strong><%= purchase.supplier_name %></strong><p><%= purchase.supplier_id %></p></div>
-        <div><span>Date</span><strong><%= purchase.posting_date %></strong><% if (purchase.due_date) { %><p>Due <%= purchase.due_date %></p><% } %></div>
+        <div><span>Posting Date/Time</span><strong><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></strong><% if (purchase.due_date) { %><p>Due <%= formatDate(purchase.due_date) %></p><% } %></div>
         <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
       </div>
       <% if (purchase.price_list) { %><p>Price List: <strong><%= purchase.price_list %></strong></p><% } %>
+      <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p>Purchase Order: <a href="/purchase-orders/<%= purchase.purchase_order_id %>">PO-<%= String(purchase.purchase_order_id).padStart(6, '0') %></a></p><% } %>
       <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
       <table>
         <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th>Unit Cost</th><th>Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
@@ -60,7 +61,7 @@
           <% if (!purchase.payments.length) { %><tr><td colspan="10" class="empty">No payments recorded.</td></tr><% } %>
           <% purchase.payments.forEach((payment) => { %>
             <tr>
-              <td><%= payment.payment_no %></td><td><%= payment.payment_date %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td>
+              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td>
               <td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td>
               <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (lineAuditTime(payment.created_at)) { %> <small><%= lineAuditTime(payment.created_at) %></small><% } %></td>
               <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (lineAuditTime(payment.updated_at)) { %> <small><%= lineAuditTime(payment.updated_at) %></small><% } %></td>

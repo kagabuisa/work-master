@@ -1,19 +1,19 @@
-<% const paymentAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
-<section class="invoice-card payments-card" id="receive-payment">
-  <div class="section-title">
+<% const paymentAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
+<section class="invoice-card payments-card sales-invoice-payments" id="receive-payment">
+  <div class="section-title invoice-payments-title">
     <h2>Payments</h2>
     <span class="badge <%= invoice.status %>"><%- include('invoice-payment-status', { invoice, money }) -%></span>
   </div>
 
-  <table>
+  <table class="sales-invoice-items sales-payment-table">
     <thead>
       <tr>
         <th class="row-number">#</th>
         <th>Date</th>
-        <th>Method</th>
+        <th>Account</th>
         <th>Payment Reference</th>
         <th>Notes</th>
-        <th>Amount</th>
+        <th class="invoice-number-cell">Amount</th>
         <th>Status</th>
         <th class="tracking-info">Created by</th>
         <th class="tracking-info">Updated by</th>
@@ -25,18 +25,21 @@
         <tr><td colspan="10" class="empty">No payments received yet.</td></tr>
       <% } %>
       <% payments.forEach((payment, index) => { %>
+        <% const paymentJournalId = payment.journal_id || payment.journal_entry_id; %>
+        <% const paymentHref = paymentJournalId ? `/journals/${paymentJournalId}` : payment.payment_record_id ? `/invoices/payments/${payment.payment_record_id}` : `/invoices/${invoice.id}`; %>
+        <% const paymentDrawer = paymentJournalId ? `${paymentHref}/drawer` : payment.payment_record_id ? `${paymentHref}/drawer` : `/invoices/${invoice.id}/drawer`; %>
         <tr>
           <td class="row-number"><%= index + 1 %></td>
-          <td><%= payment.payment_date %></td>
-          <td><%= payment.method %></td>
-          <td><%= payment.reference || '' %></td>
+          <td><%= formatDate(payment.payment_date) %></td>
+          <td><%= payment.account_name || payment.method %></td>
+          <td><% if (payment.reference) { %><a href="<%= paymentHref %>" data-voucher-drawer="<%= paymentDrawer %>"><%= payment.reference %></a><% } %></td>
           <td><%= payment.notes || '' %></td>
-          <td><%= money(payment.amount) %></td>
+          <td class="invoice-number-cell"><%= money(payment.amount) %></td>
           <td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Received' %></span></td>
           <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (paymentAuditTime(payment.created_at)) { %> <small><%= paymentAuditTime(payment.created_at) %></small><% } %></td>
           <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (paymentAuditTime(payment.updated_at)) { %> <small><%= paymentAuditTime(payment.updated_at) %></small><% } %></td>
           <td>
-            <% if (docstatus === 'submitted' && payment.docstatus !== 'cancelled' && can('payments.sales.cancel')) { %>
+            <% if (docstatus === 'submitted' && payment.docstatus !== 'cancelled' && !payment.journal_id && can('payments.sales.cancel')) { %>
               <form method="post" action="/invoices/<%= invoice.id %>/payments/<%= payment.id %>/cancel" class="inline-form" data-confirm="Cancel this payment? Its ledger entry will be reversed.">
                 <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
                 <button type="submit" class="button-light">Cancel</button>
@@ -53,18 +56,17 @@
       <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
       <label>Payment Date<input type="date" name="payment_date" value="<%= today %>" required></label>
       <label>Amount<input type="number" min="1" max="<%= balanceDue %>" step="1" name="amount" required></label>
-      <label>
-        Method
-        <select name="method" required>
-          <option value="cash">Cash</option>
-          <option value="mobile_money">Mobile Money</option>
-          <option value="bank">Bank</option>
-          <option value="card">Card</option>
-          <option value="other">Other</option>
+      <label class="payment-account-field">
+        Account
+        <select name="account_id" required>
+          <option value="">Choose cash or bank account</option>
+          <% (typeof receiptAccounts !== 'undefined' ? receiptAccounts : []).forEach((account) => { %>
+            <option value="<%= account.id %>"><%= account.account_code ? `${account.account_code} · ` : '' %><%= account.account_name %></option>
+          <% }) %>
         </select>
       </label>
       <label>Payment Reference<input name="reference" placeholder="Optional"></label>
-      <label class="wide">Notes<input name="notes" placeholder="Optional"></label>
+      <label>Notes<input name="notes" placeholder="Optional"></label>
       <div class="payment-submit">
         <span>Balance: <strong><%= money(balanceDue) %></strong></span>
         <button type="submit">Add Payment</button>

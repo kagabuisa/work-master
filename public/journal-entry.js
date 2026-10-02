@@ -5,14 +5,25 @@ const partySearch = document.querySelector('#party-search');
 const partyResults = document.querySelector('#party-results');
 const partyId = document.querySelector('#party-id');
 const partyName = document.querySelector('#party-name');
+const selectionSummary = document.querySelector('#journal-selection-summary');
+const partyDetail = document.querySelector('#party-selection-detail');
 const referenceSearch = document.querySelector('#reference-search');
 const referenceResults = document.querySelector('#reference-results');
+const referenceDetail = document.querySelector('#reference-selection-detail');
 const journalLinesBody = document.querySelector('#journal-lines tbody');
 const addJournalRow = document.querySelector('#add-journal-row');
 const totalDebit = document.querySelector('#journal-total-debit');
 const totalCredit = document.querySelector('#journal-total-credit');
 const balanceStatus = document.querySelector('#journal-balance-status');
 const journalRowTemplate = journalLinesBody.querySelector('tr').cloneNode(true);
+const journalAccounts = JSON.parse(document.querySelector('#journal-account-data').textContent);
+const accountMenu = document.createElement('div');
+accountMenu.id = 'journal-account-menu';
+accountMenu.className = 'results journal-account-menu';
+accountMenu.setAttribute('role', 'listbox');
+accountMenu.hidden = true;
+document.body.appendChild(accountMenu);
+let activeAccountPicker = null;
 const partyEndpoints = {
   customer: '/api/customers',
   supplier: '/api/suppliers',
@@ -51,6 +62,9 @@ if (partyType && partySearch) {
   partySearch.addEventListener('input', () => {
     partyId.value = '';
     partyName.value = '';
+    setSelectionDetail(partyDetail, '');
+    clearReferenceSelection();
+    configureReferenceSearch();
     clearTimeout(partyTimer);
     partyTimer = setTimeout(searchParties, 220);
   });
@@ -90,6 +104,7 @@ if (partyType && partySearch) {
 
 if (referenceSearch) {
   referenceSearch.addEventListener('input', () => {
+    setSelectionDetail(referenceDetail, '');
     clearTimeout(referenceTimer);
     referenceTimer = setTimeout(searchReferences, 220);
   });
@@ -123,6 +138,12 @@ if (referenceSearch) {
 }
 
 journalLinesBody.addEventListener('input', (event) => {
+  if (event.target.matches('[data-account-search]')) {
+    const picker = event.target.closest('.journal-account-picker');
+    picker.querySelector('[name="account_id"]').value = '';
+    showAccountResults(picker);
+    return;
+  }
   if (event.target.matches('[name="debit"]')) {
     const row = event.target.closest('tr');
     if (Number(event.target.value || 0) > 0) {
@@ -151,11 +172,80 @@ journalLinesBody.addEventListener('click', (event) => {
   updateJournalRowNumbers();
 });
 
+journalLinesBody.addEventListener('focusin', (event) => {
+  if (event.target.matches('[data-account-search]')) showAccountResults(event.target.closest('.journal-account-picker'));
+});
+
+journalLinesBody.addEventListener('focusout', (event) => {
+  if (!event.target.matches('[data-account-search]')) return;
+  const picker = event.target.closest('.journal-account-picker');
+  setTimeout(() => {
+    if (activeAccountPicker === picker && !picker.contains(document.activeElement)
+        && !accountMenu.contains(document.activeElement)) hideAccountResults();
+  }, 150);
+});
+
+accountMenu.addEventListener('mousedown', (event) => {
+  if (event.target.closest('[data-account-option]')) event.preventDefault();
+});
+
+accountMenu.addEventListener('click', (event) => {
+  const option = event.target.closest('[data-account-option]');
+  if (option && activeAccountPicker) selectAccount(activeAccountPicker, option.dataset.accountOption);
+});
+
+journalLinesBody.addEventListener('keydown', (event) => {
+  if (!event.target.matches('[data-account-search]')) return;
+  const picker = event.target.closest('.journal-account-picker');
+  const first = accountMenu.querySelector('[data-account-option]');
+  if (event.key === 'Escape') {
+    hideAccountResults();
+  } else if (event.key === 'Enter' && first) {
+    event.preventDefault();
+    selectAccount(picker, first.dataset.accountOption);
+  } else if (event.key === 'ArrowDown' && first) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+accountMenu.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    const input = activeAccountPicker?.querySelector('[data-account-search]');
+    hideAccountResults();
+    input?.focus();
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    const options = [...accountMenu.querySelectorAll('[data-account-option]')];
+    const index = options.indexOf(document.activeElement);
+    const next = options[index + (event.key === 'ArrowDown' ? 1 : -1)];
+    if (next) { event.preventDefault(); next.focus(); }
+  }
+});
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('.journal-account-picker') || accountMenu.contains(event.target)) return;
+  hideAccountResults();
+});
+
+window.addEventListener('resize', positionAccountMenu);
+window.addEventListener('scroll', positionAccountMenu, true);
+
 journalForm.addEventListener('submit', (event) => {
   if (partyType && partyType.value && !partyId.value) {
     event.preventDefault();
     balanceStatus.textContent = 'Select a party from the database before posting.';
     partySearch.focus();
+    return;
+  }
+  const missingAccount = [...journalLinesBody.querySelectorAll('tr')].find((row) =>
+    (Number(row.querySelector('[name="debit"]').value || 0) > 0
+      || Number(row.querySelector('[name="credit"]').value || 0) > 0)
+      && !row.querySelector('[name="account_id"]').value);
+  if (missingAccount) {
+    event.preventDefault();
+    balanceStatus.textContent = 'Select an account from the suggestions for each journal line.';
+    missingAccount.querySelector('[data-account-search]').focus();
     return;
   }
   const totals = journalTotals();
@@ -165,12 +255,67 @@ journalForm.addEventListener('submit', (event) => {
   }
 });
 
+function showAccountResults(picker) {
+  if (activeAccountPicker && activeAccountPicker !== picker) {
+    activeAccountPicker.querySelector('[data-account-search]').setAttribute('aria-expanded', 'false');
+  }
+  activeAccountPicker = picker;
+  const query = picker.querySelector('[data-account-search]').value;
+  const matches = journalAccounts.filter((account) => journalAccountMatches(account, query));
+  accountMenu.innerHTML = matches.slice(0, 40).map((account) => `
+    <button type="button" role="option" data-account-option="${escapeAttr(account.id)}">
+      <strong>${escapeHtml(account.code)}</strong><span>${escapeHtml(account.name)}</span>
+    </button>
+  `).join('') || '<p>No matching accounts.</p>';
+  if (matches.length > 40) accountMenu.insertAdjacentHTML('beforeend', '<p>Showing first 40 accounts. Refine your search.</p>');
+  accountMenu.hidden = false;
+  positionAccountMenu();
+  picker.querySelector('[data-account-search]').setAttribute('aria-expanded', 'true');
+}
+
+function positionAccountMenu() {
+  if (!activeAccountPicker || accountMenu.hidden) return;
+  const input = activeAccountPicker.querySelector('[data-account-search]');
+  if (!input.isConnected) { hideAccountResults(); return; }
+  const rect = input.getBoundingClientRect();
+  const width = Math.min(Math.max(rect.width, 320), window.innerWidth - 16);
+  accountMenu.style.width = `${width}px`;
+  accountMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+  const roomBelow = window.innerHeight - rect.bottom;
+  const below = roomBelow >= 220 || roomBelow >= rect.top;
+  const availableHeight = below ? roomBelow - 12 : rect.top - 12;
+  const menuHeight = Math.max(80, Math.min(240, availableHeight));
+  accountMenu.style.maxHeight = `${menuHeight}px`;
+  accountMenu.style.top = below
+    ? `${rect.bottom + 4}px` : `${Math.max(8, rect.top - Math.min(accountMenu.scrollHeight, menuHeight) - 4)}px`;
+}
+
+function hideAccountResults() {
+  if (activeAccountPicker) {
+    activeAccountPicker.querySelector('[data-account-search]').setAttribute('aria-expanded', 'false');
+  }
+  accountMenu.hidden = true;
+  accountMenu.replaceChildren();
+  activeAccountPicker = null;
+}
+
+function selectAccount(picker, id) {
+  const account = journalAccounts.find((row) => row.id === id);
+  if (!account) return;
+  picker.querySelector('[name="account_id"]').value = account.id;
+  const input = picker.querySelector('[data-account-search]');
+  input.value = `${account.code} - ${account.name}`;
+  input.focus();
+  hideAccountResults();
+}
+
 if (!hasEnteredAmounts()) {
   applyJournalTypeTemplate();
 }
 configurePartySearch();
 configureReferenceSearch();
 preloadParties();
+if (hasSelectedParty() && referenceSearch.value.trim()) preloadReferences();
 updateJournalTotals();
 updateJournalRowNumbers();
 
@@ -259,6 +404,18 @@ async function preloadParties() {
   partiesLoading = true;
   try {
     preloadedParties = await fetchParties(type);
+    const selectedId = partyId.value;
+    if (selectedId) {
+      let selected = preloadedParties.map((party) => normalizeParty(type, party))
+        .find((party) => party.id === selectedId);
+      if (!selected) {
+        selected = (await fetchParties(type, selectedId)).map((party) => normalizeParty(type, party))
+          .find((party) => party.id === selectedId);
+      }
+      if (selected && partyType.value === type && partyId.value === selectedId) {
+        setSelectionDetail(partyDetail, partyDetailText(selected, type));
+      }
+    }
   } catch {
     preloadedParties = [];
   } finally {
@@ -285,7 +442,7 @@ function renderPartyResults(type, rows) {
   partyResults.innerHTML = rows.map((party) => {
     const normalized = normalizeParty(type, party);
     return `
-      <button type="button" data-id="${escapeAttr(normalized.id)}" data-name="${escapeAttr(normalized.name)}">
+      <button type="button" data-id="${escapeAttr(normalized.id)}" data-name="${escapeAttr(normalized.name)}" data-detail="${escapeAttr(partyDetailText(normalized, type))}">
         <strong>${escapeHtml(normalized.id)}</strong>
         <span>${escapeHtml([normalized.name, normalized.meta].filter(Boolean).join(' - '))}</span>
       </button>
@@ -329,6 +486,7 @@ function selectParty(button) {
   partyId.value = button.dataset.id;
   partyName.value = button.dataset.name;
   partySearch.value = button.dataset.id;
+  setSelectionDetail(partyDetail, button.dataset.detail);
   partyResults.innerHTML = '';
   clearReferenceSelection();
   configureReferenceSearch();
@@ -339,6 +497,7 @@ function clearPartySelection() {
   partyId.value = '';
   partyName.value = '';
   partySearch.value = '';
+  setSelectionDetail(partyDetail, '');
   partyResults.innerHTML = '';
   preloadedParties = [];
   clearReferenceSelection();
@@ -402,6 +561,15 @@ async function preloadReferences() {
   referencesLoading = true;
   try {
     preloadedReferences = await fetchReferences();
+    const selectedReference = referenceSearch.value.trim();
+    if (selectedReference) {
+      let selected = preloadedReferences.find((row) => row.reference === selectedReference);
+      if (!selected) selected = (await fetchReferences(selectedReference))
+        .find((row) => row.reference === selectedReference);
+      if (selected && referenceSearch.value.trim() === selectedReference) {
+        setSelectionDetail(referenceDetail, referenceMeta(selected));
+      }
+    }
   } catch {
     preloadedReferences = [];
   } finally {
@@ -426,7 +594,7 @@ function showPreloadedReferences() {
 
 function renderReferenceResults(rows) {
   referenceResults.innerHTML = rows.map((row) => `
-    <button type="button" data-reference="${escapeAttr(row.reference)}">
+    <button type="button" data-reference="${escapeAttr(row.reference)}" data-detail="${escapeAttr(referenceMeta(row))}">
       <strong>${escapeHtml(row.reference)}</strong>
       <span>${escapeHtml(referenceMeta(row))}</span>
     </button>
@@ -447,13 +615,15 @@ function referenceMeta(row) {
   return [
     row.type,
     row.posting_date,
-    row.amount ? formatMoney(row.amount) : '',
-    row.status,
-  ].filter(Boolean).join(' - ');
+    row.amount != null ? `Amount ${formatMoney(row.amount)}` : '',
+    row.balance != null ? `Balance ${formatMoney(row.balance)}` : '',
+    row.balance == null ? row.status : '',
+  ].filter(Boolean).join(' · ');
 }
 
 function selectReference(button) {
   referenceSearch.value = button.dataset.reference;
+  setSelectionDetail(referenceDetail, button.dataset.detail);
   referenceResults.innerHTML = '';
 }
 
@@ -462,8 +632,21 @@ function clearReferenceSelection() {
     return;
   }
   referenceSearch.value = '';
+  setSelectionDetail(referenceDetail, '');
   referenceResults.innerHTML = '';
   preloadedReferences = [];
+}
+
+function partyDetailText(party, type) {
+  return [partyTypeLabel(type).replace(/^./, (letter) => letter.toUpperCase()), party.name, party.meta]
+    .filter(Boolean).join(' · ');
+}
+
+function setSelectionDetail(element, value) {
+  if (!element) return;
+  element.textContent = value || '';
+  element.hidden = !value;
+  selectionSummary.hidden = partyDetail.hidden && referenceDetail.hidden;
 }
 
 function hasSelectedParty() {

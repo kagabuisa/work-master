@@ -3,7 +3,7 @@
   <% if (can('vouchers.sales.edit')) { %><a class="button button-light" href="/invoices/<%= invoice.id %>/edit">Edit</a><% } %>
   <% if (can('vouchers.sales.delete')) { %><form method="post" action="/invoices/<%= invoice.id %>/delete" class="inline-form" data-confirm="Delete this draft invoice? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
   <% if (!listAllowed) { %><span class="muted-text">Select an allowed price list before submitting this draft.</span><% } %>
-  <% if (listAllowed && can('vouchers.sales.submit') && can('payments.sales.record')) { %><button type="button" data-cash-sale-url="/invoices/<%= invoice.id %>/submit-cash-sale" data-cash-sale-total="<%= invoice.total %>" data-cash-sale-date="<%= invoice.invoice_date %>">Submit Cash Sale</button><% } %>
+  <% if (listAllowed && can('vouchers.sales.submit') && can('payments.sales.record')) { %><button type="button" data-cash-sale-url="/invoices/<%= invoice.id %>/submit-cash-sale" data-cash-sale-total="<%= invoice.total %>" data-cash-sale-date="<%= invoice.invoice_date %>" data-cash-sale-invoice="<%= invoice.invoice_no %>" data-cash-sale-customer="<%= invoice.customer_name %>" data-cash-sale-accounts="<%= JSON.stringify(typeof receiptAccounts !== 'undefined' ? receiptAccounts : []) %>">Submit Cash Sale</button><% } %>
   <% if (listAllowed && can('vouchers.sales.submit')) { %><form method="post" action="/invoices/<%= invoice.id %>/submit" class="inline-form" data-confirm="Submit this credit invoice? Stock will be reduced and the total will remain outstanding on the customer's account.">
     <button type="submit" class="button-light">Submit Invoice</button>
   </form><% } %>
@@ -14,4 +14,8 @@
       <button type="submit" class="button-light">Cancel Invoice</button>
     </form>
   <% } %>
+<% } %>
+<% if (can('vouchers.sales.create')) { %>
+  <a class="button button-light" href="/invoices/<%= invoice.id %>/duplicate">Duplicate</a>
+  <a class="button button-light" href="/invoices/new" aria-label="New Sales Invoice">+ New</a>
 <% } %>

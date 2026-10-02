@@ -13,6 +13,9 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'sales' }) %>
+        <% if (can('vouchers.sales.create')) { %>
+          <a class="button" href="/invoices/new" aria-label="New Sales Invoice">+ New</a>
+        <% } %>
       </nav>
     </header>
     <form class="report-filters invoice-filters" method="get">
@@ -50,7 +53,7 @@
           <tr>
             <th class="row-number">#</th>
             <th>Invoice</th>
-            <th>Date</th>
+            <th>Date/Time</th>
             <th>Customer</th>
             <th>Total</th>
             <th>Paid</th>
@@ -69,7 +72,7 @@
             <tr>
               <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
               <td><a href="/invoices/<%= invoice.id %>" data-voucher-drawer="/invoices/<%= invoice.id %>/drawer"><%= invoice.invoice_no %></a></td>
-              <td><%= invoice.invoice_date %></td>
+              <td><%= formatDateTime(invoice.invoice_date, invoice.posting_time || '00:00') %></td>
               <td><%= invoice.customer_name %></td>
               <td><%= money(invoice.total) %></td>
               <td><%= money(invoice.amount_paid) %></td>

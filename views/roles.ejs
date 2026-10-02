@@ -14,6 +14,7 @@
       </div>
       <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
     </header>
+    <%- include('settings-tabs', { activeSettingsTab: 'roles' }) %>
     <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
     <% if (notice) { %><section class="notice" role="status"><strong><%= notice %></strong></section><% } %>
 

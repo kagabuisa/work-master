@@ -42,7 +42,7 @@
           <% report.rows.forEach((row, index) => { %>
             <tr>
               <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
-              <td><%= row.invoice_date %></td>
+              <td><%= formatDate(row.invoice_date) %></td>
               <td><a href="/invoices/<%= row.invoice_id %>" data-voucher-drawer="/invoices/<%= row.invoice_id %>/drawer"><%= row.invoice_no %></a></td>
               <td><%= row.customer_name %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>

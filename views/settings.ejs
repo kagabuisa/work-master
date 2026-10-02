@@ -16,6 +16,8 @@
       </nav>
     </header>
 
+    <% if (currentUser.role === 'admin') { %><%- include('settings-tabs', { activeSettingsTab: 'general' }) %><% } %>
+
     <section class="grid settings-grid">
       <% if (currentUser.role === 'admin') { %>
       <div class="settings-company-card">
@@ -38,15 +40,32 @@
         </form>
       </div>
 
-      <div>
-        <div class="section-title"><h2>Users</h2></div>
-        <a href="/settings/users">Manage users</a> · <a href="/settings/roles?tab=roles">Manage roles</a> · <a href="/settings/roles">Permissions</a>
+      <div class="settings-company-card">
+        <div class="section-title"><h2>Date and Time Format</h2></div>
+        <p class="muted-text">Choose how dates and times appear in vouchers and reports.</p>
+        <% if (dateTimeSaved) { %><section class="notice sync-notice" role="status">Date and time format saved.</section><% } %>
+        <% if (dateTimeError) { %><section class="notice warning" role="alert"><%= dateTimeError %></section><% } %>
+        <form method="post" action="/settings/date-time">
+          <div class="form-grid">
+            <label>Date Format
+              <select name="date_format" required>
+                <option value="YYYY-MM-DD" <%= dateTimeSettings.date_format === 'YYYY-MM-DD' ? 'selected' : '' %>>YYYY-MM-DD (2026-09-29)</option>
+                <option value="DD/MM/YYYY" <%= dateTimeSettings.date_format === 'DD/MM/YYYY' ? 'selected' : '' %>>DD/MM/YYYY (29/09/2026)</option>
+                <option value="MM/DD/YYYY" <%= dateTimeSettings.date_format === 'MM/DD/YYYY' ? 'selected' : '' %>>MM/DD/YYYY (09/29/2026)</option>
+                <option value="DD-MM-YYYY" <%= dateTimeSettings.date_format === 'DD-MM-YYYY' ? 'selected' : '' %>>DD-MM-YYYY (29-09-2026)</option>
+              </select>
+            </label>
+            <label>Time Format
+              <select name="time_format" required>
+                <option value="24h" <%= dateTimeSettings.time_format === '24h' ? 'selected' : '' %>>24-hour (19:40)</option>
+                <option value="12h" <%= dateTimeSettings.time_format === '12h' ? 'selected' : '' %>>12-hour (7:40 PM)</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions"><button type="submit">Save Date and Time Format</button></div>
+        </form>
       </div>
-      <div>
-        <div class="section-title"><h2>Project Files</h2></div>
-        <p class="muted-text">Browse project files and manage shared uploads.</p>
-        <a href="/settings/files">Open Project Files →</a>
-      </div>
+
       <% } %>
       <% if (can('sync.run')) { %>
       <div class="settings-sync-card">
@@ -83,7 +102,7 @@
         <% } else if (salesInvoiceSync.last) { %>
           <p class="muted-text">
             Last run:
-            <%= salesInvoiceSync.last.finished_at ? new Date(salesInvoiceSync.last.finished_at).toLocaleString() : 'Not finished' %>
+            <%= salesInvoiceSync.last.finished_at ? formatTimestamp(salesInvoiceSync.last.finished_at) : 'Not finished' %>
             <% if (salesInvoiceSync.last.ok && salesInvoiceSync.last.summary) { %>
               · Newly imported <%= salesInvoiceSync.last.summary.imported %> invoices
               · Already present <%= salesInvoiceSync.last.summary.skipped_existing || 0 %>
@@ -157,6 +176,15 @@
           <% if (can('masters.employees.create')) { %><a class="button" href="/settings/employees/new">Add</a><% } %>
         </div>
         <a href="/settings/employees">Open Employees</a>
+      </div>
+      <% } %>
+      <% if (can('masters.cost-centers.view')) { %>
+      <div>
+        <div class="section-title">
+          <h2>Cost Centers</h2>
+          <% if (can('masters.cost-centers.create')) { %><a class="button" href="/settings/cost-centers/new">Add</a><% } %>
+        </div>
+        <a href="/settings/cost-centers">Open Cost Centers</a>
       </div>
       <% } %>
       <% if (can('masters.options.view')) { %>

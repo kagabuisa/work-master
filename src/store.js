@@ -1,6 +1,9 @@
 const fs = require('fs/promises');
 const path = require('path');
 const pricing = require('./pricing');
+const { ACCOUNT_DETAIL_TYPES } = require('./account-detail-types');
+const { currentPostingTime, normalizePostingTime, storedPostingTime } = require('./posting-time');
+const { DEFAULT_DATE_TIME_SETTINGS, normalizeDateTimeSettings, validateDateTimeSettings } = require('./date-time-format');
 const { AuditPool, auditActor, initRecordAudit, recordAuditFields, stampRecord, stampRecordList } = require('./audit');
 require('dotenv').config({ quiet: true });
 
@@ -17,21 +20,23 @@ function withStoreLock(task) {
   return run;
 }
 const DEFAULT_ACCOUNTS = [
-  { code: '1100', name: 'Accounts Receivable', type: 'asset', normal: 'debit', key: 'accounts_receivable' },
-  { code: '1110', name: 'Cash', type: 'asset', normal: 'debit', key: 'cash' },
-  { code: '1120', name: 'Bank', type: 'asset', normal: 'debit', key: 'bank' },
-  { code: '1130', name: 'Mobile Money', type: 'asset', normal: 'debit', key: 'mobile_money' },
-  { code: '1140', name: 'Card Clearing', type: 'asset', normal: 'debit', key: 'card_clearing' },
-  { code: '1200', name: 'Inventory', type: 'asset', normal: 'debit', key: 'inventory' },
-  { code: '2100', name: 'Accounts Payable', type: 'liability', normal: 'credit', key: 'accounts_payable' },
-  { code: '2200', name: 'Tax Payable', type: 'liability', normal: 'credit', key: 'tax_payable' },
-  { code: '3000', name: 'Opening Equity', type: 'equity', normal: 'credit', key: 'opening_equity' },
-  { code: '4000', name: 'Sales Income', type: 'income', normal: 'credit', key: 'sales_income' },
-  { code: '5000', name: 'Cost of Goods Sold', type: 'expense', normal: 'debit', key: 'cost_of_goods_sold' },
-  { code: '5100', name: 'Stock Adjustment Loss', type: 'expense', normal: 'debit', key: 'stock_adjustment_loss' },
-  { code: '4100', name: 'Stock Adjustment Gain', type: 'income', normal: 'credit', key: 'stock_adjustment_gain' },
+  { code: '1100', name: 'Accounts Receivable', type: 'asset', normal: 'debit', key: 'accounts_receivable', detailType: 'Receivable' },
+  { code: '1110', name: 'Cash', type: 'asset', normal: 'debit', key: 'cash', detailType: 'Cash' },
+  { code: '1120', name: 'Bank', type: 'asset', normal: 'debit', key: 'bank', detailType: 'Bank' },
+  { code: '1130', name: 'Mobile Money', type: 'asset', normal: 'debit', key: 'mobile_money', detailType: 'Bank' },
+  { code: '1140', name: 'Card Clearing', type: 'asset', normal: 'debit', key: 'card_clearing', detailType: 'Temporary' },
+  { code: '1200', name: 'Inventory', type: 'asset', normal: 'debit', key: 'inventory', detailType: 'Stock' },
+  { code: '2100', name: 'Accounts Payable', type: 'liability', normal: 'credit', key: 'accounts_payable', detailType: 'Payable' },
+  { code: '2200', name: 'Tax Payable', type: 'liability', normal: 'credit', key: 'tax_payable', detailType: 'Tax' },
+  { code: '3000', name: 'Opening Equity', type: 'equity', normal: 'credit', key: 'opening_equity', detailType: 'Equity' },
+  { code: '4000', name: 'Sales Income', type: 'income', normal: 'credit', key: 'sales_income', detailType: 'Income Account' },
+  { code: '5000', name: 'Cost of Goods Sold', type: 'expense', normal: 'debit', key: 'cost_of_goods_sold', detailType: 'Cost of Goods Sold' },
+  { code: '5100', name: 'Stock Adjustment Loss', type: 'expense', normal: 'debit', key: 'stock_adjustment_loss', detailType: 'Stock Adjustment' },
+  { code: '4100', name: 'Stock Adjustment Gain', type: 'income', normal: 'credit', key: 'stock_adjustment_gain', detailType: 'Stock Adjustment' },
 ];
 let postgresPool;
+let dateTimeSettingsCache;
+let dateTimeSettingsExpiresAt = 0;
 
 async function initStore() {
   if (usePostgresStore()) {
@@ -105,6 +110,39 @@ async function saveCompanyInformation(payload) {
   return company;
 }
 
+async function getDateTimeSettings() {
+  if (dateTimeSettingsCache && Date.now() < dateTimeSettingsExpiresAt) return dateTimeSettingsCache;
+  let saved;
+  if (usePostgresStore()) {
+    const { rows } = await getPostgresPool().query('SELECT date_format, time_format FROM app_display_settings WHERE id = 1');
+    saved = rows[0];
+  } else {
+    try { saved = JSON.parse(await fs.readFile(path.join(dataDir, 'display-settings.json'), 'utf8')); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  dateTimeSettingsCache = normalizeDateTimeSettings(saved || DEFAULT_DATE_TIME_SETTINGS);
+  dateTimeSettingsExpiresAt = Date.now() + 30000;
+  return dateTimeSettingsCache;
+}
+
+async function saveDateTimeSettings(payload) {
+  const settings = validateDateTimeSettings(payload);
+  if (usePostgresStore()) {
+    await getPostgresPool().query(`
+      INSERT INTO app_display_settings (id, date_format, time_format) VALUES (1, $1, $2)
+      ON CONFLICT (id) DO UPDATE SET date_format = EXCLUDED.date_format, time_format = EXCLUDED.time_format
+    `, [settings.date_format, settings.time_format]);
+  } else {
+    await fs.mkdir(dataDir, { recursive: true });
+    const temporaryFile = path.join(dataDir, `display-settings.${require('node:crypto').randomUUID()}.tmp`);
+    await fs.writeFile(temporaryFile, JSON.stringify(settings, null, 2));
+    await fs.rename(temporaryFile, path.join(dataDir, 'display-settings.json'));
+  }
+  dateTimeSettingsCache = settings;
+  dateTimeSettingsExpiresAt = Date.now() + 30000;
+  return settings;
+}
+
 async function allInvoices() {
   if (usePostgresStore()) {
     return allPostgresInvoices();
@@ -136,6 +174,7 @@ async function paginatedInvoices(options = {}) {
   if (search) {
     invoices = invoices.filter((invoice) => (
       matchesSearchPattern(invoice.invoice_no, search)
+      || matchesSearchPattern(invoice.non_system_invoice, search)
       || matchesSearchPattern(invoice.invoice_date, search)
       || matchesSearchPattern(invoice.customer_name, search)
       || matchesSearchPattern(invoice.total, search)
@@ -424,11 +463,13 @@ async function topDebtors(limit = 10) {
   for (const invoice of store.invoices.map(normalizeInvoiceTotals).filter(isSubmitted)) {
     const balance = Number(invoice.total || 0) - Number(invoice.amount_paid || 0);
     if (balance > 0) {
-      balances.set(invoice.customer_name, (balances.get(invoice.customer_name) || 0) + balance);
+      const customerKey = customerReportKey(invoice);
+      const current = balances.get(customerKey) || { customer_key: customerKey, customer_name: invoice.customer_name, balance_due: 0 };
+      current.balance_due += balance;
+      balances.set(customerKey, current);
     }
   }
-  return [...balances.entries()]
-    .map(([customer_name, balance_due]) => ({ customer_name, balance_due }))
+  return [...balances.values()]
     .sort((a, b) => b.balance_due - a.balance_due)
     .slice(0, limit);
 }
@@ -466,6 +507,7 @@ async function debtorReport(options = {}) {
         days_31_60: 0,
         days_61_90: 0,
         days_over_90: 0,
+        unallocated: 0,
       });
     }
 
@@ -474,9 +516,7 @@ async function debtorReport(options = {}) {
     row.invoice_total += Number(invoice.total || 0);
     row.paid_total += Number(invoice.amount_paid || 0);
     row.balance_due += balanceDue;
-    if (balanceDue > 0) {
-      row[agingBucket(invoice)] += balanceDue;
-    }
+    row[agingBucket(invoice)] += balanceDue;
   }
 
   const allCustomers = [...customers.values()].map(roundReportMoney);
@@ -528,14 +568,61 @@ async function debtorReport(options = {}) {
       summary.days_31_60 += row.days_31_60;
       summary.days_61_90 += row.days_61_90;
       summary.days_over_90 += row.days_over_90;
+      summary.unallocated += row.unallocated;
       return summary;
     }, emptyDebtorSummary()),
     debtors,
     customerResults,
     selected: selected ? roundReportMoney({ ...selected }) : null,
     statement,
+    statementBalance: statement && statement.length ? statement[statement.length - 1].balance : 0,
     paymentInvoiceId: paymentInvoice ? paymentInvoice.invoice_id : null,
   };
+}
+
+function postgresInvoiceBalancesCte() {
+  return `
+    ar_ledger AS (
+      SELECT gl.* FROM app_gl_entries gl
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = gl.account_id
+    ),
+    invoice_postings AS (
+      SELECT invoice.id AS invoice_id, SUM(gl.debit - gl.credit) AS total
+      FROM app_invoices invoice
+      JOIN ar_ledger gl ON gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id
+      GROUP BY invoice.id
+    ),
+    payment_postings AS (
+      SELECT invoice_id, SUM(amount) AS amount_paid
+      FROM (
+        SELECT invoice.id AS invoice_id, gl.credit - gl.debit AS amount
+        FROM app_invoices invoice
+        JOIN app_journal_entries journal ON journal.reference_no = invoice.invoice_no
+          AND journal.party_type = 'customer'
+          AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+          AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
+            OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+        JOIN ar_ledger gl ON gl.voucher_id = journal.id
+          AND gl.voucher_type IN (journal.journal_type, journal.journal_type || '_cancellation')
+        UNION ALL
+        SELECT payment.invoice_id, gl.credit - gl.debit AS amount
+        FROM app_invoice_payments payment
+        JOIN ar_ledger gl ON gl.voucher_id = payment.id
+          AND gl.voucher_type IN ('customer_payment', 'customer_payment_cancellation')
+      ) posted
+      GROUP BY invoice_id
+    ),
+    invoice_balances AS (
+      SELECT invoice.id, invoice.invoice_no, invoice.invoice_date, invoice.due_date,
+        invoice.customer_id, invoice.customer_name, invoice.docstatus,
+        COALESCE(posting.total, 0) AS total,
+        COALESCE(payment.amount_paid, 0) AS amount_paid,
+        COALESCE(posting.total, 0) - COALESCE(payment.amount_paid, 0) AS balance_due
+      FROM app_invoices invoice
+      LEFT JOIN invoice_postings posting ON posting.invoice_id = invoice.id
+      LEFT JOIN payment_postings payment ON payment.invoice_id = invoice.id
+    )`;
 }
 
 async function postgresDebtorReport(options = {}) {
@@ -557,24 +644,50 @@ async function postgresDebtorReport(options = {}) {
     params.push(to);
     where.push(`invoice_date <= $${params.length}`);
   }
+  const invoiceDateRange = Boolean(from || to);
   const groupedSql = `
-    WITH grouped AS (
+    WITH ${postgresInvoiceBalancesCte()}, invoice_grouped AS (
       SELECT
         COALESCE(NULLIF(customer_id, ''), customer_name) AS customer_key,
         MAX(customer_id) AS customer_id,
-        customer_name,
+        MAX(customer_name) AS customer_name,
         COUNT(*)::int AS invoice_count,
         COALESCE(SUM(total), 0)::float AS invoice_total,
         COALESCE(SUM(amount_paid), 0)::float AS paid_total,
-        COALESCE(SUM(total - amount_paid), 0)::float AS balance_due,
-        COALESCE(SUM(CASE WHEN total - amount_paid > 0 AND CURRENT_DATE - COALESCE(due_date, invoice_date) <= 0 THEN total - amount_paid ELSE 0 END), 0)::float AS current,
-        COALESCE(SUM(CASE WHEN total - amount_paid > 0 AND CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 1 AND 30 THEN total - amount_paid ELSE 0 END), 0)::float AS days_1_30,
-        COALESCE(SUM(CASE WHEN total - amount_paid > 0 AND CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 31 AND 60 THEN total - amount_paid ELSE 0 END), 0)::float AS days_31_60,
-        COALESCE(SUM(CASE WHEN total - amount_paid > 0 AND CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 61 AND 90 THEN total - amount_paid ELSE 0 END), 0)::float AS days_61_90,
-        COALESCE(SUM(CASE WHEN total - amount_paid > 0 AND CURRENT_DATE - COALESCE(due_date, invoice_date) > 90 THEN total - amount_paid ELSE 0 END), 0)::float AS days_over_90
-      FROM app_invoices
+        COALESCE(SUM(balance_due), 0)::float AS balance_due,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) <= 0 THEN balance_due ELSE 0 END), 0)::float AS current,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 1 AND 30 THEN balance_due ELSE 0 END), 0)::float AS days_1_30,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 31 AND 60 THEN balance_due ELSE 0 END), 0)::float AS days_31_60,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 61 AND 90 THEN balance_due ELSE 0 END), 0)::float AS days_61_90,
+        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) > 90 THEN balance_due ELSE 0 END), 0)::float AS days_over_90
+      FROM invoice_balances
       WHERE ${where.join(' AND ')}
-      GROUP BY COALESCE(NULLIF(customer_id, ''), customer_name), customer_name
+      GROUP BY COALESCE(NULLIF(customer_id, ''), customer_name)
+    ), party_ar AS (
+      SELECT COALESCE(NULLIF(party_id, ''), party_name) AS customer_key,
+        MAX(party_id) AS customer_id, MAX(party_name) AS customer_name,
+        SUM(debit - credit)::float AS balance_due
+      FROM ar_ledger
+      WHERE party_type = 'customer'
+        AND COALESCE(NULLIF(party_id, ''), party_name) IS NOT NULL
+      GROUP BY COALESCE(NULLIF(party_id, ''), party_name)
+    ), grouped AS (
+      SELECT COALESCE(invoices.customer_key, ledger.customer_key) AS customer_key,
+        COALESCE(invoices.customer_id, ledger.customer_id) AS customer_id,
+        COALESCE(invoices.customer_name, ledger.customer_name) AS customer_name,
+        COALESCE(invoices.invoice_count, 0) AS invoice_count,
+        COALESCE(invoices.invoice_total, 0) AS invoice_total,
+        COALESCE(invoices.paid_total, 0) AS paid_total,
+        ${invoiceDateRange ? 'COALESCE(invoices.balance_due, 0)' : 'COALESCE(ledger.balance_due, invoices.balance_due, 0)'} AS balance_due,
+        COALESCE(invoices.current, 0) AS current,
+        COALESCE(invoices.days_1_30, 0) AS days_1_30,
+        COALESCE(invoices.days_31_60, 0) AS days_31_60,
+        COALESCE(invoices.days_61_90, 0) AS days_61_90,
+        COALESCE(invoices.days_over_90, 0) AS days_over_90,
+        ${invoiceDateRange ? '0::float' : `COALESCE(ledger.balance_due, invoices.balance_due, 0)
+          - COALESCE(invoices.balance_due, 0)`} AS unallocated
+      FROM invoice_grouped invoices
+      ${invoiceDateRange ? 'LEFT' : 'FULL'} JOIN party_ar ledger ON ledger.customer_key = invoices.customer_key
     )
   `;
   const filteredParams = [...params];
@@ -597,7 +710,7 @@ async function postgresDebtorReport(options = {}) {
     ${filteredWhere.length ? `WHERE ${filteredWhere.join(' AND ')}` : ''}
   `;
   const debtorWhereSql = `${filteredWhere.length ? `WHERE ${filteredWhere.join(' AND ')} AND` : 'WHERE'} balance_due > 0`;
-  const [summaryResult, countResult, customerResult] = await Promise.all([
+  const [summaryResult, countResult, customerResult, reconciliationResult] = await Promise.all([
     getPostgresPool().query(
       `${groupedSql}
       SELECT
@@ -609,7 +722,8 @@ async function postgresDebtorReport(options = {}) {
         COALESCE(SUM(days_1_30), 0)::float AS days_1_30,
         COALESCE(SUM(days_31_60), 0)::float AS days_31_60,
         COALESCE(SUM(days_61_90), 0)::float AS days_61_90,
-        COALESCE(SUM(days_over_90), 0)::float AS days_over_90
+        COALESCE(SUM(days_over_90), 0)::float AS days_over_90,
+        COALESCE(SUM(unallocated), 0)::float AS unallocated
       FROM grouped
       ${debtorWhereSql}`,
       filteredParams,
@@ -627,6 +741,13 @@ async function postgresDebtorReport(options = {}) {
       LIMIT 25`,
       filteredParams,
     ),
+    getPostgresPool().query(`
+      WITH ${postgresInvoiceBalancesCte()}
+      SELECT
+        (SELECT COALESCE(SUM(debit - credit), 0)::float FROM ar_ledger) AS ledger_balance,
+        (SELECT COALESCE(SUM(balance_due), 0)::float FROM invoice_balances
+         WHERE docstatus = 'submitted') AS allocated_balance
+    `),
   ]);
   const pageParams = [...filteredParams, pagination.limit, pagination.offset];
   const debtorRows = await getPostgresPool().query(
@@ -653,6 +774,10 @@ async function postgresDebtorReport(options = {}) {
     ...(summaryResult.rows[0] || {}),
   });
   summary.customer_count = Number(summary.customer_count || 0);
+  const reconciliation = reconciliationResult.rows[0];
+  summary.ledger_balance = roundMoney(reconciliation.ledger_balance);
+  summary.allocated_balance = roundMoney(reconciliation.allocated_balance);
+  summary.unallocated_balance = roundMoney(reconciliation.ledger_balance - reconciliation.allocated_balance);
 
   return {
     filters: {
@@ -669,6 +794,8 @@ async function postgresDebtorReport(options = {}) {
     customerResults: allMatches,
     selected: selected ? roundReportMoney({ ...selected }) : null,
     statement: statementResult.statement,
+    statementBalance: statementResult.statement && statementResult.statement.length
+      ? statementResult.statement[statementResult.statement.length - 1].balance : 0,
     paymentInvoiceId: statementResult.paymentInvoiceId,
     pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
   };
@@ -688,21 +815,51 @@ async function resolvePostgresDebtorSelection({ selectedCustomer, groupedSql, ba
 }
 
 async function postgresCustomerStatement(customerKey, filters = {}) {
-  const params = [customerKey];
-  const where = ["docstatus = 'submitted'", "COALESCE(NULLIF(customer_id, ''), customer_name) = $1"];
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   const { rows } = await getPostgresPool().query(
     `
-    SELECT *
-    FROM app_invoices
-    WHERE ${where.join(' AND ')}
-    ORDER BY invoice_date, id
+    WITH ${postgresInvoiceBalancesCte()}
+    SELECT gl.posting_date::text AS date, gl.voucher_type, gl.voucher_id, gl.voucher_no,
+      MAX(gl.remarks) AS description, SUM(gl.debit)::float AS debit,
+      SUM(gl.credit)::float AS credit, invoice.id AS invoice_id,
+      invoice.balance_due::float AS balance_due
+    FROM ar_ledger gl
+    LEFT JOIN app_journal_entries journal ON journal.id = gl.voucher_id
+      AND gl.voucher_type IN (journal.journal_type, journal.journal_type || '_cancellation')
+    LEFT JOIN app_invoice_payments payment ON payment.id = gl.voucher_id
+      AND gl.voucher_type IN ('customer_payment', 'customer_payment_cancellation')
+    LEFT JOIN invoice_balances invoice ON invoice.docstatus = 'submitted'
+      AND (gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id
+        OR journal.reference_no = invoice.invoice_no
+          AND journal.party_type = 'customer'
+          AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
+            OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+        OR payment.invoice_id = invoice.id)
+    WHERE gl.party_type = 'customer'
+      AND COALESCE(NULLIF(gl.party_id, ''), gl.party_name) = $1
+    GROUP BY gl.posting_date, gl.voucher_type, gl.voucher_id, gl.voucher_no,
+      invoice.id, invoice.balance_due
+    ORDER BY gl.posting_date, gl.voucher_id, gl.voucher_type
     `,
-    params,
+    [customerKey],
   );
-  const invoices = await hydratePostgresInvoices(rows);
-  const fullStatement = buildCustomerStatement(invoices, customerKey);
+  let balance = 0;
+  const fullStatement = rows.map((row) => {
+    balance = roundMoney(balance + Number(row.debit) - Number(row.credit));
+    return {
+      date: row.date,
+      type: row.voucher_type === 'sales_invoice' ? 'Invoice'
+        : Number(row.credit) > Number(row.debit) ? 'Payment' : 'Adjustment',
+      reference: row.voucher_no || '',
+      description: row.description || '',
+      debit: Number(row.debit),
+      credit: Number(row.credit),
+      invoice_id: row.invoice_id ? Number(row.invoice_id) : null,
+      balance_due: row.balance_due == null ? null : Number(row.balance_due),
+      balance,
+    };
+  });
   const paymentInvoice = fullStatement.find((entry) => (
     entry.type === 'Invoice' && Number(entry.balance_due || 0) > 0
   ));
@@ -863,7 +1020,7 @@ async function initPostgresStore() {
     )
   `);
   await pricing.initPricingTables(pool);
-  for (const table of ['app_master_items', 'app_master_customers', 'app_master_suppliers', 'app_master_warehouses', 'app_master_employees', 'app_master_options']) {
+  for (const table of ['app_master_items', 'app_master_customers', 'app_master_suppliers', 'app_master_warehouses', 'app_master_employees', 'app_master_cost_centers', 'app_master_options']) {
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS docstatus TEXT NOT NULL DEFAULT 'submitted'`);
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS legacy_editable BOOLEAN NOT NULL DEFAULT true`);
     await pool.query(`UPDATE ${table} SET disabled = true, docstatus = 'submitted' WHERE docstatus IN ('draft', 'cancelled')`);
@@ -878,16 +1035,28 @@ async function initPostgresStore() {
     )
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_display_settings (
+      id SMALLINT PRIMARY KEY CHECK (id = 1),
+      date_format TEXT NOT NULL DEFAULT 'YYYY-MM-DD',
+      time_format TEXT NOT NULL DEFAULT '24h'
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS app_invoices (
       id BIGSERIAL PRIMARY KEY,
       invoice_no TEXT UNIQUE,
+      non_system_invoice TEXT,
       docstatus TEXT NOT NULL DEFAULT 'draft',
       invoice_date DATE NOT NULL,
+      posting_time TIME NOT NULL DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time),
       due_date DATE,
       customer_id TEXT,
       customer_name TEXT NOT NULL,
       customer_phone TEXT,
       price_list TEXT,
+      cost_center TEXT,
+      invoicer_id TEXT,
+      invoicer TEXT,
       notes TEXT,
       subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
       tax_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
@@ -900,7 +1069,11 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS is_cash_sale BOOLEAN');
+  await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS non_system_invoice TEXT');
   await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS price_list TEXT');
+  await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS cost_center TEXT');
+  await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS invoicer_id TEXT');
+  await pool.query('ALTER TABLE app_invoices ADD COLUMN IF NOT EXISTS invoicer TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_invoice_items (
       id BIGSERIAL PRIMARY KEY,
@@ -926,6 +1099,7 @@ async function initPostgresStore() {
       payment_date DATE NOT NULL,
       amount NUMERIC(14, 2) NOT NULL,
       method TEXT NOT NULL,
+      account_id BIGINT,
       reference TEXT,
       notes TEXT,
       docstatus TEXT NOT NULL DEFAULT 'submitted',
@@ -939,6 +1113,7 @@ async function initPostgresStore() {
       purchase_no TEXT UNIQUE,
       docstatus TEXT NOT NULL DEFAULT 'draft',
       posting_date DATE NOT NULL,
+      posting_time TIME NOT NULL DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time),
       due_date DATE,
       supplier_id TEXT NOT NULL,
       supplier_name TEXT NOT NULL,
@@ -969,6 +1144,51 @@ async function initPostgresStore() {
   `);
   await pool.query('ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS price_list TEXT');
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_purchase_orders (
+      id BIGSERIAL PRIMARY KEY,
+      order_no TEXT UNIQUE,
+      docstatus TEXT NOT NULL DEFAULT 'draft' CHECK (docstatus IN ('draft', 'submitted', 'cancelled')),
+      posting_date DATE NOT NULL,
+      posting_time TIME NOT NULL DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time),
+      due_date DATE,
+      supplier_id TEXT NOT NULL,
+      supplier_name TEXT NOT NULL,
+      price_list TEXT NOT NULL,
+      supplier_reference TEXT,
+      remarks TEXT,
+      subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      submitted_by TEXT,
+      submitted_by_user_id TEXT,
+      submitted_at TIMESTAMPTZ,
+      cancelled_by TEXT,
+      cancelled_by_user_id TEXT,
+      cancelled_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_purchase_order_items (
+      id BIGSERIAL PRIMARY KEY,
+      purchase_order_id BIGINT NOT NULL REFERENCES app_purchase_orders(id) ON DELETE CASCADE,
+      line_no INTEGER NOT NULL,
+      item_code TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      warehouse TEXT NOT NULL,
+      quantity NUMERIC(14, 3) NOT NULL,
+      unit_price NUMERIC(14, 2) NOT NULL,
+      line_total NUMERIC(14, 2) NOT NULL,
+      UNIQUE (purchase_order_id, line_no)
+    )
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_orders_date_idx ON app_purchase_orders(posting_date DESC, id DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_orders_supplier_idx ON app_purchase_orders(supplier_id, posting_date DESC)');
+  await pool.query('ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS purchase_order_id BIGINT REFERENCES app_purchase_orders(id)');
+  await pool.query('ALTER TABLE app_purchase_items ADD COLUMN IF NOT EXISTS purchase_order_item_id BIGINT REFERENCES app_purchase_order_items(id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS app_purchases_order_idx ON app_purchases(purchase_order_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_items_order_item_idx ON app_purchase_items(purchase_order_item_id)');
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS app_purchase_payments (
       id BIGSERIAL PRIMARY KEY,
       purchase_id BIGINT NOT NULL REFERENCES app_purchases(id) ON DELETE CASCADE,
@@ -990,6 +1210,7 @@ async function initPostgresStore() {
       entry_type TEXT NOT NULL,
       docstatus TEXT NOT NULL DEFAULT 'submitted',
       posting_date DATE NOT NULL,
+      posting_time TIME NOT NULL DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time),
       remarks TEXT,
       supplier_name TEXT,
       supplier_contact TEXT,
@@ -1055,6 +1276,7 @@ async function initPostgresStore() {
       account_code TEXT UNIQUE,
       account_name TEXT NOT NULL,
       account_type TEXT NOT NULL,
+      account_detail_type TEXT,
       normal_balance TEXT NOT NULL,
       parent_account_id BIGINT REFERENCES app_accounts(id),
       is_group BOOLEAN NOT NULL DEFAULT false,
@@ -1064,6 +1286,17 @@ async function initPostgresStore() {
       CHECK (account_type IN ('asset', 'liability', 'equity', 'income', 'expense')),
       CHECK (normal_balance IN ('debit', 'credit'))
     )
+  `);
+  await pool.query('ALTER TABLE app_accounts ADD COLUMN IF NOT EXISTS account_detail_type TEXT');
+  await pool.query('ALTER TABLE app_invoice_payments ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES app_accounts(id)');
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_invoice_payments_account_id_fkey'
+        AND conrelid = 'app_invoice_payments'::regclass) THEN
+        ALTER TABLE app_invoice_payments ADD CONSTRAINT app_invoice_payments_account_id_fkey
+          FOREIGN KEY (account_id) REFERENCES app_accounts(id);
+      END IF;
+    END $$
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_accounting_settings (
@@ -1102,6 +1335,7 @@ async function initPostgresStore() {
       docstatus TEXT NOT NULL DEFAULT 'submitted',
       journal_type TEXT NOT NULL,
       posting_date DATE NOT NULL,
+      posting_time TIME NOT NULL DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time),
       party_type TEXT,
       party_id TEXT,
       party_name TEXT,
@@ -1128,6 +1362,8 @@ async function initPostgresStore() {
     )
   `);
   for (const table of ['app_invoices', 'app_purchases', 'app_stock_entries', 'app_journal_entries']) {
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS posting_time TIME NOT NULL DEFAULT '00:00:00'`);
+    await pool.query(`ALTER TABLE ${table} ALTER COLUMN posting_time SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time)`);
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS submitted_by TEXT`);
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS submitted_by_user_id TEXT`);
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
@@ -1212,6 +1448,8 @@ async function initPostgresStore() {
   `);
   await migratePostgresInvoiceItems(pool);
   await seedDefaultAccounts(pool);
+  await backfillDefaultAccountDetailTypes(pool);
+  await backfillInvoicePostingTimes(pool);
   await createPerformanceIndexes(pool);
   await syncAllPostgresInvoicePaymentTotals(pool);
   await backfillSalesInvoiceJournals(pool);
@@ -1338,21 +1576,22 @@ async function migratePostgresInvoiceItems(pool) {
 
 async function seedDefaultAccounts(pool) {
   for (const account of DEFAULT_ACCOUNTS) {
-    const { rows } = await pool.query(
+    const existing = await pool.query(
+      'SELECT account_id FROM app_accounting_settings WHERE setting_key = $1',
+      [account.key],
+    );
+    if (existing.rows.length) continue;
+    await pool.query(
       `
       INSERT INTO app_accounts (
-        account_code, account_name, account_type, normal_balance
+        account_code, account_name, account_type, normal_balance, account_detail_type
       )
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (account_code) DO UPDATE
-      SET account_name = EXCLUDED.account_name,
-        account_type = EXCLUDED.account_type,
-        normal_balance = EXCLUDED.normal_balance,
-        updated_at = now()
-      RETURNING id
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (account_code) DO NOTHING
       `,
-      [account.code, account.name, account.type, account.normal],
+      [account.code, account.name, account.type, account.normal, account.detailType],
     );
+    const { rows } = await pool.query('SELECT id FROM app_accounts WHERE account_code = $1', [account.code]);
     await pool.query(
       `
       INSERT INTO app_accounting_settings (setting_key, account_id)
@@ -1364,6 +1603,47 @@ async function seedDefaultAccounts(pool) {
       [account.key, Number(rows[0].id)],
     );
   }
+}
+
+async function backfillDefaultAccountDetailTypes(pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS wm_schema_migrations (
+      migration_key TEXT PRIMARY KEY
+    )
+  `);
+  const values = DEFAULT_ACCOUNTS.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
+  const params = DEFAULT_ACCOUNTS.flatMap((account) => [account.key, account.detailType]);
+  await pool.query(`
+    WITH claimed AS (
+      INSERT INTO wm_schema_migrations (migration_key)
+      VALUES ('default_account_detail_types_v1')
+      ON CONFLICT DO NOTHING
+      RETURNING migration_key
+    ), mapping (setting_key, detail_type) AS (VALUES ${values})
+    UPDATE app_accounts account
+    SET account_detail_type = mapping.detail_type, updated_at = now()
+    FROM app_accounting_settings setting, mapping
+    WHERE account.id = setting.account_id
+      AND setting.setting_key = mapping.setting_key
+      AND account.account_detail_type IS NULL
+      AND EXISTS (SELECT 1 FROM claimed)
+  `, params);
+}
+
+async function backfillInvoicePostingTimes(pool) {
+  await pool.query(`
+    WITH claimed AS (
+      INSERT INTO wm_schema_migrations (migration_key)
+      VALUES ('invoice_posting_time_from_created_at_v1')
+      ON CONFLICT DO NOTHING
+      RETURNING migration_key
+    )
+    UPDATE app_invoices
+    SET posting_time = (created_at AT TIME ZONE 'Africa/Kampala')::time
+    WHERE posting_time = TIME '00:00:00'
+      AND created_at IS NOT NULL
+      AND EXISTS (SELECT 1 FROM claimed)
+  `);
 }
 
 async function allPostgresInvoices() {
@@ -1395,6 +1675,7 @@ async function paginatedPostgresInvoices(options = {}) {
     params.push(sqlLikePattern(search));
     where.push(`(
       LOWER(COALESCE(invoice_no, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(non_system_invoice, '')) LIKE $${params.length}
       OR invoice_date::text LIKE $${params.length}
       OR LOWER(customer_name) LIKE $${params.length}
       OR total::text LIKE $${params.length}
@@ -1427,8 +1708,10 @@ async function paginatedPostgresInvoices(options = {}) {
       SELECT
         invoice.id,
         invoice.invoice_no,
+        invoice.non_system_invoice,
         invoice.docstatus,
         invoice.invoice_date,
+        invoice.posting_time,
         invoice.due_date,
         invoice.customer_id,
         invoice.customer_name,
@@ -1440,12 +1723,12 @@ async function paginatedPostgresInvoices(options = {}) {
         invoice.total,
         CASE
           WHEN COALESCE(invoice.docstatus, 'submitted') = 'draft' THEN 0
-          ELSE COALESCE(payment_totals.amount_paid, 0)
+          ELSE COALESCE(payment_totals.amount_paid, 0) + COALESCE(journal_totals.amount_paid, 0)
         END AS amount_paid,
         CASE
           WHEN COALESCE(invoice.docstatus, 'submitted') = 'draft' THEN 'unpaid'
-          WHEN COALESCE(payment_totals.amount_paid, 0) <= 0 THEN 'unpaid'
-          WHEN COALESCE(payment_totals.amount_paid, 0) >= invoice.total THEN 'paid'
+          WHEN COALESCE(payment_totals.amount_paid, 0) + COALESCE(journal_totals.amount_paid, 0) <= 0 THEN 'unpaid'
+          WHEN COALESCE(payment_totals.amount_paid, 0) + COALESCE(journal_totals.amount_paid, 0) >= invoice.total THEN 'paid'
           ELSE 'partial'
         END AS status,
         invoice.created_at,
@@ -1457,6 +1740,26 @@ async function paginatedPostgresInvoices(options = {}) {
         WHERE docstatus = 'submitted'
         GROUP BY invoice_id
       ) payment_totals ON payment_totals.invoice_id = invoice.id
+      LEFT JOIN (
+        SELECT invoice.id AS invoice_id, SUM(journal_payment.amount) AS amount_paid
+        FROM app_invoices invoice
+        JOIN (
+          SELECT journal.id, journal.reference_no, journal.party_id, journal.party_name,
+            SUM(line.credit - line.debit) AS amount
+          FROM app_journal_entries journal
+          JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+          JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+            AND setting.account_id = line.account_id
+          WHERE journal.docstatus = 'submitted' AND journal.party_type = 'customer'
+            AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+            AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
+          GROUP BY journal.id
+          HAVING SUM(line.credit - line.debit) > 0
+        ) journal_payment ON journal_payment.reference_no = invoice.invoice_no
+          AND (NULLIF(journal_payment.party_id, '') = NULLIF(invoice.customer_id, '')
+            OR (COALESCE(journal_payment.party_id, '') = '' AND journal_payment.party_name = invoice.customer_name))
+        GROUP BY invoice.id
+      ) journal_totals ON journal_totals.invoice_id = invoice.id
     ) invoice
   `;
   const [countResult, pageResult] = await Promise.all([
@@ -1469,8 +1772,10 @@ async function paginatedPostgresInvoices(options = {}) {
     SELECT
       id,
       invoice_no,
+      non_system_invoice,
       docstatus,
       invoice_date::text,
+      posting_time::text,
       due_date::text,
       customer_id,
       customer_name,
@@ -1502,13 +1807,18 @@ function postgresInvoiceListRow(row) {
   return normalizeInvoiceTotals({
     id: Number(row.id),
     invoice_no: row.invoice_no,
+    non_system_invoice: row.non_system_invoice,
     docstatus: row.docstatus,
     invoice_date: dateOnly(row.invoice_date),
+    posting_time: storedPostingTime(row.posting_time),
     due_date: dateOnly(row.due_date),
     customer_id: row.customer_id,
     customer_name: row.customer_name,
     customer_phone: row.customer_phone,
     price_list: row.price_list,
+    cost_center: row.cost_center,
+    invoicer_id: row.invoicer_id,
+    invoicer: row.invoicer,
     subtotal: Number(row.subtotal || 0),
     tax_amount: Number(row.tax_amount || 0),
     discount_amount: Number(row.discount_amount || 0),
@@ -1540,15 +1850,15 @@ async function createPostgresInvoice(payload) {
       `
       INSERT INTO app_invoices (
         docstatus, invoice_date, due_date, customer_id, customer_name, customer_phone,
-        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale
+        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale, posting_time, non_system_invoice, cost_center, invoicer, invoicer_id
       )
       VALUES (
         'draft', $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11, $12, $13, $14
+        $6, $7, $8, $9, $10, $11, $12, $13, $16, $14, $15, $17, $18, $19
       )
       RETURNING id
       `,
-      [...invoiceParams(invoiceData), payload.is_cash_sale === true],
+      [...invoiceParams(invoiceData), payload.is_cash_sale === true, invoiceData.cost_center, invoiceData.invoicer, invoiceData.invoicer_id],
     );
     const id = Number(rows[0].id);
     const invoiceNo = `INV-${String(id).padStart(6, '0')}`;
@@ -1576,15 +1886,15 @@ async function createCashSaleInvoice(payload, payment) {
       `
       INSERT INTO app_invoices (
         docstatus, invoice_date, due_date, customer_id, customer_name, customer_phone,
-        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale
+        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale, posting_time, non_system_invoice, cost_center, invoicer, invoicer_id
       )
       VALUES (
         'draft', $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11, $12, $13, $14
+        $6, $7, $8, $9, $10, $11, $12, $13, $16, $14, $15, $17, $18, $19
       )
       RETURNING id
       `,
-      [...invoiceParams(invoiceData), true],
+      [...invoiceParams(invoiceData), true, invoiceData.cost_center, invoiceData.invoicer, invoiceData.invoicer_id],
     );
     const id = Number(rows[0].id);
     const invoiceNo = `INV-${String(id).padStart(6, '0')}`;
@@ -1645,20 +1955,22 @@ async function createCashSaleInvoice(payload, payment) {
     await postSalesInvoiceGlEntry(client, invoice);
 
     const paymentData = buildPaymentData(payment, [], 1);
+    const destination = paymentData.account_id ? await validateReceivingAccount(client, paymentData.account_id) : null;
     const { rows: paymentRows } = await client.query(
       `
       INSERT INTO app_invoice_payments (
-        invoice_id, payment_no, payment_date, amount, method, reference, notes, created_at
+        invoice_id, payment_no, payment_date, amount, method, account_id, reference, notes, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, payment_no, payment_date, amount, method, reference, notes, journal_entry_id
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
       `,
       [
         id,
         paymentData.id,
         paymentData.payment_date,
         paymentData.amount,
-        paymentData.method,
+        destination?.method || paymentData.method,
+        destination?.id || null,
         paymentData.reference,
         paymentData.notes,
         paymentData.created_at,
@@ -1704,10 +2016,15 @@ async function updatePostgresInvoice(id, payload) {
         amount_paid = $11,
         status = $12,
         price_list = $13,
+        posting_time = $14,
+        non_system_invoice = $15,
+        cost_center = $16,
+        invoicer = $17,
+        invoicer_id = $18,
         updated_at = now()
-      WHERE id = $14
+      WHERE id = $19
       `,
-      [...invoiceParams(invoiceData), Number(id)],
+      [...invoiceParams(invoiceData), invoiceData.cost_center, invoiceData.invoicer, invoiceData.invoicer_id, Number(id)],
     );
     await client.query('DELETE FROM app_invoice_payments WHERE invoice_id = $1', [Number(id)]);
     await syncPostgresInvoiceItems(client, Number(id), invoice.invoice_no, invoiceData.items);
@@ -1782,7 +2099,7 @@ async function submitPostgresInvoice(id) {
     });
     const { rows: paymentRows } = await client.query(
       `
-      SELECT id, payment_no, payment_date, amount, method, reference, notes, journal_entry_id
+      SELECT id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
       FROM app_invoice_payments
       WHERE invoice_id = $1
       ORDER BY payment_no
@@ -1870,20 +2187,22 @@ async function submitCashSaleInvoice(id, payment) {
     await postSalesInvoiceGlEntry(client, invoiceForGl);
 
     const paymentData = buildPaymentData(payment, [], 1);
+    const destination = paymentData.account_id ? await validateReceivingAccount(client, paymentData.account_id) : null;
     const { rows: paymentRows } = await client.query(
       `
       INSERT INTO app_invoice_payments (
-        invoice_id, payment_no, payment_date, amount, method, reference, notes, created_at
+        invoice_id, payment_no, payment_date, amount, method, account_id, reference, notes, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, payment_no, payment_date, amount, method, reference, notes, journal_entry_id
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
       `,
       [
         Number(id),
         paymentData.id,
         paymentData.payment_date,
         paymentData.amount,
-        paymentData.method,
+        destination?.method || paymentData.method,
+        destination?.id || null,
         paymentData.reference,
         paymentData.notes,
         paymentData.created_at,
@@ -1998,7 +2317,28 @@ async function addPostgresInvoicePayment(id, payload) {
     const totals = totalsRows[0] || {};
     const nextPaymentNo = Number(totals.max_payment_no || 0) + 1;
     const payment = buildPaymentData(payload, [], nextPaymentNo);
-    const balanceDue = roundMoney(Number(invoice.total || 0) - Number(totals.amount_paid || 0));
+    const destination = payment.account_id ? await validateReceivingAccount(client, payment.account_id) : null;
+    const { rows: journalTotals } = await client.query(
+      `
+      SELECT COALESCE(SUM(journal_payment.amount), 0)::float AS amount_paid
+      FROM (
+        SELECT journal.id, SUM(line.credit - line.debit) AS amount
+        FROM app_journal_entries journal
+        JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+        JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+          AND setting.account_id = line.account_id
+        WHERE journal.reference_no = $1 AND journal.docstatus = 'submitted'
+          AND journal.party_type = 'customer'
+          AND (NULLIF(journal.party_id, '') = NULLIF($2, '') OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = $3))
+          AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+          AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
+        GROUP BY journal.id
+        HAVING SUM(line.credit - line.debit) > 0
+      ) journal_payment
+      `,
+      [invoice.invoice_no, invoice.customer_id, invoice.customer_name],
+    );
+    const balanceDue = roundMoney(Number(invoice.total || 0) - Number(totals.amount_paid || 0) - Number(journalTotals[0].amount_paid || 0));
     if (payment.amount > balanceDue) {
       const err = new Error('Payment amount cannot exceed the invoice balance.');
       err.status = 400;
@@ -2008,17 +2348,18 @@ async function addPostgresInvoicePayment(id, payload) {
     const { rows: paymentRows } = await client.query(
       `
       INSERT INTO app_invoice_payments (
-        invoice_id, payment_no, payment_date, amount, method, reference, notes, created_at
+        invoice_id, payment_no, payment_date, amount, method, account_id, reference, notes, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, payment_no, payment_date, amount, method, reference, notes, journal_entry_id
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
       `,
       [
         Number(id),
         payment.id,
         payment.payment_date,
         payment.amount,
-        payment.method,
+        destination?.method || payment.method,
+        destination?.id || null,
         payment.reference,
         payment.notes,
         payment.created_at,
@@ -2140,21 +2481,21 @@ async function syncAllPostgresInvoicePaymentTotals(pool) {
 
 async function postgresInvoiceSummary() {
   const { rows } = await getPostgresPool().query(`
+    WITH ${postgresInvoiceBalancesCte()}
     SELECT
       COUNT(*)::int AS invoice_count,
       COALESCE(SUM(total), 0)::float AS invoice_total,
       COALESCE(SUM(amount_paid), 0)::float AS paid_total,
-      COALESCE(SUM(total - amount_paid), 0)::float AS balance_due
-    FROM (
-      SELECT
-        invoice.id,
-        invoice.total,
-        COALESCE(SUM(payment.amount), 0) AS amount_paid
-      FROM app_invoices invoice
-      LEFT JOIN app_invoice_payments payment ON payment.invoice_id = invoice.id AND payment.docstatus = 'submitted'
-      WHERE invoice.docstatus = 'submitted'
-      GROUP BY invoice.id, invoice.total
-    ) totals
+      (SELECT COALESCE(SUM(balance_due), 0)::float FROM (
+        SELECT SUM(debit - credit) AS balance_due
+        FROM ar_ledger
+        WHERE party_type = 'customer'
+          AND COALESCE(NULLIF(party_id, ''), party_name) IS NOT NULL
+        GROUP BY COALESCE(NULLIF(party_id, ''), party_name)
+        HAVING SUM(debit - credit) > 0
+      ) debtors) AS balance_due
+    FROM invoice_balances
+    WHERE docstatus = 'submitted'
   `);
   return rows[0] || {
     invoice_count: 0,
@@ -2167,20 +2508,17 @@ async function postgresInvoiceSummary() {
 async function postgresTopDebtors(limit = 10) {
   const { rows } = await getPostgresPool().query(
     `
-    SELECT customer_name, COALESCE(SUM(balance_due), 0)::float AS balance_due
-    FROM (
-      SELECT
-        invoice.id,
-        invoice.customer_name,
-        invoice.total - COALESCE(SUM(payment.amount), 0) AS balance_due
-      FROM app_invoices invoice
-      LEFT JOIN app_invoice_payments payment ON payment.invoice_id = invoice.id AND payment.docstatus = 'submitted'
-      WHERE invoice.docstatus = 'submitted'
-      GROUP BY invoice.id, invoice.customer_name, invoice.total
-    ) balances
-    WHERE balance_due > 0
-    GROUP BY customer_name
-    ORDER BY COALESCE(SUM(balance_due), 0) DESC
+    SELECT COALESCE(NULLIF(gl.party_id, ''), gl.party_name) AS customer_key,
+      MAX(gl.party_name) AS customer_name,
+      SUM(gl.debit - gl.credit)::float AS balance_due
+    FROM app_gl_entries gl
+    JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+      AND setting.account_id = gl.account_id
+    WHERE gl.party_type = 'customer'
+      AND COALESCE(NULLIF(gl.party_id, ''), gl.party_name) IS NOT NULL
+    GROUP BY COALESCE(NULLIF(gl.party_id, ''), gl.party_name)
+    HAVING SUM(gl.debit - gl.credit) > 0
+    ORDER BY SUM(gl.debit - gl.credit) DESC
     LIMIT $1
     `,
     [Number(limit)],
@@ -2691,6 +3029,9 @@ async function masterCostCenters(options = {}) {
       company,
       cost_center_type,
       is_group,
+      CASE WHEN is_group THEN 'Yes' ELSE 'No' END AS group_label,
+      docstatus,
+      legacy_editable,
       CASE WHEN disabled THEN '1' ELSE '0' END AS disabled,
       CASE WHEN disabled THEN 'Disabled' ELSE 'Enabled' END AS status
     FROM app_master_cost_centers
@@ -2784,7 +3125,7 @@ async function findMasterRecord(kind, id) {
   if (kind === 'employees') {
     return findMasterEmployee(id, { includeDisabled: true });
   }
-  if (kind === 'cost_centers') {
+  if (kind === 'cost_centers' || kind === 'cost-centers') {
     return findMasterCostCenter(id, { includeGroups: true, includeDisabled: true });
   }
   if (kind === 'options') {
@@ -2993,6 +3334,8 @@ async function findMasterCostCenter(costCenterName, options = {}) {
       company,
       cost_center_type,
       is_group,
+      docstatus,
+      legacy_editable,
       CASE WHEN disabled THEN '1' ELSE '0' END AS disabled,
       CASE WHEN disabled THEN 'Disabled' ELSE 'Enabled' END AS status
     FROM app_master_cost_centers
@@ -3040,6 +3383,9 @@ async function createMasterRecord(kind, payload) {
   if (kind === 'employees') {
     return createMasterEmployee(payload);
   }
+  if (kind === 'cost-centers') {
+    return createMasterCostCenter(payload);
+  }
   if (kind === 'options') {
     return createMasterOption(payload);
   }
@@ -3055,6 +3401,7 @@ const MASTER_RECORD_TABLES = {
   suppliers: ['app_master_suppliers', 'supplier_id'],
   warehouses: ['app_master_warehouses', 'warehouse'],
   employees: ['app_master_employees', 'employee_id'],
+  'cost-centers': ['app_master_cost_centers', 'cost_center'],
   options: ['app_master_options', 'id'],
 };
 
@@ -3064,7 +3411,7 @@ async function setMasterRecordActive(kind, id, active) {
   const fields = MASTER_RECORD_TABLES[kind];
   if (!fields) { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
   const { rowCount } = await getPostgresPool().query(
-    `UPDATE ${fields[0]} SET disabled = $2, docstatus = 'submitted', updated_at = now() WHERE ${fields[1]} = $1`,
+    `UPDATE ${fields[0]} SET disabled = $2, docstatus = 'submitted', updated_at = now()${kind === 'cost-centers' ? ', legacy_editable = false' : ''} WHERE ${fields[1]} = $1`,
     [id, !active],
   );
   if (!rowCount) { const error = new Error('Master record not found.'); error.status = 404; throw error; }
@@ -3117,8 +3464,8 @@ async function updateMasterRecord(kind, id, payload) {
   if (kind === 'employees') {
     return updateMasterEmployee(id, payload);
   }
-  if (kind === 'cost_centers') {
-    return updateMasterCostCenter(id, payload);
+  if (kind === 'cost_centers' || kind === 'cost-centers') {
+    return updateMasterCostCenter(id, payload, { upsert: kind === 'cost_centers' });
   }
   if (kind === 'options') {
     return updateMasterOption(id, payload);
@@ -3445,18 +3792,45 @@ async function updateMasterEmployee(id, payload) {
   return employeeId;
 }
 
-async function updateMasterCostCenter(id, payload) {
+async function createMasterCostCenter(payload) {
+  const costCenterName = requiredValue(payload.cost_center_name, 'Cost center name is required.');
+  const costCenter = optionalValue(payload.cost_center) || costCenterName;
+  const isGroup = ['1', 'true'].includes(String(payload.is_group || '').toLowerCase());
+  await getPostgresPool().query(
+    `INSERT INTO app_master_cost_centers (
+      cost_center, cost_center_name, parent_cost_center, company,
+      cost_center_type, is_group, disabled, docstatus, legacy_editable
+    ) VALUES ($1, $2, $3, $4, $5, $6, true, 'submitted', false)`,
+    [costCenter, costCenterName, optionalValue(payload.parent_cost_center),
+      optionalValue(payload.company), optionalValue(payload.cost_center_type), isGroup],
+  );
+  return costCenter;
+}
+
+async function updateMasterCostCenter(id, payload, options = {}) {
   const costCenter = requiredValue(id, 'Cost center is required.');
   const costCenterName = requiredValue(payload.cost_center_name || id, 'Cost center name is required.');
+  const isGroup = ['1', 'true'].includes(String(payload.is_group || '').toLowerCase());
+  const fields = [costCenter, costCenterName, optionalValue(payload.parent_cost_center),
+    optionalValue(payload.company), optionalValue(payload.cost_center_type), isGroup];
+  if (!options.upsert) {
+    const { rowCount } = await getPostgresPool().query(
+      `UPDATE app_master_cost_centers
+       SET cost_center_name = $2, parent_cost_center = $3, company = $4,
+         cost_center_type = $5, is_group = $6, legacy_editable = false, updated_at = now()
+       WHERE cost_center = $1`, fields,
+    );
+    assertMasterUpdateApplied(rowCount);
+    return costCenter;
+  }
   const disabled = String(payload.disabled || '0') === '1';
-  const isGroup = String(payload.is_group || '0') === '1' || payload.is_group === true;
   await getPostgresPool().query(
     `
     INSERT INTO app_master_cost_centers (
       cost_center, cost_center_name, parent_cost_center, company,
-      cost_center_type, is_group, disabled
+      cost_center_type, is_group, disabled, legacy_editable
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, true)
     ON CONFLICT (cost_center) DO UPDATE SET
       cost_center_name = EXCLUDED.cost_center_name,
       parent_cost_center = EXCLUDED.parent_cost_center,
@@ -3465,16 +3839,9 @@ async function updateMasterCostCenter(id, payload) {
       is_group = EXCLUDED.is_group,
       disabled = EXCLUDED.disabled,
       updated_at = now()
+    WHERE app_master_cost_centers.legacy_editable = true
     `,
-    [
-      costCenter,
-      costCenterName,
-      optionalValue(payload.parent_cost_center),
-      optionalValue(payload.company),
-      optionalValue(payload.cost_center_type),
-      isGroup,
-      disabled,
-    ],
+    [...fields, disabled],
   );
   return costCenter;
 }
@@ -3534,6 +3901,7 @@ async function createStockEntry(payload) {
     err.status = 400;
     throw err;
   }
+  const postingTime = normalizePostingTime(payload.posting_time);
   const items = normalizeStockEntryItems(payload.items, entryType);
   if (!items.length) {
     const err = new Error('Add at least one stock item.');
@@ -3547,10 +3915,10 @@ async function createStockEntry(payload) {
     const { rows } = await client.query(
       `
       INSERT INTO app_stock_entries (
-        entry_type, docstatus, posting_date, remarks, supplier_name, supplier_contact,
+        entry_type, docstatus, posting_date, posting_time, remarks, supplier_name, supplier_contact,
         supplier_phone, supplier_reference
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $9, $4, $5, $6, $7, $8)
       RETURNING id
       `,
       [
@@ -3562,6 +3930,7 @@ async function createStockEntry(payload) {
         supplier.supplier_contact || null,
         supplier.supplier_phone || null,
         supplier.supplier_reference || null,
+        postingTime,
       ],
     );
     const id = Number(rows[0].id);
@@ -3592,7 +3961,7 @@ async function loadStockEntry(id) {
   const { rows } = await getPostgresPool().query(
     `
     SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
-      id, entry_no, entry_type, docstatus, posting_date::text, remarks,
+      id, entry_no, entry_type, docstatus, posting_date::text, posting_time::text, remarks,
       supplier_name, supplier_contact, supplier_phone, supplier_reference,
       submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at
@@ -3622,6 +3991,7 @@ async function loadStockEntry(id) {
     entry: {
       ...entry,
       posting_date: dateOnly(entry.posting_date),
+      posting_time: storedPostingTime(entry.posting_time),
       ...normalizeSupplierInfo(entry),
     },
     items: items.map((item) => ({
@@ -3754,6 +4124,7 @@ async function updateStockEntry(id, payload) {
     err.status = 400;
     throw err;
   }
+  const postingTime = normalizePostingTime(payload.posting_time);
   const items = normalizeStockEntryItems(payload.items, entryType);
   if (!items.length) {
     const err = new Error('Add at least one stock item.');
@@ -3786,6 +4157,7 @@ async function updateStockEntry(id, payload) {
       SET entry_type = $1,
           docstatus = $2,
           posting_date = $3,
+          posting_time = $10,
           remarks = $4,
           supplier_name = $5,
           supplier_contact = $6,
@@ -3803,6 +4175,7 @@ async function updateStockEntry(id, payload) {
         supplier.supplier_phone || null,
         supplier.supplier_reference || null,
         stockEntryId,
+        postingTime,
       ],
     );
     if (docstatus === 'submitted') {
@@ -4615,7 +4988,7 @@ async function accountingAccounts(options = {}) {
     where.push(`id::text <> ALL($${params.length}::text[])`);
   }
   const { rows } = await getPostgresPool().query(`
-    SELECT id, account_code, account_name, account_type, normal_balance, is_group, is_active
+    SELECT id, account_code, account_name, account_type, account_detail_type, normal_balance, is_group, is_active
     FROM app_accounts
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY account_code, account_name
@@ -4631,18 +5004,83 @@ async function postableAccountingAccounts(options = {}) {
     .filter((account) => account.is_active && !account.is_group);
 }
 
+async function receivingAccounts(options = {}) {
+  if (!usePostgresStore()) {
+    return DEFAULT_ACCOUNTS.filter((account) => ['Cash', 'Bank'].includes(account.detailType))
+      .map((account) => ({ id: Number(account.code), account_code: account.code,
+        account_name: account.name, account_detail_type: account.detailType }));
+  }
+  return (await postableAccountingAccounts(options))
+    .filter((account) => account.account_type === 'asset'
+      && ['Cash', 'Bank'].includes(account.account_detail_type));
+}
+
+async function validateReceivingAccount(client, value) {
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) {
+    const error = new Error('Choose a cash or bank account.'); error.status = 400; throw error;
+  }
+  const { rows } = await client.query(`
+    SELECT id, account_name, account_detail_type FROM app_accounts
+    WHERE id = $1 AND account_type = 'asset' AND account_detail_type IN ('Cash', 'Bank')
+      AND is_active = true AND is_group = false
+  `, [id]);
+  if (!rows[0]) { const error = new Error('Choose an active cash or bank account.'); error.status = 400; throw error; }
+  return { id, method: rows[0].account_detail_type.toLowerCase(), account_name: rows[0].account_name };
+}
+
+async function findAccountingAccount(id) {
+  assertPostgresAccounting();
+  const accountId = Number(id);
+  if (!Number.isSafeInteger(accountId) || accountId < 1) {
+    const err = new Error('Account not found.');
+    err.status = 404;
+    throw err;
+  }
+  const { rows } = await getPostgresPool().query(
+    'SELECT id, account_code, account_name, account_type, account_detail_type, normal_balance, is_group, is_active FROM app_accounts WHERE id = $1',
+    [accountId],
+  );
+  if (!rows.length) {
+    const err = new Error('Account not found.');
+    err.status = 404;
+    throw err;
+  }
+  return { ...rows[0], id: Number(rows[0].id) };
+}
+
 async function createAccountingAccount(payload) {
   assertPostgresAccounting();
   const account = normalizeAccountingAccountPayload(payload);
   const { rows } = await getPostgresPool().query(
     `
     INSERT INTO app_accounts (
-      account_code, account_name, account_type, normal_balance, is_group, is_active
+      account_code, account_name, account_type, account_detail_type, normal_balance, is_group, is_active
     )
-    VALUES ($1, $2, $3, $4, false, true)
+    VALUES ($1, $2, $3, $4, $5, false, true)
     RETURNING id
     `,
-    [account.account_code, account.account_name, account.account_type, account.normal_balance],
+    [account.account_code, account.account_name, account.account_type,
+      account.account_detail_type, account.normal_balance],
+  );
+  return Number(rows[0].id);
+}
+
+async function updateAccountingAccount(id, payload) {
+  const existing = await findAccountingAccount(id);
+  const account = normalizeAccountingAccountPayload(payload);
+  if (!['0', '1'].includes(String(payload.is_active))) {
+    const err = new Error('Choose a valid account status.');
+    err.status = 400;
+    throw err;
+  }
+  const { rows } = await getPostgresPool().query(
+    `UPDATE app_accounts
+     SET account_code = $2, account_name = $3, account_type = $4,
+         account_detail_type = $5, normal_balance = $6, is_active = $7, updated_at = now()
+     WHERE id = $1 RETURNING id`,
+    [existing.id, account.account_code, account.account_name, account.account_type,
+      account.account_detail_type, account.normal_balance, String(payload.is_active) === '1'],
   );
   return Number(rows[0].id);
 }
@@ -4698,7 +5136,7 @@ async function journalEntries(options = {}) {
     `
     SELECT
       id, journal_no, COALESCE(docstatus, 'submitted') AS docstatus,
-      journal_type, posting_date::text, party_type, party_id,
+      journal_type, posting_date::text, posting_time::text, party_type, party_id,
       party_name, reference_no, remarks, total_debit::float, total_credit::float,
       created_at
     FROM app_journal_entries
@@ -4711,6 +5149,7 @@ async function journalEntries(options = {}) {
   const journals = rows.map((row) => ({
     ...row,
     id: Number(row.id),
+    posting_time: storedPostingTime(row.posting_time),
     created_at: toIsoString(row.created_at),
   }));
   journals.pagination = paginationResult(Number(countResult.rows[0].total || 0), pagination);
@@ -4727,13 +5166,15 @@ async function findJournalEntry(id) {
     `
     SELECT
       id, journal_no, COALESCE(docstatus, 'submitted') AS docstatus,
-      journal_type, posting_date::text, party_type, party_id,
+      journal_type, posting_date::text, posting_time::text, party_type, party_id,
       party_name, reference_no, remarks, total_debit::float, total_credit::float,
       created_at, created_by, created_by_user_id, updated_by, updated_by_user_id, updated_at,
       submitted_by, submitted_by_user_id, submitted_at,
-      cancelled_by, cancelled_by_user_id, cancelled_at
-    FROM app_journal_entries
-    WHERE id = $1
+      cancelled_by, cancelled_by_user_id, cancelled_at,
+      EXISTS (SELECT 1 FROM app_invoice_payments payment
+        WHERE payment.journal_entry_id = journal.id) AS linked_payment
+    FROM app_journal_entries journal
+    WHERE journal.id = $1
     `,
     [journalId],
   );
@@ -4758,6 +5199,8 @@ async function findJournalEntry(id) {
   return {
     ...journal,
     id: Number(journal.id),
+    posting_time: storedPostingTime(journal.posting_time),
+    can_cancel: isManualJournalType(journal.journal_type, journal.linked_payment),
     created_at: toIsoString(journal.created_at),
     lines: lines.map((line) => ({ ...line, id: Number(line.id), account_id: Number(line.account_id) })),
   };
@@ -4768,13 +5211,14 @@ async function createJournalEntry(payload, options = {}) {
   const journal = normalizeJournalEntryPayload(payload);
   const submit = options.submit !== false;
   return withPostgresTransaction(async (client) => {
+    if (submit) await validateJournalInvoicePayment(client, journal);
     const { rows } = await client.query(
       `
       INSERT INTO app_journal_entries (
         journal_type, posting_date, party_type, party_id, party_name, reference_no,
-        remarks, total_debit, total_credit, docstatus
+        remarks, total_debit, total_credit, docstatus, posting_time
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id
       `,
       [
@@ -4788,6 +5232,7 @@ async function createJournalEntry(payload, options = {}) {
         journal.total_debit,
         journal.total_credit,
         submit ? 'submitted' : 'draft',
+        journal.posting_time,
       ],
     );
     const id = Number(rows[0].id);
@@ -4840,9 +5285,11 @@ async function updateJournalEntry(id, payload) {
       const error = new Error('Only draft journals can be edited.'); error.status = 400; throw error;
     }
     await client.query(`UPDATE app_journal_entries SET journal_type = $2, posting_date = $3, party_type = $4,
-      party_id = $5, party_name = $6, reference_no = $7, remarks = $8, total_debit = $9, total_credit = $10
+      party_id = $5, party_name = $6, reference_no = $7, remarks = $8, total_debit = $9, total_credit = $10,
+      posting_time = $11
       WHERE id = $1`, [id, journal.journal_type, journal.posting_date, journal.party_type, journal.party_id,
-      journal.party_name, journal.reference_no, journal.remarks, journal.total_debit, journal.total_credit]);
+      journal.party_name, journal.reference_no, journal.remarks, journal.total_debit, journal.total_credit,
+      journal.posting_time]);
     await syncJournalEntryLines(client, id, journal.lines);
     return Number(id);
   });
@@ -4969,6 +5416,7 @@ async function submitJournalEntry(id) {
     if (lines.length < 2 || roundMoney(lines.reduce((sum, line) => sum + line.debit - line.credit, 0)) !== 0) {
       const error = new Error('Journal debits and credits must balance.'); error.status = 400; throw error;
     }
+    await validateJournalInvoicePayment(client, { ...journal, lines });
     await setVoucherDocstatus(client, 'app_journal_entries', Number(id), 'submitted');
     await postGlEntry(client, {
       posting_date: dateOnly(journal.posting_date),
@@ -4983,6 +5431,57 @@ async function submitJournalEntry(id) {
     });
     return Number(id);
   });
+}
+
+async function validateJournalInvoicePayment(client, journal) {
+  if (journal.party_type !== 'customer' || !journal.reference_no
+      || !['cash_receipt', 'payment_journal', 'journal_entry'].includes(journal.journal_type)) return;
+  const invoiceResult = await client.query(
+    `SELECT id, total, customer_id, customer_name, docstatus FROM app_invoices
+     WHERE invoice_no = $1 FOR UPDATE`,
+    [journal.reference_no],
+  );
+  const invoice = invoiceResult.rows[0];
+  if (!invoice || !(journal.party_id && journal.party_id === invoice.customer_id
+      || (!journal.party_id && journal.party_name === invoice.customer_name))) return;
+  const accountResult = await client.query(
+    "SELECT account_id FROM app_accounting_settings WHERE setting_key = 'accounts_receivable'",
+  );
+  const receivableId = Number(accountResult.rows[0]?.account_id);
+  const credit = roundMoney((journal.lines || []).reduce((sum, line) => (
+    Number(line.account_id) === receivableId
+      ? sum + Number(line.credit || 0) - Number(line.debit || 0) : sum
+  ), 0));
+  if (credit <= 0) return;
+  if (invoice.docstatus !== 'submitted') {
+    const error = new Error('Submit the sales invoice before posting a payment journal.');
+    error.status = 400;
+    throw error;
+  }
+  const totalsResult = await client.query(
+    `SELECT
+       (SELECT COALESCE(SUM(amount), 0) FROM app_invoice_payments
+        WHERE invoice_id = $1 AND docstatus = 'submitted') AS direct_paid,
+       (SELECT COALESCE(SUM(amount), 0) FROM (
+         SELECT SUM(line.credit - line.debit) AS amount
+         FROM app_journal_entries existing
+         JOIN app_journal_entry_lines line ON line.journal_entry_id = existing.id
+         WHERE existing.reference_no = $2 AND existing.docstatus = 'submitted'
+           AND existing.party_type = 'customer'
+           AND existing.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+           AND (NULLIF(existing.party_id, '') = NULLIF($3, '') OR (COALESCE(existing.party_id, '') = '' AND existing.party_name = $4))
+           AND line.account_id = $5
+           AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = existing.id)
+         GROUP BY existing.id HAVING SUM(line.credit - line.debit) > 0
+       ) payments) AS journal_paid`,
+    [invoice.id, journal.reference_no, invoice.customer_id, invoice.customer_name, receivableId],
+  );
+  const totals = totalsResult.rows[0];
+  if (credit > roundMoney(Number(invoice.total) - Number(totals.direct_paid) - Number(totals.journal_paid))) {
+    const error = new Error('Payment amount cannot exceed the invoice balance.');
+    error.status = 400;
+    throw error;
+  }
 }
 
 async function cancelJournalEntry(id) {
@@ -5015,7 +5514,11 @@ async function cancelJournalEntry(id) {
       err.status = 400;
       throw err;
     }
-    if (!isManualJournalType(journal.journal_type)) {
+    const linkedPayment = await client.query(
+      'SELECT 1 FROM app_invoice_payments WHERE journal_entry_id = $1 LIMIT 1',
+      [journalId],
+    );
+    if (!isManualJournalType(journal.journal_type, linkedPayment.rowCount > 0)) {
       const err = new Error('Automatically generated journals cannot be cancelled here.');
       err.status = 400;
       throw err;
@@ -5039,8 +5542,10 @@ async function cancelJournalEntry(id) {
   });
 }
 
-function isManualJournalType(type) {
-  return ['cash_receipt', 'journal_entry'].includes(String(type || '').trim());
+function isManualJournalType(type, linkedPayment = false) {
+  const journalType = String(type || '').trim();
+  return ['cash_receipt', 'journal_entry'].includes(journalType)
+    || (journalType === 'payment_journal' && !linkedPayment);
 }
 
 async function generalLedgerReport(filters = {}) {
@@ -5142,7 +5647,7 @@ async function generalLedgerReport(filters = {}) {
     FROM app_gl_entries gl
     INNER JOIN app_accounts account ON account.id = gl.account_id
     ${whereSql}
-    ORDER BY gl.posting_date DESC, gl.id DESC
+    ORDER BY gl.posting_date ASC, gl.id ASC
     LIMIT $${params.length - 1} OFFSET $${params.length}
     `,
     params,
@@ -5286,16 +5791,40 @@ async function journalReferenceOptions(filters = {}) {
     const { rows } = await getPostgresPool().query(
       `
       SELECT
-        invoice_no AS reference,
+        invoice.invoice_no AS reference,
         'Invoice' AS type,
-        invoice_date::text AS posting_date,
-        customer_name AS party_name,
-        total::float AS amount,
-        status,
-        id
-      FROM app_invoices
-      WHERE customer_id = $1 OR customer_name = $2
-      ORDER BY invoice_date DESC, id DESC
+        invoice.invoice_date::text AS posting_date,
+        invoice.customer_name AS party_name,
+        invoice.total::float AS amount,
+        CASE WHEN invoice.docstatus = 'submitted' THEN
+          GREATEST(invoice.total - direct_paid.amount - journal_paid.amount, 0)::float
+          ELSE NULL::float END AS balance,
+        invoice.status,
+        invoice.id
+      FROM app_invoices invoice
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(payment.amount), 0) AS amount
+        FROM app_invoice_payments payment
+        WHERE payment.invoice_id = invoice.id AND payment.docstatus = 'submitted'
+      ) direct_paid ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(payment.amount), 0) AS amount FROM (
+          SELECT SUM(line.credit - line.debit) AS amount
+          FROM app_journal_entries journal
+          JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+          JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+            AND setting.account_id = line.account_id
+          WHERE journal.reference_no = invoice.invoice_no AND journal.docstatus = 'submitted'
+            AND journal.party_type = 'customer'
+            AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+            AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
+              OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+            AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
+          GROUP BY journal.id HAVING SUM(line.credit - line.debit) > 0
+        ) payment
+      ) journal_paid ON true
+      WHERE invoice.customer_id = $1 OR invoice.customer_name = $2
+      ORDER BY invoice.invoice_date DESC, invoice.id DESC
       LIMIT 200
       `,
       [partyId, partyName],
@@ -5304,6 +5833,18 @@ async function journalReferenceOptions(filters = {}) {
   }
 
   if (partyType === 'supplier') {
+    const purchases = await getPostgresPool().query(
+      `SELECT purchase_no AS reference, 'Purchase' AS type, posting_date::text,
+        supplier_name AS party_name, total::float AS amount,
+        CASE WHEN docstatus = 'submitted' THEN GREATEST(total - amount_paid, 0)::float
+          ELSE NULL::float END AS balance,
+        docstatus AS status, id
+       FROM app_purchases
+       WHERE supplier_id = $1 OR supplier_name = $2
+       ORDER BY posting_date DESC, id DESC LIMIT 200`,
+      [partyId, partyName],
+    );
+    purchases.rows.forEach(addOption);
     const { rows } = await getPostgresPool().query(
       `
       SELECT
@@ -5312,6 +5853,7 @@ async function journalReferenceOptions(filters = {}) {
         posting_date::text AS posting_date,
         supplier_name AS party_name,
         NULL::float AS amount,
+        NULL::float AS balance,
         docstatus AS status,
         id
       FROM app_stock_entries
@@ -5338,6 +5880,7 @@ async function journalReferenceOptions(filters = {}) {
         posting_date::text AS posting_date,
         party_name,
         total_debit::float AS amount,
+        NULL::float AS balance,
         NULL::text AS status,
         id
       FROM app_journal_entries
@@ -5356,7 +5899,8 @@ async function journalReferenceOptions(filters = {}) {
         voucher_type AS type,
         MAX(posting_date)::text AS posting_date,
         MAX(party_name) AS party_name,
-        SUM(debit + credit)::float AS amount,
+        GREATEST(SUM(debit), SUM(credit))::float AS amount,
+        NULL::float AS balance,
         NULL::text AS status,
         MAX(voucher_id) AS id
       FROM app_gl_entries
@@ -5380,6 +5924,7 @@ async function journalReferenceOptions(filters = {}) {
       option.posting_date,
       option.party_name,
       option.amount,
+      option.balance,
       option.status,
     ], search))
     .slice(0, limit);
@@ -5652,7 +6197,7 @@ async function backfillAccountingGl() {
 
       const { rows: paymentRows } = await client.query(
         `
-        SELECT id, payment_no, payment_date, amount, method, reference, notes, journal_entry_id
+        SELECT id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
         FROM app_invoice_payments
         WHERE invoice_id = $1 AND docstatus = 'submitted'
         ORDER BY payment_no
@@ -5781,6 +6326,7 @@ async function backfillInvoicePaymentJournals(pool) {
         payment.payment_date,
         payment.amount,
         payment.method,
+        payment.account_id,
         payment.reference,
         payment.notes,
         payment.journal_entry_id,
@@ -5824,7 +6370,7 @@ async function hydratePostgresInvoices(invoiceRows) {
   }
 
   const ids = invoiceRows.map((row) => Number(row.id));
-  const [itemResult, paymentResult] = await Promise.all([
+  const [itemResult, paymentResult, journalResult] = await Promise.all([
     getPostgresPool().query(
       `
       SELECT *
@@ -5836,10 +6382,38 @@ async function hydratePostgresInvoices(invoiceRows) {
     ),
     getPostgresPool().query(
       `
-      SELECT *
-      FROM app_invoice_payments
-      WHERE invoice_id = ANY($1::bigint[])
-      ORDER BY invoice_id, payment_no
+      SELECT payment.*, account.account_name
+      FROM app_invoice_payments payment
+      LEFT JOIN app_accounts account ON account.id = payment.account_id
+      WHERE payment.invoice_id = ANY($1::bigint[])
+      ORDER BY payment.invoice_id, payment.payment_no
+      `,
+      [ids],
+    ),
+    getPostgresPool().query(
+      `
+      SELECT invoice.id AS invoice_id, journal.id AS journal_id, journal.journal_no,
+        journal.posting_date::text AS payment_date, journal.docstatus,
+        journal.remarks, journal.created_at, journal.updated_at,
+        SUM(line.credit - line.debit)::float AS amount
+      FROM app_invoices invoice
+      JOIN app_journal_entries journal ON journal.reference_no = invoice.invoice_no
+        AND journal.party_type = 'customer'
+        AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
+          OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+        AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+        AND journal.docstatus IN ('submitted', 'cancelled')
+      JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = line.account_id
+      WHERE invoice.id = ANY($1::bigint[])
+        AND NOT EXISTS (
+          SELECT 1 FROM app_invoice_payments payment
+          WHERE payment.journal_entry_id = journal.id
+        )
+      GROUP BY invoice.id, journal.id
+      HAVING SUM(line.credit - line.debit) > 0
+      ORDER BY journal.posting_date, journal.id
       `,
       [ids],
     ),
@@ -5847,18 +6421,24 @@ async function hydratePostgresInvoices(invoiceRows) {
 
   const itemsByInvoice = groupByInvoiceId(itemResult.rows);
   const paymentsByInvoice = groupByInvoiceId(paymentResult.rows);
+  const journalPaymentsByInvoice = groupByInvoiceId(journalResult.rows);
   return invoiceRows.map((row) => normalizeInvoiceTotals({
     ...recordAuditFields(row),
     id: Number(row.id),
     invoice_no: row.invoice_no,
+    non_system_invoice: row.non_system_invoice,
     docstatus: row.docstatus,
     is_cash_sale: row.is_cash_sale,
     invoice_date: dateOnly(row.invoice_date),
+    posting_time: storedPostingTime(row.posting_time),
     due_date: dateOnly(row.due_date),
     customer_id: row.customer_id,
     customer_name: row.customer_name,
     customer_phone: row.customer_phone,
     price_list: row.price_list,
+    cost_center: row.cost_center,
+    invoicer_id: row.invoicer_id,
+    invoicer: row.invoicer,
     notes: row.notes,
     subtotal: Number(row.subtotal || 0),
     tax_amount: Number(row.tax_amount || 0),
@@ -5875,7 +6455,21 @@ async function hydratePostgresInvoices(invoiceRows) {
     cancelled_by_user_id: row.cancelled_by_user_id,
     cancelled_at: nullableIsoString(row.cancelled_at),
     items: (itemsByInvoice.get(Number(row.id)) || []).map(postgresItemToInvoiceItem),
-    payments: (paymentsByInvoice.get(Number(row.id)) || []).map(postgresPaymentToInvoicePayment),
+    payments: [
+      ...(paymentsByInvoice.get(Number(row.id)) || []).map(postgresPaymentToInvoicePayment),
+      ...(journalPaymentsByInvoice.get(Number(row.id)) || []).map((journal) => ({
+        id: `journal-${journal.journal_id}`,
+        journal_id: Number(journal.journal_id),
+        docstatus: journal.docstatus,
+        payment_date: journal.payment_date,
+        amount: Number(journal.amount),
+        method: 'Journal Entry',
+        reference: journal.journal_no,
+        notes: journal.remarks,
+        created_at: toIsoString(journal.created_at),
+        updated_at: toIsoString(journal.updated_at),
+      })),
+    ],
   }));
 }
 
@@ -5894,6 +6488,8 @@ function invoiceParams(invoiceData) {
     invoiceData.amount_paid,
     invoiceData.status,
     invoiceData.price_list,
+    invoiceData.posting_time,
+    invoiceData.non_system_invoice,
   ];
 }
 
@@ -6017,19 +6613,21 @@ async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
 
 async function insertPostgresPayments(client, invoiceId, payments) {
   for (const payment of payments || []) {
+    const destination = payment.account_id ? await validateReceivingAccount(client, payment.account_id) : null;
     await client.query(
       `
       INSERT INTO app_invoice_payments (
-        invoice_id, payment_no, payment_date, amount, method, reference, notes, created_at
+        invoice_id, payment_no, payment_date, amount, method, account_id, reference, notes, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
       [
         invoiceId,
         payment.id,
         payment.payment_date,
         payment.amount,
-        payment.method,
+        destination?.method || payment.method,
+        destination?.id || null,
         payment.reference,
         payment.notes,
         payment.created_at,
@@ -6081,6 +6679,83 @@ async function deleteDraftVoucher(kind, value) {
     }
     await client.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
   });
+}
+
+async function updateVoucherPostingTime(kind, value, time) {
+  const postingTime = normalizePostingTime(time, { required: true });
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) {
+    const error = new Error('Voucher not found.'); error.status = 404; throw error;
+  }
+  if (!usePostgresStore()) {
+    if (kind !== 'sales') {
+      const error = new Error('Voucher not found.'); error.status = 404; throw error;
+    }
+    return withStoreLock(async () => {
+      const data = await readStore();
+      const invoice = data.invoices.find((row) => Number(row.id) === id);
+      if (!invoice) { const error = new Error('Invoice not found.'); error.status = 404; throw error; }
+      if ((invoice.docstatus || 'submitted') !== 'draft') {
+        const error = new Error('Posting time can only be changed on draft vouchers.'); error.status = 400; throw error;
+      }
+      invoice.posting_time = postingTime;
+      invoice.updated_at = new Date().toISOString();
+      await writeStore(data);
+      return id;
+    });
+  }
+  const tables = { sales: 'app_invoices', purchases: 'app_purchases', stock: 'app_stock_entries', journals: 'app_journal_entries' };
+  const table = tables[kind];
+  if (!table) { const error = new Error('Voucher not found.'); error.status = 404; throw error; }
+  return withPostgresTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE ${table} SET posting_time = $2, updated_at = now()
+       WHERE id = $1 AND docstatus = 'draft' RETURNING *`,
+      [id, postingTime],
+    );
+    if (!rows.length) {
+      const { rows: existing } = await client.query(`SELECT docstatus FROM ${table} WHERE id = $1`, [id]);
+      if (!existing.length) { const error = new Error('Voucher not found.'); error.status = 404; throw error; }
+      const error = new Error('Posting time can only be changed on draft vouchers.'); error.status = 400; throw error;
+    }
+    if (kind === 'sales') {
+      await client.query(`UPDATE app_journal_entries SET posting_time = $2
+        WHERE journal_type = 'sales_invoice' AND reference_no = $1`, [rows[0].invoice_no, postingTime]);
+    }
+    return id;
+  });
+}
+
+async function updateInvoiceNonSystemNumber(value, input) {
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) {
+    const error = new Error('Invoice not found.'); error.status = 404; throw error;
+  }
+  const nonSystemInvoice = normalizeNonSystemInvoice(input);
+  if (!usePostgresStore()) {
+    return withStoreLock(async () => {
+      const data = await readStore();
+      const invoice = data.invoices.find((row) => Number(row.id) === id);
+      if (!invoice) { const error = new Error('Invoice not found.'); error.status = 404; throw error; }
+      if ((invoice.docstatus || 'submitted') !== 'draft') {
+        const error = new Error('Non-System Invoice can only be changed on draft invoices.'); error.status = 400; throw error;
+      }
+      invoice.non_system_invoice = nonSystemInvoice;
+      invoice.updated_at = new Date().toISOString();
+      await writeStore(data);
+      return id;
+    });
+  }
+  const result = await getPostgresPool().query(
+    "UPDATE app_invoices SET non_system_invoice = $2, updated_at = now() WHERE id = $1 AND docstatus = 'draft' RETURNING id",
+    [id, nonSystemInvoice],
+  );
+  if (!result.rowCount) {
+    const { rows } = await getPostgresPool().query('SELECT docstatus FROM app_invoices WHERE id = $1', [id]);
+    if (!rows.length) { const error = new Error('Invoice not found.'); error.status = 404; throw error; }
+    const error = new Error('Non-System Invoice can only be changed on draft invoices.'); error.status = 400; throw error;
+  }
+  return id;
 }
 
 async function postSalesInvoiceGlEntry(client, invoice) {
@@ -6144,6 +6819,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
       UPDATE app_journal_entries
       SET docstatus = 'submitted',
         posting_date = $1,
+        posting_time = $9,
         party_type = 'customer',
         party_id = $2,
         party_name = $3,
@@ -6162,6 +6838,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
         totalDebit,
         totalCredit,
         journalId,
+        storedPostingTime(invoice.posting_time),
       ],
     );
   } else {
@@ -6169,9 +6846,9 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
       `
       INSERT INTO app_journal_entries (
         docstatus, journal_type, posting_date, party_type, party_id, party_name,
-        reference_no, remarks, total_debit, total_credit
+        reference_no, remarks, total_debit, total_credit, posting_time
       )
-      VALUES ('submitted', 'sales_invoice', $1, 'customer', $2, $3, $4, $5, $6, $7)
+      VALUES ('submitted', 'sales_invoice', $1, 'customer', $2, $3, $4, $5, $6, $7, $8)
       RETURNING id
       `,
       [
@@ -6182,6 +6859,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
         remarks,
         totalDebit,
         totalCredit,
+        storedPostingTime(invoice.posting_time),
       ],
     );
     journalId = Number(result.rows[0].id);
@@ -6233,7 +6911,8 @@ async function postCustomerPaymentGlEntry(client, invoice, payment) {
     voucher_no: `${invoice.invoice_no || invoice.id}-PAY-${String(payment.payment_no || payment.id).padStart(3, '0')}`,
     remarks: payment.reference || payment.notes || 'Customer payment',
     lines: [
-      { account_key: paymentAccountKey(payment.method), debit: amount },
+      payment.account_id ? { account_id: Number(payment.account_id), debit: amount }
+        : { account_key: paymentAccountKey(payment.method), debit: amount },
       { account_key: 'accounts_receivable', credit: amount, ...party },
     ],
   });
@@ -6253,7 +6932,8 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
   const remarks = payment.notes || externalReference || `Payment for ${invoice.invoice_no || invoice.id}`;
   const journalLines = [
     {
-      account_key: paymentAccountKey(payment.method),
+      ...(payment.account_id ? { account_id: Number(payment.account_id) }
+        : { account_key: paymentAccountKey(payment.method) }),
       debit: amount,
       credit: 0,
       remarks,
@@ -6318,9 +6998,9 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       `
       INSERT INTO app_journal_entries (
         journal_type, posting_date, party_type, party_id, party_name, reference_no,
-        remarks, total_debit, total_credit
+        remarks, total_debit, total_credit, posting_time
       )
-      VALUES ('payment_journal', $1, 'customer', $2, $3, $4, $5, $6, $6)
+      VALUES ('payment_journal', $1, 'customer', $2, $3, $4, $5, $6, $6, $7)
       RETURNING id
       `,
       [
@@ -6330,6 +7010,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
         invoice.invoice_no || null,
         remarks,
         amount,
+        currentPostingTime(),
       ],
     );
     savedJournalId = Number(rows[0].id);
@@ -6673,10 +7354,14 @@ function postgresPaymentToInvoicePayment(row) {
   return {
     ...recordAuditFields(row),
     id: Number(row.payment_no),
+    payment_record_id: Number(row.id),
+    journal_entry_id: row.journal_entry_id ? Number(row.journal_entry_id) : null,
     docstatus: row.docstatus || 'submitted',
     payment_date: dateOnly(row.payment_date),
     amount: Number(row.amount || 0),
     method: row.method,
+    account_id: row.account_id ? Number(row.account_id) : null,
+    account_name: row.account_name || null,
     reference: row.reference,
     notes: row.notes,
     created_at: toIsoString(row.created_at),
@@ -7164,6 +7849,13 @@ function buildInvoiceData(payload) {
     err.status = 400;
     throw err;
   }
+  const nonSystemInvoice = normalizeNonSystemInvoice(payload.non_system_invoice);
+  const invoicer = String(payload.invoicer || '').trim();
+  if (invoicer.length > 100) {
+    const err = new Error('Invoicer must be 100 characters or fewer.');
+    err.status = 400;
+    throw err;
+  }
   const items = (payload.items || [])
     .map((item) => {
       const dbId = Number(item.db_id || item.id || 0);
@@ -7203,11 +7895,16 @@ function buildInvoiceData(payload) {
 
   return {
     invoice_date: payload.invoice_date,
+    posting_time: normalizePostingTime(payload.posting_time),
     due_date: payload.due_date || null,
+    non_system_invoice: nonSystemInvoice || null,
     customer_id: payload.customer_id || null,
     customer_name: payload.customer_name,
     customer_phone: payload.customer_phone || null,
     price_list: payload.price_list || null,
+    cost_center: String(payload.cost_center || '').trim() || null,
+    invoicer_id: String(payload.invoicer_id || '').trim() || null,
+    invoicer: invoicer || null,
     notes: payload.notes || null,
     subtotal: roundMoney(subtotal),
     tax_amount: roundMoney(tax),
@@ -7218,6 +7915,16 @@ function buildInvoiceData(payload) {
     payments,
     items,
   };
+}
+
+function normalizeNonSystemInvoice(value) {
+  const normalized = String(value || '').trim();
+  if (normalized.length > 100) {
+    const error = new Error('Non-System Invoice must be 100 characters or fewer.');
+    error.status = 400;
+    throw error;
+  }
+  return normalized || null;
 }
 
 function normalizeJournalEntryPayload(payload) {
@@ -7266,6 +7973,7 @@ function normalizeJournalEntryPayload(payload) {
   return {
     journal_type: journalType,
     posting_date: postingDate,
+    posting_time: normalizePostingTime(payload.posting_time),
     party_type: String(payload.party_type || '').trim() || null,
     party_id: String(payload.party_id || '').trim() || null,
     party_name: String(payload.party_name || '').trim() || null,
@@ -7281,6 +7989,7 @@ function normalizeAccountingAccountPayload(payload) {
   const accountCode = String(payload.account_code || '').trim();
   const accountName = String(payload.account_name || '').trim();
   const accountType = String(payload.account_type || '').trim();
+  const accountDetailType = String(payload.account_detail_type || '').trim();
   const normalBalance = String(payload.normal_balance || '').trim();
   if (!accountCode) {
     const err = new Error('Account code is required.');
@@ -7293,6 +8002,11 @@ function normalizeAccountingAccountPayload(payload) {
     throw err;
   }
   if (!['asset', 'liability', 'equity', 'income', 'expense'].includes(accountType)) {
+    const err = new Error('Choose a valid root type.');
+    err.status = 400;
+    throw err;
+  }
+  if (accountDetailType && !ACCOUNT_DETAIL_TYPES.includes(accountDetailType)) {
     const err = new Error('Choose a valid account type.');
     err.status = 400;
     throw err;
@@ -7306,6 +8020,7 @@ function normalizeAccountingAccountPayload(payload) {
     account_code: accountCode,
     account_name: accountName,
     account_type: accountType,
+    account_detail_type: accountDetailType || null,
     normal_balance: normalBalance,
   };
 }
@@ -7358,7 +8073,10 @@ function buildInvoicePayments(payload, total) {
     if (amount <= 0) {
       return list;
     }
-    const method = String(row.method || 'cash').trim().toLowerCase();
+    const accountId = paymentAccountId(row.account_id);
+    const method = accountId && !usePostgresStore()
+      ? fallbackReceivingAccount(accountId).account_detail_type.toLowerCase()
+      : String(row.method || 'cash').trim().toLowerCase();
     if (!PAYMENT_METHODS.has(method)) {
       const err = new Error('Choose a valid payment method.');
       err.status = 400;
@@ -7369,6 +8087,7 @@ function buildInvoicePayments(payload, total) {
       payment_date: String(row.payment_date || row.date || payload.invoice_date || '').trim(),
       amount,
       method,
+      account_id: accountId,
       reference: String(row.reference || '').trim() || null,
       notes: String(row.notes || '').trim() || null,
       created_at: row.created_at || new Date().toISOString(),
@@ -7425,7 +8144,10 @@ function buildPaymentData(payload, existingPayments, existingId = null, existing
     throw err;
   }
 
-  const method = String(payload.method || '').trim().toLowerCase();
+  const accountId = paymentAccountId(payload.account_id);
+  const method = accountId && !usePostgresStore()
+    ? fallbackReceivingAccount(accountId).account_detail_type.toLowerCase()
+    : String(payload.method || (accountId ? 'cash' : '')).trim().toLowerCase();
   if (!PAYMENT_METHODS.has(method)) {
     const err = new Error('Choose a valid payment method.');
     err.status = 400;
@@ -7438,10 +8160,27 @@ function buildPaymentData(payload, existingPayments, existingId = null, existing
     payment_date: paymentDate,
     amount,
     method,
+    account_id: accountId,
     reference: String(payload.reference || '').trim() || null,
     notes: String(payload.notes || '').trim() || null,
     created_at: existingCreatedAt || new Date().toISOString(),
   };
+}
+
+function paymentAccountId(value) {
+  if (value == null || value === '') return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id < 1) {
+    const error = new Error('Choose a cash or bank account.'); error.status = 400; throw error;
+  }
+  return id;
+}
+
+function fallbackReceivingAccount(id) {
+  const account = DEFAULT_ACCOUNTS.find((row) => Number(row.code) === Number(id)
+    && ['Cash', 'Bank'].includes(row.detailType));
+  if (!account) { const error = new Error('Choose a cash or bank account.'); error.status = 400; throw error; }
+  return { account_name: account.name, account_detail_type: account.detailType };
 }
 
 function normalizeInvoiceTotals(invoice) {
@@ -7470,6 +8209,7 @@ function normalizeInvoiceTotals(invoice) {
   const amountPaid = docstatus === 'draft' ? 0 : sumPayments(payments);
 
   Object.assign(invoice, {
+    posting_time: storedPostingTime(invoice.posting_time),
     is_cash_sale: invoice.is_cash_sale ?? payments.some((payment) => (
       String(payment.notes || '').trim().toLowerCase() === 'cash sale'
       && Number(payment.amount) >= total && total > 0
@@ -7491,11 +8231,17 @@ function normalizePayments(invoice) {
   if (Array.isArray(invoice.payments) && invoice.payments.length) {
     return invoice.payments.map((payment, index) => ({
       ...recordAuditFields(payment),
-      id: Number(payment.id || index + 1),
+      id: payment.journal_id ? payment.id : Number(payment.id || index + 1),
+      journal_id: payment.journal_id || null,
+      journal_entry_id: payment.journal_entry_id || null,
+      payment_record_id: payment.payment_record_id || null,
       payment_date: payment.payment_date || payment.date || invoice.invoice_date,
       amount: roundMoney(Math.max(0, Number(payment.amount || 0))),
       docstatus: payment.docstatus || 'submitted',
       method: payment.method || 'cash',
+      account_id: payment.account_id || null,
+      account_name: payment.account_name || (payment.account_id
+        ? fallbackReceivingAccount(payment.account_id).account_name : null),
       reference: payment.reference || null,
       notes: payment.notes || null,
       created_at: payment.created_at || invoice.created_at || new Date().toISOString(),
@@ -7580,7 +8326,23 @@ function buildCustomerStatement(invoices, customerKey) {
 }
 
 function filterStatementByDate(statement, from, to) {
-  return statement.filter((entry) => dateInRange(entry.date, from, to));
+  const filtered = statement.filter((entry) => dateInRange(entry.date, from, to));
+  if (from) {
+    const prior = statement.filter((entry) => String(entry.date) < from);
+    if (prior.length) {
+      const opening = prior[prior.length - 1].balance;
+      filtered.unshift({
+        date: from,
+        type: 'Opening',
+        reference: '',
+        description: 'Balance brought forward',
+        debit: 0,
+        credit: 0,
+        balance: opening,
+      });
+    }
+  }
+  return filtered;
 }
 
 function customerReportKey(invoice) {
@@ -7756,6 +8518,7 @@ function emptyDebtorSummary() {
     days_31_60: 0,
     days_61_90: 0,
     days_over_90: 0,
+    unallocated: 0,
   };
 }
 
@@ -7769,6 +8532,7 @@ function roundReportMoney(row) {
     'days_31_60',
     'days_61_90',
     'days_over_90',
+    'unallocated',
     'sales_amount',
     'cost_amount',
     'gross_profit',
@@ -7785,6 +8549,8 @@ function typeSort(type) {
 module.exports = {
   getCompanyInformation,
   saveCompanyInformation,
+  getDateTimeSettings,
+  saveDateTimeSettings,
   initStore,
   allInvoices,
   paginatedInvoices,
@@ -7798,6 +8564,8 @@ module.exports = {
   submitInvoice,
   cancelInvoice,
   deleteDraftVoucher,
+  updateVoucherPostingTime,
+  updateInvoiceNonSystemNumber,
   addInvoicePayment,
   cancelInvoicePayment,
   invoiceSummary,
@@ -7856,7 +8624,10 @@ module.exports = {
   backfillAccountingGl,
   accountingAccounts,
   postableAccountingAccounts,
+  receivingAccounts,
+  findAccountingAccount,
   createAccountingAccount,
+  updateAccountingAccount,
   journalEntries,
   findJournalEntry,
   createJournalEntry,

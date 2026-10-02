@@ -13,6 +13,7 @@
       </div>
       <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
     </header>
+    <%- include('settings-tabs', { activeSettingsTab: 'users' }) %>
     <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
     <% if (created) { %>
       <section class="notice" role="status">

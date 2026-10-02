@@ -1,4 +1,4 @@
-<% const lineAuditTime = (value) => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : ''; %>
+<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <div class="invoice-drawer-content" data-voucher-title="<%= purchase.purchase_no %>" data-voucher-eyebrow="Purchase">
   <div class="invoice-drawer-heading">
     <div>
@@ -20,7 +20,7 @@
   <section class="invoice-card">
     <div class="invoice-meta">
       <div><span>Supplier</span><strong><%= purchase.supplier_name %></strong><p><%= purchase.supplier_id %></p></div>
-      <div><span>Date</span><strong><%= purchase.posting_date %></strong><% if (purchase.due_date) { %><p>Due <%= purchase.due_date %></p><% } %></div>
+      <div><span>Posting Date/Time</span><strong><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></strong><% if (purchase.due_date) { %><p>Due <%= formatDate(purchase.due_date) %></p><% } %></div>
       <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
     </div>
     <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
@@ -46,7 +46,7 @@
       <tbody>
         <% if (!(purchase.payments || []).length) { %><tr><td colspan="7" class="empty">No payments recorded.</td></tr><% } %>
         <% (purchase.payments || []).forEach((payment) => { %>
-          <tr><td><%= payment.payment_no %></td><td><%= payment.payment_date %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td><td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td></tr>
+          <tr><td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td><td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td></tr>
         <% }) %>
       </tbody>
     </table>

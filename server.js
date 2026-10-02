@@ -7,6 +7,8 @@ const {
   initStore,
   getCompanyInformation,
   saveCompanyInformation,
+  getDateTimeSettings,
+  saveDateTimeSettings,
   allInvoices,
   paginatedInvoices,
   invoiceWarehouses,
@@ -19,6 +21,8 @@ const {
   submitInvoice,
   cancelInvoice,
   deleteDraftVoucher,
+  updateVoucherPostingTime,
+  updateInvoiceNonSystemNumber,
   addInvoicePayment,
   cancelInvoicePayment,
   invoiceSummary,
@@ -75,7 +79,10 @@ const {
   balanceSheetReport,
   accountingAccounts,
   postableAccountingAccounts,
+  receivingAccounts,
+  findAccountingAccount,
   createAccountingAccount,
+  updateAccountingAccount,
   journalEntries,
   findJournalEntry,
   createJournalEntry,
@@ -84,11 +91,15 @@ const {
   cancelJournalEntry,
 } = require('./src/store');
 const { DEFAULT_IMPORT_FROM, importSalesInvoicesFromMysql } = require('./src/sales-invoice-importer');
+const { ACCOUNT_DETAIL_TYPES } = require('./src/account-detail-types');
+const { currentPostingDate, currentPostingTime } = require('./src/posting-time');
+const { formatDate, formatTime, formatDateTime, formatTimestamp } = require('./src/date-time-format');
 const { initAuth } = require('./src/auth');
 const { installAuth } = require('./src/auth-http');
-const { invoiceFormState } = require('./src/invoice-form-state');
+const { invoiceFormState, duplicateInvoiceFormState } = require('./src/invoice-form-state');
 const { selectedCategories, scopeRestricted, allowedInvoicePriceLists, requireInvoicePriceList,
   namedPriceListsForActions, warehouseAllowed, allowedNamedListValues,
+  accountAllowed, purchaseOrderAllowed, voucherWarehousesAllowed,
   deniedNamedListValues } = require('./src/access');
 
 function warehouseAccessOptions(user) {
@@ -99,6 +110,15 @@ function warehouseAccessOptions(user) {
 function accountAccessOptions(user) {
   return { allowedAccounts: allowedNamedListValues(user, 'accounts'),
     deniedAccounts: deniedNamedListValues(user, 'accounts') };
+}
+
+function requireReceiptAccount(user, value) {
+  if (!value) { const error = new Error('Choose a cash or bank account.'); error.status = 400; throw error; }
+  if (!accountAllowed(user, value)) {
+    const error = new Error('Your account cannot use the selected payment account.');
+    error.status = 403;
+    throw error;
+  }
 }
 const {
   createPurchase,
@@ -111,6 +131,8 @@ const {
   addPurchasePayment,
   cancelPurchasePayment,
 } = require('./src/purchases');
+const { createPurchaseOrder, updatePurchaseOrder, listPurchaseOrders, loadPurchaseOrder,
+  listReceivablePurchaseOrders, submitPurchaseOrder, cancelPurchaseOrder, deleteDraftPurchaseOrder } = require('./src/purchase-orders');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -139,6 +161,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 app.disable('x-powered-by');
 app.locals.assetVersion = Date.now();
+app.locals.currentPostingTime = currentPostingTime;
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -203,6 +226,18 @@ function ensureStoreInitialized() {
   }
   return storeInitPromise;
 }
+
+app.use(async (_req, res, next) => {
+  try {
+    const settings = await getDateTimeSettings();
+    res.locals.dateTimeSettings = settings;
+    res.locals.formatDate = (value) => formatDate(value, settings);
+    res.locals.formatTime = (value) => formatTime(value, settings);
+    res.locals.formatDateTime = (date, time) => formatDateTime(date, time, settings);
+    res.locals.formatTimestamp = (value, timeZone) => formatTimestamp(value, settings, timeZone);
+    next();
+  } catch (error) { next(error); }
+});
 
 installAuth(app);
 
@@ -294,8 +329,16 @@ function salesInvoiceSyncView(queryStatus = '') {
   };
 }
 
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith('/invoices') && req.path !== '/reports/debtors') return next();
+  try {
+    res.locals.receiptAccounts = await receivingAccounts(accountAccessOptions(req.currentUser));
+    next();
+  } catch (error) { next(error); }
+});
+
 app.get('/invoices/new', (_req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentPostingDate();
   res.render('new-invoice', { today, invoice: null, items: [] });
 });
 
@@ -326,6 +369,59 @@ app.get('/reports/debtors', async (req, res, next) => {
   }
 });
 
+app.get('/purchase-orders', async (req, res, next) => {
+  try {
+    const result = await listPurchaseOrders({ ...req.query,
+      allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
+    res.render('purchase-orders', { result, query: req.query, money: purchaseMoney });
+  } catch (err) { next(err); }
+});
+
+app.get('/purchase-orders/new', (_req, res) => {
+  res.render('purchase-order-form', {
+    purchase: { posting_date: currentPostingDate(), posting_time: currentPostingTime(), due_date: '', items: [{}] },
+    error: null,
+  });
+});
+
+app.post('/purchase-orders', async (req, res) => {
+  const purchase = purchasePayload(req.body);
+  try { res.redirect(303, `/purchase-orders/${await createPurchaseOrder(purchase)}`); }
+  catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message }); }
+});
+
+app.get('/purchase-orders/:id', async (req, res, next) => {
+  try { res.render('purchase-order', { order: await loadPurchaseOrder(req.params.id),
+    money: purchaseMoney, error: req.query.error || null }); }
+  catch (err) { next(err); }
+});
+
+app.get('/purchase-orders/:id/edit', async (req, res, next) => {
+  try {
+    const purchase = await loadPurchaseOrder(req.params.id);
+    if (purchase.docstatus !== 'draft') { const err = new Error('Only draft purchase orders can be edited.'); err.status = 400; throw err; }
+    res.render('purchase-order-form', { purchase, error: null });
+  } catch (err) { next(err); }
+});
+
+app.post('/purchase-orders/:id', async (req, res) => {
+  const purchase = { ...purchasePayload(req.body), id: Number(req.params.id) };
+  try { await updatePurchaseOrder(req.params.id, purchase); res.redirect(303, `/purchase-orders/${req.params.id}`); }
+  catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message }); }
+});
+
+for (const [action, handler] of [['submit', submitPurchaseOrder], ['cancel', cancelPurchaseOrder]]) {
+  app.post(`/purchase-orders/:id/${action}`, async (req, res) => {
+    try { await handler(req.params.id); res.redirect(303, `/purchase-orders/${req.params.id}`); }
+    catch (err) { res.redirect(303, `/purchase-orders/${req.params.id}?error=${encodeURIComponent(err.message)}`); }
+  });
+}
+
+app.post('/purchase-orders/:id/delete', async (req, res, next) => {
+  try { await deleteDraftPurchaseOrder(req.params.id); res.redirect(303, '/purchase-orders'); }
+  catch (err) { next(err); }
+});
+
 app.get('/purchases', async (req, res, next) => {
   try {
     const result = await listPurchases({ ...req.query, allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
@@ -333,11 +429,41 @@ app.get('/purchases', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-app.get('/purchases/new', (_req, res) => {
-  res.render('purchase-form', {
-    purchase: { posting_date: todayString(), due_date: '', items: [{}] },
-    error: null,
-  });
+async function receivableOrdersForUser(user) {
+  const available = await listReceivablePurchaseOrders();
+  return (await Promise.all(available.map(async (order) =>
+    await purchaseOrderAllowed(user, order.id)
+    && await voucherWarehousesAllowed(user, 'purchase-orders', order.id) ? order : null))).filter(Boolean);
+}
+
+async function fillPurchaseFromOrder(user, purchase, orderId) {
+  const order = await loadPurchaseOrder(orderId);
+  if (!await purchaseOrderAllowed(user, order.id)
+    || !await voucherWarehousesAllowed(user, 'purchase-orders', order.id)) {
+    const err = new Error('Purchase order is not available.'); err.status = 403; throw err;
+  }
+  if (order.docstatus !== 'submitted') {
+    const err = new Error('Only submitted purchase orders can be received.'); err.status = 400; throw err;
+  }
+  const items = order.items.filter((item) => item.quantity > item.received).map((item) => ({
+    purchase_order_item_id: item.id, item_code: item.item_code, item_name: item.item_name,
+    warehouse: item.warehouse, quantity: Math.round((item.quantity - item.received) * 1000) / 1000,
+    unit_price: item.unit_price,
+  }));
+  if (!items.length) { const err = new Error('This purchase order is fully received.'); err.status = 400; throw err; }
+  return { ...purchase, purchase_order_id: order.id, purchase_order_no: order.order_no,
+    supplier_id: order.supplier_id, supplier_name: order.supplier_name, price_list: order.price_list, items };
+}
+
+app.get('/purchases/new', async (req, res, next) => {
+  try {
+    const purchaseOrders = await receivableOrdersForUser(req.currentUser);
+    let purchase = { posting_date: currentPostingDate(), posting_time: currentPostingTime(), due_date: '', items: [{}] };
+    if (req.query.purchase_order_id) {
+      purchase = await fillPurchaseFromOrder(req.currentUser, purchase, req.query.purchase_order_id);
+    }
+    res.render('purchase-form', { purchase, purchaseOrders, error: null });
+  } catch (err) { next(err); }
 });
 
 app.post('/purchases', async (req, res) => {
@@ -377,6 +503,16 @@ app.get('/purchases/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+app.post('/purchases/:id/posting-time', async (req, res, next) => {
+  try {
+    await updateVoucherPostingTime('purchases', req.params.id, req.body.posting_time);
+    res.redirect(303, `/purchases/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 400) return res.redirect(303, `/purchases/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
+
 app.post('/purchases/:id/delete', async (req, res, next) => {
   try { await deleteDraftVoucher('purchases', req.params.id); res.redirect(303, '/purchases'); }
   catch (error) { next(error); }
@@ -398,7 +534,14 @@ app.get('/purchases/:id/edit', async (req, res, next) => {
       err.status = 400;
       throw err;
     }
-    res.render('purchase-form', { purchase, error: null });
+    const purchaseOrders = purchase.purchase_order_id ? [] : await receivableOrdersForUser(req.currentUser);
+    if (req.query.purchase_order_id) {
+      if (purchase.purchase_order_id) {
+        const err = new Error('This invoice is already linked to a purchase order.'); err.status = 400; throw err;
+      }
+      Object.assign(purchase, await fillPurchaseFromOrder(req.currentUser, purchase, req.query.purchase_order_id));
+    }
+    res.render('purchase-form', { purchase, purchaseOrders, error: null });
   } catch (err) { next(err); }
 });
 
@@ -458,6 +601,8 @@ app.get('/settings', async (req, res, next) => {
       company: await getCompanyInformation(),
       companySaved: req.query.company === 'saved',
       companyError: null,
+      dateTimeSaved: req.query.date_time === 'saved',
+      dateTimeError: null,
       salesInvoiceSync: salesInvoiceSyncView(req.query.sync),
     });
   } catch (err) { next(err); }
@@ -534,11 +679,34 @@ app.post('/settings/company-information', async (req, res, next) => {
         company: req.body,
         companySaved: false,
         companyError: err.message,
+        dateTimeSaved: false,
+        dateTimeError: null,
         salesInvoiceSync: salesInvoiceSyncView(),
       });
       return;
     }
     next(err);
+  }
+});
+
+app.post('/settings/date-time', async (req, res, next) => {
+  try {
+    await saveDateTimeSettings(req.body);
+    res.redirect(303, '/settings?date_time=saved');
+  } catch (error) {
+    if (error.status === 400) {
+      res.status(400).render('settings', {
+        company: await getCompanyInformation(),
+        companySaved: false,
+        companyError: null,
+        dateTimeSettings: req.body,
+        dateTimeSaved: false,
+        dateTimeError: error.message,
+        salesInvoiceSync: salesInvoiceSyncView(),
+      });
+      return;
+    }
+    next(error);
   }
 });
 
@@ -834,7 +1002,7 @@ app.get('/stock', async (req, res, next) => {
 
 app.get('/stock/entries/new', (req, res) => {
   const defaultEntryType = req.query.entry_type === 'purchase' ? 'purchase' : 'opening';
-  res.render('stock-entry', { today: todayString(), error: null, entry: null, items: [], defaultEntryType });
+  res.render('stock-entry', { today: currentPostingDate(), error: null, entry: null, items: [], defaultEntryType });
 });
 
 app.post('/stock/entries', async (req, res, next) => {
@@ -844,6 +1012,7 @@ app.post('/stock/entries', async (req, res, next) => {
   } catch (err) {
     res.status(err.status || 500).render('stock-entry', {
       today: req.body.posting_date || todayString(),
+      postingTime: req.body.posting_time,
       error: err.message || 'Could not save stock entry.',
       entry: null,
       items: [],
@@ -874,11 +1043,21 @@ app.get('/stock/entries/:id', async (req, res, next) => {
     const data = await loadStockEntry(req.params.id);
     res.render('stock-entry', {
       today: data.entry.posting_date,
-      error: null,
+      error: req.query.error || null,
       readOnly: true,
       ...data,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/stock/entries/:id/posting-time', async (req, res, next) => {
+  try {
+    await updateVoucherPostingTime('stock', req.params.id, req.body.posting_time);
+    res.redirect(303, `/stock/entries/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 400) return res.redirect(303, `/stock/entries/${req.params.id}?error=${encodeURIComponent(err.message)}`);
     next(err);
   }
 });
@@ -907,6 +1086,7 @@ app.post('/stock/entries/:id', async (req, res, next) => {
       const data = await loadStockEntry(req.params.id);
       res.status(err.status || 500).render('stock-entry', {
         today: req.body.posting_date || data.entry.posting_date || todayString(),
+        postingTime: req.body.posting_time,
         error: err.message || 'Could not save stock entry.',
         ...data,
       });
@@ -1079,6 +1259,8 @@ app.get('/accounts', async (req, res, next) => {
 
 app.get('/accounts/new', (_req, res) => {
   res.render('account-form', {
+    editing: false,
+    accountDetailTypes: ACCOUNT_DETAIL_TYPES,
     account: {
       account_type: 'expense',
       normal_balance: 'debit',
@@ -1093,6 +1275,7 @@ app.post('/accounts', async (req, res, next) => {
       account_code: req.body.account_code,
       account_name: req.body.account_name,
       account_type: req.body.account_type,
+      account_detail_type: req.body.account_detail_type,
       normal_balance: req.body.normal_balance,
     });
     res.redirect('/accounts');
@@ -1102,13 +1285,42 @@ app.post('/accounts', async (req, res, next) => {
       err.status = 400;
     }
     res.status(err.status || 500).render('account-form', {
+      editing: false,
+      accountDetailTypes: ACCOUNT_DETAIL_TYPES,
       account: {
         account_code: req.body.account_code,
         account_name: req.body.account_name,
         account_type: req.body.account_type,
+        account_detail_type: req.body.account_detail_type,
         normal_balance: req.body.normal_balance,
       },
       error: err.message || 'Could not create account.',
+    });
+  }
+});
+
+app.get('/accounts/:id/edit', async (req, res, next) => {
+  try {
+    const account = await findAccountingAccount(req.params.id);
+    res.render('account-form', { editing: true, accountDetailTypes: ACCOUNT_DETAIL_TYPES, account, error: null });
+  } catch (err) { next(err); }
+});
+
+app.post('/accounts/:id', async (req, res, next) => {
+  try {
+    await updateAccountingAccount(req.params.id, req.body);
+    res.redirect('/accounts');
+  } catch (err) {
+    if (err.code === '23505') {
+      err.message = 'An account with that code already exists.';
+      err.status = 400;
+    }
+    if (err.status === 404) return next(err);
+    res.status(err.status || 500).render('account-form', {
+      editing: true,
+      accountDetailTypes: ACCOUNT_DETAIL_TYPES,
+      account: { id: req.params.id, ...req.body },
+      error: err.message || 'Could not update account.',
     });
   }
 });
@@ -1136,7 +1348,8 @@ app.get('/journals/new', async (req, res, next) => {
       accounts,
       journal: {
         journal_type: req.query.type || 'cash_receipt',
-        posting_date: todayString(),
+        posting_date: currentPostingDate(),
+        posting_time: currentPostingTime(),
         lines: [],
       },
       today: todayString(),
@@ -1211,16 +1424,38 @@ app.get('/journals/:id', async (req, res, next) => {
       err.status = 404;
       throw err;
     }
+    let selectedReference = null;
+    if (journal.reference_no && journal.party_type && (journal.party_id || journal.party_name)) {
+      const references = await journalReferenceOptions({
+        party_type: journal.party_type,
+        party_id: journal.party_id,
+        party_name: journal.party_name,
+        search: journal.reference_no,
+        limit: 50,
+      });
+      selectedReference = references.find((reference) => reference.reference === journal.reference_no) || null;
+    }
     res.render('journal-entry', {
       accounts,
       journal,
+      selectedReference,
       today: todayString(),
-      error: null,
+      error: req.query.error || null,
       readOnly: true,
       money,
       journalTypeLabel,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/journals/:id/posting-time', async (req, res, next) => {
+  try {
+    await updateVoucherPostingTime('journals', req.params.id, req.body.posting_time);
+    res.redirect(303, `/journals/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 400) return res.redirect(303, `/journals/${req.params.id}?error=${encodeURIComponent(err.message)}`);
     next(err);
   }
 });
@@ -1259,6 +1494,7 @@ app.post('/invoices', async (req, res, next) => {
   try {
     const payload = await buildInvoicePayload(req.body, req.currentUser);
     if (req.body.action === 'cash_sale') {
+      requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
       const payment = cashSalePayment(payload, req.body);
       await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
       id = await createCashSaleInvoice(payload, payment);
@@ -1330,10 +1566,48 @@ app.get('/invoices/:id/edit', async (req, res, next) => {
   }
 });
 
+app.get('/invoices/:id/duplicate', async (req, res, next) => {
+  try {
+    const { invoice } = await loadInvoice(req.params.id);
+    res.render('new-invoice', {
+      ...duplicateInvoiceFormState(invoice, {
+        invoiceDate: currentPostingDate(),
+        postingTime: currentPostingTime(),
+      }),
+      duplicateOf: invoice.invoice_no,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/invoices/:id/posting-time', async (req, res, next) => {
+  try {
+    await updateVoucherPostingTime('sales', req.params.id, req.body.posting_time);
+    clearInvoiceCaches();
+    res.redirect(303, `/invoices/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 400) return res.redirect(303, `/invoices/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
+
+app.post('/invoices/:id/non-system-invoice', async (req, res, next) => {
+  try {
+    await updateInvoiceNonSystemNumber(req.params.id, req.body.non_system_invoice);
+    clearInvoiceCaches();
+    res.redirect(303, `/invoices/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 400) return res.redirect(303, `/invoices/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
+
 app.post('/invoices/:id', async (req, res, next) => {
   try {
     const payload = await buildInvoicePayload(req.body, req.currentUser);
     const action = String(req.body.action || '').trim();
+    if (action === 'cash_sale') requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
     if (action === 'cash_sale' || action === 'submit_invoice') {
       await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
     }
@@ -1397,6 +1671,7 @@ app.post('/invoices/:id/submit', async (req, res, next) => {
 
 app.post('/invoices/:id/submit-cash-sale', async (req, res, next) => {
   try {
+    requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
     const invoice = await findInvoice(req.params.id);
     if (!invoice) {
       const err = new Error('Invoice not found.');
@@ -1415,7 +1690,7 @@ app.post('/invoices/:id/submit-cash-sale', async (req, res, next) => {
     const id = await submitCashSaleInvoice(req.params.id, {
       payment_date: req.body.payment_date || invoice.invoice_date || todayString(),
       amount,
-      method: req.body.cash_sale_method || 'cash',
+      account_id: req.body.cash_sale_account_id,
       reference: req.body.cash_sale_reference || '',
       notes: req.body.cash_sale_notes || 'Cash sale',
     });
@@ -1469,14 +1744,14 @@ app.get('/invoices/payments/:id/drawer', async (req, res, next) => {
   try {
     const invoiceId = await invoiceForPayment(req.params.id);
     const data = await loadInvoice(invoiceId);
+    const payment = (data.invoice.payments || []).find((row) => Number(row.payment_record_id) === Number(req.params.id));
+    if (!payment) {
+      const err = new Error('Invoice payment not found.');
+      err.status = 404;
+      throw err;
+    }
     res.set('Cache-Control', 'private, max-age=10');
-    res.render('invoice-drawer', {
-      ...data,
-      today: todayString(),
-      money,
-      error: req.query.error || null,
-      returnTo: '/invoices',
-    });
+    res.render('invoice-payment-drawer', { invoice: data.invoice, payment, money });
   } catch (err) { next(err); }
 });
 
@@ -1515,16 +1790,22 @@ app.get('/invoices/:id/drawer', async (req, res, next) => {
 
 app.post('/invoices/:id/payments', async (req, res, next) => {
   try {
+    requireReceiptAccount(req.currentUser, req.body.account_id);
     const id = await addInvoicePayment(req.params.id, {
       payment_date: req.body.payment_date,
       amount: req.body.amount,
-      method: req.body.method,
+      account_id: req.body.account_id,
       reference: req.body.reference,
       notes: req.body.notes,
     });
     clearInvoiceCaches();
     res.redirect(paymentReturnPath(req.body.return_to, id));
   } catch (err) {
+    if (err.status === 400) {
+      const returnPath = paymentReturnPath(req.body.return_to, req.params.id);
+      res.redirect(`${returnPath}${returnPath.includes('?') ? '&' : '?'}error=${encodeURIComponent(err.message)}`);
+      return;
+    }
     next(err);
   }
 });
@@ -2045,6 +2326,35 @@ function masterListConfig(key) {
         },
       ],
     },
+    'cost-centers': {
+      key: 'cost-centers',
+      idField: 'cost_center',
+      title: 'Cost Centers',
+      singular: 'Cost Center',
+      newLabel: 'New Cost Center',
+      editLabel: 'Edit Cost Center',
+      finder: (id) => findMasterRecord('cost-centers', id),
+      loader: (options) => masterCostCenters({ ...options, includeGroups: true, includeDisabled: true }),
+      columns: [
+        { key: 'cost_center_name', label: 'Cost Center', strong: true, secondaryKey: 'cost_center' },
+        { key: 'parent_cost_center', label: 'Parent' },
+        { key: 'company', label: 'Company' },
+        { key: 'cost_center_type', label: 'Type' },
+        { key: 'group_label', label: 'Group' },
+        { key: 'status', label: 'Status' },
+      ],
+      fields: [
+        { name: 'cost_center', label: 'Cost Center ID', placeholder: 'Leave blank to use cost center name', lockedOnEdit: true },
+        { name: 'cost_center_name', label: 'Cost Center Name', required: true },
+        { name: 'parent_cost_center', label: 'Parent Cost Center' },
+        { name: 'company', label: 'Company' },
+        { name: 'cost_center_type', label: 'Cost Center Type' },
+        { name: 'is_group', label: 'Group', type: 'select', options: [
+          { value: 'false', label: 'No', defaultValue: 'false' },
+          { value: 'true', label: 'Yes' },
+        ] },
+      ],
+    },
     options: {
       key: 'options',
       idField: 'id',
@@ -2196,11 +2506,16 @@ function renderInvoiceFormError(res, body, savedInvoice, err) {
 async function buildInvoicePayload(body, user) {
   const payload = {
     invoice_date: body.invoice_date,
+    posting_time: body.posting_time,
     due_date: body.due_date,
+    non_system_invoice: body.non_system_invoice,
     customer_id: body.customer_id,
     customer_name: String(body.customer_name || '').trim(),
     customer_phone: String(body.customer_phone || '').trim(),
     price_list: String(body.price_list || '').trim(),
+    cost_center: String(body.cost_center || '').trim(),
+    invoicer_id: String(body.invoicer_id || '').trim(),
+    invoicer: String(body.invoicer || '').trim(),
     warehouse: String(body.warehouse || '').trim(),
     notes: String(body.notes || '').trim(),
     discount_amount: body.discount_amount,
@@ -2209,6 +2524,9 @@ async function buildInvoicePayload(body, user) {
     items: JSON.parse(body.items_json || '[]'),
     payments: JSON.parse(body.payments_json || '[]'),
   };
+  if (Array.isArray(payload.payments)) {
+    for (const payment of payload.payments) requireReceiptAccount(user, payment?.account_id);
+  }
   if (!payload.customer_name) {
     const err = new Error('Customer name is required.');
     err.status = 400;
@@ -2227,6 +2545,17 @@ async function buildInvoicePayload(body, user) {
     const err = new Error('Select an active UGX selling price list.'); err.status = 400; throw err;
   }
   requireInvoicePriceList(user, payload.price_list);
+  if (payload.cost_center) {
+    const costCenter = await findMasterRecord('cost_centers', payload.cost_center);
+    if (!costCenter || costCenter.is_group || costCenter.disabled === '1') {
+      const err = new Error('Select an enabled cost center.'); err.status = 400; throw err;
+    }
+  }
+  const invoicer = payload.invoicer_id && await findMasterRecord('employees', payload.invoicer_id);
+  if (!invoicer || invoicer.disabled === '1') {
+    const err = new Error('Select an invoicer from the employee list.'); err.status = 400; throw err;
+  }
+  payload.invoicer = invoicer.employee_name;
   payload.items = await validateDbItems(payload.items, payload.warehouse);
   return payload;
 }
@@ -2241,7 +2570,7 @@ function cashSalePayment(payload, body = {}) {
   return {
     payment_date: body.payment_date || payload.invoice_date || todayString(),
     amount,
-    method: body.cash_sale_method || 'cash',
+    account_id: body.cash_sale_account_id,
     reference: body.cash_sale_reference || '',
     notes: body.cash_sale_notes || 'Cash sale',
   };
@@ -2258,6 +2587,7 @@ function invoicePayloadTotal(payload) {
 
 function purchasePayload(body) {
   const ids = arrayField(body.item_id);
+  const orderItemIds = arrayField(body.purchase_order_item_id);
   const codes = arrayField(body.item_code);
   const names = arrayField(body.item_name);
   const warehouses = arrayField(body.warehouse);
@@ -2265,14 +2595,17 @@ function purchasePayload(body) {
   const prices = arrayField(body.unit_price);
   return {
     posting_date: body.posting_date,
+    posting_time: body.posting_time,
     due_date: body.due_date,
     supplier_id: body.supplier_id,
     supplier_name: body.supplier_name,
     price_list: body.price_list,
+    purchase_order_id: body.purchase_order_id,
     supplier_reference: body.supplier_reference,
     remarks: body.remarks,
     items: codes.map((itemCode, index) => ({
       id: ids[index],
+      purchase_order_item_id: orderItemIds[index],
       item_code: itemCode,
       item_name: names[index],
       warehouse: warehouses[index],
@@ -2294,6 +2627,7 @@ function parseStockEntryPayload(body) {
     entry_type: body.entry_type,
     action: body.action,
     posting_date: body.posting_date,
+    posting_time: body.posting_time,
     remarks: body.remarks,
     supplier_name: body.supplier_name,
     supplier_contact: body.supplier_contact,
@@ -2320,6 +2654,7 @@ function parseJournalEntryPayload(body) {
   return {
     journal_type: body.journal_type,
     posting_date: body.posting_date,
+    posting_time: body.posting_time,
     party_type: body.party_type,
     party_id: body.party_id,
     party_name: body.party_name,
