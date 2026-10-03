@@ -210,7 +210,11 @@ function permissionCheck(req) {
     if (name === 'journal-reference-options') return has('vouchers.journals.create');
     return false;
   }
-  return true;
+  // Fail closed. Every top-level route prefix the app registers is handled by an
+  // explicit branch above, so reaching here means the path is unknown or
+  // unclassified. Returning true would silently grant any newly added route to
+  // every authenticated user; deny instead and add the branch when adding a route.
+  return false;
 }
 
 async function scopeCheck(req) {

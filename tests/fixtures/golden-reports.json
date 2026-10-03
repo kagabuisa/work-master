@@ -1,0 +1,1078 @@
+{
+  "accounts": [
+    {
+      "id": 1,
+      "account_code": "1100",
+      "account_name": "Accounts Receivable",
+      "account_type": "asset",
+      "account_detail_type": "Receivable",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "account_code": "1110",
+      "account_name": "Cash",
+      "account_type": "asset",
+      "account_detail_type": "Cash",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 3,
+      "account_code": "1120",
+      "account_name": "Bank",
+      "account_type": "asset",
+      "account_detail_type": "Bank",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 4,
+      "account_code": "1130",
+      "account_name": "Mobile Money",
+      "account_type": "asset",
+      "account_detail_type": "Bank",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 5,
+      "account_code": "1140",
+      "account_name": "Card Clearing",
+      "account_type": "asset",
+      "account_detail_type": "Temporary",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 6,
+      "account_code": "1200",
+      "account_name": "Inventory",
+      "account_type": "asset",
+      "account_detail_type": "Stock",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 7,
+      "account_code": "2100",
+      "account_name": "Accounts Payable",
+      "account_type": "liability",
+      "account_detail_type": "Payable",
+      "normal_balance": "credit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 8,
+      "account_code": "2200",
+      "account_name": "Tax Payable",
+      "account_type": "liability",
+      "account_detail_type": "Tax",
+      "normal_balance": "credit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 9,
+      "account_code": "3000",
+      "account_name": "Opening Equity",
+      "account_type": "equity",
+      "account_detail_type": "Equity",
+      "normal_balance": "credit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 10,
+      "account_code": "4000",
+      "account_name": "Sales Income",
+      "account_type": "income",
+      "account_detail_type": "Income Account",
+      "normal_balance": "credit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 13,
+      "account_code": "4100",
+      "account_name": "Stock Adjustment Gain",
+      "account_type": "income",
+      "account_detail_type": "Stock Adjustment",
+      "normal_balance": "credit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 11,
+      "account_code": "5000",
+      "account_name": "Cost of Goods Sold",
+      "account_type": "expense",
+      "account_detail_type": "Cost of Goods Sold",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    },
+    {
+      "id": 12,
+      "account_code": "5100",
+      "account_name": "Stock Adjustment Loss",
+      "account_type": "expense",
+      "account_detail_type": "Stock Adjustment",
+      "normal_balance": "debit",
+      "is_group": false,
+      "is_active": true
+    }
+  ],
+  "journals": [
+    {
+      "id": 3,
+      "journal_no": "JRN-000003",
+      "docstatus": "submitted",
+      "journal_type": "journal_entry",
+      "posting_date": "2026-01-15",
+      "posting_time": "<volatile>",
+      "party_type": null,
+      "party_id": null,
+      "party_name": null,
+      "reference_no": "JRN-GOLDEN-001",
+      "remarks": "Golden owner contribution",
+      "total_debit": 75,
+      "total_credit": 75,
+      "created_at": "<volatile>"
+    },
+    {
+      "id": 2,
+      "journal_no": "JRN-000002",
+      "docstatus": "submitted",
+      "journal_type": "payment_journal",
+      "posting_date": "2026-01-14",
+      "posting_time": "<volatile>",
+      "party_type": "customer",
+      "party_id": "GOLDEN-CUST-001",
+      "party_name": "Golden Sample Customer",
+      "reference_no": "INV-000001",
+      "remarks": "Golden partial payment",
+      "total_debit": 200,
+      "total_credit": 200,
+      "created_at": "<volatile>"
+    },
+    {
+      "id": 1,
+      "journal_no": "JRN-000001",
+      "docstatus": "submitted",
+      "journal_type": "sales_invoice",
+      "posting_date": "2026-01-14",
+      "posting_time": "<volatile>",
+      "party_type": "customer",
+      "party_id": "GOLDEN-CUST-001",
+      "party_name": "Golden Sample Customer",
+      "reference_no": "INV-000001",
+      "remarks": "Sales invoice INV-000001",
+      "total_debit": 753,
+      "total_credit": 753,
+      "created_at": "<volatile>"
+    }
+  ],
+  "trialBalance": {
+    "filters": {
+      "from": "",
+      "to": ""
+    },
+    "rows": [
+      {
+        "account_code": "1100",
+        "account_name": "Accounts Receivable",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 594,
+        "period_credit": 200,
+        "closing_debit": 394,
+        "closing_credit": 0
+      },
+      {
+        "account_code": "1110",
+        "account_name": "Cash",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 200,
+        "period_credit": 0,
+        "closing_debit": 200,
+        "closing_credit": 0
+      },
+      {
+        "account_code": "1120",
+        "account_name": "Bank",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 75,
+        "period_credit": 0,
+        "closing_debit": 75,
+        "closing_credit": 0
+      },
+      {
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "normal_balance": "debit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 910,
+        "period_credit": 269,
+        "closing_debit": 641,
+        "closing_credit": 0
+      },
+      {
+        "account_code": "2100",
+        "account_name": "Accounts Payable",
+        "account_type": "liability",
+        "normal_balance": "credit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 0,
+        "period_credit": 300,
+        "closing_debit": 0,
+        "closing_credit": 300
+      },
+      {
+        "account_code": "2200",
+        "account_name": "Tax Payable",
+        "account_type": "liability",
+        "normal_balance": "credit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 0,
+        "period_credit": 54,
+        "closing_debit": 0,
+        "closing_credit": 54
+      },
+      {
+        "account_code": "3000",
+        "account_name": "Opening Equity",
+        "account_type": "equity",
+        "normal_balance": "credit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 0,
+        "period_credit": 575,
+        "closing_debit": 0,
+        "closing_credit": 575
+      },
+      {
+        "account_code": "4000",
+        "account_name": "Sales Income",
+        "account_type": "income",
+        "normal_balance": "credit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 0,
+        "period_credit": 540,
+        "closing_debit": 0,
+        "closing_credit": 540
+      },
+      {
+        "account_code": "4100",
+        "account_name": "Stock Adjustment Gain",
+        "account_type": "income",
+        "normal_balance": "credit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 0,
+        "period_credit": 110,
+        "closing_debit": 0,
+        "closing_credit": 110
+      },
+      {
+        "account_code": "5000",
+        "account_name": "Cost of Goods Sold",
+        "account_type": "expense",
+        "normal_balance": "debit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 159,
+        "period_credit": 0,
+        "closing_debit": 159,
+        "closing_credit": 0
+      },
+      {
+        "account_code": "5100",
+        "account_name": "Stock Adjustment Loss",
+        "account_type": "expense",
+        "normal_balance": "debit",
+        "opening_debit": 0,
+        "opening_credit": 0,
+        "period_debit": 110,
+        "period_credit": 0,
+        "closing_debit": 110,
+        "closing_credit": 0
+      }
+    ],
+    "summary": {
+      "opening_debit": 0,
+      "opening_credit": 0,
+      "period_debit": 2048,
+      "period_credit": 2048,
+      "closing_debit": 1579,
+      "closing_credit": 1579
+    },
+    "is_balanced": true
+  },
+  "profitAndLoss": {
+    "filters": {
+      "from": "",
+      "to": ""
+    },
+    "income": [
+      {
+        "account_code": "4000",
+        "account_name": "Sales Income",
+        "account_type": "income",
+        "debit": 0,
+        "credit": 540,
+        "amount": 540
+      },
+      {
+        "account_code": "4100",
+        "account_name": "Stock Adjustment Gain",
+        "account_type": "income",
+        "debit": 0,
+        "credit": 110,
+        "amount": 110
+      }
+    ],
+    "expenses": [
+      {
+        "account_code": "5000",
+        "account_name": "Cost of Goods Sold",
+        "account_type": "expense",
+        "debit": 159,
+        "credit": 0,
+        "amount": 159
+      },
+      {
+        "account_code": "5100",
+        "account_name": "Stock Adjustment Loss",
+        "account_type": "expense",
+        "debit": 110,
+        "credit": 0,
+        "amount": 110
+      }
+    ],
+    "summary": {
+      "total_income": 650,
+      "cost_of_goods_sold": 159,
+      "gross_profit": 491,
+      "total_expenses": 269,
+      "net_profit": 381
+    }
+  },
+  "balanceSheet": {
+    "filters": {
+      "as_of": ""
+    },
+    "assets": [
+      {
+        "account_code": "1100",
+        "account_name": "Accounts Receivable",
+        "account_type": "asset",
+        "debit": 594,
+        "credit": 200,
+        "amount": 394
+      },
+      {
+        "account_code": "1110",
+        "account_name": "Cash",
+        "account_type": "asset",
+        "debit": 200,
+        "credit": 0,
+        "amount": 200
+      },
+      {
+        "account_code": "1120",
+        "account_name": "Bank",
+        "account_type": "asset",
+        "debit": 75,
+        "credit": 0,
+        "amount": 75
+      },
+      {
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "debit": 910,
+        "credit": 269,
+        "amount": 641
+      }
+    ],
+    "liabilities": [
+      {
+        "account_code": "2100",
+        "account_name": "Accounts Payable",
+        "account_type": "liability",
+        "debit": 0,
+        "credit": 300,
+        "amount": 300
+      },
+      {
+        "account_code": "2200",
+        "account_name": "Tax Payable",
+        "account_type": "liability",
+        "debit": 0,
+        "credit": 54,
+        "amount": 54
+      }
+    ],
+    "equity": [
+      {
+        "account_code": "3000",
+        "account_name": "Opening Equity",
+        "account_type": "equity",
+        "debit": 0,
+        "credit": 575,
+        "amount": 575
+      },
+      {
+        "account_code": "",
+        "account_name": "Current Earnings",
+        "account_type": "equity",
+        "debit": 0,
+        "credit": 0,
+        "amount": 381
+      }
+    ],
+    "summary": {
+      "total_assets": 1310,
+      "total_liabilities": 354,
+      "total_equity": 956,
+      "liabilities_plus_equity": 1310,
+      "difference": 0,
+      "is_balanced": true
+    }
+  },
+  "generalLedger": {
+    "filters": {
+      "search": "",
+      "account": "",
+      "party": "",
+      "voucher_type": "",
+      "from": "",
+      "to": ""
+    },
+    "rows": [
+      {
+        "id": "9",
+        "posting_date": "2026-01-14",
+        "account_code": "1100",
+        "account_name": "Accounts Receivable",
+        "account_type": "asset",
+        "party_type": "customer",
+        "party_id": "GOLDEN-CUST-001",
+        "party_name": "Golden Sample Customer",
+        "voucher_type": "sales_invoice",
+        "voucher_id": "1",
+        "voucher_no": "INV-000001",
+        "debit": 594,
+        "credit": 0,
+        "remarks": "Sales invoice submission",
+        "running_balance": 594
+      },
+      {
+        "id": "10",
+        "posting_date": "2026-01-14",
+        "account_code": "4000",
+        "account_name": "Sales Income",
+        "account_type": "income",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "sales_invoice",
+        "voucher_id": "1",
+        "voucher_no": "INV-000001",
+        "debit": 0,
+        "credit": 540,
+        "remarks": "Sales invoice submission",
+        "running_balance": -540
+      },
+      {
+        "id": "11",
+        "posting_date": "2026-01-14",
+        "account_code": "2200",
+        "account_name": "Tax Payable",
+        "account_type": "liability",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "sales_invoice",
+        "voucher_id": "1",
+        "voucher_no": "INV-000001",
+        "debit": 0,
+        "credit": 54,
+        "remarks": "Sales tax",
+        "running_balance": -54
+      },
+      {
+        "id": "12",
+        "posting_date": "2026-01-14",
+        "account_code": "5000",
+        "account_name": "Cost of Goods Sold",
+        "account_type": "expense",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "sales_invoice",
+        "voucher_id": "1",
+        "voucher_no": "INV-000001",
+        "debit": 159,
+        "credit": 0,
+        "remarks": "Cost of goods sold",
+        "running_balance": 159
+      },
+      {
+        "id": "13",
+        "posting_date": "2026-01-14",
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "sales_invoice",
+        "voucher_id": "1",
+        "voucher_no": "INV-000001",
+        "debit": 0,
+        "credit": 159,
+        "remarks": "Inventory sold",
+        "running_balance": -159
+      },
+      {
+        "id": "14",
+        "posting_date": "2026-01-14",
+        "account_code": "1110",
+        "account_name": "Cash",
+        "account_type": "asset",
+        "party_type": "customer",
+        "party_id": "GOLDEN-CUST-001",
+        "party_name": "Golden Sample Customer",
+        "voucher_type": "payment_journal",
+        "voucher_id": "2",
+        "voucher_no": "JRN-000002",
+        "debit": 200,
+        "credit": 0,
+        "remarks": "Golden partial payment",
+        "running_balance": 200
+      },
+      {
+        "id": "15",
+        "posting_date": "2026-01-14",
+        "account_code": "1100",
+        "account_name": "Accounts Receivable",
+        "account_type": "asset",
+        "party_type": "customer",
+        "party_id": "GOLDEN-CUST-001",
+        "party_name": "Golden Sample Customer",
+        "voucher_type": "payment_journal",
+        "voucher_id": "2",
+        "voucher_no": "JRN-000002",
+        "debit": 0,
+        "credit": 200,
+        "remarks": "Golden partial payment",
+        "running_balance": 394
+      },
+      {
+        "id": "1",
+        "posting_date": "2026-01-15",
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_opening",
+        "voucher_id": "1",
+        "voucher_no": "STK-000001",
+        "debit": 500,
+        "credit": 0,
+        "remarks": "Opening stock entry",
+        "running_balance": 341
+      },
+      {
+        "id": "2",
+        "posting_date": "2026-01-15",
+        "account_code": "3000",
+        "account_name": "Opening Equity",
+        "account_type": "equity",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_opening",
+        "voucher_id": "1",
+        "voucher_no": "STK-000001",
+        "debit": 0,
+        "credit": 500,
+        "remarks": "Opening stock entry",
+        "running_balance": -500
+      },
+      {
+        "id": "3",
+        "posting_date": "2026-01-15",
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_purchase",
+        "voucher_id": "2",
+        "voucher_no": "STK-000002",
+        "debit": 300,
+        "credit": 0,
+        "remarks": "Purchase stock entry",
+        "running_balance": 641
+      },
+      {
+        "id": "4",
+        "posting_date": "2026-01-15",
+        "account_code": "2100",
+        "account_name": "Accounts Payable",
+        "account_type": "liability",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_purchase",
+        "voucher_id": "2",
+        "voucher_no": "STK-000002",
+        "debit": 0,
+        "credit": 300,
+        "remarks": "Purchase stock entry",
+        "running_balance": -300
+      },
+      {
+        "id": "5",
+        "posting_date": "2026-01-15",
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_adjustment",
+        "voucher_id": "3",
+        "voucher_no": "STK-000003",
+        "debit": 110,
+        "credit": 0,
+        "remarks": "Adjustment stock entry",
+        "running_balance": 751
+      },
+      {
+        "id": "6",
+        "posting_date": "2026-01-15",
+        "account_code": "4100",
+        "account_name": "Stock Adjustment Gain",
+        "account_type": "income",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_adjustment",
+        "voucher_id": "3",
+        "voucher_no": "STK-000003",
+        "debit": 0,
+        "credit": 110,
+        "remarks": "Adjustment stock entry",
+        "running_balance": -110
+      },
+      {
+        "id": "7",
+        "posting_date": "2026-01-15",
+        "account_code": "5100",
+        "account_name": "Stock Adjustment Loss",
+        "account_type": "expense",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_adjustment_reversal",
+        "voucher_id": "3",
+        "voucher_no": "STK-000003",
+        "debit": 110,
+        "credit": 0,
+        "remarks": "Cancellation of STK-000003: Golden cancellation",
+        "running_balance": 110
+      },
+      {
+        "id": "8",
+        "posting_date": "2026-01-15",
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "account_type": "asset",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "stock_adjustment_reversal",
+        "voucher_id": "3",
+        "voucher_no": "STK-000003",
+        "debit": 0,
+        "credit": 110,
+        "remarks": "Cancellation of STK-000003: Golden cancellation",
+        "running_balance": 641
+      },
+      {
+        "id": "16",
+        "posting_date": "2026-01-15",
+        "account_code": "1120",
+        "account_name": "Bank",
+        "account_type": "asset",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "journal_entry",
+        "voucher_id": "3",
+        "voucher_no": "JRN-000003",
+        "debit": 75,
+        "credit": 0,
+        "remarks": "Golden bank deposit",
+        "running_balance": 75
+      },
+      {
+        "id": "17",
+        "posting_date": "2026-01-15",
+        "account_code": "3000",
+        "account_name": "Opening Equity",
+        "account_type": "equity",
+        "party_type": null,
+        "party_id": null,
+        "party_name": null,
+        "voucher_type": "journal_entry",
+        "voucher_id": "3",
+        "voucher_no": "JRN-000003",
+        "debit": 0,
+        "credit": 75,
+        "remarks": "Golden owner contribution",
+        "running_balance": -575
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "offset": 0,
+      "total": 17,
+      "total_pages": 1,
+      "start": 1,
+      "end": 17
+    },
+    "summary": {
+      "debit": 2048,
+      "credit": 2048,
+      "balance": 0
+    }
+  },
+  "stockLedger": {
+    "filters": {
+      "search": "",
+      "warehouse": "",
+      "entry_type": "",
+      "status": "posted",
+      "from": "",
+      "to": ""
+    },
+    "rows": [
+      {
+        "posting_date": "2026-01-15",
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "stock_entry_type": "adjustment",
+        "stock_entry_status": "cancelled",
+        "voucher_type": "stock_adjustment",
+        "voucher_id": "3",
+        "voucher_no": "STK-000003",
+        "is_reversal": true,
+        "reversal_of_voucher_id": "3",
+        "reversal_of_voucher_no": "STK-000003",
+        "ledger_remarks": "Cancellation of STK-000003: Golden cancellation",
+        "qty_change": -2,
+        "incoming_rate": 0,
+        "outgoing_rate": 55,
+        "stock_value_change": -110,
+        "qty_after_transaction": 15,
+        "stock_value_after_transaction": 800
+      },
+      {
+        "posting_date": "2026-01-15",
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "stock_entry_type": "adjustment",
+        "stock_entry_status": "cancelled",
+        "voucher_type": "stock_adjustment",
+        "voucher_id": "3",
+        "voucher_no": "STK-000003",
+        "is_reversal": false,
+        "reversal_of_voucher_id": null,
+        "reversal_of_voucher_no": null,
+        "ledger_remarks": null,
+        "qty_change": 2,
+        "incoming_rate": 55,
+        "outgoing_rate": 0,
+        "stock_value_change": 110,
+        "qty_after_transaction": 17,
+        "stock_value_after_transaction": 910
+      },
+      {
+        "posting_date": "2026-01-15",
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "stock_entry_type": "purchase",
+        "stock_entry_status": "submitted",
+        "voucher_type": "stock_purchase",
+        "voucher_id": "2",
+        "voucher_no": "STK-000002",
+        "is_reversal": false,
+        "reversal_of_voucher_id": null,
+        "reversal_of_voucher_no": null,
+        "ledger_remarks": null,
+        "qty_change": 5,
+        "incoming_rate": 60,
+        "outgoing_rate": 0,
+        "stock_value_change": 300,
+        "qty_after_transaction": 15,
+        "stock_value_after_transaction": 800
+      },
+      {
+        "posting_date": "2026-01-15",
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "stock_entry_type": "opening",
+        "stock_entry_status": "submitted",
+        "voucher_type": "stock_opening",
+        "voucher_id": "1",
+        "voucher_no": "STK-000001",
+        "is_reversal": false,
+        "reversal_of_voucher_id": null,
+        "reversal_of_voucher_no": null,
+        "ledger_remarks": null,
+        "qty_change": 10,
+        "incoming_rate": 50,
+        "outgoing_rate": 0,
+        "stock_value_change": 500,
+        "qty_after_transaction": 10,
+        "stock_value_after_transaction": 500
+      },
+      {
+        "posting_date": "2026-01-14",
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "stock_entry_type": "",
+        "stock_entry_status": "submitted",
+        "voucher_type": "invoice",
+        "voucher_id": "1",
+        "voucher_no": "INV-000001",
+        "is_reversal": false,
+        "reversal_of_voucher_id": null,
+        "reversal_of_voucher_no": null,
+        "ledger_remarks": null,
+        "qty_change": -3,
+        "incoming_rate": 0,
+        "outgoing_rate": 53,
+        "stock_value_change": -159,
+        "qty_after_transaction": 12,
+        "stock_value_after_transaction": 641
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "offset": 0,
+      "total": 5,
+      "total_pages": 1,
+      "start": 1,
+      "end": 5
+    }
+  },
+  "stockMovement": {
+    "filters": {
+      "search": "",
+      "warehouse": "",
+      "entry_type": "",
+      "status": "posted",
+      "from": "",
+      "to": ""
+    },
+    "rows": [
+      {
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "opening_qty": 0,
+        "opening_value": 0,
+        "in_qty": 17,
+        "out_qty": 5,
+        "value_change": 641,
+        "closing_qty": 12,
+        "closing_value": 641
+      }
+    ],
+    "summary": {
+      "opening_qty": 0,
+      "in_qty": 17,
+      "out_qty": 5,
+      "closing_qty": 12,
+      "opening_value": 0,
+      "value_change": 641,
+      "closing_value": 641
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "offset": 0,
+      "total": 1,
+      "total_pages": 1,
+      "start": 1,
+      "end": 1
+    }
+  },
+  "grossProfit": {
+    "filters": {
+      "search": "",
+      "warehouse": "",
+      "entry_type": "",
+      "status": "posted",
+      "from": "",
+      "to": ""
+    },
+    "rows": [
+      {
+        "invoice_date": "2026-01-15",
+        "invoice_no": "INV-000001",
+        "invoice_id": "1",
+        "customer_name": "Golden Sample Customer",
+        "item_code": "GOLDEN-ITEM-001",
+        "item_name": "Golden Sample Item",
+        "warehouse": "Golden Warehouse",
+        "quantity": 3,
+        "sales_amount": 540,
+        "cost_amount": 159,
+        "gross_profit": 381
+      }
+    ],
+    "summary": {
+      "sales_amount": 540,
+      "cost_amount": 159,
+      "gross_profit": 381,
+      "invoice_total": 0,
+      "paid_total": 0,
+      "balance_due": 0,
+      "current": 0,
+      "days_1_30": 0,
+      "days_31_60": 0,
+      "days_61_90": 0,
+      "days_over_90": 0,
+      "unallocated": 0
+    },
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "offset": 0,
+      "total": 1,
+      "total_pages": 1,
+      "start": 1,
+      "end": 1
+    }
+  },
+  "debtor": {
+    "filters": {
+      "search": "",
+      "customer": "",
+      "from": "",
+      "to": "",
+      "statement_from": "",
+      "statement_to": "",
+      "statement_range_set": false
+    },
+    "summary": {
+      "customer_count": 1,
+      "invoice_total": 594,
+      "paid_total": 200,
+      "balance_due": 394,
+      "current": 0,
+      "days_1_30": 0,
+      "days_31_60": 0,
+      "days_61_90": 0,
+      "days_over_90": 394,
+      "unallocated": 0,
+      "sales_amount": 0,
+      "cost_amount": 0,
+      "gross_profit": 0,
+      "ledger_balance": 394,
+      "allocated_balance": 394,
+      "unallocated_balance": 0
+    },
+    "debtors": [
+      {
+        "customer_key": "GOLDEN-CUST-001",
+        "customer_id": "GOLDEN-CUST-001",
+        "customer_name": "Golden Sample Customer",
+        "invoice_count": 1,
+        "invoice_total": 594,
+        "paid_total": 200,
+        "balance_due": 394,
+        "current": 0,
+        "days_1_30": 0,
+        "days_31_60": 0,
+        "days_61_90": 0,
+        "days_over_90": 394,
+        "unallocated": 0,
+        "sales_amount": 0,
+        "cost_amount": 0,
+        "gross_profit": 0
+      }
+    ],
+    "customerResults": [
+      {
+        "customer_key": "GOLDEN-CUST-001",
+        "customer_id": "GOLDEN-CUST-001",
+        "customer_name": "Golden Sample Customer",
+        "invoice_count": 1,
+        "invoice_total": 594,
+        "paid_total": 200,
+        "balance_due": 394,
+        "current": 0,
+        "days_1_30": 0,
+        "days_31_60": 0,
+        "days_61_90": 0,
+        "days_over_90": 394,
+        "unallocated": 0,
+        "sales_amount": 0,
+        "cost_amount": 0,
+        "gross_profit": 0
+      }
+    ],
+    "selected": null,
+    "statement": null,
+    "statementBalance": 0,
+    "paymentInvoiceId": null,
+    "pagination": {
+      "page": 1,
+      "limit": 200,
+      "offset": 0,
+      "total": 1,
+      "total_pages": 1,
+      "start": 1,
+      "end": 1
+    }
+  }
+}

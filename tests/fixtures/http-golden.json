@@ -1,0 +1,1010 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "route": "/"
+    },
+    {
+      "method": "GET",
+      "route": "/api/items"
+    },
+    {
+      "method": "POST",
+      "route": "/api/invoice-item-prices"
+    },
+    {
+      "method": "GET",
+      "route": "/api/price-lists"
+    },
+    {
+      "method": "GET",
+      "route": "/api/pricing-items"
+    },
+    {
+      "method": "GET",
+      "route": "/api/item-price-codes"
+    },
+    {
+      "method": "GET",
+      "route": "/api/master-items"
+    },
+    {
+      "method": "GET",
+      "route": "/api/report-items"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stock-balance"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stock-entry-cancel-template"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stock-entries"
+    },
+    {
+      "method": "GET",
+      "route": "/api/warehouses"
+    },
+    {
+      "method": "GET",
+      "route": "/api/report-warehouses"
+    },
+    {
+      "method": "GET",
+      "route": "/api/customers"
+    },
+    {
+      "method": "GET",
+      "route": "/api/suppliers"
+    },
+    {
+      "method": "GET",
+      "route": "/api/cost-centers"
+    },
+    {
+      "method": "GET",
+      "route": "/api/general-ledger/accounts"
+    },
+    {
+      "method": "GET",
+      "route": "/api/general-ledger/parties"
+    },
+    {
+      "method": "GET",
+      "route": "/api/employees"
+    },
+    {
+      "method": "GET",
+      "route": "/api/journal-reference-options"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/debtors"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-ledger"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-ledger/vouchers/opening/1"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-movement"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-movement/details"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/gross-profit"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/general-ledger"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/trial-balance"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/profit-and-loss"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/balance-sheet"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/new"
+    },
+    {
+      "method": "POST",
+      "route": "/stock/entries"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/1/edit"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/1"
+    },
+    {
+      "method": "POST",
+      "route": "/stock/entries/1/posting-time"
+    },
+    {
+      "method": "POST",
+      "route": "/stock/entries/1/delete"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/1/drawer"
+    },
+    {
+      "method": "POST",
+      "route": "/stock/entries/1"
+    },
+    {
+      "method": "POST",
+      "route": "/stock/entries/1/supplier"
+    },
+    {
+      "method": "POST",
+      "route": "/stock/entries/1/cancel"
+    },
+    {
+      "method": "GET",
+      "route": "/accounts"
+    },
+    {
+      "method": "GET",
+      "route": "/accounts/new"
+    },
+    {
+      "method": "POST",
+      "route": "/accounts"
+    },
+    {
+      "method": "GET",
+      "route": "/accounts/1/edit"
+    },
+    {
+      "method": "POST",
+      "route": "/accounts/1"
+    },
+    {
+      "method": "GET",
+      "route": "/journals"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/new"
+    },
+    {
+      "method": "POST",
+      "route": "/journals"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/1/edit"
+    },
+    {
+      "method": "POST",
+      "route": "/journals/1"
+    },
+    {
+      "method": "POST",
+      "route": "/journals/1/submit"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/1"
+    },
+    {
+      "method": "POST",
+      "route": "/journals/1/posting-time"
+    },
+    {
+      "method": "POST",
+      "route": "/journals/1/delete"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/1/drawer"
+    },
+    {
+      "method": "POST",
+      "route": "/journals/1/cancel"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders/new"
+    },
+    {
+      "method": "POST",
+      "route": "/purchase-orders"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders/1"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders/1/edit"
+    },
+    {
+      "method": "POST",
+      "route": "/purchase-orders/1"
+    },
+    {
+      "method": "POST",
+      "route": "/purchase-orders/1/delete"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/new"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/payments/1"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/payments/1/drawer"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/1"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1/posting-time"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1/delete"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/1/drawer"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/1/edit"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1/submit"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1/cancel"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1/payments"
+    },
+    {
+      "method": "POST",
+      "route": "/purchases/1/payments/1/cancel"
+    },
+    {
+      "method": "GET",
+      "route": "/settings"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/files"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/files/download"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/files/upload"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/company-information"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/date-time"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/erpnext-sync/sales-invoices"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/items/new"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/items/1/edit"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/items"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/price-lists/1/active"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/items/1/active"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/price-lists/1/delete"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/items/1/delete"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/items/1"
+    },
+    {
+      "method": "POST",
+      "route": "/settings/items"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/new"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/edit"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/duplicate"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/posting-time"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/non-system-invoice"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/submit"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/submit-cash-sale"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/cancel"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/payments/1"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/payments/1/drawer"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/delete"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/drawer"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/payments"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/payments/1"
+    },
+    {
+      "method": "POST",
+      "route": "/invoices/1/payments/1/cancel"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/print"
+    }
+  ],
+  "responses": [
+    {
+      "method": "GET",
+      "route": "/",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 8276,
+      "hash": "c9bca644c8720ab5229428fabc2b8d73fccfcc0b7ebc0c4bfca19fb08b7b4f3f"
+    },
+    {
+      "method": "GET",
+      "route": "/api/items",
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "bytes": 34,
+      "hash": "a6ccbe9a536ad41d20ba9d77cfa490d02a2d98701cbad654f98d24e721442a40"
+    },
+    {
+      "method": "GET",
+      "route": "/api/price-lists",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/pricing-items",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/item-price-codes",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/master-items",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/report-items",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stock-balance",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 49,
+      "hash": "92a3bff8fef989ae455e778f844af6dabc813b64ecb0aaeceae8f90041e601eb"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stock-entry-cancel-template",
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "bytes": 49,
+      "hash": "d00c1ead85f36c12b2e58029cb98cbc8c86fa5f42e3ffee9d5902319a18c067f"
+    },
+    {
+      "method": "GET",
+      "route": "/api/stock-entries",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 267,
+      "hash": "6a2904946f0311477ce06bc159e916b9994c835f9e91bc6b1c2509115c76c32e"
+    },
+    {
+      "method": "GET",
+      "route": "/api/warehouses",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/report-warehouses",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/customers",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/suppliers",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/cost-centers",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/general-ledger/accounts",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 959,
+      "hash": "54e249d6db530b859bd7359751adb4ee7970e9f5bba4ce6bca820a4716964cfc"
+    },
+    {
+      "method": "GET",
+      "route": "/api/general-ledger/parties",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 127,
+      "hash": "eefefd6b976ca78870e2a8df370a28f6c53fe01c8bd3e6ae0affeee674653465"
+    },
+    {
+      "method": "GET",
+      "route": "/api/employees",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/api/journal-reference-options",
+      "status": 200,
+      "type": "application/json; charset=utf-8",
+      "bytes": 2,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/debtors",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9578,
+      "hash": "9fd1b39ee8246777b612f46f88b95cf9c751c2981ddef60812dd7b38d2e08f4d"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-ledger",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 13265,
+      "hash": "40afb5a80335212d43cf07df127934f9fc3df1fea1392257a1bab259d1c55019"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-ledger/vouchers/opening/1",
+      "status": 404,
+      "type": "application/json; charset=utf-8",
+      "bytes": 30,
+      "hash": "ce0f0c62b170d7e3caee9a5823997030497bd30fe2d4b7db607f57e8f431d6e2"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-movement",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9843,
+      "hash": "8e1b24f6206bed466715c3a9153581861e8d050267aba969fb48575be5f8494c"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/stock-movement/details",
+      "status": 400,
+      "type": "application/json; charset=utf-8",
+      "bytes": 56,
+      "hash": "e41c4ccecb2d1cf989014f106de3a21b47f6d2076f1aa23ec60dca2c89e1675c"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/gross-profit",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 7946,
+      "hash": "d1dd1f42b546eb15d0013d04ab392e59fc7fc7f2ca6df7f303222595d4184085"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/general-ledger",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 20042,
+      "hash": "1a5fabe87d6411850a2d7443714cd71905d8fa021acd64a7956544447e7fb210"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/trial-balance",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 11790,
+      "hash": "d6729b0bc5ab242cbf41c95efc528c94484e58d4e5bc6980123755dc657c876b"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/profit-and-loss",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 8996,
+      "hash": "dd89d9e394f2264c58902001f0a549efda54842087f9fccaa23aef9fb2878bb0"
+    },
+    {
+      "method": "GET",
+      "route": "/reports/balance-sheet",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 10119,
+      "hash": "7ae1a504e02134a1ac0bf12ae864c48b30b916aad2459fdd99f02f83ed94339a"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 8005,
+      "hash": "0e6c90f6331e2dce42d37e5b89c25a9c9d030dc4af888af61890a6337c8bc0be"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 11927,
+      "hash": "3bf3e8f931a23b388691921b9e685f944a8ef701a8c5a18b3ee1f883f291195c"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/1/edit",
+      "status": 400,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1283,
+      "hash": "052ccefc20889c6afb1cccf6fc5e50ecd42d4b69b3c1275a036fe72bd55a8ba1"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/1",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 12061,
+      "hash": "f00a1efc370c564d879abafe1595a0106b04016bcec3d68ce2ffc2d43b8bb93e"
+    },
+    {
+      "method": "GET",
+      "route": "/stock/entries/1/drawer",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1992,
+      "hash": "ec89a58b2b08681776f08f6db94f6daabd22a73cab80b52882b65b2abf83a69b"
+    },
+    {
+      "method": "GET",
+      "route": "/accounts",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 11698,
+      "hash": "5241df545e212a9616cea00ca303ee1064c7b4f3bb81b5ccbd417c07cbc4efa8"
+    },
+    {
+      "method": "GET",
+      "route": "/accounts/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9178,
+      "hash": "ff7ce7806e2dd6b6e86d0b07d3fc19de237d9218e19d764884ca7d9bea261281"
+    },
+    {
+      "method": "GET",
+      "route": "/accounts/1/edit",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9436,
+      "hash": "870a3e9dd8275c182591401952a658fa54df92da350495996cabb4b15f168ebd"
+    },
+    {
+      "method": "GET",
+      "route": "/journals",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9080,
+      "hash": "c0456aa4203784036ffcbd398fac9ebf0ae02681cc734d2799e668754dfc783c"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 12659,
+      "hash": "e7b230cd36194fc6232be150192d8af815d94b5ec9135614caed93667030e396"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/1/edit",
+      "status": 400,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1278,
+      "hash": "e3e2388022788c8b50a062bece016bb3fc8a60d081dd8b7983f4b0b1f33f3300"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/1",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 14777,
+      "hash": "02248c4287883ef7fa50b9a53fb3cd6128c3093cb7763e2c6fbe6fe4c83d0394"
+    },
+    {
+      "method": "GET",
+      "route": "/journals/1/drawer",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 2686,
+      "hash": "08e9cc5eb933c50ff2e8aa2ee44e9630fb9555633386301e5e9a5c32ce69f846"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 6904,
+      "hash": "63729bf7dfb69b1edcf2bb8b15818e4f134a8dbab6dc11665195675f2e5c523b"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9424,
+      "hash": "953895c889c23851a6e867b4c4f5c50665e585b9e179a49cc7920d81f8a672d8"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders/1",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1269,
+      "hash": "90659bf76977c710f317153559f57943237e2aae4310aca3a1a2f80a91aba2f5"
+    },
+    {
+      "method": "GET",
+      "route": "/purchase-orders/1/edit",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1269,
+      "hash": "90659bf76977c710f317153559f57943237e2aae4310aca3a1a2f80a91aba2f5"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 7013,
+      "hash": "23c568c9438dd50ccc8cfbbf175bde4098081f706d50e03189cf18cc383ba6a0"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 9559,
+      "hash": "78f471fa67cec52d9fb49653cc5d122bf14418219d480bf4e1ca31558738d19f"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/payments/1",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1263,
+      "hash": "ca2b657230f25224e715ddb4efa5c10e14b1ddcc8313e360dec89ced921562e9"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/payments/1/drawer",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1263,
+      "hash": "ca2b657230f25224e715ddb4efa5c10e14b1ddcc8313e360dec89ced921562e9"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/1",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1263,
+      "hash": "ca2b657230f25224e715ddb4efa5c10e14b1ddcc8313e360dec89ced921562e9"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/1/drawer",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1263,
+      "hash": "ca2b657230f25224e715ddb4efa5c10e14b1ddcc8313e360dec89ced921562e9"
+    },
+    {
+      "method": "GET",
+      "route": "/purchases/1/edit",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1263,
+      "hash": "ca2b657230f25224e715ddb4efa5c10e14b1ddcc8313e360dec89ced921562e9"
+    },
+    {
+      "method": "GET",
+      "route": "/settings",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 11996,
+      "hash": "558b7c1d8dfa06bdd292339d36a3f0d1ced4ba0eef809f1ac1ef0379f0004deb"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/files",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 24914,
+      "hash": "1694f278c3eaedbbb323a6bbafbd447b7c0db58e20e0c34b430cb1c06817c5e9"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/files/download",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1269,
+      "hash": "021bb65241a83fdbd3b37c643e9f39da53991fbbbaeb373c3718a6def8138d0c"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/items/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 13931,
+      "hash": "6caa7068639f4c6b69cdda3c2f08d337c51d8f76a3cb6bb4b6c8c8c13d2d30e4"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/items/1/edit",
+      "status": 404,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1259,
+      "hash": "3184fd70c8f8778863c494785d49ecb480754a69d501eef72593eb4b9b6bf0e3"
+    },
+    {
+      "method": "GET",
+      "route": "/settings/items",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 7399,
+      "hash": "69dbe20363dcdb0fbb299b12a1426f20283b1b101236caacc0fb29292cd2f999"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/new",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 14527,
+      "hash": "cf0f29946c27fb4a9d4f3e8afe43faa14f51c27fd5add0e5ee2aeb1dc9337615"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 7961,
+      "hash": "77e758c1a30e2f3dc6ac89735a774f989b09bbff88c393e5b262c5a44f91a010"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/edit",
+      "status": 400,
+      "type": "text/html; charset=utf-8",
+      "bytes": 1280,
+      "hash": "c657a863d5ac4c4995edeeee108118a292af0d8e157abd854761b50ea91520ba"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/duplicate",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 15305,
+      "hash": "2c55e176818890b4c8316ab5c8018e4e89d5309c5a932c5faa29786c77b283d9"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/payments/1",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 12148,
+      "hash": "a3636acc5fa75fe3816413ae1d557e29208cdd737b95348bd6f581bbddcc8fe4"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/payments/1/drawer",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 791,
+      "hash": "193132721c8f6d3b85b63522974e4f8562d6eeb0f3432ff73874f84cd7a292e7"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 12148,
+      "hash": "a3636acc5fa75fe3816413ae1d557e29208cdd737b95348bd6f581bbddcc8fe4"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/drawer",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 6489,
+      "hash": "d686be595010df63b869f8e394383fbb4793fd96c16f91ee2cd18933c45e3230"
+    },
+    {
+      "method": "GET",
+      "route": "/invoices/1/print",
+      "status": 200,
+      "type": "text/html; charset=utf-8",
+      "bytes": 4297,
+      "hash": "51a6b29debe884b756e1c994952ee4b29c53f354e1d23482e7c3c605ec7dfec7"
+    }
+  ]
+}
