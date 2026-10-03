@@ -7,8 +7,6 @@ yarn-error.log*
 dist/
 build/
 coverage/
-data/auth.json
-
-data/company.json
-data/company.*.tmp
+data/*.json
+data/*.tmp
 data/project-files/

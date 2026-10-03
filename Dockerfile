@@ -13,7 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY server.js ./
 COPY src ./src
-COPY scripts ./scripts
+COPY scripts/start.js ./scripts/start.js
 COPY views ./views
 COPY public ./public
 COPY README.md ./
@@ -23,4 +23,4 @@ RUN mkdir -p /app/data && chown -R node:node /app/data
 USER node
 EXPOSE 3020
 
-CMD ["npm", "start"]
+CMD ["node", "scripts/start.js"]

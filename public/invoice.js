@@ -974,25 +974,22 @@ function updateEditActions() {
 }
 
 function calculateGrandTotal() {
-  const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   const discount = Number(document.querySelector('[name="discount_amount"]').value || 0);
   const tax = Number(document.querySelector('[name="tax_amount"]').value || 0);
-  return roundMoney(Math.max(0, subtotal - discount + tax));
+  return InvoiceMath.grandTotal(items, discount, tax);
 }
 
 function calculatePaidTotal() {
-  return roundMoney(payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0));
+  return InvoiceMath.paidTotal(payments);
 }
 
 function formatPaymentStatus(total, paid) {
-  if (Number(paid || 0) <= 0) {
-    return 'Unpaid';
-  }
-  return Number(paid || 0) >= Number(total || 0) ? 'Paid' : 'Partial';
+  const status = InvoiceMath.paymentStatus(total, paid);
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 function roundMoney(value) {
-  return Math.round(Number(value || 0));
+  return InvoiceMath.roundMoney(value);
 }
 
 function normalizeQuantity(value) {
