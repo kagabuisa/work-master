@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Daily Activity Report <%= voucher.name %></title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell daily-activity-page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Reports · ERPNext</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Daily Activity Report', href: '/reports/daily-activity' }, { label: voucher.name }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
+    </header>
+    <div class="daily-activity-heading">
+      <div><p class="eyebrow">Daily Activity Report voucher</p><h1><%= voucher.name %></h1><p><%= voucher.shop || 'Shop/Unit not specified' %> · <%= formatDate(voucher.date) %></p></div>
+      <span class="badge <%= voucher.status_label.toLowerCase() %>"><%= voucher.status_label %></span>
+    </div>
+    <section class="invoice-card dar-section">
+      <h2>Report details</h2>
+      <dl class="dar-fields">
+        <div><dt>Shop/Unit</dt><dd><%= voucher.shop || '—' %></dd></div>
+        <div><dt>Unit type</dt><dd><%= voucher.unit_type || '—' %></dd></div>
+        <div><dt>Date</dt><dd><%= formatDate(voucher.date) %></dd></div>
+        <% if (voucher.unit_type === 'Field Sales(FiSa)') { %><div><dt>Leads</dt><dd><%= voucher.leads == null ? '—' : voucher.leads %></dd></div><% } %>
+      </dl>
+    </section>
+    <section class="metrics daily-activity-metrics" aria-label="Sales and expense">
+      <article><span>Sales</span><strong><%= money(voucher.sales) %></strong></article>
+      <article><span>Expense</span><strong><%= money(voucher.expense) %></strong></article>
+      <article><span>Balance to be banked</span><strong><%= money(voucher.banked) %></strong></article>
+    </section>
+    <section class="invoice-card dar-section">
+      <h2>Expense details</h2><p class="dar-text"><%= voucher.expense_details || '—' %></p>
+    </section>
+    <section class="invoice-card dar-section">
+      <h2>Stock delivery report</h2>
+      <dl class="dar-fields">
+        <div><dt>Stock Entry Number</dt><dd><%= voucher.stock_entry_number || '—' %></dd></div>
+        <div><dt>Packages Received</dt><dd><%= voucher.packages_received == null ? '—' : voucher.packages_received %></dd></div>
+        <div><dt>Delivery differences?</dt><dd><%= voucher.delivery_differences || '—' %></dd></div>
+        <% if (voucher.warehouse) { %><div><dt>Warehouse</dt><dd><%= voucher.warehouse %></dd></div><% } %>
+      </dl>
+      <% if (voucher.item_differences) { %><h3>Items not received or excess items received</h3><p class="dar-text"><%= voucher.item_differences %></p><% } %>
+    </section>
+    <section class="invoice-card dar-section">
+      <h2>Other information report</h2>
+      <dl class="dar-fields">
+        <div><dt>Market Information</dt><dd class="dar-text"><%= voucher.remarks || '—' %></dd></div>
+        <div><dt>Comments or Remarks</dt><dd class="dar-text"><%= voucher.comments_or_remarks || '—' %></dd></div>
+      </dl>
+    </section>
+    <% if (voucher.cash_banked || voucher.bank_used || voucher.banked_on || voucher.sales_invoiced || voucher.expenses_posted) { %>
+      <section class="invoice-card dar-section">
+        <h2>Daily shop review</h2>
+        <dl class="dar-fields">
+          <div><dt>Sales Invoiced</dt><dd><%= money(voucher.sales_invoiced) %></dd></div>
+          <div><dt>Expenses Posted</dt><dd><%= money(voucher.expenses_posted) %></dd></div>
+          <div><dt>Cash Banked</dt><dd><%= money(voucher.cash_banked) %></dd></div>
+          <div><dt>Bank Used</dt><dd><%= voucher.bank_used || '—' %></dd></div>
+          <div><dt>Banked On</dt><dd><%= voucher.banked_on ? formatDate(voucher.banked_on) : '—' %></dd></div>
+        </dl>
+      </section>
+    <% } %>
+    <% if (voucher.amended_from) { %><p>Amended from <a href="/reports/daily-activity/<%= encodeURIComponent(voucher.amended_from) %>"><%= voucher.amended_from %></a></p><% } %>
+    <div class="actions"><a class="button button-light" href="/reports/daily-activity?from=<%= voucher.date %>&to=<%= voucher.date %>">Back to daily reports</a></div>
+  </main>
+</body>
+</html>

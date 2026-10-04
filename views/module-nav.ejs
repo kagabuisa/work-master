@@ -80,7 +80,7 @@
     <section class="module-nav-section <%= currentModule === 'report' ? 'active' : '' %>">
       <a class="module-nav-primary" href="<%= availableReports[0].href %>">Reports</a>
       <div class="module-nav-links">
-        <% availableReports.forEach((report) => { %><a href="<%= report.href %>"><%= report.label %></a><% }) %>
+        <% availableReports.forEach((report) => { %><a href="<%= report.href %>"><%= report.slug === 'daily-activity' ? 'Daily Activity Rpt' : report.label %></a><% }) %>
       </div>
     </section>
     <% } %>

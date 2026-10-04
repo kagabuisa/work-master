@@ -1,4 +1,5 @@
 const REPORTS = [
+  { slug: 'daily-activity', label: 'Daily Activity' },
   { slug: 'debtors', label: 'Debtors' },
   { slug: 'stock-ledger', label: 'Stock Ledger' },
   { slug: 'stock-movement', label: 'Stock Movement' },
