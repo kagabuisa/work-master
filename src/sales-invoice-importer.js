@@ -108,11 +108,15 @@ async function fetchSalesInvoices(from) {
       ${sqlNumber('sii', itemColumns, ['idx'])} AS line_no,
       ${sqlColumn('sii', itemColumns, ['item_code'])} AS item_code,
       ${sqlColumn('sii', itemColumns, ['item_name', 'description'], sqlColumn('sii', itemColumns, ['item_code']))} AS item_name,
+      COALESCE(NULLIF(${sqlColumn('sii', itemColumns, ['category', 'item_group'])}, ''), NULLIF(master.category, ''), master.item_group) AS item_category,
+      master.source AS source,
+      COALESCE(master.cost, master.last_purchase_rate, 0) AS cost,
       ${sqlColumn('sii', itemColumns, ['warehouse'])} AS warehouse,
       ${sqlNumber('sii', itemColumns, ['qty'])} AS quantity,
       ${sqlNumber('sii', itemColumns, ['base_net_rate', 'base_rate', 'net_rate', 'rate'])} AS unit_price,
       ${sqlNumber('sii', itemColumns, ['base_net_amount', 'base_amount', 'net_amount', 'amount'])} AS line_total
     FROM \`tabSales Invoice Item\` sii
+    LEFT JOIN \`tabItem\` master ON master.name = sii.item_code
     WHERE sii.\`parent\` IN (?)
     ORDER BY sii.\`parent\`, sii.\`idx\`
     `,
@@ -126,6 +130,9 @@ async function fetchSalesInvoices(from) {
       line_no: Number(item.line_no || list.length + 1),
       item_code: text(item.item_code),
       item_name: text(item.item_name || item.item_code),
+      item_category: text(item.item_category) || null,
+      source: text(item.source) || null,
+      cost: money(item.cost),
       warehouse: text(item.warehouse) || null,
       quantity: quantity(item.quantity),
       unit_price: money(item.unit_price),
@@ -205,9 +212,10 @@ async function insertInvoice(client, invoice) {
       `
       INSERT INTO app_invoice_items (
         invoice_pk, invoice_id, invoice_no, line_no, item_code, item_name, warehouse,
-        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit
+        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit,
+        item_category, source, cost
       )
-      VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, NULL, $9, 0, 0, 0)
+      VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, NULL, $9, 0, 0, 0, $10, $11, $12)
       `,
       [
         invoiceId,
@@ -219,6 +227,9 @@ async function insertInvoice(client, invoice) {
         item.quantity,
         item.unit_price,
         item.line_total,
+        item.item_category,
+        item.source,
+        item.cost,
       ],
     );
   }
@@ -249,10 +260,6 @@ async function importSalesInvoicesFromMysql(options = {}) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) {
     throw new Error('Use date format YYYY-MM-DD for SALES_INVOICE_IMPORT_FROM or --from=YYYY-MM-DD.');
   }
-  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') {
-    throw new Error('Sales invoice import requires INVOICE_STORE=postgres.');
-  }
-
   await initStore();
   const { invoices, itemsByInvoice } = await fetchSalesInvoices(from);
   const client = await getPostgresPool().connect();

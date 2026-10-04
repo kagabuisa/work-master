@@ -21,14 +21,15 @@ const FIXED = {
 // Drop the whole public schema and re-initialise from scratch, so serial IDs are
 // deterministic (1, 2, 3, ...) exactly as on a fresh deployment.
 async function resetGoldenSchema() {
-  const db = String(process.env.POSTGRES_DB || '');
+  const pool = store.getPostgresPool();
+  const { rows } = await pool.query('SELECT current_database() AS name');
+  const db = String(rows[0].name);
   if (!/(_golden|_test)$/.test(db)) {
     throw new Error(
       `Refusing to DROP SCHEMA public in database "${db}". `
       + 'Point POSTGRES_DB at a dedicated *_golden or *_test database.',
     );
   }
-  const pool = store.getPostgresPool();
   await pool.query('DROP SCHEMA public CASCADE');
   await pool.query('CREATE SCHEMA public');
   await store.closeStore();

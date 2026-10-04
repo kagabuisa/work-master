@@ -22,6 +22,7 @@
         <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new" role="menuitem"><span>Purchase</span><small>Receive stock and track payment</small></a><% } %>
         <% if (can('vouchers.purchase-orders.create')) { %><a href="/purchase-orders/new" role="menuitem"><span>Purchase Order</span><small>Order goods from a supplier</small></a><% } %>
         <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/entries/new" role="menuitem"><span>Stock Entry</span><small>Record stock movement</small></a><% } %>
+        <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/reconciliations/new" role="menuitem"><span>Stock Reconciliation</span><small>Record a physical count</small></a><% } %>
         <% if (can('vouchers.journals.create') && !scoped) { %><a href="/journals/new" role="menuitem"><span>Journal Entry</span><small>Record accounting entry</small></a><% } %>
       </div>
     </div>
@@ -42,11 +43,11 @@
 
     <% if (can('vouchers.purchases.view') || can('vouchers.purchases.create') || can('vouchers.purchase-orders.view') || can('vouchers.purchase-orders.create')) { %>
     <section class="module-nav-section <%= currentModule === 'purchases' ? 'active' : '' %>">
-      <a class="module-nav-primary" href="<%= can('vouchers.purchases.view') ? '/purchases' : can('vouchers.purchase-orders.view') ? '/purchase-orders' : can('vouchers.purchases.create') ? '/purchases/new' : '/purchase-orders/new' %>">Purchases</a>
+      <a class="module-nav-primary" href="<%= can('vouchers.purchases.view') ? '/purchases' : can('vouchers.purchase-orders.view') ? '/purchase-orders' : can('vouchers.purchases.create') ? '/purchases/new' : '/purchase-orders/new' %>">Purchase Invoices</a>
       <div class="module-nav-links">
         <% if (can('vouchers.purchases.create')) { %><a href="/purchases/new">New Purchase Invoice</a><% } %>
         <% if (can('vouchers.purchase-orders.create')) { %><a href="/purchase-orders/new">New Purchase Order</a><% } %>
-        <% if (can('vouchers.purchases.view')) { %><a href="/purchases">Purchases</a><% } %>
+        <% if (can('vouchers.purchases.view')) { %><a href="/purchases">Purchase Invoices</a><% } %>
         <% if (can('vouchers.purchase-orders.view')) { %><a href="/purchase-orders">Purchase Orders</a><% } %>
         <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger?entry_type=purchase">Purchase Stock Ledger</a><% } %>
       </div>
@@ -58,6 +59,8 @@
       <a class="module-nav-primary" href="/stock">Stock</a>
       <div class="module-nav-links">
         <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/entries/new">New Stock Entry</a><% } %>
+        <% if (can('vouchers.stock.create') && !supplierScoped) { %><a href="/stock/reconciliations/new">Stock Reconciliation</a><% } %>
+        <% if (can('vouchers.stock.view')) { %><a href="/stock/reconciliations">Stock Reconciliations</a><% } %>
         <% if (can('vouchers.stock.view')) { %><a href="/stock">Stock Balance</a><% } %>
         <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger">Stock Ledger</a><% } %>
         <% if (can('reports.stock-movement.view') && !scoped) { %><a href="/reports/stock-movement">Stock Movement</a><% } %>

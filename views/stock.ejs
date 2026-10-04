@@ -13,7 +13,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'stock' }) %>
-        <% if (can('vouchers.stock.create') && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/entries/new">New Stock Entry</a><% } %>
+        <% if (can('vouchers.stock.create') && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/entries/new">New Stock Entry</a><a class="button button-light" href="/stock/reconciliations/new">Stock Reconciliation</a><% } %>
       </nav>
     </header>
     <section class="metrics">

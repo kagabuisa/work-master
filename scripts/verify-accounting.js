@@ -1,10 +1,6 @@
 const { Pool } = require('pg');
 require('dotenv').config({ quiet: true });
 
-function usePostgresStore() {
-  return String(process.env.INVOICE_STORE || '').toLowerCase() === 'postgres';
-}
-
 function postgresSslConfig() {
   const value = String(process.env.POSTGRES_SSL || process.env.PGSSLMODE || '').toLowerCase();
   return ['1', 'true', 'required', 'require', 'yes'].includes(value)
@@ -170,10 +166,6 @@ async function inventoryCheck(pool) {
 }
 
 async function main() {
-  if (!usePostgresStore()) {
-    throw new Error('Accounting verification requires INVOICE_STORE=postgres.');
-  }
-
   const pool = createPool();
   try {
     const checks = [

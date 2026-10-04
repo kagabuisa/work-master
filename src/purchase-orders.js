@@ -15,12 +15,6 @@ function orderId(value) {
   return id;
 }
 
-function available() {
-  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') {
-    throw error('Purchase orders require Postgres storage.');
-  }
-}
-
 async function insertItems(client, id, items) {
   for (const item of items) {
     await client.query(`INSERT INTO app_purchase_order_items
@@ -32,7 +26,6 @@ async function insertItems(client, id, items) {
 }
 
 async function createPurchaseOrder(payload) {
-  available();
   const order = normalizePurchase(payload);
   return withPostgresTransaction(async (client) => {
     await resolvePurchaseMasters(client, order);
@@ -52,7 +45,6 @@ async function createPurchaseOrder(payload) {
 }
 
 async function updatePurchaseOrder(value, payload) {
-  available();
   const id = orderId(value);
   const order = normalizePurchase(payload);
   return withPostgresTransaction(async (client) => {
@@ -73,7 +65,6 @@ async function updatePurchaseOrder(value, payload) {
 }
 
 async function listPurchaseOrders(filters = {}) {
-  available();
   const page = Math.max(1, Number.parseInt(filters.page, 10) || 1);
   const requestedLimit = Number.parseInt(filters.page_size, 10);
   const limit = [10, 25, 50, 100].includes(requestedLimit) ? requestedLimit : 25;
@@ -112,7 +103,6 @@ async function listPurchaseOrders(filters = {}) {
 }
 
 async function loadPurchaseOrder(value) {
-  available();
   const id = orderId(value);
   const pool = getPostgresPool();
   const result = await pool.query(`SELECT *, posting_date::text AS posting_date,
@@ -133,7 +123,6 @@ async function loadPurchaseOrder(value) {
 }
 
 async function listReceivablePurchaseOrders() {
-  available();
   const result = await getPostgresPool().query(`SELECT o.id, o.order_no, o.supplier_name
     FROM app_purchase_orders o WHERE o.docstatus = 'submitted' AND EXISTS (
       SELECT 1 FROM app_purchase_order_items oi WHERE oi.purchase_order_id = o.id
@@ -145,7 +134,6 @@ async function listReceivablePurchaseOrders() {
 }
 
 async function changeStatus(value, from, to) {
-  available();
   const id = orderId(value);
   return withPostgresTransaction(async (client) => {
     const result = await client.query('SELECT docstatus FROM app_purchase_orders WHERE id=$1 FOR UPDATE', [id]);
@@ -166,7 +154,6 @@ async function changeStatus(value, from, to) {
 }
 
 async function deleteDraftPurchaseOrder(value) {
-  available();
   const id = orderId(value);
   return withPostgresTransaction(async (client) => {
     const result = await client.query('SELECT docstatus FROM app_purchase_orders WHERE id=$1 FOR UPDATE', [id]);

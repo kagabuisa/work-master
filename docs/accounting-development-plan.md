@@ -10,7 +10,7 @@ The general ledger should become the accounting source of truth. Existing invoic
 
 - The app is a Node/Express/EJS app.
 - ERPNext/MySQL is used for read-only item, customer, and warehouse lookup.
-- App-created invoices, payments, stock entries, stock balances, and stock ledger rows are stored in Postgres when `INVOICE_STORE=postgres`.
+- App-created invoices, payments, stock entries, stock balances, and stock ledger rows are stored in PostgreSQL.
 - Stock management already requires Postgres, so accounting should also be Postgres-only.
 - Invoice submission currently reduces stock and records item cost and gross profit.
 - Customer payments currently update invoice payment totals and payment status.

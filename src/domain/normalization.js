@@ -1,6 +1,5 @@
 'use strict';
 // Invoice/payment normalisation and debtor display helpers, extracted from store.js.
-const { usePostgresStore } = require('../core');
 const { PAYMENT_METHODS, JOURNAL_TYPES, DEFAULT_ACCOUNTS } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { ACCOUNT_DETAIL_TYPES } = require('../account-detail-types');
@@ -253,9 +252,7 @@ function buildInvoicePayments(payload, total) {
       return list;
     }
     const accountId = paymentAccountId(row.account_id);
-    const method = accountId && !usePostgresStore()
-      ? fallbackReceivingAccount(accountId).account_detail_type.toLowerCase()
-      : String(row.method || 'cash').trim().toLowerCase();
+    const method = String(row.method || 'cash').trim().toLowerCase();
     if (!PAYMENT_METHODS.has(method)) {
       const err = new Error('Choose a valid payment method.');
       err.status = 400;
@@ -324,9 +321,7 @@ function buildPaymentData(payload, existingPayments, existingId = null, existing
   }
 
   const accountId = paymentAccountId(payload.account_id);
-  const method = accountId && !usePostgresStore()
-    ? fallbackReceivingAccount(accountId).account_detail_type.toLowerCase()
-    : String(payload.method || (accountId ? 'cash' : '')).trim().toLowerCase();
+  const method = String(payload.method || (accountId ? 'cash' : '')).trim().toLowerCase();
   if (!PAYMENT_METHODS.has(method)) {
     const err = new Error('Choose a valid payment method.');
     err.status = 400;

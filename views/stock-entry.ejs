@@ -4,7 +4,7 @@
 <% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <html lang="en">
 <head>
-  <title><%= stockEntryReadOnly && entry ? 'Stock Entry' : entry ? 'Edit Stock Entry' : 'New Stock Entry' %></title>
+  <title><%= selectedEntryType === 'reconciliation' ? 'Stock Reconciliation' : stockEntryReadOnly && entry ? 'Stock Entry' : entry ? 'Edit Stock Entry' : 'New Stock Entry' %></title>
   <%- include('partials-head') %>
 </head>
 <body>
@@ -66,6 +66,8 @@
       <input type="hidden" name="supplier_phone" id="supplier-phone" value="<%= entry ? entry.supplier_phone || '' : '' %>">
       <input type="hidden" name="supplier_reference" id="supplier-reference" value="<%= entry ? entry.supplier_reference || '' : '' %>">
 
+      <p id="stock-reconciliation-hint" class="field-hint" <%= selectedEntryType === 'reconciliation' ? '' : 'hidden' %>>Enter the physical count for each item and warehouse. Submitting adjusts stock from its current balance to the count.</p>
+
       <table class="editable" id="stock-entry-items">
         <thead>
           <tr>
@@ -73,7 +75,7 @@
             <th class="item-code-col">Item Name</th>
             <th class="warehouse-col">Warehouse</th>
             <th class="warehouse-col">Target Warehouse</th>
-            <th>Qty</th>
+            <th id="stock-entry-quantity-heading"><%= selectedEntryType === 'reconciliation' ? 'Counted Qty' : 'Qty' %></th>
             <th class="rate-col">Rate</th>
             <% if (stockEntryReadOnly) { %>
             <th class="tracking-info">Created by</th>
@@ -103,7 +105,7 @@
                 <div class="stock-balance-field" data-balance-field="target_warehouse_balance">Balance: 0</div>
               </div>
             </td>
-            <td><input name="quantity" type="number" step="0.001" required></td>
+            <td><input name="quantity" type="number" step="0.001" <%= selectedEntryType === 'reconciliation' ? 'min="0"' : '' %> required></td>
             <td class="rate-col"><input class="rate-input" name="valuation_rate" type="number" step="1" value="0"></td>
             <% if (stockEntryReadOnly) { %>
             <td class="tracking-info"></td>
@@ -161,7 +163,7 @@
     </dialog>
   <% } %>
   <script>
-    window.STOCK_ENTRY_INITIAL = <%- JSON.stringify({ entry: entry || null, items: items || [], readOnly: stockEntryReadOnly }) %>;
+    window.STOCK_ENTRY_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], readOnly: stockEntryReadOnly }) %>;
   </script>
   <script src="/stock-entry.js"></script>
 </body>

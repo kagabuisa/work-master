@@ -31,8 +31,7 @@
         <label>Purchase Date<input type="date" name="posting_date" value="<%= purchase.posting_date || '' %>" required></label>
         <label>Posting Time<input type="time" name="posting_time" value="<%= purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() %>" required></label>
         <label>Due Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
-        <label>Supplier ID<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></label>
-        <label>Supplier Name<input name="supplier_name" id="purchase-supplier-name" value="<%= purchase.supplier_name || '' %>" readonly></label>
+        <label>Supplier name<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></label>
         <label>Price List<% if (purchase.purchase_order_id) { %><input type="hidden" name="price_list" value="<%= purchase.price_list || '' %>"><% } %><select name="<%= purchase.purchase_order_id ? '' : 'price_list' %>" id="purchase-price-list" <%= purchase.purchase_order_id ? 'disabled' : 'required' %>><option value="<%= purchase.price_list || '' %>"><%= purchase.price_list || 'Loading price lists...' %></option></select></label>
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
         <label class="wide">Remarks<input name="remarks" value="<%= purchase.remarks || '' %>"></label>
@@ -63,7 +62,7 @@
       <div class="actions">
         <button type="button" class="button-light" id="add-purchase-row" <%= purchase.purchase_order_id ? 'hidden' : '' %>>Add Item</button>
         <div class="live-total"><span>Total</span><strong id="purchase-total">Ugx 0</strong></div>
-        <button type="submit" data-voucher-save><%= purchase.id ? 'Save Draft' : 'Create Draft' %></button>
+        <button type="submit" data-voucher-save>Save</button>
       </div>
     </form>
   </main>

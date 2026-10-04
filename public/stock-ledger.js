@@ -129,6 +129,7 @@
   function renderItems(details) {
     const items = Array.isArray(details.items) ? details.items : [];
     const hasTarget = items.some((item) => item.target_warehouse);
+    const reconciliation = details.kind === 'stock_entry' && details.entry_type === 'reconciliation';
     if (!items.length) {
       return '<p class="empty">No voucher lines found.</p>';
     }
@@ -140,7 +141,8 @@
             <th class="item-code-col">Item Name</th>
             <th class="warehouse-col">Warehouse</th>
             ${hasTarget ? '<th class="warehouse-col">Target</th>' : ''}
-            <th>Qty</th>
+            <th>${reconciliation ? 'Counted Qty' : 'Qty'}</th>
+            ${reconciliation && details.status !== 'draft' ? '<th>Difference</th>' : ''}
             <th>Rate</th>
             <th>Amount</th>
           </tr>
@@ -153,6 +155,7 @@
               <td class="warehouse-col">${escapeHtml(item.warehouse || '')}</td>
               ${hasTarget ? `<td class="warehouse-col">${escapeHtml(item.target_warehouse || '')}</td>` : ''}
               <td>${formatQuantity(item.quantity)}</td>
+              ${reconciliation && details.status !== 'draft' ? `<td>${formatQuantity(item.difference)}</td>` : ''}
               <td>${formatMoney(item.rate)}</td>
               <td>${formatMoney(item.amount)}</td>
             </tr>

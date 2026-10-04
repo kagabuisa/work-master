@@ -79,7 +79,9 @@
                   <% } else { %>
                     <%= config.key === 'item-prices' && column.key === 'price_list_rate'
                       ? Math.round(Number(row[column.key])).toLocaleString('en-UG')
-                      : row[column.key] || column.fallback || '' %>
+                      : config.key === 'items' && column.key === 'unit_cost'
+                        ? Number(row[column.key] || 0).toLocaleString('en-UG')
+                        : row[column.key] || column.fallback || '' %>
                   <% } %>
                   <% if (column.secondaryKey && row[column.secondaryKey] && row[column.secondaryKey] !== row[column.key]) { %>
                     <small class="master-secondary">ID: <%= row[column.secondaryKey] %></small>

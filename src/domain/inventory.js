@@ -1,7 +1,7 @@
 'use strict';
 // Inventory domain: stock balances, stock entries, stock ledger/movement and
 // gross profit. Extracted from store.js.
-const { getPostgresPool, assertPostgresInventory, withPostgresTransaction } = require('../core');
+const { getPostgresPool, withPostgresTransaction } = require('../core');
 const { STOCK_ENTRY_TYPES } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
@@ -12,9 +12,9 @@ const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSear
 const { paginationOptions, paginationResult } = require('../lib/pagination');
 const { postStockEntryGlEntry, postGlEntry, reverseVoucherGlEntries, postStockEntryMovements, applyPostgresStockMovement, insertStockEntryItems, syncStockEntryItems, normalizeStockEntryItems, normalizeSupplierInfo, setVoucherDocstatus, addReportFilters, reportFilterValues, actorAuditValues } = require('./posting');
 const { findMasterItem, findMasterWarehouse } = require('./master-data');
+const { findPostgresInvoice } = require('./sales');
 
 async function stockSummary() {
-  assertPostgresInventory();
   const { rows } = await getPostgresPool().query(`
     SELECT
       COUNT(*)::int AS item_count,
@@ -27,7 +27,6 @@ async function stockSummary() {
 }
 
 async function stockBalances(filters = {}) {
-  assertPostgresInventory();
   const pagination = paginationOptions(filters, 50, 200);
   const search = String(filters.search || '').trim().toLowerCase();
   const warehouse = String(filters.warehouse || '').trim();
@@ -73,7 +72,6 @@ async function stockBalances(filters = {}) {
 }
 
 async function localStockQuantity(itemCode, warehouse) {
-  assertPostgresInventory();
   const { rows } = await getPostgresPool().query(
     `
     SELECT quantity::float, stock_value::float, valuation_rate::float
@@ -87,7 +85,6 @@ async function localStockQuantity(itemCode, warehouse) {
 }
 
 async function createStockEntry(payload) {
-  assertPostgresInventory();
   const entryType = String(payload.entry_type || '').trim();
   if (!STOCK_ENTRY_TYPES.includes(entryType)) {
     const err = new Error('Choose a valid stock entry type.');
@@ -133,7 +130,7 @@ async function createStockEntry(payload) {
       ],
     );
     const id = Number(rows[0].id);
-    const entryNo = `STK-${String(id).padStart(6, '0')}`;
+    const entryNo = `${entryType === 'reconciliation' ? 'REC' : 'STK'}-${String(id).padStart(6, '0')}`;
     await client.query('UPDATE app_stock_entries SET entry_no = $1 WHERE id = $2', [entryNo, id]);
     if (docstatus === 'submitted') {
       await setVoucherDocstatus(client, 'app_stock_entries', id, 'submitted');
@@ -150,7 +147,6 @@ async function createStockEntry(payload) {
 }
 
 async function loadStockEntry(id) {
-  assertPostgresInventory();
   const stockEntryId = Number(id);
   if (!Number.isFinite(stockEntryId)) {
     const err = new Error('Stock entry not found.');
@@ -179,13 +175,22 @@ async function loadStockEntry(id) {
     `
     SELECT id, created_by, created_by_user_id, created_at,
       updated_by, updated_by_user_id, updated_at,
-      item_code, item_name, warehouse, target_warehouse, quantity::float, valuation_rate::float
+      item_code, item_name, warehouse, target_warehouse, quantity::float,
+      counted_quantity::float, valuation_rate::float
     FROM app_stock_entry_items
     WHERE stock_entry_id = $1
     ORDER BY line_no
     `,
     [stockEntryId],
   );
+  let reconciliationValues = new Map();
+  if (entry.entry_type === 'reconciliation' && entry.docstatus !== 'draft') {
+    const { rows: movements } = await getPostgresPool().query(`SELECT item_code, warehouse,
+      stock_value_change::float FROM app_stock_ledger WHERE voucher_id = $1
+      AND voucher_type = 'stock_reconciliation' AND is_reversal = false`, [stockEntryId]);
+    reconciliationValues = new Map(movements.map((row) =>
+      [`${row.item_code}\0${row.warehouse}`, Number(row.stock_value_change || 0)]));
+  }
   return {
     entry: {
       ...entry,
@@ -196,14 +201,17 @@ async function loadStockEntry(id) {
     items: items.map((item) => ({
       ...item,
       id: Number(item.id),
-      quantity: Number(item.quantity || 0),
+      quantity_change: entry.entry_type === 'reconciliation' && entry.docstatus !== 'draft'
+        ? Number(item.quantity || 0) : null,
+      value_change: reconciliationValues.get(`${item.item_code}\0${item.warehouse}`) ?? null,
+      quantity: entry.entry_type === 'reconciliation' && item.counted_quantity != null
+        ? Number(item.counted_quantity) : Number(item.quantity || 0),
       valuation_rate: Number(item.valuation_rate || 0),
     })),
   };
 }
 
 async function stockEntryCancelTemplate(identifier) {
-  assertPostgresInventory();
   const value = String(identifier || '').trim();
   if (!value) {
     const err = new Error('Enter a stock entry number to cancel.');
@@ -261,7 +269,6 @@ async function stockEntryCancelTemplate(identifier) {
 }
 
 async function searchStockEntriesForCancel(search = '') {
-  assertPostgresInventory();
   const value = String(search || '').trim();
   const params = [];
   const where = ["COALESCE(se.docstatus, 'submitted') = 'submitted'"];
@@ -304,7 +311,6 @@ async function searchStockEntriesForCancel(search = '') {
 }
 
 async function updateStockEntry(id, payload) {
-  assertPostgresInventory();
   const stockEntryId = Number(id);
   if (!Number.isFinite(stockEntryId)) {
     const err = new Error('Stock entry not found.');
@@ -401,7 +407,6 @@ async function updateStockEntry(id, payload) {
 }
 
 async function updateStockEntrySupplierInfo(id, payload) {
-  assertPostgresInventory();
   const stockEntryId = Number(id);
   if (!Number.isFinite(stockEntryId)) {
     const err = new Error('Stock entry not found.');
@@ -438,7 +443,6 @@ async function updateStockEntrySupplierInfo(id, payload) {
 }
 
 async function cancelStockEntry(id, payload = {}) {
-  assertPostgresInventory();
   const stockEntryId = Number(id);
   if (!Number.isFinite(stockEntryId)) {
     const err = new Error('Stock entry not found.');
@@ -450,7 +454,7 @@ async function cancelStockEntry(id, payload = {}) {
   return withPostgresTransaction(async (client) => {
     const { rows } = await client.query(
       `
-      SELECT id, entry_no, docstatus
+      SELECT id, entry_no, entry_type, docstatus
       FROM app_stock_entries
       WHERE id = $1
       FOR UPDATE
@@ -494,6 +498,14 @@ async function cancelStockEntry(id, payload = {}) {
       `,
       [stockEntryId],
     );
+    if (!ledgerRows.length && entry.entry_type === 'reconciliation') {
+      const actor = actorAuditValues();
+      await client.query(`UPDATE app_stock_entries SET docstatus = 'cancelled',
+        cancelled_by = $1, cancelled_by_user_id = $2, cancelled_at = $3,
+        cancellation_reason = $4 WHERE id = $5`,
+      [actor.by, actor.by_user_id, actor.at, reason, stockEntryId]);
+      return stockEntryId;
+    }
     if (!ledgerRows.length) {
       const err = new Error('No submitted stock movement found to reverse.');
       err.status = 400;
@@ -518,6 +530,7 @@ async function cancelStockEntry(id, payload = {}) {
 
     for (const row of ledgerRows) {
       const qtyChange = -Number(row.qty_change || 0);
+      if (qtyChange === 0) continue;
       const rate = qtyChange > 0
         ? Number(row.outgoing_rate || row.incoming_rate || 0)
         : undefined;
@@ -606,7 +619,6 @@ async function validateStockEntryCancellation(client, ledgerRows) {
 }
 
 async function stockLedgerReport(filters = {}) {
-  assertPostgresInventory();
   if (String(filters.status || 'posted').trim() === 'draft') {
     return stockEntryDraftReport(filters);
   }
@@ -680,7 +692,6 @@ async function stockLedgerReport(filters = {}) {
 }
 
 async function stockLedgerVoucherDetails(voucherType, voucherId) {
-  assertPostgresInventory();
   const type = String(voucherType || '').trim();
   const id = Number(voucherId);
   if (!type || !Number.isFinite(id)) {
@@ -776,10 +787,15 @@ async function stockLedgerVoucherDetails(voucherType, voucherId) {
     }
     const { rows: items } = await getPostgresPool().query(
       `
-      SELECT item_code, warehouse, target_warehouse, quantity::float, valuation_rate::float
-      FROM app_stock_entry_items
-      WHERE stock_entry_id = $1
-      ORDER BY line_no
+      SELECT item.item_code, item.warehouse, item.target_warehouse,
+        item.quantity::float, item.counted_quantity::float, item.valuation_rate::float,
+        ledger.stock_value_change::float AS posted_value
+      FROM app_stock_entry_items item
+      LEFT JOIN app_stock_ledger ledger ON ledger.voucher_id = item.stock_entry_id
+        AND ledger.item_code = item.item_code AND ledger.warehouse = item.warehouse
+        AND ledger.voucher_type = 'stock_reconciliation' AND ledger.is_reversal = false
+      WHERE item.stock_entry_id = $1
+      ORDER BY item.line_no
       `,
       [id],
     );
@@ -789,7 +805,9 @@ async function stockLedgerVoucherDetails(voucherType, voucherId) {
       entry_type: entry.entry_type,
       status: entry.docstatus || 'submitted',
       title: entry.entry_no,
-      href: (entry.docstatus || 'submitted') === 'draft' ? `/stock/entries/${id}/edit` : '',
+      href: entry.entry_type === 'reconciliation'
+        ? `/stock/reconciliations/${id}${entry.docstatus === 'draft' ? '/edit' : ''}`
+        : (entry.docstatus || 'submitted') === 'draft' ? `/stock/entries/${id}/edit` : '',
       meta: {
         Type: entry.entry_type,
         Status: entry.docstatus || 'submitted',
@@ -802,14 +820,18 @@ async function stockLedgerVoucherDetails(voucherType, voucherId) {
         item_code: item.item_code,
         warehouse: item.warehouse || '',
         target_warehouse: item.target_warehouse || '',
-        quantity: Number(item.quantity || 0),
+        quantity: entry.entry_type === 'reconciliation' && item.counted_quantity != null
+          ? Number(item.counted_quantity) : Number(item.quantity || 0),
+        difference: entry.entry_type === 'reconciliation' && entry.docstatus !== 'draft'
+          ? Number(item.quantity || 0) : null,
         rate: Number(item.valuation_rate || 0),
-        amount: roundMoney(Number(item.quantity || 0) * Number(item.valuation_rate || 0)),
+        amount: entry.entry_type === 'reconciliation' && item.posted_value != null
+          ? Number(item.posted_value) : roundMoney(Number(item.quantity || 0) * Number(item.valuation_rate || 0)),
       })),
       totals: {
-        Total: roundMoney(items.reduce((sum, item) => (
-          sum + (Number(item.quantity || 0) * Number(item.valuation_rate || 0))
-        ), 0)),
+        Total: roundMoney(items.reduce((sum, item) => sum + (entry.entry_type === 'reconciliation'
+          && item.posted_value != null ? Number(item.posted_value)
+          : Number(item.quantity || 0) * Number(item.valuation_rate || 0)), 0)),
       },
     };
   }
@@ -911,7 +933,6 @@ async function stockEntryDraftReport(filters = {}) {
 }
 
 async function stockMovementReport(filters = {}) {
-  assertPostgresInventory();
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
@@ -1029,7 +1050,6 @@ async function stockMovementReport(filters = {}) {
 }
 
 async function stockMovementDetails(filters = {}) {
-  assertPostgresInventory();
   const itemCode = String(filters.item_code || '').trim();
   const warehouse = String(filters.warehouse || '').trim();
   const direction = String(filters.direction || '').trim();
@@ -1089,7 +1109,6 @@ async function stockMovementDetails(filters = {}) {
 }
 
 async function grossProfitReport(filters = {}) {
-  assertPostgresInventory();
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = ["invoice.docstatus = 'submitted'"];

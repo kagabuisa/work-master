@@ -10,7 +10,7 @@ const { optionalValue, requiredValue } = require('./lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('./lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('./lib/search');
 const { paginationOptions, paginationResult } = require('./lib/pagination');
-const { usePostgresStore, getPostgresPool, closeStore, assertPostgresInventory, assertPostgresAccounting, withPostgresTransaction } = require('./core');
+const { getPostgresPool, closeStore, withPostgresTransaction } = require('./core');
 const { STOCK_ENTRY_TYPES, DEFAULT_ACCOUNTS } = require('./constants');
 const {
   masterItemsWithStock,
@@ -66,7 +66,8 @@ let dateTimeSettingsCache;
 let dateTimeSettingsExpiresAt = 0;
 
 async function initStore() {
-  await initPostgresStore();
+  const { ensureSchema } = require('./migrate');
+  await ensureSchema(getPostgresPool());
 }
 
 const companyInformationFields = {
@@ -167,7 +168,6 @@ const {
 } = require('./domain/sales');
 const {
   initPostgresStore,
-  shouldRunStartupMigrations,
   createPerformanceIndexes,
   migratePostgresInvoiceItems,
   seedDefaultAccounts,
@@ -428,7 +428,6 @@ module.exports = {
   submitJournalEntry,
   cancelJournalEntry,
   getPostgresPool,
-  usePostgresStore,
   closeStore,
   withPostgresTransaction,
   applyPostgresStockMovement,

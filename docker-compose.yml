@@ -5,7 +5,6 @@ services:
     env_file:
       - .env
     environment:
-      INVOICE_STORE: ${INVOICE_STORE:-postgres}
       PORT: ${PORT:-3020}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

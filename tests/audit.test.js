@@ -1,47 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { AuditPool, runWithAuditUser, initRecordAudit, stampRecord, stampRecordList } = require('../src/audit');
+const { AuditPool, runWithAuditUser, initRecordAudit, recordAuditFields } = require('../src/audit');
 
 const alice = { id: 11, username: 'alice' };
 const bob = { id: 22, username: 'bob' };
 
-test('JSON records preserve their creator and track the editor; submitted audit fields cannot override it', () => {
-  const created = runWithAuditUser(alice, () => stampRecord({ name: 'Customer', created_by: 'forged' }));
-  assert.equal(created.created_by, 'alice');
-  assert.equal(created.created_by_user_id, '11');
-  assert.equal(created.updated_by, 'alice');
-  assert.ok(Date.parse(created.created_at));
-  const updated = runWithAuditUser(bob, () => stampRecord({ ...created, name: 'Updated', created_by: 'forged' }, created));
-  assert.equal(updated.created_by, 'alice');
-  assert.equal(updated.created_at, created.created_at);
-  assert.equal(updated.updated_by, 'bob');
-  assert.equal(updated.updated_by_user_id, '22');
-  assert.deepEqual(runWithAuditUser(alice, () => stampRecord({ ...updated, updated_at: 'forged' }, updated)), updated);
-});
-
-test('historical unknown creators stay unknown, and background work is labelled System', () => {
-  const old = { name: 'Legacy', created_at: '2020-01-01T00:00:00.000Z' };
-  const updated = runWithAuditUser(bob, () => stampRecord({ ...old, name: 'Changed' }, old));
-  assert.equal(updated.created_at, old.created_at);
-  assert.equal(updated.created_by, null);
-  assert.equal(updated.updated_by, 'bob');
-  const automated = stampRecord({ name: 'Imported' });
-  assert.equal(automated.created_by, 'System');
-  assert.equal(automated.created_by_user_id, null);
-});
-
-test('nested invoice lines and payments are audited without changing untouched records', () => {
-  const records = [{ id: 1, items: [{ id: 1, quantity: 1 }], payments: [] }, { id: 2, name: 'Untouched' }];
-  runWithAuditUser(alice, () => stampRecordList(records));
-  const before = structuredClone(records);
-  records[0].items[0].quantity = 2;
-  records[0].payments.push({ id: 1, amount: 100 });
-  runWithAuditUser(bob, () => stampRecordList(records, before));
-  assert.equal(records[0].created_by, 'alice');
-  assert.equal(records[0].updated_by, 'bob');
-  assert.equal(records[0].items[0].updated_by, 'bob');
-  assert.equal(records[0].payments[0].created_by, 'bob');
-  assert.deepEqual(records[1], before[1]);
+test('record audit fields preserve unknown historical values', () => {
+  assert.deepEqual(recordAuditFields({ created_by: 'alice', created_at: '2020-01-01' }), {
+    created_by: 'alice', created_by_user_id: null, created_at: '2020-01-01',
+    updated_by: null, updated_by_user_id: null, updated_at: null,
+  });
 });
 
 test('Postgres auditing covers every app table and isolates concurrent users and pooled connections', {

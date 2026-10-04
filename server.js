@@ -89,13 +89,10 @@ const {
   submitJournalEntry,
   cancelJournalEntry,
   getPostgresPool,
-  usePostgresStore,
 } = require('./src/store');
 const { ACCOUNT_DETAIL_TYPES } = require('./src/account-detail-types');
 const { currentPostingDate, currentPostingTime } = require('./src/posting-time');
 const { formatDate, formatTime, formatDateTime, formatTimestamp } = require('./src/date-time-format');
-const { initAuth } = require('./src/auth');
-const { ensureSchema } = require('./src/migrate');
 const { installAuth } = require('./src/auth-http');
 const { invoiceFormState, duplicateInvoiceFormState } = require('./src/invoice-form-state');
 const { selectedCategories, scopeRestricted, allowedInvoicePriceLists, requireInvoicePriceList,
@@ -111,6 +108,7 @@ const settingsRouter = require('./src/web/routes/settings');
 const salesRouter = require('./src/web/routes/sales');
 const { dashboardData, cachedInvoiceList, clearInvoiceCaches } = require('./src/web/cache');
 const { warehouseAccessOptions, accountAccessOptions } = require('./src/web/helpers');
+const { scriptJson } = require('./src/web/script-json');
 const apiRouter = require('./src/web/routes/api');
 
 const {
@@ -142,6 +140,7 @@ app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 app.disable('x-powered-by');
 app.locals.assetVersion = Date.now();
 app.locals.currentPostingTime = currentPostingTime;
+app.locals.scriptJson = scriptJson;
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -203,8 +202,6 @@ function ensureStoreInitialized() {
   }
   if (!storeInitPromise) {
     storeInitPromise = initStore()
-      .then(() => initAuth())
-      .then(() => (usePostgresStore() ? ensureSchema(getPostgresPool()) : undefined))
       .then(() => {
         storeReady = true;
       })
@@ -397,11 +394,7 @@ function assertSecureTransportConfiguration() {
 }
 
 ensureStoreInitialized()
-  .catch((err) => {
-    console.error('Store initialization failed:', err.message);
-    console.error('The app will keep running and retry when requests arrive.');
-  })
-  .finally(() => {
+  .then(() => {
     try {
       assertSecureTransportConfiguration();
     } catch (err) {
@@ -412,4 +405,8 @@ ensureStoreInitialized()
     app.listen(port, () => {
       console.log(`Work Master running on http://localhost:${port}`);
     });
+  })
+  .catch((err) => {
+    console.error('Store initialization failed:', err);
+    process.exitCode = 1;
   });

@@ -9,7 +9,7 @@ test('project file browser lists allowed files and rejects traversal and hidden 
   assert(root.items.some((item) => item.path === 'README.md' && !item.folder));
   assert(root.items.some((item) => item.path === 'uploads' && item.folder));
   assert.equal((await downloadableFile('README.md')).name, 'README.md');
-  for (const invalid of ['../.env', '.env', 'src/../server.js', 'src/.secret', 'data/auth.json', 'uploads/../../server.js']) {
+  for (const invalid of ['../.env', '.env', 'src/../server.js', 'src/.secret', 'data/private.json', 'uploads/../../server.js']) {
     await assert.rejects(downloadableFile(invalid), { status: 404 });
   }
 });

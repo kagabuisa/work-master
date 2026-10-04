@@ -352,8 +352,8 @@ router.post('/settings/:list/:id/delete', async (req, res, next) => {
 
 router.post('/settings/:list/:id', async (req, res, next) => {
   const id = decodeURIComponent(req.params.id);
+  const config = masterListConfig(req.params.list);
   try {
-    const config = masterListConfig(req.params.list);
     await updateMasterRecord(config.key, id, req.body);
     res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
@@ -373,8 +373,8 @@ router.post('/settings/:list/:id', async (req, res, next) => {
 });
 
 router.post('/settings/:list', async (req, res, next) => {
+  const config = masterListConfig(req.params.list);
   try {
-    const config = masterListConfig(req.params.list);
     const id = await createMasterRecord(config.key, req.body);
     res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {

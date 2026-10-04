@@ -111,6 +111,7 @@ function updateTotals() {
 }
 
 function updateSupplierName() {
+  if (!supplierName) return;
   const selected = suppliers.find((row) => row.supplier_id === supplierInput.value.trim());
   supplierName.value = selected ? selected.supplier_name : '';
 }

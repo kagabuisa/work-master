@@ -1,15 +1,16 @@
 <% const entryStatus = entry.docstatus || 'submitted'; %>
 <% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
-<div class="invoice-drawer-content" data-voucher-title="<%= entry.entry_no %>" data-voucher-eyebrow="Stock Entry">
+<div class="invoice-drawer-content" data-voucher-title="<%= entry.entry_no %>" data-voucher-eyebrow="<%= entry.entry_type === 'reconciliation' ? 'Stock Reconciliation' : 'Stock Entry' %>">
   <div class="invoice-drawer-heading">
     <div>
-      <p class="eyebrow">Stock Entry</p>
+      <p class="eyebrow"><%= entry.entry_type === 'reconciliation' ? 'Stock Reconciliation' : 'Stock Entry' %></p>
       <h2><%= entry.entry_no %></h2>
       <small><%= entry.entry_type %></small>
     </div>
   </div>
   <div class="invoice-drawer-actions">
-    <% if (entryStatus === 'draft' && can('vouchers.stock.edit')) { %><a class="button button-light" href="/stock/entries/<%= entry.id %>/edit">Edit</a><% } %>
+    <% if (entry.entry_type === 'reconciliation') { %><a class="button button-light" href="/stock/reconciliations/<%= entry.id %>">Open voucher</a><% } %>
+    <% if (entryStatus === 'draft' && can('vouchers.stock.edit')) { %><a class="button button-light" href="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/edit` : `/stock/entries/${entry.id}/edit` %>">Edit</a><% } %>
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
@@ -24,7 +25,7 @@
       </div>
     <% } %>
     <table>
-      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th class="warehouse-col">Target</th><th>Qty</th><th>Rate</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
+      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th class="warehouse-col">Target</th><th><%= entry.entry_type === 'reconciliation' ? 'Counted Qty' : 'Qty' %></th><% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><th>Change</th><% } %><th>Rate</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
       <tbody>
         <% (items || []).forEach((item, index) => { %>
           <tr>
@@ -33,6 +34,7 @@
             <td class="warehouse-col"><%= item.warehouse || '' %></td>
             <td class="warehouse-col"><%= item.target_warehouse || '' %></td>
             <td><%= Number(item.quantity || 0).toLocaleString() %></td>
+            <% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><td><%= Number(item.quantity_change || 0).toLocaleString() %></td><% } %>
             <td><%= money(item.valuation_rate || 0) %></td>
             <td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td>
             <td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td>

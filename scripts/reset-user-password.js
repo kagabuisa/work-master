@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { initStore } = require('../src/store');
-const { initAuth, createUser, resetUserPassword } = require('../src/auth');
+const { createUser, resetUserPassword } = require('../src/auth');
 require('dotenv').config({ quiet: true });
 
 async function main() {
@@ -11,7 +11,6 @@ async function main() {
     return;
   }
   await initStore();
-  await initAuth();
   const password = crypto.randomBytes(24).toString('base64url');
   let action = 'Reset password for';
   try {

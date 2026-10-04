@@ -4,8 +4,6 @@ const { spawnSync } = require('node:child_process');
 require('dotenv').config({ quiet: true });
 
 function localPostgresEndpoint(env = process.env) {
-  if (String(env.INVOICE_STORE || '').toLowerCase() !== 'postgres') return null;
-
   let host = env.PGHOST || env.POSTGRES_HOST || 'localhost';
   let port = Number(env.PGPORT || env.POSTGRES_PORT || 5432);
   const connectionString = env.POSTGRES_URL || env.DATABASE_URL;

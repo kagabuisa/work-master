@@ -1,5 +1,4 @@
 'use strict';
-process.env.INVOICE_STORE = process.env.INVOICE_STORE || 'postgres';
 process.env.POSTGRES_HOST = process.env.POSTGRES_HOST || '127.0.0.1';
 process.env.POSTGRES_PORT = process.env.POSTGRES_PORT || '55432';
 process.env.POSTGRES_DB = process.env.POSTGRES_DB || 'work_master_golden';
