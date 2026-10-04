@@ -1,6 +1,7 @@
 'use strict';
 // /reports routes. Mounted at /reports by server.js.
 const express = require('express');
+const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity');
 const { money, todayString } = require('../format');
 const {
   debtorReport,
@@ -19,6 +20,21 @@ const {
 } = require('../../store');
 
 const router = express.Router();
+
+router.get('/daily-activity', async (req, res, next) => {
+  try {
+    const report = await dailyActivityReport(req.query);
+    res.render('daily-activity', { report, query: req.query, money });
+  } catch (err) { next(err); }
+});
+
+router.get('/daily-activity/:name', async (req, res, next) => {
+  try {
+    const voucher = await dailyActivityVoucher(req.params.name);
+    if (!voucher) { const error = new Error('Daily Activity Report voucher not found.'); error.status = 404; throw error; }
+    res.render('daily-activity-voucher', { voucher, money });
+  } catch (err) { next(err); }
+});
 
 async function loadInvoice(id) {
   const invoice = await findInvoice(id);

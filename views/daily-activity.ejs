@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Daily Activity Report</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell daily-activity-page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Reports · ERPNext</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Daily Activity Report' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
+    </header>
+
+    <div class="daily-activity-heading">
+      <div><h1>Daily Activity Report</h1><p>Daily Activity Report vouchers from ERPNext.</p></div>
+      <span class="daily-activity-period"><%= formatDate(report.filters.from) %><% if (report.filters.to !== report.filters.from) { %> – <%= formatDate(report.filters.to) %><% } %></span>
+    </div>
+
+    <form class="report-filters daily-activity-filters" method="get">
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>" required></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>" required></label>
+      <label>Shop/Unit<input name="shop" value="<%= report.filters.shop %>" placeholder="Search shop or unit"></label>
+      <label>Status<select name="status"><option value="">All statuses</option>
+        <% [['0', 'Draft'], ['1', 'Submitted'], ['2', 'Cancelled']].forEach(([value, label]) => { %><option value="<%= value %>" <%= report.filters.status === value ? 'selected' : '' %>><%= label %></option><% }) %>
+      </select></label>
+      <label>Search<input name="q" value="<%= report.filters.search %>" placeholder="DAR number or details"></label>
+      <div class="report-filter-actions"><button type="submit">Apply</button><a class="button button-light" href="/reports/daily-activity">Reset</a></div>
+    </form>
+
+    <section class="metrics daily-activity-metrics" aria-label="Daily activity totals">
+      <article><span>Vouchers</span><strong><%= report.summary.total.toLocaleString() %></strong></article>
+      <article><span>Sales</span><strong><%= money(report.summary.sales) %></strong></article>
+      <article><span>Expense</span><strong><%= money(report.summary.expense) %></strong></article>
+      <article><span>Balance to be banked</span><strong><%= money(report.summary.banked) %></strong></article>
+    </section>
+
+    <section class="invoice-card report-section daily-activity-results">
+      <div class="daily-activity-results-heading"><h2>ERPNext vouchers</h2><span><%= report.pagination.start %>–<%= report.pagination.end %> of <%= report.summary.total %></span></div>
+      <div class="entry-table-scroll" role="region" aria-label="Daily activity vouchers" tabindex="0">
+        <table class="daily-activity-table">
+          <thead><tr><th>#</th><th>Voucher</th><th>Date</th><th>Shop/Unit</th><th>Sales</th><th>Expense</th><th>Balance to be banked</th><th>Expense Details</th><th>Stock Entry</th><th>Packages</th><th>Delivery differences?</th><th>Market Information</th><th>Status</th></tr></thead>
+          <tbody>
+            <% if (!report.rows.length) { %><tr><td colspan="13" class="empty">No Daily Activity Report vouchers match these filters.</td></tr><% } %>
+            <% report.rows.forEach((row, index) => { %>
+              <tr>
+                <td class="row-number"><%= report.pagination.offset + index + 1 %></td>
+                <td><a href="<%= row.href %>"><%= row.name %></a></td>
+                <td class="daily-activity-date"><%= formatDate(row.date) %></td>
+                <td><%= row.shop || '—' %></td>
+                <td class="daily-activity-amount"><%= money(row.sales) %></td>
+                <td class="daily-activity-amount"><%= money(row.expense) %></td>
+                <td class="daily-activity-amount"><%= money(row.banked) %></td>
+                <td class="daily-activity-remarks" title="<%= row.expense_details || '' %>"><%= row.expense_details || '—' %></td>
+                <td><%= row.stock_entry_number || '—' %></td>
+                <td><%= row.packages_received == null ? '—' : row.packages_received %></td>
+                <td><%= row.delivery_differences || '—' %></td>
+                <td class="daily-activity-remarks" title="<%= row.remarks || '' %>"><%= row.remarks || '—' %></td>
+                <td><span class="badge <%= row.status_label.toLowerCase() %>"><%= row.status_label %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/daily-activity' }) %>
+    </section>
+  </main>
+</body>
+</html>

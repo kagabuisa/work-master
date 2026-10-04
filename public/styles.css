@@ -3637,3 +3637,75 @@ body.tracking-visible td.tracking-info {
     flex: 1 1 0;
   }
 }
+
+/* The new invoice details form uses one row on desktop. */
+.new-invoice-form .invoice-entry-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1fr)
+    minmax(0, .95fr) minmax(0, 1.25fr) minmax(0, 1.05fr)
+    minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.05fr) minmax(0, 1.2fr);
+  gap: 6px;
+}
+.new-invoice-form .invoice-context-row { display: contents; }
+.new-invoice-form .invoice-customer-field { grid-column: auto; }
+.new-invoice-form .invoice-entry-row input,
+.new-invoice-form .invoice-entry-row select { min-width: 0; min-height: 32px; height: 32px; padding-left: 6px; padding-right: 6px; font-size: 12px; }
+.new-invoice-form .invoice-entry-row .app-floating-label { font-size: 11px; left: 4px; }
+
+@media (max-width: 1099px) {
+  .new-invoice-form .invoice-entry-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .new-invoice-form .invoice-entry-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .new-invoice-form .invoice-entry-row > .lookup-field { grid-column: auto; }
+}
+
+.daily-activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 18px 0; }
+.daily-activity-heading h1 { margin: 0 0 4px; color: var(--heading); font-size: 24px; }
+.daily-activity-heading p { margin: 0; color: var(--muted); }
+.daily-activity-period { border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--heading); font-size: var(--text-sm); font-weight: var(--font-semibold); padding: 8px 12px; white-space: nowrap; }
+.daily-activity-filters { grid-template-columns: minmax(130px, 150px) minmax(130px, 150px) minmax(160px, 1fr) minmax(130px, 150px) minmax(190px, 1.4fr) auto; }
+.daily-activity-filters input, .daily-activity-filters select { width: 100%; }
+.daily-activity-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.daily-activity-metrics article { border-left: 3px solid var(--accent); }
+.daily-activity-metrics article:nth-child(3) { border-left-color: #d6a044; }
+.daily-activity-metrics article:nth-child(4) { border-left-color: #c77873; }
+.daily-activity-results { padding: 0; }
+.daily-activity-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 20px; border-bottom: 1px solid var(--line); }
+.daily-activity-results-heading h2 { margin: 0; color: var(--heading); font-size: var(--text-lg); }
+.daily-activity-results-heading span { color: var(--muted); font-size: var(--text-sm); }
+.daily-activity-results .entry-table-scroll { margin-top: 0; }
+.daily-activity-table { width: 100%; min-width: 960px; margin: 0; }
+.daily-activity-table th { background: #f3f6f9; color: #526174; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.035em; white-space: nowrap; }
+.daily-activity-table th, .daily-activity-table td { padding: 11px 12px; vertical-align: middle; }
+.daily-activity-table tbody tr:nth-child(even) { background: #fafbfd; }
+.daily-activity-table tbody tr:hover { background: #f1f8f7; }
+.daily-activity-date strong, .daily-activity-date small { display: block; white-space: nowrap; }
+.daily-activity-date small { color: var(--muted); font-size: var(--text-xs); }
+.daily-activity-table .badge { display: inline-block; font-size: var(--text-xs); text-transform: capitalize; }
+.daily-activity-amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.daily-activity-remarks { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.daily-activity-results .server-pagination { padding: 12px 20px; }
+
+@media (max-width: 1100px) {
+  .daily-activity-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .daily-activity-heading { display: block; }
+  .daily-activity-period { display: inline-block; margin-top: 10px; }
+  .daily-activity-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .daily-activity-filters label:nth-child(5), .daily-activity-filters .report-filter-actions { grid-column: 1 / -1; }
+  .daily-activity-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.dar-section { margin: 16px 0; padding: 20px; }
+.dar-section h2 { margin: 0 0 16px; color: var(--heading); font-size: var(--text-lg); }
+.dar-section h3 { margin: 20px 0 8px; font-size: var(--text-sm); }
+.dar-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; margin: 0; }
+.dar-fields div { min-width: 0; }
+.dar-fields dt { margin-bottom: 5px; color: var(--muted); font-size: var(--text-sm); }
+.dar-fields dd { margin: 0; color: var(--heading); overflow-wrap: anywhere; }
+.dar-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 620px) { .dar-fields { grid-template-columns: 1fr; } }
+
+.daily-activity-table { min-width: 1600px; }
