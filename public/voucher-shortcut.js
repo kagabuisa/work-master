@@ -8,6 +8,7 @@ document.addEventListener('keydown', (event) => {
     const saveButton = document.querySelector('[data-voucher-save][form]');
     form = saveButton ? document.getElementById(saveButton.getAttribute('form')) : null;
   }
+  if (!form) form = document.querySelector('form[data-voucher-form]');
   if (!form) return;
 
   const saveButton = form.querySelector('[data-voucher-save]');

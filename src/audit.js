@@ -1,5 +1,4 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
-const { isDeepStrictEqual } = require('node:util');
 const { Pool } = require('pg');
 
 const context = new AsyncLocalStorage();
@@ -110,43 +109,4 @@ function recordAuditFields(record = {}) {
   return Object.fromEntries(AUDIT_FIELDS.map((key) => [key, record[key] ?? null]));
 }
 
-function withoutAudit(record) {
-  if (Array.isArray(record)) return record.map(withoutAudit);
-  if (!record || typeof record !== 'object') return record;
-  return Object.fromEntries(Object.entries(record)
-    .filter(([key]) => !AUDIT_FIELDS.includes(key))
-    .map(([key, value]) => [key, withoutAudit(value)]));
-}
-
-function stampRecord(record, previous) {
-  const actor = auditActor();
-  const now = new Date().toISOString();
-  if (previous && isDeepStrictEqual(withoutAudit(record), withoutAudit(previous))) {
-    Object.assign(record, recordAuditFields(previous));
-    return record;
-  }
-  Object.assign(record, {
-    created_by: previous ? previous.created_by ?? null : actor.name,
-    created_by_user_id: previous ? previous.created_by_user_id ?? null : actor.id,
-    created_at: previous ? previous.created_at ?? null : now,
-    updated_by: actor.name,
-    updated_by_user_id: actor.id,
-    updated_at: now,
-  });
-  return record;
-}
-
-function stampRecordList(records = [], previous = []) {
-  const key = (row, index) => row.token_hash ?? row.id ?? row.slug ?? row.item_code ?? index;
-  const old = new Map(previous.map((row, index) => [key(row, index), row]));
-  for (const [index, record] of records.entries()) {
-    const before = old.get(key(record, index));
-    for (const children of ['items', 'payments']) {
-      if (Array.isArray(record[children])) stampRecordList(record[children], before?.[children]);
-    }
-    stampRecord(record, before);
-  }
-  return records;
-}
-
-module.exports = { AuditPool, runWithAuditUser, auditActor, initRecordAudit, recordAuditFields, stampRecord, stampRecordList };
+module.exports = { AuditPool, runWithAuditUser, auditActor, initRecordAudit, recordAuditFields };

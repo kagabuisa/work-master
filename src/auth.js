@@ -1,13 +1,10 @@
 const crypto = require('node:crypto');
-const fs = require('node:fs/promises');
-const path = require('node:path');
 const { promisify } = require('node:util');
 const { getPostgresPool } = require('./store');
 const { REPORTS } = require('./report-permissions');
-const { initRecordAudit, stampRecordList } = require('./audit');
+const { initRecordAudit } = require('./audit');
 
 const scrypt = promisify(crypto.scrypt);
-const authFile = path.join(__dirname, '..', 'data', 'auth.json');
 const SESSION_DAYS = 7;
 const PASSWORD_MIN_LENGTH = 12;
 const MASTER_LISTS = [
@@ -214,10 +211,6 @@ function roleSlug(name) {
   return slug;
 }
 
-function usePostgres() {
-  return String(process.env.INVOICE_STORE || '').toLowerCase() === 'postgres';
-}
-
 function tokenHash(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
@@ -237,147 +230,87 @@ async function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
-async function readAuthFile() {
-  return JSON.parse(await fs.readFile(authFile, 'utf8'));
-}
-
-async function writeAuthFile(data) {
-  const previous = await readAuthFile();
-  for (const collection of ['users', 'roles', 'sessions']) {
-    if (Array.isArray(data[collection])) stampRecordList(data[collection], previous[collection]);
-  }
-  const temporary = `${authFile}.${process.pid}.tmp`;
-  await fs.writeFile(temporary, JSON.stringify(data, null, 2), { mode: 0o600 });
-  await fs.rename(temporary, authFile);
-}
-
 async function initAuth() {
-  if (usePostgres()) {
-    const pool = getPostgresPool();
+  const pool = getPostgresPool();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_users (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT true,
+      must_change_password BOOLEAN NOT NULL DEFAULT false,
+      role TEXT NOT NULL DEFAULT 'standard',
+      permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb,
+      permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb");
+  const roleColumn = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'app_users' AND column_name = 'role'
+  `);
+  if (!roleColumn.rowCount) {
+    await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'standard'");
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS app_users (
-        id BIGSERIAL PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        active BOOLEAN NOT NULL DEFAULT true,
-        must_change_password BOOLEAN NOT NULL DEFAULT false,
-        role TEXT NOT NULL DEFAULT 'standard',
-        permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb,
-        permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
+      UPDATE app_users SET role = 'admin'
+      WHERE id = (SELECT id FROM app_users ORDER BY CASE WHEN username = 'admin' THEN 0 ELSE 1 END, id LIMIT 1)
     `);
-    await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb");
-    await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb");
-    const roleColumn = await pool.query(`
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = current_schema() AND table_name = 'app_users' AND column_name = 'role'
-    `);
-    if (!roleColumn.rowCount) {
-      await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'standard'");
-      await pool.query(`
-        UPDATE app_users SET role = 'admin'
-        WHERE id = (SELECT id FROM app_users ORDER BY CASE WHEN username = 'admin' THEN 0 ELSE 1 END, id LIMIT 1)
-      `);
-    }
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS app_roles (
-        slug TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
-        scopes JSONB NOT NULL DEFAULT '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb,
-        permissions_version INTEGER NOT NULL DEFAULT 10,
-        built_in BOOLEAN NOT NULL DEFAULT false,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await pool.query(`ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS scopes JSONB NOT NULL DEFAULT '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb`);
-    await pool.query('ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS permissions_version INTEGER NOT NULL DEFAULT 1');
-    await initRecordAudit(pool, ['app_users', 'app_roles']);
-    for (const role of BUILT_IN_ROLES) {
-      await pool.query(
-        'INSERT INTO app_roles (slug, name, permissions, built_in, permissions_version) VALUES ($1, $2, $3::jsonb, true, 10) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, built_in = true',
-        [role.slug, role.name, JSON.stringify(role.permissions)],
-      );
-    }
-    const oldRoles = await pool.query('SELECT slug, permissions, scopes, permissions_version FROM app_roles WHERE permissions_version < 10');
-    for (const role of oldRoles.rows) {
-      await pool.query('UPDATE app_roles SET permissions = $1::jsonb, scopes = $2::jsonb, permissions_version = 10 WHERE slug = $3',
-        [JSON.stringify(migrateCurrentPermissions(role)),
-          JSON.stringify(role.permissions_version >= 9 ? role.scopes : DEFAULT_SCOPES), role.slug]);
-    }
-    await pool.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_users_role_fkey') THEN
-          ALTER TABLE app_users ADD CONSTRAINT app_users_role_fkey FOREIGN KEY (role) REFERENCES app_roles(slug) ON DELETE RESTRICT;
-        END IF;
-      END $$
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS app_user_sessions (
-        token_hash TEXT PRIMARY KEY,
-        user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
-        expires_at TIMESTAMPTZ NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await pool.query('CREATE INDEX IF NOT EXISTS app_user_sessions_user_idx ON app_user_sessions(user_id)');
-    await initRecordAudit(pool, ['app_user_sessions']);
-    return;
   }
-  await fs.mkdir(path.dirname(authFile), { recursive: true });
-  try {
-    await fs.writeFile(authFile, JSON.stringify({ nextId: 1, users: [], sessions: [] }), { flag: 'wx', mode: 0o600 });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_roles (
+      slug TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
+      scopes JSONB NOT NULL DEFAULT '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb,
+      permissions_version INTEGER NOT NULL DEFAULT 10,
+      built_in BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS scopes JSONB NOT NULL DEFAULT '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb`);
+  await pool.query('ALTER TABLE app_roles ADD COLUMN IF NOT EXISTS permissions_version INTEGER NOT NULL DEFAULT 1');
+  await initRecordAudit(pool, ['app_users', 'app_roles']);
+  for (const role of BUILT_IN_ROLES) {
+    await pool.query(
+      'INSERT INTO app_roles (slug, name, permissions, built_in, permissions_version) VALUES ($1, $2, $3::jsonb, true, 10) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, built_in = true',
+      [role.slug, role.name, JSON.stringify(role.permissions)],
+    );
   }
-  const data = await readAuthFile();
-  let changed = false;
-  if (data.users.some((user) => !user.role)) {
-    const first = data.users.find((user) => user.username === 'admin') || data.users[0];
-    for (const user of data.users) user.role = user.id === first?.id ? 'admin' : 'standard';
-    changed = true;
+  const oldRoles = await pool.query('SELECT slug, permissions, scopes, permissions_version FROM app_roles WHERE permissions_version < 10');
+  for (const role of oldRoles.rows) {
+    await pool.query('UPDATE app_roles SET permissions = $1::jsonb, scopes = $2::jsonb, permissions_version = 10 WHERE slug = $3',
+      [JSON.stringify(migrateCurrentPermissions(role)),
+        JSON.stringify(role.permissions_version >= 9 ? role.scopes : DEFAULT_SCOPES), role.slug]);
   }
-  if (!Array.isArray(data.roles)) {
-    data.roles = [];
-    changed = true;
-  }
-  for (const builtIn of BUILT_IN_ROLES) {
-    const role = data.roles.find((row) => row.slug === builtIn.slug);
-    if (!role) {
-      data.roles.push({ ...builtIn, scopes: structuredClone(DEFAULT_SCOPES), permissions_version: 10, built_in: true });
-      changed = true;
-    } else if (!role.built_in || role.name !== builtIn.name) {
-      role.built_in = true;
-      role.name = builtIn.name;
-      changed = true;
-    }
-  }
-  for (const role of data.roles) {
-    if (!role.permissions_version || role.permissions_version < 10) {
-      const previousVersion = role.permissions_version || 1;
-      role.permissions = migrateCurrentPermissions({ ...role, permissions_version: role.permissions_version || 1 });
-      if (previousVersion < 9) role.scopes = structuredClone(DEFAULT_SCOPES);
-      role.permissions_version = 10;
-      changed = true;
-    }
-    if (!role.scopes) { role.scopes = structuredClone(DEFAULT_SCOPES); changed = true; }
-  }
-  if (changed) await writeAuthFile(data);
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_users_role_fkey') THEN
+        ALTER TABLE app_users ADD CONSTRAINT app_users_role_fkey FOREIGN KEY (role) REFERENCES app_roles(slug) ON DELETE RESTRICT;
+      END IF;
+    END $$
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_user_sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS app_user_sessions_user_idx ON app_user_sessions(user_id)');
+  await initRecordAudit(pool, ['app_user_sessions']);
+
 }
 
 async function listRoles() {
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(`
-      SELECT r.slug, r.name, r.permissions, r.scopes, r.built_in, COUNT(u.id)::int AS user_count
-      FROM app_roles r LEFT JOIN app_users u ON u.role = r.slug
-      GROUP BY r.slug ORDER BY r.built_in DESC, r.name
-    `);
-    return rows;
-  }
-  const data = await readAuthFile();
-  return data.roles.map((role) => ({ ...role, user_count: data.users.filter((user) => user.role === role.slug).length }))
-    .sort((a, b) => Number(b.built_in) - Number(a.built_in) || a.name.localeCompare(b.name));
+  const { rows } = await getPostgresPool().query(`
+    SELECT r.slug, r.name, r.permissions, r.scopes, r.built_in, COUNT(u.id)::int AS user_count
+    FROM app_roles r LEFT JOIN app_users u ON u.role = r.slug
+    GROUP BY r.slug ORDER BY r.built_in DESC, r.name
+  `);
+  return rows;
 }
 
 async function validateRole(role) {
@@ -392,26 +325,16 @@ async function createRole(nameValue, permissionValues, scopeValues = DEFAULT_SCO
   const slug = roleSlug(name);
   const permissions = normalizePermissions(permissionValues);
   const scopes = normalizeScopes(scopeValues);
-  if (usePostgres()) {
-    try {
-      const { rows } = await getPostgresPool().query(
-        'INSERT INTO app_roles (slug, name, permissions, scopes, permissions_version) VALUES ($1, $2, $3::jsonb, $4::jsonb, 10) RETURNING slug, name, permissions, scopes, built_in',
-        [slug, name, JSON.stringify(permissions), JSON.stringify(scopes)],
-      );
-      return rows[0];
-    } catch (error) {
-      if (error.code === '23505') { error.message = 'A role with that name already exists.'; error.status = 409; }
-      throw error;
-    }
+  try {
+    const { rows } = await getPostgresPool().query(
+      'INSERT INTO app_roles (slug, name, permissions, scopes, permissions_version) VALUES ($1, $2, $3::jsonb, $4::jsonb, 10) RETURNING slug, name, permissions, scopes, built_in',
+      [slug, name, JSON.stringify(permissions), JSON.stringify(scopes)],
+    );
+    return rows[0];
+  } catch (error) {
+    if (error.code === '23505') { error.message = 'A role with that name already exists.'; error.status = 409; }
+    throw error;
   }
-  const data = await readAuthFile();
-  if (data.roles.some((role) => role.slug === slug)) {
-    const error = new Error('A role with that name already exists.'); error.status = 409; throw error;
-  }
-  const role = { slug, name, permissions, scopes, permissions_version: 10, built_in: false };
-  data.roles.push(role);
-  await writeAuthFile(data);
-  return role;
 }
 
 async function updateRole(slug, nameValue, permissionValues, scopeValues = DEFAULT_SCOPES) {
@@ -419,43 +342,26 @@ async function updateRole(slug, nameValue, permissionValues, scopeValues = DEFAU
   const permissions = normalizePermissions(permissionValues);
   const scopes = normalizeScopes(scopeValues);
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(
-      'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, permissions = $2::jsonb, scopes = $3::jsonb, permissions_version = 10 WHERE slug = $4 RETURNING slug',
-      [name, JSON.stringify(permissions), JSON.stringify(scopes), slug],
-    );
-    if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
-    return;
-  }
-  const data = await readAuthFile();
-  const role = data.roles.find((row) => row.slug === slug);
-  if (!role) { const error = new Error('Role not found.'); error.status = 404; throw error; }
-  if (!role.built_in) role.name = name;
-  role.permissions = permissions;
-  role.scopes = scopes;
-  await writeAuthFile(data);
+  const { rows } = await getPostgresPool().query(
+    'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, permissions = $2::jsonb, scopes = $3::jsonb, permissions_version = 10 WHERE slug = $4 RETURNING slug',
+    [name, JSON.stringify(permissions), JSON.stringify(scopes), slug],
+  );
+  if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
+
 }
 
 async function updateRoleDetails(slug, nameValue, scopeValues) {
   const name = cleanRoleName(nameValue);
   const scopes = scopeValues === undefined ? undefined : normalizeScopes(scopeValues);
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
-  if (usePostgres()) {
-    const { rowCount } = scopes === undefined
-      ? await getPostgresPool().query('UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END WHERE slug = $2', [name, slug])
-      : await getPostgresPool().query(
-        'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, scopes = $2::jsonb WHERE slug = $3',
-        [name, JSON.stringify(scopes), slug],
-      );
-    if (!rowCount) { const error = new Error('Role not found.'); error.status = 404; throw error; }
-    return;
-  }
-  const data = await readAuthFile();
-  const role = data.roles.find((row) => row.slug === slug);
-  if (!role) { const error = new Error('Role not found.'); error.status = 404; throw error; }
-  if (!role.built_in) role.name = name;
-  if (scopes !== undefined) role.scopes = scopes;
-  await writeAuthFile(data);
+  const { rowCount } = scopes === undefined
+    ? await getPostgresPool().query('UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END WHERE slug = $2', [name, slug])
+    : await getPostgresPool().query(
+      'UPDATE app_roles SET name = CASE WHEN built_in THEN name ELSE $1 END, scopes = $2::jsonb WHERE slug = $3',
+      [name, JSON.stringify(scopes), slug],
+    );
+  if (!rowCount) { const error = new Error('Role not found.'); error.status = 404; throw error; }
+
 }
 
 const INVOICE_PRICE_LIST_TYPE_PREFIX = 'invoice-price-list:';
@@ -478,7 +384,7 @@ async function saveRoleNamedListPermissions(slug, typeKey, actions) {
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
   const type = NAMED_LISTS.find((item) => String(typeKey || '').startsWith(item.prefix));
   const name = type && String(typeKey).slice(type.prefix.length);
-  if (!type || !name || !usePostgres() || actions.some((action) => action !== 'view')) {
+  if (!type || !name || actions.some((action) => action !== 'view')) {
     const error = new Error('Choose valid list permissions.'); error.status = 400; throw error;
   }
   const client = await getPostgresPool().connect();
@@ -502,7 +408,7 @@ async function saveRoleInvoicePriceListPermissions(slug, typeKey, actions) {
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
   const name = String(typeKey || '').startsWith(INVOICE_PRICE_LIST_TYPE_PREFIX)
     ? String(typeKey).slice(INVOICE_PRICE_LIST_TYPE_PREFIX.length) : '';
-  if (!name || !usePostgres() || actions.some((action) => !INVOICE_PRICE_LIST_ACTIONS.includes(action))) {
+  if (!name || actions.some((action) => !INVOICE_PRICE_LIST_ACTIONS.includes(action))) {
     const error = new Error('Choose valid price list permissions.'); error.status = 400; throw error;
   }
   const client = await getPostgresPool().connect();
@@ -536,26 +442,19 @@ async function saveRoleInvoicePriceListPermissions(slug, typeKey, actions) {
 
 async function mutateRolePermissions(slug, change) {
   if (slug === 'admin') { const error = new Error('Admin permissions cannot be changed.'); error.status = 400; throw error; }
-  if (usePostgres()) {
-    const client = await getPostgresPool().connect();
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query('SELECT permissions FROM app_roles WHERE slug = $1 FOR UPDATE', [slug]);
-      if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
-      const permissions = normalizePermissions(change(rows[0].permissions));
-      await client.query('UPDATE app_roles SET permissions = $1::jsonb WHERE slug = $2', [JSON.stringify(permissions), slug]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally { client.release(); }
-    return;
-  }
-  const data = await readAuthFile();
-  const role = data.roles.find((row) => row.slug === slug);
-  if (!role) { const error = new Error('Role not found.'); error.status = 404; throw error; }
-  role.permissions = normalizePermissions(change(role.permissions));
-  await writeAuthFile(data);
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT permissions FROM app_roles WHERE slug = $1 FOR UPDATE', [slug]);
+    if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
+    const permissions = normalizePermissions(change(rows[0].permissions));
+    await client.query('UPDATE app_roles SET permissions = $1::jsonb WHERE slug = $2', [JSON.stringify(permissions), slug]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+
 }
 
 async function saveRoleRecordPermissions(slug, typeKey, actionValues) {
@@ -613,29 +512,17 @@ async function saveRoleExtraPermissions(slug, values) {
 }
 
 async function deleteRole(slug) {
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(
-      'DELETE FROM app_roles WHERE slug = $1 AND built_in = false AND NOT EXISTS (SELECT 1 FROM app_users WHERE role = $1) RETURNING slug',
-      [slug],
-    );
-    if (!rows[0]) { const error = new Error('Role not found or still assigned to users.'); error.status = 400; throw error; }
-    return;
-  }
-  const data = await readAuthFile();
-  const role = data.roles.find((row) => row.slug === slug && !row.built_in);
-  if (!role || data.users.some((user) => user.role === slug)) {
-    const error = new Error('Role not found or still assigned to users.'); error.status = 400; throw error;
-  }
-  data.roles = data.roles.filter((row) => row.slug !== slug);
-  await writeAuthFile(data);
+  const { rows } = await getPostgresPool().query(
+    'DELETE FROM app_roles WHERE slug = $1 AND built_in = false AND NOT EXISTS (SELECT 1 FROM app_users WHERE role = $1) RETURNING slug',
+    [slug],
+  );
+  if (!rows[0]) { const error = new Error('Role not found or still assigned to users.'); error.status = 400; throw error; }
+
 }
 
 async function userCount() {
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query('SELECT COUNT(*)::int AS count FROM app_users');
-    return rows[0].count;
-  }
-  return (await readAuthFile()).users.length;
+  const { rows } = await getPostgresPool().query('SELECT COUNT(*)::int AS count FROM app_users');
+  return rows[0].count;
 }
 
 function cleanUsername(value) {
@@ -662,35 +549,19 @@ async function createUser(usernameValue, password, options = {}) {
   const hash = await passwordHash(password);
   const mustChange = Boolean(options.mustChangePassword);
   const role = options.role ? await validateRole(options.role) : await userCount() === 0 ? 'admin' : 'standard';
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(
-      'INSERT INTO app_users (username, password_hash, must_change_password, role) VALUES ($1, $2, $3, $4) RETURNING id, username, role',
-      [username, hash, mustChange, role],
-    );
-    return rows[0];
-  }
-  const data = await readAuthFile();
-  if (data.users.some((user) => user.username === username)) {
-    const error = new Error('Username already exists.');
-    error.status = 409;
-    throw error;
-  }
-  const user = { id: data.nextId++, username, password_hash: hash, active: true, must_change_password: mustChange, role,
-    permission_grants: [], permission_denials: [] };
-  data.users.push(user);
-  await writeAuthFile(data);
-  return { id: user.id, username: user.username, role: user.role };
+  const { rows } = await getPostgresPool().query(
+    'INSERT INTO app_users (username, password_hash, must_change_password, role) VALUES ($1, $2, $3, $4) RETURNING id, username, role',
+    [username, hash, mustChange, role],
+  );
+  return rows[0];
 }
 
 async function findUser(username) {
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(
-      'SELECT id, username, password_hash, active, must_change_password, role FROM app_users WHERE username = $1',
-      [username],
-    );
-    return rows[0] || null;
-  }
-  return (await readAuthFile()).users.find((user) => user.username === username) || null;
+  const { rows } = await getPostgresPool().query(
+    'SELECT id, username, password_hash, active, must_change_password, role FROM app_users WHERE username = $1',
+    [username],
+  );
+  return rows[0] || null;
 }
 
 async function authenticate(usernameValue, password) {
@@ -708,60 +579,38 @@ async function createSession(userId) {
   const token = crypto.randomBytes(32).toString('base64url');
   const hash = tokenHash(token);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
-  if (usePostgres()) {
-    await getPostgresPool().query('DELETE FROM app_user_sessions WHERE expires_at <= now()');
-    await getPostgresPool().query(
-      'INSERT INTO app_user_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
-      [hash, userId, expiresAt],
-    );
-  } else {
-    const data = await readAuthFile();
-    data.sessions = data.sessions.filter((session) => Date.parse(session.expires_at) > Date.now());
-    data.sessions.push({ token_hash: hash, user_id: userId, expires_at: expiresAt.toISOString() });
-    await writeAuthFile(data);
-  }
+  await getPostgresPool().query('DELETE FROM app_user_sessions WHERE expires_at <= now()');
+  await getPostgresPool().query(
+    'INSERT INTO app_user_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
+    [hash, userId, expiresAt],
+  );
+
   return token;
 }
 
 async function sessionUser(token) {
   if (!token || typeof token !== 'string' || token.length > 128) return null;
   const hash = tokenHash(token);
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(`
-      SELECT u.id, u.username, u.must_change_password, u.role, u.permission_grants, u.permission_denials,
-             COALESCE(r.name, u.role) AS role_name,
-             COALESCE(r.permissions, '[]'::jsonb) AS permissions,
-             COALESCE(r.scopes, '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb) AS scopes
-      FROM app_user_sessions s
-      JOIN app_users u ON u.id = s.user_id
-      LEFT JOIN app_roles r ON r.slug = u.role
-      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true
-    `, [hash]);
-    const user = rows[0];
-    if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
-    return user || null;
-  }
-  const data = await readAuthFile();
-  const session = data.sessions.find((row) => row.token_hash === hash && Date.parse(row.expires_at) > Date.now());
-  const user = session && data.users.find((row) => row.id === session.user_id && row.active);
-  const role = user && data.roles.find((row) => row.slug === user.role);
-  return user ? { id: user.id, username: user.username, role: user.role, role_name: role?.name || user.role,
-    permissions: applyPermissionOverrides(role?.permissions || [], user.permission_grants, user.permission_denials),
-    permission_grants: user.permission_grants || [], permission_denials: user.permission_denials || [],
-    scopes: role?.scopes || DEFAULT_SCOPES,
-    must_change_password: user.must_change_password } : null;
+  const { rows } = await getPostgresPool().query(`
+    SELECT u.id, u.username, u.must_change_password, u.role, u.permission_grants, u.permission_denials,
+           COALESCE(r.name, u.role) AS role_name,
+           COALESCE(r.permissions, '[]'::jsonb) AS permissions,
+           COALESCE(r.scopes, '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb) AS scopes
+    FROM app_user_sessions s
+    JOIN app_users u ON u.id = s.user_id
+    LEFT JOIN app_roles r ON r.slug = u.role
+    WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true
+  `, [hash]);
+  const user = rows[0];
+  if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
+  return user || null;
 }
 
 async function listUsers() {
-  if (usePostgres()) {
-    const { rows } = await getPostgresPool().query(
-      'SELECT id, username, role, active, must_change_password, permission_grants, permission_denials, created_at FROM app_users ORDER BY username',
-    );
-    return rows;
-  }
-  return (await readAuthFile()).users.map(({ id, username, role, active, must_change_password, permission_grants, permission_denials }) => (
-    { id, username, role, active, must_change_password, permission_grants: permission_grants || [], permission_denials: permission_denials || [] }
-  )).sort((a, b) => a.username.localeCompare(b.username));
+  const { rows } = await getPostgresPool().query(
+    'SELECT id, username, role, active, must_change_password, permission_grants, permission_denials, created_at FROM app_users ORDER BY username',
+  );
+  return rows;
 }
 
 async function saveUserPermissionOverrides(targetId, grants, denials) {
@@ -772,20 +621,12 @@ async function saveUserPermissionOverrides(targetId, grants, denials) {
   if (additions.some((key) => removals.includes(key))) {
     const error = new Error('A permission cannot be both allowed and denied.'); error.status = 400; throw error;
   }
-  if (usePostgres()) {
-    const result = await getPostgresPool().query(
-      `UPDATE app_users SET permission_grants = $1::jsonb, permission_denials = $2::jsonb
-       WHERE id = $3 AND role <> 'admin'`, [JSON.stringify(additions), JSON.stringify(removals), id],
-    );
-    if (!result.rowCount) { const error = new Error('User not found or has full Admin access.'); error.status = 404; throw error; }
-    return;
-  }
-  const data = await readAuthFile();
-  const user = data.users.find((row) => row.id === id && row.role !== 'admin');
-  if (!user) { const error = new Error('User not found or has full Admin access.'); error.status = 404; throw error; }
-  user.permission_grants = additions;
-  user.permission_denials = removals;
-  await writeAuthFile(data);
+  const result = await getPostgresPool().query(
+    `UPDATE app_users SET permission_grants = $1::jsonb, permission_denials = $2::jsonb
+     WHERE id = $3 AND role <> 'admin'`, [JSON.stringify(additions), JSON.stringify(removals), id],
+  );
+  if (!result.rowCount) { const error = new Error('User not found or has full Admin access.'); error.status = 404; throw error; }
+
 }
 
 async function updateUserAccess(actorId, targetId, changes) {
@@ -797,145 +638,95 @@ async function updateUserAccess(actorId, targetId, changes) {
   if (changes.active !== undefined && typeof changes.active !== 'boolean') {
     const error = new Error('Invalid account status.'); error.status = 400; throw error;
   }
-  if (usePostgres()) {
-    const client = await getPostgresPool().connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('SELECT pg_advisory_xact_lock(724091)');
-      const { rows } = await client.query('SELECT id, role, active FROM app_users WHERE id = $1 FOR UPDATE', [id]);
-      const user = rows[0];
-      if (!user) { const error = new Error('User not found.'); error.status = 404; throw error; }
-      const role = changes.role ?? user.role;
-      const active = changes.active ?? user.active;
-      if (Number(actorId) === id && (role !== 'admin' || !active)) {
-        const error = new Error('You cannot remove your own admin access.'); error.status = 400; throw error;
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(724091)');
+    const { rows } = await client.query('SELECT id, role, active FROM app_users WHERE id = $1 FOR UPDATE', [id]);
+    const user = rows[0];
+    if (!user) { const error = new Error('User not found.'); error.status = 404; throw error; }
+    const role = changes.role ?? user.role;
+    const active = changes.active ?? user.active;
+    if (Number(actorId) === id && (role !== 'admin' || !active)) {
+      const error = new Error('You cannot remove your own admin access.'); error.status = 400; throw error;
+    }
+    if (user.role === 'admin' && user.active && (role !== 'admin' || !active)) {
+      const count = await client.query("SELECT COUNT(*)::int AS n FROM app_users WHERE role = 'admin' AND active = true");
+      if (count.rows[0].n <= 1) {
+        const error = new Error('At least one active admin is required.'); error.status = 400; throw error;
       }
-      if (user.role === 'admin' && user.active && (role !== 'admin' || !active)) {
-        const count = await client.query("SELECT COUNT(*)::int AS n FROM app_users WHERE role = 'admin' AND active = true");
-        if (count.rows[0].n <= 1) {
-          const error = new Error('At least one active admin is required.'); error.status = 400; throw error;
-        }
-      }
-      if (role === user.role && active === user.active) {
-        await client.query('COMMIT');
-        return;
-      }
-      await client.query('UPDATE app_users SET role = $1, active = $2 WHERE id = $3', [role, active, id]);
-      await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [id]);
+    }
+    if (role === user.role && active === user.active) {
       await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally { client.release(); }
-    return;
-  }
-  const data = await readAuthFile();
-  const user = data.users.find((row) => row.id === id);
-  if (!user) { const error = new Error('User not found.'); error.status = 404; throw error; }
-  const role = changes.role ?? user.role;
-  const active = changes.active ?? user.active;
-  if (Number(actorId) === id && (role !== 'admin' || !active)) {
-    const error = new Error('You cannot remove your own admin access.'); error.status = 400; throw error;
-  }
-  if (user.role === 'admin' && user.active && (role !== 'admin' || !active)
-      && data.users.filter((row) => row.role === 'admin' && row.active).length <= 1) {
-    const error = new Error('At least one active admin is required.'); error.status = 400; throw error;
-  }
-  if (role === user.role && active === user.active) return;
-  user.role = role;
-  user.active = active;
-  data.sessions = data.sessions.filter((session) => session.user_id !== id);
-  await writeAuthFile(data);
+      return;
+    }
+    await client.query('UPDATE app_users SET role = $1, active = $2 WHERE id = $3', [role, active, id]);
+    await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [id]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally { client.release(); }
+
 }
 
 async function deleteSession(token) {
   if (!token) return;
   const hash = tokenHash(token);
-  if (usePostgres()) {
-    await getPostgresPool().query('DELETE FROM app_user_sessions WHERE token_hash = $1', [hash]);
-  } else {
-    const data = await readAuthFile();
-    data.sessions = data.sessions.filter((session) => session.token_hash !== hash);
-    await writeAuthFile(data);
-  }
+  await getPostgresPool().query('DELETE FROM app_user_sessions WHERE token_hash = $1', [hash]);
+
 }
 
 async function changePassword(userId, oldPassword, newPassword) {
   validatePassword(newPassword);
-  if (usePostgres()) {
-    const pool = getPostgresPool();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query('SELECT password_hash FROM app_users WHERE id = $1 FOR UPDATE', [userId]);
-      if (!rows[0] || !await verifyPassword(oldPassword, rows[0].password_hash)) {
-        const error = new Error('Current password is incorrect.');
-        error.status = 400;
-        throw error;
-      }
-      await client.query('UPDATE app_users SET password_hash = $1, must_change_password = false WHERE id = $2', [await passwordHash(newPassword), userId]);
-      await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [userId]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT password_hash FROM app_users WHERE id = $1 FOR UPDATE', [userId]);
+    if (!rows[0] || !await verifyPassword(oldPassword, rows[0].password_hash)) {
+      const error = new Error('Current password is incorrect.');
+      error.status = 400;
       throw error;
-    } finally {
-      client.release();
     }
-    return;
-  }
-  const data = await readAuthFile();
-  const user = data.users.find((row) => row.id === userId);
-  if (!user || !await verifyPassword(oldPassword, user.password_hash)) {
-    const error = new Error('Current password is incorrect.');
-    error.status = 400;
+    await client.query('UPDATE app_users SET password_hash = $1, must_change_password = false WHERE id = $2', [await passwordHash(newPassword), userId]);
+    await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [userId]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
-  user.password_hash = await passwordHash(newPassword);
-  user.must_change_password = false;
-  data.sessions = data.sessions.filter((session) => session.user_id !== userId);
-  await writeAuthFile(data);
+
 }
 
 async function resetUserPassword(usernameValue, newPassword) {
   const username = cleanUsername(usernameValue);
   validatePassword(newPassword);
   const hash = await passwordHash(newPassword);
-  if (usePostgres()) {
-    const pool = getPostgresPool();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query(
-        'UPDATE app_users SET password_hash = $1, must_change_password = true WHERE username = $2 RETURNING id',
-        [hash, username],
-      );
-      if (!rows[0]) {
-        const error = new Error('Username does not exist. Use user:create to add it.');
-        error.status = 404;
-        throw error;
-      }
-      await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [rows[0].id]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'UPDATE app_users SET password_hash = $1, must_change_password = true WHERE username = $2 RETURNING id',
+      [hash, username],
+    );
+    if (!rows[0]) {
+      const error = new Error('Username does not exist. Use user:create to add it.');
+      error.status = 404;
       throw error;
-    } finally {
-      client.release();
     }
-    return;
-  }
-  const data = await readAuthFile();
-  const user = data.users.find((row) => row.username === username);
-  if (!user) {
-    const error = new Error('Username does not exist. Use user:create to add it.');
-    error.status = 404;
+    await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [rows[0].id]);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
     throw error;
+  } finally {
+    client.release();
   }
-  user.password_hash = hash;
-  user.must_change_password = true;
-  data.sessions = data.sessions.filter((session) => session.user_id !== user.id);
-  await writeAuthFile(data);
+
 }
 
 module.exports = {

@@ -5,6 +5,7 @@ const ejs = require('ejs');
 const { invoiceFormState, duplicateInvoiceFormState } = require('../src/invoice-form-state');
 const { permissionCheck } = require('../src/authorize');
 const { normalizePostingTime, storedPostingTime } = require('../src/posting-time');
+const { scriptJson } = require('../src/web/script-json');
 
 const attempted = {
   invoice_date: '2026-09-26', posting_time: '19:40', due_date: '2026-10-26', non_system_invoice: 'EXT-0007', customer_id: 'C2',
@@ -16,6 +17,7 @@ const locals = {
   assetVersion: 'test', currentUser: { role: 'admin', username: 'test' },
   can: () => true, availableReports: [], formError: 'Insufficient stock',
   currentPostingTime: () => '19:40',
+  scriptJson,
 };
 
 test('failed draft edits retain attempted customer, warehouse, amounts and lines', () => {

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const ejs = require('ejs');
 const { journalAccountMatches } = require('../public/journal-account-match');
+const { scriptJson } = require('../src/web/script-json');
 
 test('journal account search matches code and name with percent wildcards', () => {
   const account = { code: '1102', name: 'Main Bank Account' };
@@ -22,6 +23,7 @@ test('editable journal lines render account search with a separate account id', 
     accounts: [{ id: 5, account_code: '1102', account_name: 'Main Bank Account' }],
     error: null, readOnly: false, today: '2026-10-02', money: String,
     currentPostingTime: () => '12:00', formatTimestamp: String,
+    scriptJson,
   });
   assert.match(html, /data-account-search/);
   assert.match(html, /name="account_id" value="5"/);

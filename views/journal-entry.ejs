@@ -103,7 +103,7 @@
       </section>
 
       <% if (!journalReadOnly) { %>
-        <script id="journal-account-data" type="application/json"><%- JSON.stringify(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))).replace(/</g, '\\u003c') %></script>
+        <script id="journal-account-data" type="application/json"><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))) %></script>
       <% } %>
       <table class="editable" id="journal-lines">
         <thead>

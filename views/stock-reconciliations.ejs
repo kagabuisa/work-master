@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Stock Reconciliations</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell reconciliation-page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Stock Reconciliations' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'stock' }) %></nav>
+    </header>
+    <section class="reconciliation-heading">
+      <div><h1>Stock reconciliations</h1><p>Review physical counts and the adjustments they posted.</p></div>
+      <% if (can('vouchers.stock.create')) { %><a class="button" href="/stock/reconciliations/new">New reconciliation</a><% } %>
+    </section>
+    <section class="invoice-card report-section">
+      <table>
+        <thead><tr><th>Voucher</th><th>Date</th><th>Warehouse</th><th>Items</th><th>Status</th><th>Remarks</th></tr></thead>
+        <tbody>
+          <% if (!rows.length) { %><tr><td colspan="6" class="empty">No stock reconciliations found.</td></tr><% } %>
+          <% rows.forEach((row) => { %>
+            <tr>
+              <td><a href="/stock/reconciliations/<%= row.id %>"><strong><%= row.entry_no %></strong></a></td>
+              <td><%= formatDate(row.posting_date) %></td>
+              <td><%= row.warehouse || '' %></td>
+              <td><%= row.item_count %></td>
+              <td><span class="badge <%= row.docstatus %>"><%= row.docstatus %></span></td>
+              <td><%= row.remarks || '' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <div class="actions">
+        <% if (page > 1) { %><a class="button button-light" href="/stock/reconciliations?page=<%= page - 1 %>">Previous</a><% } %>
+        <% if (hasNext) { %><a class="button button-light" href="/stock/reconciliations?page=<%= page + 1 %>">Next</a><% } %>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

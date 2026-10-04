@@ -1,6 +1,6 @@
 'use strict';
 // Sales domain: invoices, payments, debtor reports and invoice hydration.
-const { getPostgresPool, assertPostgresInventory, assertPostgresAccounting, withPostgresTransaction } = require('../core');
+const { getPostgresPool, withPostgresTransaction } = require('../core');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { recordAuditFields } = require('../audit');
@@ -12,6 +12,7 @@ const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSear
 const { paginationOptions, paginationResult } = require('../lib/pagination');
 const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, createOrUpdateSalesInvoiceJournalEntry, postCustomerPaymentGlEntry, applyPostgresStockMovement, postGlEntry, reverseVoucherGlEntries, resolveAccountingAccounts, actorAuditValues, setVoucherDocstatus, nonZeroAccountingLines, addReportFilters, reportFilterValues, groupByInvoiceId, postgresItemToInvoiceItem, postgresPaymentToInvoicePayment } = require('./posting');
 const { syncPostgresInvoicePaymentTotals } = require('./schema');
+const { validateReceivingAccount } = require('./ledger');
 const { findMasterItem, findMasterCustomer, findMasterSupplier } = require('./master-data');
 const { buildInvoiceData, buildPaymentData, buildInvoicePayments, isSubmitted, paymentAccountId, fallbackReceivingAccount, normalizeInvoiceTotals, normalizePayments, applyPaymentTotals, sumPayments, paymentStatus, buildCustomerStatement, filterStatementByDate, customerReportKey, customerMatchesSearch, agingBucket, emptyDebtorSummary, typeSort } = require('./normalization');
 
@@ -138,7 +139,6 @@ function postgresInvoiceBalancesCte() {
 }
 
 async function postgresDebtorReport(options = {}) {
-  assertPostgresAccounting();
   const search = String(options.search || '').trim().toLowerCase();
   const selectedCustomer = String(options.customer || '').trim();
   const from = String(options.from || '').trim();
@@ -338,15 +338,16 @@ async function postgresCustomerStatement(customerKey, filters = {}) {
       invoice.balance_due::float AS balance_due
     FROM ar_ledger gl
     LEFT JOIN app_journal_entries journal ON journal.id = gl.voucher_id
+      AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
       AND gl.voucher_type IN (journal.journal_type, journal.journal_type || '_cancellation')
     LEFT JOIN app_invoice_payments payment ON payment.id = gl.voucher_id
       AND gl.voucher_type IN ('customer_payment', 'customer_payment_cancellation')
     LEFT JOIN invoice_balances invoice ON invoice.docstatus = 'submitted'
-      AND (gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id
-        OR journal.reference_no = invoice.invoice_no
+      AND ((gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id)
+        OR (journal.reference_no = invoice.invoice_no
           AND journal.party_type = 'customer'
           AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
-            OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+            OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name)))
         OR payment.invoice_id = invoice.id)
     WHERE gl.party_type = 'customer'
       AND COALESCE(NULLIF(gl.party_id, ''), gl.party_name) = $1
@@ -898,6 +899,7 @@ async function submitCashSaleInvoice(id, payment) {
       );
     }
 
+    await client.query('UPDATE app_invoices SET is_cash_sale = true WHERE id = $1', [Number(id)]);
     await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
     await syncPostgresInvoicePaymentTotals(client, Number(id));
 
@@ -1317,14 +1319,16 @@ function invoiceParams(invoiceData) {
 }
 
 async function insertPostgresItems(client, invoiceId, invoiceNo, items) {
+  await populateInvoiceItemDetails(client, items);
   for (const item of items || []) {
     await client.query(
       `
       INSERT INTO app_invoice_items (
         invoice_pk, invoice_id, invoice_no, line_no, item_code, item_name, warehouse,
-        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit
+        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit,
+        item_category, source, cost
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       `,
       [
         invoiceId,
@@ -1341,12 +1345,16 @@ async function insertPostgresItems(client, invoiceId, invoiceNo, items) {
         item.cost_rate || 0,
         item.cost_amount || 0,
         item.gross_profit || 0,
+        item.item_category,
+        item.source,
+        item.cost,
       ],
     );
   }
 }
 
 async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
+  await populateInvoiceItemDetails(client, items);
   const existingResult = await client.query(
     'SELECT id FROM app_invoice_items WHERE invoice_pk = $1',
     [invoiceId],
@@ -1369,9 +1377,12 @@ async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
           quantity = $5,
           unit_price = $6,
           stock_at_sale = $7,
-          line_total = $8
-        WHERE id = $9
-          AND invoice_pk = $10
+          line_total = $8,
+          item_category = $9,
+          source = $10,
+          cost = $11
+        WHERE id = $12
+          AND invoice_pk = $13
         `,
         [
           lineNo,
@@ -1382,6 +1393,9 @@ async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
           item.unit_price,
           item.stock_at_sale,
           item.line_total,
+          item.item_category,
+          item.source,
+          item.cost,
           dbId,
           invoiceId,
         ],
@@ -1410,9 +1424,10 @@ async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
       `
       INSERT INTO app_invoice_items (
         invoice_pk, invoice_id, invoice_no, line_no, item_code, item_name, warehouse,
-        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit
+        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit,
+        item_category, source, cost
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       `,
       [
         invoiceId,
@@ -1429,8 +1444,25 @@ async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
         item.cost_rate || 0,
         item.cost_amount || 0,
         item.gross_profit || 0,
+        item.item_category,
+        item.source,
+        item.cost,
       ],
     );
+  }
+}
+
+async function populateInvoiceItemDetails(client, items) {
+  if (!items?.length) return;
+  const codes = [...new Set(items.map((item) => item.item_code))];
+  const { rows } = await client.query(`SELECT item_code, category, source, unit_cost::float
+    FROM app_master_items WHERE item_code = ANY($1::text[])`, [codes]);
+  const byCode = new Map(rows.map((row) => [row.item_code, row]));
+  for (const item of items) {
+    const master = byCode.get(item.item_code);
+    item.item_category = master?.category || null;
+    item.source = master?.source || null;
+    item.cost = Number(master?.unit_cost || 0);
   }
 }
 

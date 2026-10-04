@@ -2,8 +2,10 @@
 // /stock routes. Mounted at /stock by server.js.
 const express = require('express');
 const { money, todayString } = require('../format');
-const { currentPostingDate } = require('../../posting-time');
+const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { parseStockEntryPayload } = require('../parsers');
+const { applyReconciliationRatePolicy } = require('../reconciliation-rates');
+const { warehouseAllowed, voucherWarehousesAllowed } = require('../../access');
 const {
   stockSummary,
   stockBalances,
@@ -14,9 +16,187 @@ const {
   cancelStockEntry,
   updateVoucherPostingTime,
   deleteDraftVoucher,
+  getPostgresPool,
 } = require('../../store');
 
 const router = express.Router();
+
+function reconciliationView(entry = null, items = [], error = null, warehouse = '', balances = []) {
+  return { entry, items, error, balances, warehouse: warehouse || items[0]?.warehouse || '',
+    today: currentPostingDate(), postingTime: currentPostingTime() };
+}
+
+async function reconciliationBalances(items) {
+  if (!items.length) return [];
+  const warehouse = items[0].warehouse;
+  const codes = items.map((item) => item.item_code);
+  const { rows } = await getPostgresPool().query(`SELECT item_code, quantity::float, valuation_rate::float
+    FROM app_stock_balances WHERE warehouse = $1 AND item_code = ANY($2::text[])`, [warehouse, codes]);
+  return rows;
+}
+
+async function loadReconciliation(id) {
+  const data = await loadStockEntry(id);
+  if (data.entry.entry_type !== 'reconciliation') {
+    const err = new Error('Stock reconciliation not found.'); err.status = 404; throw err;
+  }
+  return data;
+}
+
+async function reconciliationPayload(body, user, existingItems = []) {
+  const warehouse = String(body.warehouse || '').trim();
+  if (!warehouse) { const err = new Error('Choose a warehouse.'); err.status = 400; throw err; }
+  const warehouseResult = await getPostgresPool().query(`SELECT 1 FROM app_master_warehouses
+    WHERE warehouse = $1 AND disabled = false AND is_group = false`, [warehouse]);
+  if (!warehouseResult.rows.length) {
+    const err = new Error('Choose an active warehouse.'); err.status = 400; throw err;
+  }
+  const payload = parseStockEntryPayload(body);
+  payload.entry_type = 'reconciliation';
+  payload.items = payload.items.filter((item) => String(item.item_code || '').trim())
+    .map((item) => ({ ...item, warehouse, target_warehouse: '' }));
+  if (!payload.items.length) { const err = new Error('Add at least one item to count.'); err.status = 400; throw err; }
+  const codes = [...new Set(payload.items.map((item) => String(item.item_code).trim()))];
+  const itemResult = await getPostgresPool().query(`SELECT item_code, item_name FROM app_master_items
+    WHERE item_code = ANY($1::text[]) AND disabled = false`, [codes]);
+  const names = new Map(itemResult.rows.map((item) => [item.item_code, item.item_name]));
+  for (const item of payload.items) {
+    if (!names.has(String(item.item_code).trim())) {
+      const err = new Error(`Item ${item.item_code} is not active.`); err.status = 400; throw err;
+    }
+    item.item_name = names.get(String(item.item_code).trim());
+  }
+  if (user?.role !== 'admin') {
+    const { rows: balances } = await getPostgresPool().query(`SELECT item_code, valuation_rate::float
+      FROM app_stock_balances WHERE warehouse = $1 AND item_code = ANY($2::text[])`, [warehouse, codes]);
+    payload.items = applyReconciliationRatePolicy(payload.items, user, balances, existingItems);
+  }
+  return payload;
+}
+
+router.get('/reconciliations/warehouse-stock', async (req, res, next) => {
+  try {
+    const warehouse = String(req.query.warehouse || '').trim();
+    if (!warehouse || !warehouseAllowed(req.currentUser, warehouse)) {
+      res.status(403).json({ error: 'Warehouse is not permitted.' }); return;
+    }
+    const { rows } = await getPostgresPool().query(`SELECT item_code, item_name,
+      quantity::float, valuation_rate::float, stock_value::float
+      FROM app_stock_balances WHERE warehouse = $1 AND quantity > 0
+      ORDER BY item_name, item_code`, [warehouse]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/reconciliations', async (req, res, next) => {
+  try {
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const { rows } = await getPostgresPool().query(`SELECT se.id, se.entry_no,
+      se.posting_date::text, se.docstatus, se.remarks,
+      MIN(item.warehouse) AS warehouse, COUNT(item.id)::int AS item_count
+      FROM app_stock_entries se
+      LEFT JOIN app_stock_entry_items item ON item.stock_entry_id = se.id
+      WHERE se.entry_type = 'reconciliation'
+      GROUP BY se.id ORDER BY se.posting_date DESC, se.id DESC
+      LIMIT 51 OFFSET $1`, [(page - 1) * 50]);
+    const visible = (await Promise.all(rows.map(async (row) =>
+      await voucherWarehousesAllowed(req.currentUser, 'stock', row.id) ? row : null))).filter(Boolean);
+    res.render('stock-reconciliations', { rows: visible.slice(0, 50), page,
+      hasNext: rows.length > 50 });
+  } catch (err) { next(err); }
+});
+
+router.get('/reconciliations/new', (_req, res) => {
+  res.render('stock-reconciliation', reconciliationView());
+});
+
+router.post('/reconciliations', async (req, res) => {
+  try {
+    const id = await createStockEntry(await reconciliationPayload(req.body, req.currentUser));
+    res.redirect(303, `/stock/reconciliations/${id}`);
+  } catch (err) {
+    const items = parseStockEntryPayload(req.body).items;
+    res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
+      posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+      remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
+    }, items, err.message, req.body.warehouse));
+  }
+});
+
+router.get('/reconciliations/:id/edit', async (req, res, next) => {
+  try {
+    const data = await loadReconciliation(req.params.id);
+    if (data.entry.docstatus !== 'draft') {
+      const err = new Error('Draft stock reconciliation not found.'); err.status = 404; throw err;
+    }
+    res.render('stock-reconciliation', reconciliationView(data.entry, data.items));
+  } catch (err) { next(err); }
+});
+
+router.get('/reconciliations/:id', async (req, res, next) => {
+  try {
+    const data = await loadReconciliation(req.params.id);
+    const balances = data.entry.docstatus === 'draft' ? await reconciliationBalances(data.items) : [];
+    res.render('stock-reconciliation', {
+      ...reconciliationView(data.entry, data.items, req.query.error || null, '', balances), readOnly: true,
+    });
+  } catch (err) { next(err); }
+});
+
+router.post('/reconciliations/:id', async (req, res, next) => {
+  try {
+    const current = await loadReconciliation(req.params.id);
+    if (current.entry.docstatus !== 'draft') {
+      const err = new Error('Draft stock reconciliation not found.'); err.status = 404; throw err;
+    }
+    await updateStockEntry(req.params.id, await reconciliationPayload(req.body, req.currentUser, current.items));
+    res.redirect(303, `/stock/reconciliations/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 404) return next(err);
+    const items = parseStockEntryPayload(req.body).items;
+    res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
+      id: Number(req.params.id), entry_no: `REC-${String(req.params.id).padStart(6, '0')}`,
+      posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+      remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
+    }, items, err.message, req.body.warehouse));
+  }
+});
+
+router.post('/reconciliations/:id/submit', async (req, res, next) => {
+  try {
+    const current = await loadReconciliation(req.params.id);
+    if (current.entry.docstatus !== 'draft') {
+      const err = new Error('Only draft reconciliations can be submitted.'); err.status = 400; throw err;
+    }
+    await updateStockEntry(req.params.id, {
+      entry_type: 'reconciliation', action: 'submit',
+      posting_date: current.entry.posting_date, posting_time: current.entry.posting_time,
+      remarks: current.entry.remarks,
+      items: current.items.map((item) => ({
+        id: item.id, item_code: item.item_code, item_name: item.item_name,
+        warehouse: item.warehouse, quantity: item.quantity, valuation_rate: item.valuation_rate,
+      })),
+    });
+    res.redirect(303, `/stock/reconciliations/${req.params.id}`);
+  } catch (err) {
+    if (err.status === 404) return next(err);
+    if (err.status === 400) return res.redirect(303, `/stock/reconciliations/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
+
+router.post('/reconciliations/:id/delete', async (req, res, next) => {
+  try { await loadReconciliation(req.params.id); await deleteDraftVoucher('stock', req.params.id); res.redirect(303, '/stock'); }
+  catch (err) { next(err); }
+});
+
+router.post('/reconciliations/:id/cancel', async (req, res, next) => {
+  try { await loadReconciliation(req.params.id); await cancelStockEntry(req.params.id, req.body); res.redirect(303, `/stock/reconciliations/${req.params.id}`); }
+  catch (err) {
+    if (err.status === 400) return res.redirect(303, `/stock/reconciliations/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -46,15 +226,26 @@ router.get('/', async (req, res, next) => {
 });
 
 router.get('/entries/new', (req, res) => {
-  const defaultEntryType = req.query.entry_type === 'purchase' ? 'purchase' : 'opening';
+  if (req.query.entry_type === 'reconciliation') return res.redirect(302, '/stock/reconciliations/new');
+  const defaultEntryType = ['purchase', 'reconciliation'].includes(req.query.entry_type)
+    ? req.query.entry_type : 'opening';
   res.render('stock-entry', { today: currentPostingDate(), error: null, entry: null, items: [], defaultEntryType });
 });
 
 router.post('/entries', async (req, res, next) => {
   try {
-    const id = await createStockEntry(parseStockEntryPayload(req.body));
-    res.redirect(`/reports/stock-ledger?voucher_id=${id}`);
+    const payload = req.body.entry_type === 'reconciliation'
+      ? await reconciliationPayload(req.body, req.currentUser) : parseStockEntryPayload(req.body);
+    const id = await createStockEntry(payload);
+    res.redirect(req.body.entry_type === 'reconciliation'
+      ? `/stock/reconciliations/${id}` : `/reports/stock-ledger?voucher_id=${id}`);
   } catch (err) {
+    if (req.body.entry_type === 'reconciliation') {
+      return res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
+        posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+        remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
+      }, parseStockEntryPayload(req.body).items, err.message, req.body.warehouse));
+    }
     res.status(err.status || 500).render('stock-entry', {
       today: req.body.posting_date || todayString(),
       postingTime: req.body.posting_time,
@@ -68,6 +259,7 @@ router.post('/entries', async (req, res, next) => {
 router.get('/entries/:id/edit', async (req, res, next) => {
   try {
     const data = await loadStockEntry(req.params.id);
+    if (data.entry.entry_type === 'reconciliation') return res.redirect(302, `/stock/reconciliations/${req.params.id}/edit`);
     if ((data.entry.docstatus || 'submitted') !== 'draft') {
       const err = new Error('Only draft stock entries can be edited.');
       err.status = 400;
@@ -86,6 +278,7 @@ router.get('/entries/:id/edit', async (req, res, next) => {
 router.get('/entries/:id', async (req, res, next) => {
   try {
     const data = await loadStockEntry(req.params.id);
+    if (data.entry.entry_type === 'reconciliation') return res.redirect(302, `/stock/reconciliations/${req.params.id}`);
     res.render('stock-entry', {
       today: data.entry.posting_date,
       error: req.query.error || null,
@@ -124,7 +317,10 @@ router.get('/entries/:id/drawer', async (req, res, next) => {
 
 router.post('/entries/:id', async (req, res, next) => {
   try {
-    const id = await updateStockEntry(req.params.id, parseStockEntryPayload(req.body));
+    const current = await loadStockEntry(req.params.id);
+    const payload = current.entry.entry_type === 'reconciliation' || req.body.entry_type === 'reconciliation'
+      ? await reconciliationPayload(req.body, req.currentUser, current.items) : parseStockEntryPayload(req.body);
+    const id = await updateStockEntry(req.params.id, payload);
     res.redirect(`/reports/stock-ledger?status=${req.body.action === 'save_draft' ? 'draft' : 'submitted'}&voucher_id=${id}`);
   } catch (err) {
     try {

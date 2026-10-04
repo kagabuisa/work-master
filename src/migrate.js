@@ -1,20 +1,35 @@
 'use strict';
-// Versioned schema migration runner.
-//
-// The current idempotent bootstrap DDL (initPostgresStore in store.js, plus the
-// pricing, auth and audit DDL) is SCHEMA_VERSION 1. Future schema changes are
-// appended to MIGRATIONS as { version, name, up(client) } and SCHEMA_VERSION is
-// bumped. ensureSchema records the version under a session advisory lock so two
-// concurrent startups cannot race the migration step.
+// Schema bootstrap and historical backfills run under this session lock.
+// Version 1 only recorded that the old startup bootstrap had run. Version 2
+// executes the current idempotent bootstrap once for new and v1 databases.
+const { initPostgresStore } = require('./domain/schema');
+const { initAuth } = require('./auth');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 3;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
 
-// Ordered migrations with version > 1. Append here for future schema changes; the
-// runner applies each in its own transaction and records it in wm_schema_version.
-const MIGRATIONS = [];
+const MIGRATIONS = [
+  {
+    version: 2,
+    name: 'postgres_schema_and_accounting_backfills',
+    // Existing bootstrap code uses its own connections and transactions. If it
+    // fails, the version is not recorded and the idempotent work can be retried.
+    transactional: false,
+    up: async () => {
+      await initPostgresStore();
+      await initAuth();
+    },
+  },
+  {
+    version: 3,
+    name: 'stock_reconciliation_count',
+    up: async (client) => {
+      await client.query('ALTER TABLE app_stock_entry_items ADD COLUMN IF NOT EXISTS counted_quantity NUMERIC(14, 3)');
+    },
+  },
+];
 
 async function ensureSchema(pool) {
   const client = await pool.connect();
@@ -29,9 +44,7 @@ async function ensureSchema(pool) {
       )
     `);
 
-    const { rows } = await client.query(
-      'SELECT COALESCE(MAX(version), 0)::int AS version FROM wm_schema_version',
-    );
+    const { rows } = await client.query('SELECT COALESCE(MAX(version), 0)::int AS version FROM wm_schema_version');
     const current = Number(rows[0].version);
     if (current > SCHEMA_VERSION) {
       throw new Error(
@@ -41,6 +54,12 @@ async function ensureSchema(pool) {
 
     for (const migration of MIGRATIONS) {
       if (migration.version <= current) continue;
+      if (migration.transactional === false) {
+        await migration.up();
+        await client.query('INSERT INTO wm_schema_version (version, name) VALUES ($1, $2)',
+          [migration.version, migration.name]);
+        continue;
+      }
       await client.query('BEGIN');
       try {
         await migration.up(client);
@@ -55,17 +74,11 @@ async function ensureSchema(pool) {
       }
     }
 
-    // Record the baseline version once. The idempotent bootstrap DDL has already
-    // run by the time this is called, so this only marks it as applied.
-    await client.query(
-      'INSERT INTO wm_schema_version (version, name) VALUES ($1, $2) ON CONFLICT (version) DO NOTHING',
-      [SCHEMA_VERSION, 'baseline'],
-    );
   } finally {
     try {
       await client.query('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY]);
     } catch {
-      // The connection may already be broken; releasing the client is enough.
+      // A broken connection releases its session lock when it closes.
     }
     client.release();
   }

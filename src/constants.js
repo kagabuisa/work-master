@@ -1,7 +1,7 @@
 'use strict';
 // Shared domain constants.
 
-const STOCK_ENTRY_TYPES = ['opening', 'purchase', 'transfer', 'adjustment', 'cancel'];
+const STOCK_ENTRY_TYPES = ['opening', 'purchase', 'transfer', 'adjustment', 'reconciliation', 'cancel'];
 const JOURNAL_TYPES = ['cash_receipt', 'payment_journal', 'journal_entry', 'sales_invoice'];
 const PAYMENT_METHODS = new Set(['cash', 'bank', 'mobile_money', 'card', 'other']);
 

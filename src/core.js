@@ -7,13 +7,6 @@ const { AuditPool } = require('./audit');
 
 let postgresPool;
 
-function usePostgresStore() {
-  // JSON storage was removed; Postgres is the only backend. The remaining
-  // usePostgresStore() call sites in store.js guard the now-dead JSON branches
-  // that are slated for deletion.
-  return true;
-}
-
 function postgresSslConfig() {
   const value = String(process.env.PGSSL || process.env.POSTGRES_SSL || '').toLowerCase();
   return ['1', 'true', 'required', 'yes'].includes(value)
@@ -51,22 +44,6 @@ async function closeStore() {
   }
 }
 
-function assertPostgresInventory() {
-  if (!usePostgresStore()) {
-    const err = new Error('Stock management requires INVOICE_STORE=postgres.');
-    err.status = 400;
-    throw err;
-  }
-}
-
-function assertPostgresAccounting() {
-  if (!usePostgresStore()) {
-    const err = new Error('Accounting requires INVOICE_STORE=postgres.');
-    err.status = 400;
-    throw err;
-  }
-}
-
 async function withPostgresTransaction(callback) {
   const client = await getPostgresPool().connect();
   try {
@@ -83,12 +60,9 @@ async function withPostgresTransaction(callback) {
 }
 
 module.exports = {
-  usePostgresStore,
   getPostgresPool,
   postgresHost,
   postgresSslConfig,
   closeStore,
-  assertPostgresInventory,
-  assertPostgresAccounting,
   withPostgresTransaction,
 };

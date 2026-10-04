@@ -1,7 +1,7 @@
 'use strict';
 // Posting engine: GL entries, stock movements, voucher journals and hydration
 // helpers. Extracted from store.js; the sales/inventory/ledger domains depend on it.
-const { getPostgresPool, usePostgresStore } = require('../core');
+const { getPostgresPool } = require('../core');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
 const { auditActor, recordAuditFields } = require('../audit');
 const { currentPostingTime, storedPostingTime } = require('../posting-time');
@@ -394,7 +394,7 @@ function stockEntryGlLines(entryType, valueChange, isReversal = false) {
         { account_key: 'inventory', credit: amount },
       ];
   }
-  if (entryType === 'adjustment' || entryType === 'cancel') {
+  if (entryType === 'adjustment' || entryType === 'reconciliation' || entryType === 'cancel') {
     return valueChange >= 0
       ? [
         { account_key: 'inventory', debit: amount },
@@ -593,6 +593,9 @@ function postgresItemToInvoiceItem(row) {
     line_no: Number(row.line_no),
     item_code: row.item_code,
     item_name: row.item_name,
+    item_category: row.item_category || '',
+    source: row.source || '',
+    cost: Number(row.cost || 0),
     warehouse: row.warehouse,
     quantity: Number(row.quantity || 0),
     unit_price: Number(row.unit_price || 0),
@@ -623,6 +626,7 @@ function postgresPaymentToInvoicePayment(row) {
 }
 
 function normalizeStockEntryItems(rows, entryType) {
+  const seen = new Set();
   return (Array.isArray(rows) ? rows : []).reduce((items, row) => {
     const itemCode = String(row.item_code || '').trim();
     const itemName = String(row.item_name || itemCode).trim();
@@ -633,7 +637,25 @@ function normalizeStockEntryItems(rows, entryType) {
       ? Number(Number(row.quantity || 0).toFixed(3))
       : quantity;
     const valuationRate = roundMoney(Math.max(0, Number(row.valuation_rate || 0)));
-    if (!itemCode || !itemName || !warehouse || signedQuantity === 0) {
+    if (!itemCode || !itemName || !warehouse) {
+      return items;
+    }
+    if (entryType === 'reconciliation') {
+      const count = Number(row.quantity);
+      if (row.quantity === '' || row.quantity == null || !Number.isFinite(count)
+        || count < 0 || Math.abs(count - Number(count.toFixed(3))) > 1e-9) {
+        const err = new Error('Enter a valid counted quantity with at most three decimal places.');
+        err.status = 400;
+        throw err;
+      }
+      const key = `${itemCode}\0${warehouse}`;
+      if (seen.has(key)) {
+        const err = new Error(`Count ${itemCode} in ${warehouse} only once.`);
+        err.status = 400;
+        throw err;
+      }
+      seen.add(key);
+    } else if (signedQuantity === 0) {
       return items;
     }
     if (entryType === 'transfer' && !targetWarehouse) {
@@ -644,8 +666,9 @@ function normalizeStockEntryItems(rows, entryType) {
       item_code: itemCode,
       item_name: itemName,
       warehouse,
-      target_warehouse: targetWarehouse,
+      target_warehouse: entryType === 'reconciliation' ? null : targetWarehouse,
       quantity: signedQuantity,
+      counted_quantity: entryType === 'reconciliation' ? signedQuantity : null,
       valuation_rate: valuationRate,
     });
     return items;
@@ -669,18 +692,19 @@ async function insertStockEntryItems(client, stockEntryId, items) {
       `
       INSERT INTO app_stock_entry_items (
         stock_entry_id, line_no, item_code, item_name, warehouse,
-        target_warehouse, quantity, valuation_rate
+        target_warehouse, quantity, counted_quantity, valuation_rate
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
       [
         stockEntryId,
-        lineNo,
+        item.line_no || lineNo,
         item.item_code,
         item.item_name,
         item.warehouse,
         item.target_warehouse,
         item.quantity,
+        item.counted_quantity,
         item.valuation_rate,
       ],
     );
@@ -708,9 +732,10 @@ async function syncStockEntryItems(client, stockEntryId, items) {
           warehouse = $4,
           target_warehouse = $5,
           quantity = $6,
-          valuation_rate = $7
-        WHERE id = $8
-          AND stock_entry_id = $9
+          counted_quantity = $7,
+          valuation_rate = $8
+        WHERE id = $9
+          AND stock_entry_id = $10
         `,
         [
           index + 1,
@@ -719,6 +744,7 @@ async function syncStockEntryItems(client, stockEntryId, items) {
           item.warehouse,
           item.target_warehouse,
           item.quantity,
+          item.counted_quantity,
           item.valuation_rate,
           dbId,
           stockEntryId,
@@ -734,7 +760,9 @@ async function syncStockEntryItems(client, stockEntryId, items) {
     }
   }
 
-  const newItems = items.filter((item) => !(Number(item.id || 0) > 0 && existingIds.has(Number(item.id))));
+  const newItems = items.flatMap((item, index) =>
+    Number(item.id || 0) > 0 && existingIds.has(Number(item.id))
+      ? [] : [{ ...item, line_no: index + 1 }]);
   await insertStockEntryItems(client, stockEntryId, newItems);
 }
 
@@ -762,6 +790,21 @@ async function postStockEntryMovements(client, { id, entryNo, entryType, posting
         qty_change: Math.abs(item.quantity),
         rate: outgoing.outgoing_rate,
       });
+    } else if (entryType === 'reconciliation') {
+      const movement = await applyPostgresStockMovement(client, {
+        posting_date: postingDate,
+        item_code: item.item_code,
+        item_name: item.item_name,
+        warehouse: item.warehouse,
+        voucher_type: 'stock_reconciliation',
+        voucher_id: id,
+        voucher_no: entryNo,
+        target_quantity: item.counted_quantity,
+        rate: item.valuation_rate,
+      });
+      await client.query(`UPDATE app_stock_entry_items SET quantity = $1
+        WHERE stock_entry_id = $2 AND item_code = $3 AND warehouse = $4`,
+      [movement.qty_change, id, item.item_code, item.warehouse]);
     } else {
       const qtyChange = entryType === 'adjustment'
         ? item.quantity
@@ -787,8 +830,9 @@ async function applyPostgresStockMovement(client, movement) {
   const itemCode = String(movement.item_code || '').trim();
   const itemName = String(movement.item_name || itemCode).trim();
   const warehouse = String(movement.warehouse || '').trim();
-  const qtyChange = Number(Number(movement.qty_change || 0).toFixed(3));
-  if (!itemCode || !warehouse || qtyChange === 0) {
+  const hasTarget = movement.target_quantity !== undefined;
+  let qtyChange = Number(Number(movement.qty_change || 0).toFixed(3));
+  if (!itemCode || !warehouse || (!hasTarget && qtyChange === 0)) {
     const err = new Error('Stock movement requires item, warehouse, and quantity.');
     err.status = 400;
     throw err;
@@ -817,6 +861,12 @@ async function applyPostgresStockMovement(client, movement) {
   const previousQuantity = Number(balance.quantity || 0);
   const previousValue = Number(balance.stock_value || 0);
   const previousRate = Number(balance.valuation_rate || 0);
+  if (hasTarget) qtyChange = Number((Number(movement.target_quantity) - previousQuantity).toFixed(3));
+  if (hasTarget && qtyChange > 0 && Number(movement.rate || previousRate || 0) <= 0) {
+    const err = new Error(`Enter a valuation rate for ${itemName} in ${warehouse}.`);
+    err.status = 400;
+    throw err;
+  }
 
   let incomingRate = 0;
   let outgoingRate = 0;
@@ -824,7 +874,7 @@ async function applyPostgresStockMovement(client, movement) {
   if (qtyChange > 0) {
     incomingRate = roundMoney(Number(movement.rate || previousRate || 0));
     valueChange = roundMoney(qtyChange * incomingRate);
-  } else {
+  } else if (qtyChange < 0) {
     if (previousQuantity + qtyChange < -0.0005) {
       const err = new Error(`Insufficient stock for ${itemName} in ${warehouse}.`);
       err.status = 400;
@@ -891,6 +941,7 @@ async function applyPostgresStockMovement(client, movement) {
   );
 
   return {
+    qty_change: qtyChange,
     previous_quantity: previousQuantity,
     quantity: newQuantity,
     valuation_rate: newRate,

@@ -257,7 +257,7 @@ function parseStockEntryImport(text) {
   }).filter((row) => (
     row.item_code
     && row.warehouse
-    && Number(row.quantity || 0) !== 0
+    && (entryType.value === 'reconciliation' ? row.quantity !== '' : Number(row.quantity || 0) !== 0)
   ));
 }
 
@@ -518,7 +518,7 @@ function populateRows(items, options = {}) {
     row.querySelector('[name="item_name"]').value = item.item_name || item.item_code || '';
     row.querySelector('[name="warehouse"]').value = item.warehouse || '';
     row.querySelector('[name="target_warehouse"]').value = item.target_warehouse || '';
-    row.querySelector('[name="quantity"]').value = item.quantity || '';
+    row.querySelector('[name="quantity"]').value = item.quantity ?? '';
     row.querySelector('[name="valuation_rate"]').value = item.valuation_rate || '0';
     tableBody.appendChild(row);
   });
@@ -630,6 +630,12 @@ function applyLockedTargetWarehouse(row) {
 
 function updateEntryTypeControls() {
   const transfer = entryType.value === 'transfer';
+  const reconciliation = entryType.value === 'reconciliation';
+  document.querySelector('#stock-entry-quantity-heading').textContent = reconciliation ? 'Counted Qty' : 'Qty';
+  document.querySelector('#stock-reconciliation-hint').hidden = !reconciliation;
+  tableBody.querySelectorAll('[name="quantity"]').forEach((input) => {
+    input.min = reconciliation ? '0' : '';
+  });
   tableBody.querySelectorAll('[name="target_warehouse"]').forEach((input) => {
     input.required = transfer;
     input.disabled = !transfer;
@@ -789,9 +795,11 @@ async function updateBalanceField(row, warehouseFieldName, balanceFieldName, ite
     }
     const balance = await response.json();
     balanceInput.textContent = `Balance: ${formatQuantity(balance.quantity)}`;
-    if (warehouseFieldName === 'warehouse' && ['transfer', 'cancel'].includes(entryType.value)) {
+    if (warehouseFieldName === 'warehouse' && ['transfer', 'cancel', 'reconciliation'].includes(entryType.value)) {
       const rateInput = row.querySelector('[name="valuation_rate"]');
-      rateInput.value = formatRate(balance.valuation_rate);
+      if (entryType.value !== 'reconciliation' || !Number(rateInput.value)) {
+        rateInput.value = formatRate(balance.valuation_rate);
+      }
     }
   } catch {
     balanceInput.textContent = 'Balance: unavailable';

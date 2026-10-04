@@ -144,6 +144,21 @@ function permissionCheck(req) {
   if (parts[0] === 'stock') {
     const prefix = 'vouchers.stock.';
     if (parts.length === 1) return has(prefix + 'view');
+    if (parts[1] === 'reconciliations') {
+      if (parts[2] === 'warehouse-stock') return parts.length === 3 && method === 'GET' && canAny(user,
+        [prefix + 'create', prefix + 'edit']);
+      if (parts[2] === 'new') return parts.length === 3 && method === 'GET' && has(prefix + 'create');
+      if (parts.length === 2) return method === 'GET' ? has(prefix + 'view')
+        : method === 'POST' && all(prefix + 'create',
+          ...(req.body.action === 'save_draft' ? [] : [prefix + 'submit']));
+      if (parts[3] === 'edit') return parts.length === 4 && method === 'GET' && has(prefix + 'edit');
+      if (parts[3] === 'submit') return parts.length === 4 && method === 'POST' && has(prefix + 'submit');
+      if (parts[3] === 'delete') return parts.length === 4 && method === 'POST' && has(prefix + 'delete');
+      if (parts[3] === 'cancel') return parts.length === 4 && method === 'POST' && has(prefix + 'cancel');
+      if (parts.length === 3 && method === 'POST') return all(prefix + 'edit',
+        ...(req.body.action === 'save_draft' ? [] : [prefix + 'submit']));
+      return parts.length === 3 && method === 'GET' && has(prefix + 'view');
+    }
     if (parts[1] !== 'entries') return false;
     if (parts[2] === 'new') return has(prefix + 'create');
     if (parts.length === 2 && method === 'POST') {
@@ -198,11 +213,11 @@ function permissionCheck(req) {
     if (name === 'customers') return canAny(user, ['masters.customers.view', 'vouchers.sales.create']);
     if (name === 'suppliers') return canAny(user, ['masters.suppliers.view', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create']);
     if (name === 'items' || name === 'master-items') return canAny(user,
-      ['masters.items.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create']);
+      ['masters.items.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create', 'vouchers.stock.edit']);
     if (name === 'report-items' || name === 'report-warehouses') return canAny(user,
       ['vouchers.stock.view', 'reports.stock-ledger.view', 'reports.stock-movement.view', 'reports.gross-profit.view']);
     if (name === 'warehouses' || name === 'stock-balance') return canAny(user,
-      ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create']);
+      ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create', 'vouchers.stock.edit']);
     if (name === 'cost-centers') return canAny(user, ['masters.cost-centers.view', 'masters.cost-centers.create', 'masters.cost-centers.edit', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.journals.create']);
     if (name === 'employees') return canAny(user, ['masters.employees.view', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.journals.create']);
     if (name === 'stock-entry-cancel-template' || name === 'stock-entries') return has('vouchers.stock.cancel');
@@ -224,7 +239,8 @@ async function scopeCheck(req) {
   if (user.role === 'admin') return true;
   if (anyScopeRestricted(user) && (parts[0] === 'reports' || parts[0] === 'journals'
       || parts[0] === 'api' && ['general-ledger', 'journal-reference-options'].includes(parts[1]))) return false;
-  if (scopeRestricted(user, 'suppliers') && parts[0] === 'stock' && parts[1] === 'entries') return false;
+  if (scopeRestricted(user, 'suppliers') && parts[0] === 'stock'
+      && ['entries', 'reconciliations'].includes(parts[1])) return false;
   if (scopeRestricted(user, 'suppliers') && parts[0] === 'api'
       && ['stock-entry-cancel-template', 'stock-entries'].includes(parts[1])) return false;
 
@@ -277,6 +293,9 @@ async function scopeCheck(req) {
         && !await masterRecordAllowed(user, 'suppliers', req.body.supplier_id)) return false;
   }
   if (parts[0] === 'stock' && parts[1] === 'entries' && parts[2] && parts[2] !== 'new'
+      && !await voucherWarehousesAllowed(user, 'stock', parts[2])) return false;
+  if (parts[0] === 'stock' && parts[1] === 'reconciliations' && parts[2]
+      && !['new', 'warehouse-stock'].includes(parts[2])
       && !await voucherWarehousesAllowed(user, 'stock', parts[2])) return false;
   if (parts[0] === 'journals' && parts[1] && parts[1] !== 'new'
       && !await journalAccountsAllowed(user, parts[1])) return false;

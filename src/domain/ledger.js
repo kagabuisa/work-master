@@ -1,7 +1,7 @@
 'use strict';
 // Ledger domain: chart of accounts, journal entries, general ledger, trial
 // balance, profit & loss, balance sheet and accounting backfill.
-const { getPostgresPool, assertPostgresAccounting, withPostgresTransaction } = require('../core');
+const { getPostgresPool, withPostgresTransaction } = require('../core');
 const { JOURNAL_TYPES, DEFAULT_ACCOUNTS } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
@@ -14,7 +14,6 @@ const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, postStockEnt
 const { normalizeJournalEntryPayload, normalizeAccountingAccountPayload, journalTypeLabel, formatTrialBalanceRow } = require('./normalization');
 
 async function accountingAccounts(options = {}) {
-  assertPostgresAccounting();
   const params = [];
   const where = [];
   if (Array.isArray(options.allowedAccounts)) {
@@ -63,7 +62,6 @@ async function validateReceivingAccount(client, value) {
 }
 
 async function findAccountingAccount(id) {
-  assertPostgresAccounting();
   const accountId = Number(id);
   if (!Number.isSafeInteger(accountId) || accountId < 1) {
     const err = new Error('Account not found.');
@@ -83,7 +81,6 @@ async function findAccountingAccount(id) {
 }
 
 async function createAccountingAccount(payload) {
-  assertPostgresAccounting();
   const account = normalizeAccountingAccountPayload(payload);
   const { rows } = await getPostgresPool().query(
     `
@@ -119,7 +116,6 @@ async function updateAccountingAccount(id, payload) {
 }
 
 async function journalEntries(options = {}) {
-  assertPostgresAccounting();
   const pagination = paginationOptions(typeof options === 'number' ? { limit: options } : options, 50, 200);
   const limit = pagination.limit;
   const search = typeof options === 'object'
@@ -190,7 +186,6 @@ async function journalEntries(options = {}) {
 }
 
 async function findJournalEntry(id) {
-  assertPostgresAccounting();
   const journalId = Number(id);
   if (!Number.isFinite(journalId)) {
     return null;
@@ -240,7 +235,6 @@ async function findJournalEntry(id) {
 }
 
 async function createJournalEntry(payload, options = {}) {
-  assertPostgresAccounting();
   const journal = normalizeJournalEntryPayload(payload);
   const submit = options.submit !== false;
   return withPostgresTransaction(async (client) => {
@@ -309,7 +303,6 @@ async function createJournalEntry(payload, options = {}) {
 }
 
 async function updateJournalEntry(id, payload) {
-  assertPostgresAccounting();
   const journal = normalizeJournalEntryPayload(payload);
   return withPostgresTransaction(async (client) => {
     const existing = await client.query('SELECT docstatus FROM app_journal_entries WHERE id = $1 FOR UPDATE', [id]);
@@ -384,7 +377,6 @@ async function syncJournalEntryLines(client, journalId, lines) {
 }
 
 async function submitJournalEntry(id) {
-  assertPostgresAccounting();
   return withPostgresTransaction(async (client) => {
     const { rows } = await client.query('SELECT * FROM app_journal_entries WHERE id = $1 FOR UPDATE', [id]);
     const journal = rows[0];
@@ -466,7 +458,6 @@ async function validateJournalInvoicePayment(client, journal) {
 }
 
 async function cancelJournalEntry(id) {
-  assertPostgresAccounting();
   const journalId = Number(id);
   if (!Number.isFinite(journalId)) {
     const err = new Error('Journal entry not found.');
@@ -530,7 +521,6 @@ function isManualJournalType(type, linkedPayment = false) {
 }
 
 async function generalLedgerReport(filters = {}) {
-  assertPostgresAccounting();
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
@@ -654,7 +644,6 @@ async function generalLedgerReport(filters = {}) {
 }
 
 async function generalLedgerFilterOptions() {
-  assertPostgresAccounting();
   const voucherResult = await getPostgresPool().query(`
       SELECT DISTINCT voucher_type
       FROM app_gl_entries
@@ -673,7 +662,6 @@ async function generalLedgerFilterOptions() {
 }
 
 async function generalLedgerAccountOptions(search = '', options = {}) {
-  assertPostgresAccounting();
   const params = [];
   const where = [];
   if (Array.isArray(options.allowedAccounts)) {
@@ -712,7 +700,6 @@ async function generalLedgerAccountOptions(search = '', options = {}) {
 }
 
 async function generalLedgerPartyOptions(search = '') {
-  assertPostgresAccounting();
   const params = [];
   const where = ['COALESCE(party_id, party_name, party_type) IS NOT NULL'];
   const q = String(search || '').trim().toLowerCase();
@@ -743,7 +730,6 @@ async function generalLedgerPartyOptions(search = '') {
 }
 
 async function journalReferenceOptions(filters = {}) {
-  assertPostgresAccounting();
   const partyType = String(filters.party_type || '').trim();
   const partyId = String(filters.party_id || '').trim();
   const partyName = String(filters.party_name || '').trim();
@@ -912,7 +898,6 @@ async function journalReferenceOptions(filters = {}) {
 }
 
 async function trialBalanceReport(filters = {}) {
-  assertPostgresAccounting();
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   const params = [from || null, to || null];
@@ -968,7 +953,6 @@ async function trialBalanceReport(filters = {}) {
 }
 
 async function profitAndLossReport(filters = {}) {
-  assertPostgresAccounting();
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   const params = [];
@@ -1045,7 +1029,6 @@ async function profitAndLossReport(filters = {}) {
 }
 
 async function balanceSheetReport(filters = {}) {
-  assertPostgresAccounting();
   const asOf = String(filters.as_of || '').trim();
   const params = [asOf || null];
   const { rows } = await getPostgresPool().query(
@@ -1144,7 +1127,6 @@ async function balanceSheetReport(filters = {}) {
 }
 
 async function backfillAccountingGl() {
-  assertPostgresAccounting();
   return withPostgresTransaction(async (client) => {
     const { rows: invoiceRows } = await client.query(`
       SELECT

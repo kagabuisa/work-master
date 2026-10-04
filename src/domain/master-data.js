@@ -1,7 +1,7 @@
 'use strict';
 // Master-data domain: items, customers, suppliers, warehouses, employees,
 // cost centres, options, price lists and item prices. Extracted from store.js.
-const { getPostgresPool, assertPostgresInventory } = require('../core');
+const { getPostgresPool } = require('../core');
 const pricing = require('../pricing');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
@@ -11,7 +11,6 @@ const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSear
 const { paginationOptions, paginationResult } = require('../lib/pagination');
 
 async function masterItemsWithStock(options = {}) {
-  assertPostgresInventory();
   const search = String(options.search || '').trim().toLowerCase();
   const warehouse = String(options.warehouse || '').trim();
   const limit = Math.max(1, Math.min(Number(options.limit || 25), 100));
@@ -36,6 +35,9 @@ async function masterItemsWithStock(options = {}) {
       item.item_name,
       item.stock_uom,
       item.category,
+      item.category AS item_category,
+      item.source,
+      item.unit_cost::float AS cost,
       item.description,
       item.default_rate::float,
       item.default_rate::float AS unit_price,
@@ -60,7 +62,6 @@ async function masterItemsWithStock(options = {}) {
 }
 
 async function masterItems(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = [];
   if (!options.includeDisabled) {
@@ -152,7 +153,6 @@ async function applySelectedItemPrices(rows, priceList) {
 }
 
 async function invoiceItemPrices(itemCodes, priceList) {
-  assertPostgresInventory();
   const { rows } = await getPostgresPool().query(`
     SELECT item.item_code,
       COALESCE(price.price_list_rate, item.default_rate, 0)::float AS unit_price,
@@ -166,7 +166,6 @@ async function invoiceItemPrices(itemCodes, priceList) {
 }
 
 async function masterCustomers(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = [];
   if (Array.isArray(options.allowedGroups)) {
@@ -224,7 +223,6 @@ async function masterCustomers(options = {}) {
 }
 
 async function masterSuppliers(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = [];
   if (Array.isArray(options.allowedTypes)) {
@@ -278,7 +276,6 @@ async function masterSuppliers(options = {}) {
 }
 
 async function masterWarehouses(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = ['is_group = false'];
   if (Array.isArray(options.allowedWarehouses)) {
@@ -332,7 +329,6 @@ async function masterWarehouses(options = {}) {
 }
 
 async function masterEmployees(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = [];
   if (!options.includeDisabled) {
@@ -388,7 +384,6 @@ async function masterEmployees(options = {}) {
 }
 
 async function masterCostCenters(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = [];
   if (!options.includeGroups) {
@@ -443,7 +438,6 @@ async function masterCostCenters(options = {}) {
 }
 
 async function masterPricingRecords(kind, options = {}) {
-  assertPostgresInventory();
   const pagination = paginationOptions(options, Number(options.limit || 50), 200);
   const { rows, total } = await pricing.listPricingRecords(getPostgresPool(), kind, options, pagination);
   if (options.paginate) rows.pagination = paginationResult(Number(total || 0), pagination);
@@ -453,16 +447,13 @@ async function masterPricingRecords(kind, options = {}) {
 async function masterPriceLists(options = {}) { return masterPricingRecords('price-lists', options); }
 async function masterItemPrices(options = {}) { return masterPricingRecords('item-prices', options); }
 async function itemPriceListFilters() {
-  assertPostgresInventory();
   return pricing.listItemPricePriceLists(getPostgresPool());
 }
 async function itemPriceCodeSuggestions(options = {}) {
-  assertPostgresInventory();
   return pricing.listItemPriceCodes(getPostgresPool(), options);
 }
 
 async function masterOptions(options = {}) {
-  assertPostgresInventory();
   const params = [];
   const where = options.includeDisabled ? [] : ['disabled = false', "docstatus = 'submitted'"];
   const search = String(options.search || '').trim().toLowerCase();
@@ -503,7 +494,6 @@ async function masterOptions(options = {}) {
 }
 
 async function findMasterRecord(kind, id) {
-  assertPostgresInventory();
   if (kind === 'price-lists' || kind === 'item-prices') return pricing.findPricingRecord(getPostgresPool(), kind, id);
   if (kind === 'items') {
     return findMasterItem(id, { includeDisabled: true });
@@ -532,7 +522,6 @@ async function findMasterRecord(kind, id) {
 }
 
 async function priceListNeighbors(id) {
-  assertPostgresInventory();
   return pricing.findPriceListNeighbors(getPostgresPool(), id);
 }
 
@@ -761,7 +750,6 @@ async function findMasterOption(optionId) {
 }
 
 async function createMasterRecord(kind, payload) {
-  assertPostgresInventory();
   if (kind === 'price-lists' || kind === 'item-prices') return pricing.savePricingRecord(getPostgresPool(), kind, payload);
   if (kind === 'items') {
     return createMasterItem(payload);
@@ -813,17 +801,14 @@ async function setMasterRecordActive(kind, id, active) {
 }
 
 async function setPriceListActive(id, active) {
-  assertPostgresInventory();
   return pricing.setPriceListActive(getPostgresPool(), id, active);
 }
 
 async function deletePriceList(id) {
-  assertPostgresInventory();
   return pricing.deletePriceList(getPostgresPool(), id);
 }
 
 async function deleteMasterRecord(kind, id) {
-  assertPostgresInventory();
   if (kind === 'price-lists') return deletePriceList(id);
   const fields = MASTER_RECORD_TABLES[kind];
   if (!fields) { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
@@ -837,7 +822,6 @@ async function deleteMasterRecord(kind, id) {
 }
 
 async function updateMasterRecord(kind, id, payload) {
-  assertPostgresInventory();
   if (kind === 'price-lists' || kind === 'item-prices') return pricing.savePricingRecord(getPostgresPool(), kind, payload, id);
   if (MASTER_RECORD_TABLES[kind]) {
     const [table, key] = MASTER_RECORD_TABLES[kind];

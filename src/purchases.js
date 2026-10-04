@@ -14,12 +14,6 @@ function badRequest(message) {
   return error;
 }
 
-function assertPurchasesAvailable() {
-  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') {
-    throw badRequest('Purchases require Postgres storage.');
-  }
-}
-
 function notFound() {
   const error = new Error('Purchase not found.');
   error.status = 404;
@@ -243,7 +237,6 @@ async function validatePurchaseOrder(client, purchase, excludePurchaseId = null,
 }
 
 async function createPurchase(payload) {
-  assertPurchasesAvailable();
   const purchase = normalizePurchase(payload);
   return withPostgresTransaction(async (client) => {
     await resolvePurchaseMasters(client, purchase);
@@ -266,7 +259,6 @@ async function createPurchase(payload) {
 }
 
 async function updatePurchase(id, payload) {
-  assertPurchasesAvailable();
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   const purchase = normalizePurchase(payload);
@@ -295,7 +287,6 @@ async function updatePurchase(id, payload) {
 }
 
 async function listPurchases(filters = {}) {
-  assertPurchasesAvailable();
   const search = String(filters.q || '').trim();
   const page = Math.max(1, Number.parseInt(filters.page, 10) || 1);
   const requestedLimit = Number.parseInt(filters.page_size, 10);
@@ -348,7 +339,6 @@ async function listPurchases(filters = {}) {
 }
 
 async function loadPurchase(id) {
-  assertPurchasesAvailable();
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   const pool = getPostgresPool();
@@ -381,7 +371,6 @@ async function loadPurchase(id) {
 }
 
 async function purchaseForPayment(id) {
-  assertPurchasesAvailable();
   const paymentId = Number(id);
   if (!Number.isSafeInteger(paymentId) || paymentId < 1) throw notFound();
   const result = await getPostgresPool().query(
@@ -392,7 +381,6 @@ async function purchaseForPayment(id) {
 }
 
 async function submitPurchase(id) {
-  assertPurchasesAvailable();
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   return withPostgresTransaction(async (client) => {
@@ -462,7 +450,6 @@ async function submitPurchase(id) {
 }
 
 async function cancelPurchase(id) {
-  assertPurchasesAvailable();
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   return withPostgresTransaction(async (client) => {
@@ -523,7 +510,6 @@ async function cancelPurchase(id) {
 }
 
 async function addPurchasePayment(id, payload) {
-  assertPurchasesAvailable();
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   const amount = Number(payload.amount);
@@ -579,7 +565,6 @@ async function addPurchasePayment(id, payload) {
 }
 
 async function cancelPurchasePayment(id, paymentNo) {
-  assertPurchasesAvailable();
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   if (!Number.isSafeInteger(Number(paymentNo)) || Number(paymentNo) < 1) throw badRequest('Payment not found.');

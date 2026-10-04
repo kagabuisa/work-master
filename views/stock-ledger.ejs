@@ -35,6 +35,7 @@
           <option value="purchase" <%= report.filters.entry_type === 'purchase' ? 'selected' : '' %>>Purchase Receipt</option>
           <option value="transfer" <%= report.filters.entry_type === 'transfer' ? 'selected' : '' %>>Transfer</option>
           <option value="adjustment" <%= report.filters.entry_type === 'adjustment' ? 'selected' : '' %>>Adjustment</option>
+          <option value="reconciliation" <%= report.filters.entry_type === 'reconciliation' ? 'selected' : '' %>>Stock Reconciliation</option>
           <option value="cancel" <%= report.filters.entry_type === 'cancel' ? 'selected' : '' %>>Cancel Entry</option>
         </select>
       </label>

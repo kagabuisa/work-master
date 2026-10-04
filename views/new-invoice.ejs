@@ -214,12 +214,12 @@
     </form>
   </main>
   <script>
-    window.invoiceInitial = <%- JSON.stringify({
+    window.invoiceInitial = <%- scriptJson({
       invoice,
       items,
       warehouse: invoice && invoice.warehouse || (items[0] ? items[0].warehouse : ''),
       recovered: typeof formError !== 'undefined' && Boolean(formError),
-    }).replace(/</g, '\\u003c') %>;
+    }) %>;
   </script>
   <script src="/shared/invoice-math.js?v=<%= assetVersion %>"></script>
   <script src="/invoice.js?v=<%= assetVersion %>"></script>

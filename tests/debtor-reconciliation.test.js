@@ -28,6 +28,35 @@ test('debtor ageing and statements reconcile to posted Accounts Receivable', {
         Math.round(debtor.balance_due * 100),
       );
     }
+
+    const { rows: postedInvoices } = await store.getPostgresPool().query(`
+      SELECT invoice.id, invoice.invoice_no,
+        COALESCE(NULLIF(invoice.customer_id, ''), invoice.customer_name) AS customer_key
+      FROM app_invoices invoice
+      WHERE invoice.docstatus = 'submitted'
+        AND EXISTS (
+          SELECT 1 FROM app_gl_entries gl
+          JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+            AND setting.account_id = gl.account_id
+          WHERE gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id
+        )
+    `);
+    const invoicesByCustomer = new Map();
+    for (const invoice of postedInvoices) {
+      const invoices = invoicesByCustomer.get(invoice.customer_key) || [];
+      invoices.push(invoice);
+      invoicesByCustomer.set(invoice.customer_key, invoices);
+    }
+    for (const [customer, invoices] of invoicesByCustomer) {
+      const detail = await store.debtorReport({ customer });
+      const statementInvoices = detail.statement.filter((entry) => entry.type === 'Invoice');
+      assert.equal(statementInvoices.length, invoices.length, `invoice rows for ${customer}`);
+      for (const invoice of invoices) {
+        const matches = statementInvoices.filter((entry) => entry.reference === invoice.invoice_no);
+        assert.equal(matches.length, 1, `statement row for ${invoice.invoice_no}`);
+        assert.equal(matches[0].invoice_id, Number(invoice.id));
+      }
+    }
   } finally {
     await store.closeStore();
   }

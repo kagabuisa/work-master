@@ -334,10 +334,12 @@ async function initPostgresStore() {
       warehouse TEXT,
       target_warehouse TEXT,
       quantity NUMERIC(14, 3) NOT NULL,
+      counted_quantity NUMERIC(14, 3),
       valuation_rate NUMERIC(14, 2) NOT NULL DEFAULT 0,
       UNIQUE (stock_entry_id, line_no)
     )
   `);
+  await pool.query('ALTER TABLE app_stock_entry_items ADD COLUMN IF NOT EXISTS counted_quantity NUMERIC(14, 3)');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_stock_balances (
       item_code TEXT NOT NULL,
@@ -475,13 +477,18 @@ async function initPostgresStore() {
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ`);
   }
   await initRecordAudit(pool);
-  if (!shouldRunStartupMigrations()) {
-    return;
-  }
-
   await pool.query('ALTER TABLE app_invoice_items ADD COLUMN IF NOT EXISTS cost_rate NUMERIC(14, 2) NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE app_invoice_items ADD COLUMN IF NOT EXISTS cost_amount NUMERIC(14, 2) NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE app_invoice_items ADD COLUMN IF NOT EXISTS gross_profit NUMERIC(14, 2) NOT NULL DEFAULT 0');
+  await pool.query('ALTER TABLE app_invoice_items ADD COLUMN IF NOT EXISTS item_category TEXT');
+  await pool.query('ALTER TABLE app_invoice_items ADD COLUMN IF NOT EXISTS source TEXT');
+  await pool.query('ALTER TABLE app_invoice_items ADD COLUMN IF NOT EXISTS cost NUMERIC(14, 2)');
+  await pool.query(`UPDATE app_invoice_items line SET
+    item_category = COALESCE(line.item_category, item.category),
+    source = COALESCE(line.source, item.source),
+    cost = COALESCE(line.cost, item.unit_cost)
+    FROM app_master_items item WHERE line.item_code = item.item_code
+      AND (line.item_category IS NULL OR line.source IS NULL OR line.cost IS NULL)`);
   await pool.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS supplier_name TEXT');
   await pool.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS supplier_contact TEXT');
   await pool.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS supplier_phone TEXT');
@@ -557,10 +564,6 @@ async function initPostgresStore() {
   await syncAllPostgresInvoicePaymentTotals(pool);
   await backfillSalesInvoiceJournals(pool);
   await backfillInvoicePaymentJournals(pool);
-}
-
-function shouldRunStartupMigrations() {
-  return !['0', 'false', 'no'].includes(String(process.env.APP_RUN_STARTUP_MIGRATIONS || 'true').toLowerCase());
 }
 
 async function createPerformanceIndexes(pool) {
@@ -709,44 +712,59 @@ async function seedDefaultAccounts(pool) {
 }
 
 async function backfillDefaultAccountDetailTypes(pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS wm_schema_migrations (
-      migration_key TEXT PRIMARY KEY
-    )
-  `);
-  const values = DEFAULT_ACCOUNTS.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
-  const params = DEFAULT_ACCOUNTS.flatMap((account) => [account.key, account.detailType]);
-  await pool.query(`
-    WITH claimed AS (
-      INSERT INTO wm_schema_migrations (migration_key)
-      VALUES ('default_account_detail_types_v1')
-      ON CONFLICT DO NOTHING
-      RETURNING migration_key
-    ), mapping (setting_key, detail_type) AS (VALUES ${values})
-    UPDATE app_accounts account
-    SET account_detail_type = mapping.detail_type, updated_at = now()
-    FROM app_accounting_settings setting, mapping
-    WHERE account.id = setting.account_id
-      AND setting.setting_key = mapping.setting_key
-      AND account.account_detail_type IS NULL
-      AND EXISTS (SELECT 1 FROM claimed)
-  `, params);
+  await pool.query(`CREATE TABLE IF NOT EXISTS wm_schema_migrations (migration_key TEXT PRIMARY KEY)`);
+  await withMigrationTransaction(pool, async (client) => {
+    const values = DEFAULT_ACCOUNTS.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ');
+    const params = DEFAULT_ACCOUNTS.flatMap((account) => [account.key, account.detailType]);
+    await client.query(`
+      WITH claimed AS (
+        INSERT INTO wm_schema_migrations (migration_key)
+        VALUES ('default_account_detail_types_v1')
+        ON CONFLICT DO NOTHING
+        RETURNING migration_key
+      ), mapping (setting_key, detail_type) AS (VALUES ${values})
+      UPDATE app_accounts account
+      SET account_detail_type = mapping.detail_type, updated_at = now()
+      FROM app_accounting_settings setting, mapping
+      WHERE account.id = setting.account_id
+        AND setting.setting_key = mapping.setting_key
+        AND account.account_detail_type IS NULL
+        AND EXISTS (SELECT 1 FROM claimed)
+    `, params);
+  });
 }
 
 async function backfillInvoicePostingTimes(pool) {
-  await pool.query(`
-    WITH claimed AS (
-      INSERT INTO wm_schema_migrations (migration_key)
-      VALUES ('invoice_posting_time_from_created_at_v1')
-      ON CONFLICT DO NOTHING
-      RETURNING migration_key
-    )
-    UPDATE app_invoices
-    SET posting_time = (created_at AT TIME ZONE 'Africa/Kampala')::time
-    WHERE posting_time = TIME '00:00:00'
-      AND created_at IS NOT NULL
-      AND EXISTS (SELECT 1 FROM claimed)
-  `);
+  await withMigrationTransaction(pool, async (client) => {
+    await client.query(`
+      WITH claimed AS (
+        INSERT INTO wm_schema_migrations (migration_key)
+        VALUES ('invoice_posting_time_from_created_at_v1')
+        ON CONFLICT DO NOTHING
+        RETURNING migration_key
+      )
+      UPDATE app_invoices
+      SET posting_time = (created_at AT TIME ZONE 'Africa/Kampala')::time
+      WHERE posting_time = TIME '00:00:00'
+        AND created_at IS NOT NULL
+        AND EXISTS (SELECT 1 FROM claimed)
+    `);
+  });
+}
+
+async function withMigrationTransaction(pool, operation) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function syncPostgresInvoicePaymentTotals(client, invoiceId) {
@@ -840,7 +858,7 @@ async function backfillSalesInvoiceJournals(pool) {
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.warn(`Skipped sales invoice journal backfill: ${err.message}`);
+    throw err;
   } finally {
     client.release();
   }
@@ -889,14 +907,13 @@ async function backfillInvoicePaymentJournals(pool) {
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.warn(`Skipped invoice payment journal backfill: ${err.message}`);
+    throw err;
   } finally {
     client.release();
   }
 }
 module.exports = {
   initPostgresStore,
-  shouldRunStartupMigrations,
   createPerformanceIndexes,
   migratePostgresInvoiceItems,
   seedDefaultAccounts,

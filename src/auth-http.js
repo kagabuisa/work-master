@@ -123,7 +123,6 @@ function requireAdmin(req, res, next) {
 }
 
 async function availableInvoicePriceLists() {
-  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') return [];
   return (await getPostgresPool().query(`
     SELECT price_list FROM app_master_price_lists
     WHERE currency = 'UGX'
@@ -132,9 +131,6 @@ async function availableInvoicePriceLists() {
 
 async function availablePermissionLists() {
   const invoicePriceLists = await availableInvoicePriceLists();
-  if (String(process.env.INVOICE_STORE || '').toLowerCase() !== 'postgres') {
-    return { invoicePriceLists, warehouses: [], accounts: [] };
-  }
   const [warehouses, accounts] = await Promise.all([
     getPostgresPool().query('SELECT warehouse FROM app_master_warehouses WHERE is_group = false ORDER BY warehouse'),
     getPostgresPool().query('SELECT id::text AS id, account_code, account_name FROM app_accounts ORDER BY account_code, account_name'),
