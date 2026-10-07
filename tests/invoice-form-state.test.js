@@ -7,8 +7,98 @@ const { permissionCheck } = require('../src/authorize');
 const { normalizePostingTime, storedPostingTime } = require('../src/posting-time');
 const { scriptJson } = require('../src/web/script-json');
 
+test('new sales invoices default the employee and permitted retail price list', async () => {
+  const store = require('../src/store');
+  const routePath = require.resolve('../src/web/routes/sales');
+  const previousRoute = require.cache[routePath];
+  const originalFind = store.findMasterRecord;
+  const originalCreate = store.createInvoice;
+  const parties = require('../src/web/parties');
+  const originalCustomer = parties.findDbCustomer;
+  const lookups = [];
+  store.findMasterRecord = async (kind, id) => {
+    lookups.push([kind, id]);
+    if (kind === 'price-lists') return { active: 1, docstatus: 'submitted', currency: 'UGX', price_type: 'selling' };
+    return { employee_id: id, employee_name: 'Isa Kagabu', disabled: '1' };
+  };
+  parties.findDbCustomer = async () => ({ customer_id: 'C-1', customer_name: 'Customer' });
+  let saved;
+  store.createInvoice = async (payload) => { saved = payload; return 42; };
+  try {
+    delete require.cache[routePath];
+    const router = require(routePath);
+    const handler = router.stack.find((layer) => layer.route?.path === '/invoices/new').route.stack[0].handle;
+    let rendered;
+    const res = { render: (view, data) => { rendered = { view, data }; } };
+    const errors = [];
+    await handler({ currentUser: { record_access: { employee_id: 'EMP-ISA' } } }, res,
+      (error) => errors.push(error));
+    assert.deepEqual(errors, []);
+    assert.deepEqual(lookups, [['employees', 'EMP-ISA'], ['price-lists', 'Retail Pricelist']]);
+    assert.equal(rendered.view, 'new-invoice');
+    assert.equal(rendered.data.invoice.invoicer_id, 'EMP-ISA');
+    assert.equal(rendered.data.invoice.invoicer, 'Isa Kagabu');
+    assert.equal(rendered.data.invoice.price_list, 'Retail Pricelist');
+    const html = await ejs.renderFile(path.join(__dirname, '../views/new-invoice.ejs'), {
+      ...locals, ...rendered.data, formError: null,
+    });
+    assert.match(html, /name="invoicer"[^>]*value="Isa Kagabu"/);
+    assert.match(html, /name="invoicer_id" value="EMP-ISA"/);
+
+    await handler({ currentUser: { role: 'standard', record_access: {
+      warehouse: 'Main', retail_price_list: 'Retail Selling', employee_id: 'EMP-ISA',
+    } } }, res, (error) => errors.push(error));
+    assert.equal(rendered.data.invoice.warehouse, 'Main');
+    assert.equal(rendered.data.invoice.price_list, 'Retail Selling');
+    const defaultsHtml = await ejs.renderFile(path.join(__dirname, '../views/new-invoice.ejs'), {
+      ...locals, ...rendered.data, formError: null,
+    });
+    assert.match(defaultsHtml, /name="price_list" required>\s*<option value="Retail Selling"/);
+    assert.match(defaultsHtml, /name="warehouse" required>\s*<option value="Main"/);
+    assert.match(defaultsHtml, new RegExp(`name="invoice_date" value="${rendered.data.today}"`));
+    assert.match(defaultsHtml, /name="posting_time" value="19:40"/);
+    assert.match(defaultsHtml, /name="ext_invoice"/);
+
+    await handler({ currentUser: { role: 'standard', record_access: {
+      warehouse: 'Main', retail_price_list: 'Retail Selling',
+    }, permission_denials: ['warehouse.view:Main', 'invoice.price-list.view:Retail Selling'] } },
+    res, (error) => errors.push(error));
+    assert.equal(rendered.data.invoice, null);
+
+    await handler({ currentUser: { record_access: {} } }, res, (error) => errors.push(error));
+    assert.equal(rendered.data.invoice.price_list, 'Retail Pricelist');
+    assert(lookups.some(([kind, id]) => kind === 'price-lists' && id === 'Retail Selling'));
+
+    const create = router.stack.find((layer) => layer.route?.path === '/invoices'
+      && layer.route.methods.post).route.stack[0].handle;
+    let redirect;
+    const body = {
+      customer_id: 'C-1', customer_name: 'Customer', price_list: 'Retail Selling',
+      invoicer_id: 'EMP-ISA', warehouse: 'Main', ext_invoice: 'EXT-42', items_json: '[]',
+    };
+    await create({ currentUser: { role: 'admin', record_access: { employee_id: 'EMP-ISA' } }, body },
+      { redirect: (url) => { redirect = url; } }, (error) => errors.push(error));
+    assert.equal(redirect, '/invoices/42');
+    assert.equal(saved.invoicer_id, 'EMP-ISA');
+    assert.equal(saved.invoicer, 'Isa Kagabu');
+    assert.equal(saved.non_system_invoice, 'EXT-42');
+
+    let rejected;
+    await create({ currentUser: { role: 'admin', record_access: {} }, body }, {
+      status: (code) => ({ render: (_view, data) => { rejected = { code, error: data.formError }; } }),
+    }, (error) => errors.push(error));
+    assert.deepEqual(rejected, { code: 400, error: 'Select an invoicer from the employee list.' });
+  } finally {
+    store.findMasterRecord = originalFind;
+    store.createInvoice = originalCreate;
+    parties.findDbCustomer = originalCustomer;
+    delete require.cache[routePath];
+    if (previousRoute) require.cache[routePath] = previousRoute;
+  }
+});
+
 const attempted = {
-  invoice_date: '2026-09-26', posting_time: '19:40', due_date: '2026-10-26', non_system_invoice: 'EXT-0007', customer_id: 'C2',
+  invoice_date: '2026-09-26', posting_time: '19:40', due_date: '2026-10-26', ext_invoice: 'EXT-0007', customer_id: 'C2',
   customer_name: 'New customer', price_list: 'Retail Selling', cost_center: 'Retail - WM', invoicer_id: 'EMP-004', invoicer: 'Jane Doe', warehouse: 'Retail', notes: 'Deliver tomorrow <please>',
   discount_amount: '120', tax_amount: '25',
   items_json: JSON.stringify([{ item_code: 'B', item_name: 'Item B', quantity: 7, unit_price: 200, warehouse: 'Retail' }]),
@@ -24,7 +114,8 @@ test('failed draft edits retain attempted customer, warehouse, amounts and lines
   const state = invoiceFormState(attempted, { id: 12, invoice_no: 'INV-12', notes: 'Old', items: [{ item_code: 'A', quantity: 1 }] });
   assert.equal(state.invoice.id, 12);
   assert.equal(state.invoice.invoice_no, 'INV-12');
-  for (const key of ['invoice_date', 'posting_time', 'due_date', 'non_system_invoice', 'customer_id', 'customer_name', 'price_list', 'cost_center', 'invoicer_id', 'invoicer', 'warehouse', 'notes', 'discount_amount', 'tax_amount']) {
+  assert.equal(state.invoice.non_system_invoice, attempted.ext_invoice);
+  for (const key of ['invoice_date', 'posting_time', 'due_date', 'customer_id', 'customer_name', 'price_list', 'cost_center', 'invoicer_id', 'invoicer', 'warehouse', 'notes', 'discount_amount', 'tax_amount']) {
     assert.equal(state.invoice[key], attempted[key], key);
   }
   assert.deepEqual(state.items, JSON.parse(attempted.items_json));
@@ -61,6 +152,42 @@ test('duplicate opens a new unpaid draft with copied invoice details and items',
   assert.match(html, /action="\/invoices"/);
   assert.match(html, /Copy of <strong>INV-12<\/strong>/);
   assert.doesNotMatch(html, /action="\/invoices\/12"|EXT-12|"id":12|"amount":500/);
+
+  const store = require('../src/store');
+  const routePath = require.resolve('../src/web/routes/sales');
+  const previousRoute = require.cache[routePath];
+  const originalFind = store.findInvoice;
+  const originalCompany = store.getCompanyInformation;
+  const originalStock = store.localStockQuantity;
+  const stockLookups = [];
+  store.findInvoice = async () => source;
+  store.getCompanyInformation = async () => ({});
+  store.localStockQuantity = async (itemCode, warehouse) => {
+    stockLookups.push([itemCode, warehouse]);
+    return { quantity: 13.5 };
+  };
+  try {
+    delete require.cache[routePath];
+    const router = require(routePath);
+    const handler = router.stack.find((layer) => layer.route?.path === '/invoices/:id/duplicate')
+      .route.stack[0].handle;
+    let rendered;
+    const errors = [];
+    await handler({ params: { id: '12' } }, { render: (view, data) => { rendered = { view, data }; } },
+      (error) => errors.push(error));
+    assert.deepEqual(errors, []);
+    assert.deepEqual(stockLookups, [['B', 'Retail']]);
+    assert.equal(rendered.view, 'new-invoice');
+    assert.equal(rendered.data.items[0].stock_at_sale, 13.5);
+    assert.equal(rendered.data.items[0].warehouse, 'Retail');
+    assert.equal(rendered.data.items[0].unit_price, 200);
+  } finally {
+    store.findInvoice = originalFind;
+    store.getCompanyInformation = originalCompany;
+    store.localStockQuantity = originalStock;
+    delete require.cache[routePath];
+    if (previousRoute) require.cache[routePath] = previousRoute;
+  }
 });
 
 test('duplicate route needs both sales view and create permissions', () => {
@@ -87,7 +214,8 @@ test('failed creation remains a new invoice with Save only and escaped entered v
   assert.match(html, /form="invoice-form" data-voucher-save data-edit-save>Save<\/button>/);
   assert.doesNotMatch(html, /Submit Cash Sale|Submit Invoice|name="cash_sale_method"/);
   assert.match(html, /Deliver tomorrow &lt;please&gt;/);
-  assert.match(html, /name="non_system_invoice" value="EXT-0007"/);
+  assert.match(html, /name="ext_invoice" value="EXT-0007"/);
+  assert.match(html, />Ext Invoice<\/label>/);
   assert.match(html, /name="cost_center"[^>]*value="Retail - WM"/);
   assert.match(html, /name="invoicer"[^>]*value="Jane Doe"/);
   assert.match(html, /name="invoicer_id" value="EMP-004"/);

@@ -1,0 +1,9 @@
+<% if (can('vouchers.stock.create') && (currentUser.role === 'admin' || currentUser.scopes?.suppliers?.mode !== 'selected')) { %>
+  <div class="module-nav-new stock-new-menu" data-new-menu>
+    <button class="button stock-new-trigger" type="button" aria-label="New stock voucher options" aria-expanded="false" aria-haspopup="menu" aria-controls="stock-new-options" data-new-menu-trigger><span aria-hidden="true">+</span><span>New</span></button>
+    <div class="module-nav-new-options" id="stock-new-options" role="menu" hidden data-new-menu-options>
+      <a href="/stock/entries/new" role="menuitem"><span>Stock Entry</span><small>Record a stock movement</small></a>
+      <a href="/stock/reconciliations/new" role="menuitem"><span>Stock Reconciliation</span><small>Record a physical count</small></a>
+    </div>
+  </div>
+<% } %>

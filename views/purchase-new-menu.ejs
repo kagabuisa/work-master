@@ -1,0 +1,13 @@
+<% const canCreatePurchaseInvoice = can('vouchers.purchases.create'); %>
+<% const canCreatePurchaseOrder = can('vouchers.purchase-orders.create'); %>
+<% if (canCreatePurchaseInvoice && canCreatePurchaseOrder) { %>
+  <div class="module-nav-new purchase-new-menu" data-new-menu>
+    <button class="button purchase-new-trigger" type="button" aria-label="New purchase options" aria-expanded="false" aria-haspopup="menu" aria-controls="purchase-new-options" data-new-menu-trigger>+ New</button>
+    <div class="module-nav-new-options" id="purchase-new-options" role="menu" hidden data-new-menu-options>
+      <a href="/purchases/new" role="menuitem"><span>Purchase Invoice</span><small>Record a supplier invoice</small></a>
+      <a href="/purchase-orders/new" role="menuitem"><span>Purchase Order</span><small>Order goods from a supplier</small></a>
+    </div>
+  </div>
+<% } else if (canCreatePurchaseInvoice || canCreatePurchaseOrder) { %>
+  <a class="button" href="<%= canCreatePurchaseInvoice ? '/purchases/new' : '/purchase-orders/new' %>" aria-label="New <%= canCreatePurchaseInvoice ? 'Purchase Invoice' : 'Purchase Order' %>">New</a>
+<% } %>

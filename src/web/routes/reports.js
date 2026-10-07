@@ -2,6 +2,9 @@
 // /reports routes. Mounted at /reports by server.js.
 const express = require('express');
 const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity');
+const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
+const { accountAccessOptions } = require('../helpers');
+const { selectedCategories } = require('../../access');
 const { money, todayString } = require('../format');
 const {
   debtorReport,
@@ -76,6 +79,8 @@ router.get('/debtors', async (req, res, next) => {
 router.get('/stock-ledger', async (req, res, next) => {
   try {
     const report = await stockLedgerReport({
+      ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
       search: req.query.q,
       warehouse: req.query.warehouse,
       entry_type: req.query.entry_type,
@@ -107,6 +112,8 @@ router.get('/stock-ledger/vouchers/:type/:id', async (req, res, next) => {
 router.get('/stock-movement', async (req, res, next) => {
   try {
     const report = await stockMovementReport({
+      ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
       search: req.query.q,
       warehouse: req.query.warehouse,
       from: req.query.from,
@@ -123,6 +130,8 @@ router.get('/stock-movement', async (req, res, next) => {
 router.get('/stock-movement/details', async (req, res, next) => {
   try {
     const details = await stockMovementDetails({
+      ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
       item_code: req.query.item_code,
       warehouse: req.query.warehouse,
       direction: req.query.direction,
@@ -138,6 +147,8 @@ router.get('/stock-movement/details', async (req, res, next) => {
 router.get('/gross-profit', async (req, res, next) => {
   try {
     const report = await grossProfitReport({
+      ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
       search: req.query.q,
       from: req.query.from,
       to: req.query.to,
@@ -163,7 +174,11 @@ router.get('/general-ledger', async (req, res, next) => {
       page_size: req.query.page_size,
     };
     const [report, filterOptions] = await Promise.all([
-      generalLedgerReport(filters),
+      generalLedgerReport(filters, { ownerId: voucherOwnerId(req.currentUser),
+        ownerEmployeeId: voucherEmployeeId(req.currentUser),
+        customerGroups: selectedCategories(req.currentUser, 'customers'),
+        supplierTypes: selectedCategories(req.currentUser, 'suppliers'),
+        ...accountAccessOptions(req.currentUser) }),
       generalLedgerFilterOptions(),
     ]);
     res.render('general-ledger', { report, filterOptions, query: req.query, money });

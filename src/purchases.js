@@ -7,6 +7,8 @@ const {
 } = require('./store');
 const { auditActor } = require('./audit');
 const { normalizePostingTime, storedPostingTime } = require('./posting-time');
+const { validateCostCenter } = require('./cost-centers');
+const { addVoucherOwnerFilter } = require('./voucher-ownership');
 
 function badRequest(message) {
   const error = new Error(message);
@@ -85,6 +87,7 @@ function normalizePurchase(payload) {
     due_date: dueDate || null,
     supplier_id: supplierId,
     price_list: priceList,
+    cost_center: String(payload.cost_center || '').trim() || null,
     purchase_order_id: payload.purchase_order_id ? Number(payload.purchase_order_id) : null,
     supplier_reference: String(payload.supplier_reference || '').trim() || null,
     remarks: String(payload.remarks || '').trim() || null,
@@ -95,6 +98,7 @@ function normalizePurchase(payload) {
 }
 
 async function resolvePurchaseMasters(client, purchase) {
+  purchase.cost_center = await validateCostCenter(client, purchase.cost_center);
   const priceList = await client.query(`SELECT 1 FROM app_master_price_lists
     WHERE price_list = $1 AND active = 1 AND currency = 'UGX' AND price_type IN ('buying', 'both')`, [purchase.price_list]);
   if (!priceList.rows.length) throw badRequest('Select an active UGX buying price list.');
@@ -245,11 +249,11 @@ async function createPurchase(payload) {
     const { rows } = await client.query(`
       INSERT INTO app_purchases (
         posting_date, posting_time, due_date, supplier_id, supplier_name, supplier_reference, remarks,
-        subtotal, total, price_list, purchase_order_id
-      ) VALUES ($1, $10, $2, $3, $4, $5, $6, $7, $8, $9, $11) RETURNING id
+        subtotal, total, price_list, purchase_order_id, cost_center
+      ) VALUES ($1, $10, $2, $3, $4, $5, $6, $7, $8, $9, $11, $12) RETURNING id
     `, [purchase.posting_date, purchase.due_date, purchase.supplier_id,
       purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
-      purchase.subtotal, purchase.total, purchase.price_list, purchase.posting_time, purchase.purchase_order_id]);
+      purchase.subtotal, purchase.total, purchase.price_list, purchase.posting_time, purchase.purchase_order_id, purchase.cost_center]);
     const id = Number(rows[0].id);
     await client.query('UPDATE app_purchases SET purchase_no = $1 WHERE id = $2',
       [`PUR-${String(id).padStart(6, '0')}`, id]);
@@ -276,11 +280,11 @@ async function updatePurchase(id, payload) {
     await client.query(`
       UPDATE app_purchases SET posting_date = $1, posting_time = $11, due_date = $2, supplier_id = $3,
         supplier_name = $4, supplier_reference = $5, remarks = $6,
-        subtotal = $7, total = $8, price_list = $10, purchase_order_id = $12, updated_at = now()
+        subtotal = $7, total = $8, price_list = $10, purchase_order_id = $12, cost_center = $13, updated_at = now()
       WHERE id = $9
     `, [purchase.posting_date, purchase.due_date, purchase.supplier_id,
       purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
-      purchase.subtotal, purchase.total, purchaseId, purchase.price_list, purchase.posting_time, purchase.purchase_order_id]);
+      purchase.subtotal, purchase.total, purchaseId, purchase.price_list, purchase.posting_time, purchase.purchase_order_id, purchase.cost_center]);
     await syncItems(client, purchaseId, purchase.items);
     return purchaseId;
   });
@@ -293,6 +297,7 @@ async function listPurchases(filters = {}) {
   const limit = [10, 25, 50, 100].includes(requestedLimit) ? requestedLimit : 25;
   const params = [];
   const where = [];
+  addVoucherOwnerFilter(where, params, 'p', filters.ownerId);
   if (Array.isArray(filters.allowedTypes)) {
     params.push(filters.allowedTypes);
     where.push(`EXISTS (
@@ -345,7 +350,7 @@ async function loadPurchase(id) {
   const result = await pool.query(`
     SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
       id, purchase_no, docstatus, posting_date::text, posting_time::text, due_date::text,
-      supplier_id, supplier_name, price_list, supplier_reference, remarks, purchase_order_id,
+      supplier_id, supplier_name, price_list, supplier_reference, remarks, purchase_order_id, cost_center,
       subtotal::float, submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at,
       total::float, amount_paid::float, status
@@ -385,7 +390,7 @@ async function submitPurchase(id) {
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   return withPostgresTransaction(async (client) => {
     const result = await client.query(`
-      SELECT id, purchase_no, docstatus, posting_date::text, supplier_id, supplier_name, total::float, purchase_order_id, price_list
+      SELECT id, purchase_no, docstatus, posting_date::text, supplier_id, supplier_name, total::float, purchase_order_id, price_list, cost_center
       FROM app_purchases WHERE id = $1 FOR UPDATE
     `, [purchaseId]);
     const purchase = result.rows[0];
@@ -423,6 +428,7 @@ async function submitPurchase(id) {
     }
     await postGlEntry(client, {
       posting_date: purchase.posting_date,
+      cost_center: purchase.cost_center,
       voucher_type: 'purchase',
       voucher_id: purchaseId,
       voucher_no: purchase.purchase_no,
@@ -520,7 +526,7 @@ async function addPurchasePayment(id, payload) {
   if (!['cash', 'bank', 'mobile_money', 'card'].includes(method)) throw badRequest('Choose a payment method.');
   return withPostgresTransaction(async (client) => {
     const result = await client.query(`
-      SELECT id, purchase_no, docstatus, posting_date::text, supplier_id, supplier_name, total::float, amount_paid::float
+      SELECT id, purchase_no, docstatus, posting_date::text, supplier_id, supplier_name, cost_center, total::float, amount_paid::float
       FROM app_purchases WHERE id = $1 FOR UPDATE
     `, [purchaseId]);
     const purchase = result.rows[0];
@@ -543,6 +549,7 @@ async function addPurchasePayment(id, payload) {
     const paymentId = Number(payment.rows[0].id);
     await postGlEntry(client, {
       posting_date: paymentDate,
+      cost_center: purchase.cost_center,
       voucher_type: 'purchase_payment',
       voucher_id: paymentId,
       voucher_no: `${purchase.purchase_no}-PAY-${String(paymentNo).padStart(3, '0')}`,

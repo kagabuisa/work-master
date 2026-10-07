@@ -1,0 +1,7 @@
+<label>Cost Center
+  <input name="cost_center" list="voucher-cost-centers" data-cost-center-input
+    data-default-cost-center="<%= currentUser && currentUser.record_access && currentUser.record_access.cost_center || '' %>"
+    value="<%= value || '' %>" autocomplete="off" placeholder="Search cost centers"
+    <%= readOnly ? 'readonly' : '' %>>
+</label>
+<datalist id="voucher-cost-centers"></datalist>

@@ -10,6 +10,7 @@ const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
 const { paginationOptions, paginationResult } = require('../lib/pagination');
+const { addVoucherOwnerFilter } = require('../voucher-ownership');
 const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, createOrUpdateSalesInvoiceJournalEntry, postCustomerPaymentGlEntry, applyPostgresStockMovement, postGlEntry, reverseVoucherGlEntries, resolveAccountingAccounts, actorAuditValues, setVoucherDocstatus, nonZeroAccountingLines, addReportFilters, reportFilterValues, groupByInvoiceId, postgresItemToInvoiceItem, postgresPaymentToInvoicePayment } = require('./posting');
 const { syncPostgresInvoicePaymentTotals } = require('./schema');
 const { validateReceivingAccount } = require('./ledger');
@@ -399,6 +400,7 @@ async function paginatedPostgresInvoices(options = {}) {
   const pagination = paginationOptions(options, 50, 200);
   const params = [];
   const where = [];
+  addVoucherOwnerFilter(where, params, 'invoice', options.ownerId, options.ownerEmployeeId);
   if (Array.isArray(options.allowedGroups)) {
     params.push(options.allowedGroups);
     where.push(`EXISTS (
@@ -439,7 +441,7 @@ async function paginatedPostgresInvoices(options = {}) {
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const pageParams = [...params, pagination.limit, pagination.offset];
-  const invoiceListSql = `
+  const invoiceListSql = (invoiceSource = 'app_invoices') => `
     FROM (
       SELECT
         invoice.id,
@@ -452,6 +454,7 @@ async function paginatedPostgresInvoices(options = {}) {
         invoice.customer_id,
         invoice.customer_name,
         invoice.customer_phone,
+        invoice.invoicer_id,
         invoice.price_list,
         invoice.subtotal,
         invoice.tax_amount,
@@ -468,17 +471,19 @@ async function paginatedPostgresInvoices(options = {}) {
           ELSE 'partial'
         END AS status,
         invoice.created_at,
+        invoice.created_by_user_id,
         invoice.updated_at
-      FROM app_invoices invoice
+      FROM ${invoiceSource} invoice
       LEFT JOIN (
         SELECT invoice_id, COALESCE(SUM(amount), 0) AS amount_paid
         FROM app_invoice_payments
-        WHERE docstatus = 'submitted'
-        GROUP BY invoice_id
+        ${invoiceSource === 'selected_invoices' ? 'JOIN selected_invoices scoped_invoice ON scoped_invoice.id = app_invoice_payments.invoice_id' : ''}
+        WHERE app_invoice_payments.docstatus = 'submitted'
+        GROUP BY app_invoice_payments.invoice_id
       ) payment_totals ON payment_totals.invoice_id = invoice.id
       LEFT JOIN (
         SELECT invoice.id AS invoice_id, SUM(journal_payment.amount) AS amount_paid
-        FROM app_invoices invoice
+        FROM ${invoiceSource} invoice
         JOIN (
           SELECT journal.id, journal.reference_no, journal.party_id, journal.party_name,
             SUM(line.credit - line.debit) AS amount
@@ -488,6 +493,10 @@ async function paginatedPostgresInvoices(options = {}) {
             AND setting.account_id = line.account_id
           WHERE journal.docstatus = 'submitted' AND journal.party_type = 'customer'
             AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+            ${invoiceSource === 'selected_invoices' ? `AND EXISTS (
+              SELECT 1 FROM selected_invoices scoped_invoice
+              WHERE scoped_invoice.invoice_no = journal.reference_no
+            )` : ''}
             AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
           GROUP BY journal.id
           HAVING SUM(line.credit - line.debit) > 0
@@ -498,13 +507,21 @@ async function paginatedPostgresInvoices(options = {}) {
       ) journal_totals ON journal_totals.invoice_id = invoice.id
     ) invoice
   `;
+  // A normal list page can choose its invoice IDs before computing totals.
+  // Text search still needs the computed status and amount for filtering.
+  const selectedInvoicesSql = search ? '' : `WITH selected_invoices AS MATERIALIZED (
+    SELECT invoice.* FROM app_invoices invoice ${whereSql}
+    ORDER BY invoice.id DESC
+    LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+  )`;
   const [countResult, pageResult] = await Promise.all([
     getPostgresPool().query(
-      `SELECT COUNT(*)::int AS total ${invoiceListSql} ${whereSql}`,
+      `SELECT COUNT(*)::int AS total ${invoiceListSql()} ${whereSql}`,
       params,
     ),
     getPostgresPool().query(
     `
+    ${selectedInvoicesSql}
     SELECT
       id,
       invoice_no,
@@ -525,10 +542,10 @@ async function paginatedPostgresInvoices(options = {}) {
       status,
       created_at,
       updated_at
-    ${invoiceListSql}
-    ${whereSql}
+    ${invoiceListSql(search ? 'app_invoices' : 'selected_invoices')}
+    ${search ? whereSql : ''}
     ORDER BY id DESC
-    LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+    ${search ? `LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}` : ''}
     `,
       pageParams,
     ),

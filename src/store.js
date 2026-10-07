@@ -64,6 +64,8 @@ const {
 
 let dateTimeSettingsCache;
 let dateTimeSettingsExpiresAt = 0;
+let dateTimeSettingsRefresh;
+let dateTimeSettingsGeneration = 0;
 
 async function initStore() {
   const { ensureSchema } = require('./migrate');
@@ -110,10 +112,23 @@ async function saveCompanyInformation(payload) {
 
 async function getDateTimeSettings() {
   if (dateTimeSettingsCache && Date.now() < dateTimeSettingsExpiresAt) return dateTimeSettingsCache;
-  const { rows } = await getPostgresPool().query('SELECT date_format, time_format FROM app_display_settings WHERE id = 1');
-  dateTimeSettingsCache = normalizeDateTimeSettings(rows[0] || DEFAULT_DATE_TIME_SETTINGS);
-  dateTimeSettingsExpiresAt = Date.now() + 30000;
-  return dateTimeSettingsCache;
+  if (dateTimeSettingsRefresh) return dateTimeSettingsRefresh;
+  const generation = dateTimeSettingsGeneration;
+  const refresh = getPostgresPool().query('SELECT date_format, time_format FROM app_display_settings WHERE id = 1')
+    .then(({ rows }) => {
+      const settings = normalizeDateTimeSettings(rows[0] || DEFAULT_DATE_TIME_SETTINGS);
+      if (generation === dateTimeSettingsGeneration) {
+        dateTimeSettingsCache = settings;
+        dateTimeSettingsExpiresAt = Date.now() + 30000;
+      }
+      return settings;
+    });
+  dateTimeSettingsRefresh = refresh;
+  try {
+    return await refresh;
+  } finally {
+    if (dateTimeSettingsRefresh === refresh) dateTimeSettingsRefresh = null;
+  }
 }
 
 async function saveDateTimeSettings(payload) {
@@ -122,6 +137,8 @@ async function saveDateTimeSettings(payload) {
     INSERT INTO app_display_settings (id, date_format, time_format) VALUES (1, $1, $2)
     ON CONFLICT (id) DO UPDATE SET date_format = EXCLUDED.date_format, time_format = EXCLUDED.time_format
   `, [settings.date_format, settings.time_format]);
+  dateTimeSettingsGeneration += 1;
+  dateTimeSettingsRefresh = null;
   dateTimeSettingsCache = settings;
   dateTimeSettingsExpiresAt = Date.now() + 30000;
   return settings;
@@ -178,6 +195,7 @@ const {
 const {
   stockSummary,
   stockBalances,
+  listStockEntries,
   localStockQuantity,
   createStockEntry,
   loadStockEntry,
@@ -221,7 +239,7 @@ const {
   balanceSheetReport,
   backfillAccountingGl,
 } = require('./domain/ledger');
-async function deleteDraftVoucher(kind, value) {
+async function deleteDraftVoucher(kind, value, { allowCancelled = false } = {}) {
   const tables = { sales: 'app_invoices', purchases: 'app_purchases', stock: 'app_stock_entries', journals: 'app_journal_entries' };
   const table = tables[kind];
   const id = Number(value);
@@ -229,10 +247,28 @@ async function deleteDraftVoucher(kind, value) {
     const error = new Error('Voucher not found.'); error.status = 404; throw error;
   }
   return withPostgresTransaction(async (client) => {
-    const result = await client.query(`SELECT docstatus FROM ${table} WHERE id = $1 FOR UPDATE`, [id]);
+    const result = await client.query(`SELECT ${kind === 'journals' ? 'docstatus, journal_type, reference_no' : 'docstatus'} FROM ${table} WHERE id = $1 FOR UPDATE`, [id]);
     if (!result.rowCount) { const error = new Error('Voucher not found.'); error.status = 404; throw error; }
-    if (result.rows[0].docstatus !== 'draft') {
-      const error = new Error('Only draft vouchers can be deleted.'); error.status = 400; throw error;
+    if (result.rows[0].docstatus !== 'draft' && !(allowCancelled && result.rows[0].docstatus === 'cancelled')) {
+      const error = new Error(allowCancelled
+        ? 'Only draft or cancelled vouchers can be deleted. Cancel a submitted voucher first.'
+        : 'Only draft vouchers can be deleted.'); error.status = 400; throw error;
+    }
+    if (kind === 'journals') {
+      if (result.rows[0].journal_type === 'sales_invoice') {
+        const linkedInvoice = await client.query('SELECT 1 FROM app_invoices WHERE invoice_no = $1 LIMIT 1', [result.rows[0].reference_no]);
+        if (linkedInvoice.rows.length) {
+          const error = new Error('Delete the linked sales invoice before deleting this journal.');
+          error.status = 400;
+          throw error;
+        }
+      }
+      const linkedPayment = await client.query('SELECT 1 FROM app_invoice_payments WHERE journal_entry_id = $1 LIMIT 1', [id]);
+      if (linkedPayment.rows.length) {
+        const error = new Error('Delete the linked sales invoice before deleting this payment journal.');
+        error.status = 400;
+        throw error;
+      }
     }
     await client.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
   });
@@ -279,7 +315,7 @@ async function updateInvoiceNonSystemNumber(value, input) {
   if (!result.rowCount) {
     const { rows } = await getPostgresPool().query('SELECT docstatus FROM app_invoices WHERE id = $1', [id]);
     if (!rows.length) { const error = new Error('Invoice not found.'); error.status = 404; throw error; }
-    const error = new Error('Non-System Invoice can only be changed on draft invoices.'); error.status = 400; throw error;
+    const error = new Error('Ext Invoice can only be changed on draft invoices.'); error.status = 400; throw error;
   }
   return id;
 }
@@ -366,6 +402,7 @@ module.exports = {
   debtorReport,
   stockSummary,
   stockBalances,
+  listStockEntries,
   localStockQuantity,
   masterItemsWithStock,
   invoiceItemPrices,

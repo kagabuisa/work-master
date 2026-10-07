@@ -16,12 +16,14 @@
         <button type="submit" class="button-light">Cancel Purchase</button>
       </form>
     <% } %>
+    <% if (purchase.docstatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this cancelled purchase? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
       <div><span>Supplier</span><strong><%= purchase.supplier_name %></strong><p><%= purchase.supplier_id %></p></div>
       <div><span>Posting Date/Time</span><strong><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></strong><% if (purchase.due_date) { %><p>Due <%= formatDate(purchase.due_date) %></p><% } %></div>
       <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
+      <% if (purchase.cost_center) { %><div><span>Cost Center</span><strong><%= purchase.cost_center %></strong></div><% } %>
     </div>
     <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
     <table>

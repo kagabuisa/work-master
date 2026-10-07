@@ -3,8 +3,12 @@ const { runWithAuditUser } = require('./audit');
 const { REPORTS } = require('./report-permissions');
 const { can, permissionCheck, scopeCheck } = require('./authorize');
 const { getPostgresPool } = require('./store');
+const { activePermissionPriceLists } = require('./permission-price-lists');
+const { recordAccessChoices, selectedLabels, validateRecordAccess,
+  defaultRecordPermissions } = require('./user-record-access');
 const { invoicePriceListAllowed, priceListActionAllowed, anyNamedPriceListAction,
-  anyNamedListView } = require('./access');
+  anyNamedListView, allowedInvoicePriceLists, allowedNamedListValues,
+  allowedMasterRecordIds } = require('./access');
 const {
   SESSION_DAYS,
   userCount,
@@ -110,11 +114,12 @@ function pruneLoginFailures(now) {
 }
 
 function denyAccess(req, res) {
+  const message = req.accessDeniedReason || 'Your account does not have permission for this action.';
   if (req.path.startsWith('/api/') || req.get('accept')?.includes('application/json')
       || req.get('content-type')?.includes('application/json')) {
-    res.status(403).json({ error: 'Your account does not have permission for this action.' });
+    res.status(403).json({ error: message });
   } else {
-    res.status(403).render('error', { status: 403, message: 'Your account does not have permission for this action.' });
+    res.status(403).render('error', { status: 403, message });
   }
 }
 
@@ -123,19 +128,19 @@ function requireAdmin(req, res, next) {
 }
 
 async function availableInvoicePriceLists() {
-  return (await getPostgresPool().query(`
-    SELECT price_list FROM app_master_price_lists
-    WHERE currency = 'UGX'
-      AND price_type IN ('selling', 'both') ORDER BY price_list`)).rows;
+  return activePermissionPriceLists(getPostgresPool());
 }
 
 async function availablePermissionLists() {
   const invoicePriceLists = await availableInvoicePriceLists();
-  const [warehouses, accounts] = await Promise.all([
+  const [warehouses, accounts, costCenters, employees] = await Promise.all([
     getPostgresPool().query('SELECT warehouse FROM app_master_warehouses WHERE is_group = false ORDER BY warehouse'),
     getPostgresPool().query('SELECT id::text AS id, account_code, account_name FROM app_accounts ORDER BY account_code, account_name'),
+    getPostgresPool().query('SELECT cost_center, cost_center_name FROM app_master_cost_centers WHERE is_group = false ORDER BY cost_center_name, cost_center'),
+    getPostgresPool().query('SELECT employee_id, employee_name FROM app_master_employees ORDER BY employee_name, employee_id'),
   ]);
-  return { invoicePriceLists, warehouses: warehouses.rows, accounts: accounts.rows };
+  return { invoicePriceLists, warehouses: warehouses.rows, accounts: accounts.rows,
+    costCenters: costCenters.rows, employees: employees.rows };
 }
 
 function effectiveRolePermissions(role, lists) {
@@ -156,19 +161,28 @@ function effectiveRolePermissions(role, lists) {
 
 function priceListRecordTypes(invoicePriceLists) {
   return invoicePriceLists.map(({ price_list: name }) => ({
-    key: `invoice-price-list:${name}`, label: name, group: 'Invoice price lists',
+    key: `invoice-price-list:${name}`, label: name, group: 'Price lists', parentKey: 'masters.price-lists',
     actions: RECORD_ACTIONS, permissions: Object.fromEntries(RECORD_ACTIONS.map((action) =>
       [action, `invoice.price-list.${action}:${name}`])),
   }));
 }
 
-function namedListRecordTypes(lists) {
+function namedListRecordTypes(lists, includeMasterRecords = false) {
   return [
     ...lists.warehouses.map((row) => ({ key: `warehouse:${row.warehouse}`, label: row.warehouse,
-      group: 'Warehouse list', actions: ['view'], permissions: { view: `warehouse.view:${row.warehouse}` } })),
+      group: 'Warehouse list', parentKey: 'masters.warehouses', actions: ['view'], permissions: { view: `warehouse.view:${row.warehouse}` } })),
     ...lists.accounts.map((row) => ({ key: `account:${row.id}`,
       label: `${row.account_code || row.id} · ${row.account_name}`, group: 'Accounts list',
+      parentKey: 'chart-of-accounts', parentAliases: ['accounts'],
       actions: ['view'], permissions: { view: `account.view:${row.id}` } })),
+    ...(includeMasterRecords ? [
+      ...lists.costCenters.map((row) => ({ key: `cost-center:${row.cost_center}`,
+        label: `${row.cost_center_name} · ${row.cost_center}`, group: 'Cost Center list', parentKey: 'masters.cost-centers',
+        actions: ['view'], permissions: { view: `cost-center.view:${row.cost_center}` } })),
+      ...lists.employees.map((row) => ({ key: `employee:${row.employee_id}`,
+        label: `${row.employee_name} · ${row.employee_id}`, group: 'Employee list', parentKey: 'masters.employees',
+        actions: ['view'], permissions: { view: `employee.view:${row.employee_id}` } })),
+    ] : []),
   ];
 }
 
@@ -178,18 +192,46 @@ async function userPermissionContext(id) {
   if (user.role === 'admin') { const error = new Error('Admin has full access.'); error.status = 400; throw error; }
   const role = (await listRoles()).find((row) => row.slug === user.role);
   const lists = await availablePermissionLists();
-  const types = [...ROLE_RECORD_TYPES, ...priceListRecordTypes(lists.invoicePriceLists), ...namedListRecordTypes(lists)];
+  const types = [...ROLE_RECORD_TYPES, ...priceListRecordTypes(lists.invoicePriceLists),
+    ...namedListRecordTypes(lists, true)];
   const inherited = effectiveRolePermissions(role, lists);
   return { user, types, inherited,
     effective: applyPermissionOverrides(inherited, user.permission_grants, user.permission_denials) };
 }
 
-async function saveUserEffectivePermissions(context, desired) {
+async function saveUserEffectivePermissions(context, desired, forceGrants = [], preserveNamed = true) {
   const inherited = new Set(context.inherited);
   const effective = new Set(desired);
+  const defaults = defaultRecordPermissions(context.user.record_access);
+  const namedPrefixes = ['warehouse.view:', 'invoice.price-list.view:', 'cost-center.view:', 'employee.view:'];
+  const preserved = preserveNamed ? (context.user.permission_grants || [])
+    .filter((key) => effective.has(key) && namedPrefixes.some((prefix) => key.startsWith(prefix))) : [];
+  const grants = [...new Set([
+    ...[...effective].filter((key) => !inherited.has(key)), ...defaults, ...preserved, ...forceGrants,
+  ])];
+  const defaultSet = new Set(defaults);
   await saveUserPermissionOverrides(context.user.id,
-    [...effective].filter((key) => !inherited.has(key)),
-    [...inherited].filter((key) => !effective.has(key)));
+    grants,
+    [...inherited].filter((key) => !effective.has(key) && !defaultSet.has(key)));
+  return [...effective];
+}
+
+function displayedUserPermissions(inherited, user, lists) {
+  const effective = new Set(applyPermissionOverrides(inherited, user.permission_grants, user.permission_denials));
+  if (user.record_access?.warehouse) {
+    for (const key of effective) if (key.startsWith('warehouse.view:')) effective.delete(key);
+    const allowed = allowedNamedListValues(user, 'warehouses');
+    for (const name of allowed === null ? lists.warehouses.map((row) => row.warehouse) : allowed) {
+      effective.add(`warehouse.view:${name}`);
+    }
+  }
+  if (user.record_access?.retail_price_list || user.record_access?.wholesale_price_list) {
+    for (const key of effective) if (key.startsWith('invoice.price-list.view:')) effective.delete(key);
+    const allowed = allowedInvoicePriceLists(user);
+    for (const name of allowed === null ? lists.invoicePriceLists.map((row) => row.price_list) : allowed) {
+      effective.add(`invoice.price-list.view:${name}`);
+    }
+  }
   return [...effective];
 }
 
@@ -200,7 +242,8 @@ function installAuth(app) {
     try {
       if (await sessionUser(sessionToken(req))) return res.redirect('/');
       res.set('Cache-Control', 'no-store');
-      res.render('login', { error: null, username: '', nextPath: safeNext(req.query.next), setupNeeded: await userCount() === 0 });
+      res.render('login', { error: req.query.expired === '1' ? 'Your session ended. Please log in again.' : null,
+        username: '', nextPath: safeNext(req.query.next), setupNeeded: await userCount() === 0 });
     } catch (error) { next(error); }
   });
 
@@ -244,10 +287,11 @@ function installAuth(app) {
       const token = sessionToken(req);
       const user = await sessionUser(token);
       if (!user) {
+        if (token) res.clearCookie(COOKIE_NAME, { path: '/' });
         if (req.path.startsWith('/api/') || req.get('accept')?.includes('application/json')) {
           res.status(401).json({ error: 'Login required.' });
         } else {
-          res.redirect(303, `/login?next=${encodeURIComponent(safeNext(req.originalUrl))}`);
+          res.redirect(303, `/login?expired=${token ? '1' : '0'}&next=${encodeURIComponent(safeNext(req.originalUrl))}`);
         }
         return;
       }
@@ -261,6 +305,8 @@ function installAuth(app) {
         .some((action) => anyNamedPriceListAction(user, action));
       res.locals.canViewNamedWarehouses = anyNamedListView(user, 'warehouses');
       res.locals.canViewNamedAccounts = anyNamedListView(user, 'accounts');
+      res.locals.canViewAssignedCostCenters = (allowedMasterRecordIds(user, 'cost-centers') || []).length > 0;
+      res.locals.canViewAssignedEmployees = (allowedMasterRecordIds(user, 'employees') || []).length > 0;
       res.locals.availableReports = REPORTS.filter((report) => can(user, report.permission));
       if (user.must_change_password && req.path !== '/account/password') {
         res.redirect(303, '/account/password');
@@ -268,6 +314,11 @@ function installAuth(app) {
       }
       runWithAuditUser(user, next);
     } catch (error) { next(error); }
+  });
+
+  app.post('/session/activity', (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.sendStatus(204);
   });
 
   app.get('/account/password', (req, res) => {
@@ -301,6 +352,8 @@ function installAuth(app) {
     res.status(options.status || 200).render('users', {
       users: await listUsers(),
       roles: await listRoles(),
+      choices: await recordAccessChoices(),
+      selected: options.selected || {},
       error: options.error || null,
       created: options.created || null,
     });
@@ -312,11 +365,15 @@ function installAuth(app) {
 
   app.post('/settings/users', requireAdmin, async (req, res, next) => {
     try {
+      const record_access = validateRecordAccess(req.body, await recordAccessChoices());
       const password = crypto.randomBytes(24).toString('base64url');
-      const user = await createUser(req.body.username, password, { role: req.body.role, mustChangePassword: true });
+      const user = await createUser(req.body.username, password,
+        { role: req.body.role, mustChangePassword: true, record_access });
       await renderUsers(req, res, { created: { username: user.username, password } });
     } catch (error) {
-      try { await renderUsers(req, res, { status: error.status || (error.code === '23505' ? 409 : 500), error: error.code === '23505' ? 'Username already exists.' : error.message }); }
+      try { await renderUsers(req, res, { status: error.status || (error.code === '23505' ? 409 : 500),
+        error: error.code === '23505' ? 'Username already exists.' : error.message,
+        selected: req.body }); }
       catch (renderError) { next(renderError); }
     }
   });
@@ -330,6 +387,41 @@ function installAuth(app) {
       res.redirect(303, '/settings/users');
     } catch (error) {
       try { await renderUsers(req, res, { status: error.status || 500, error: error.message }); }
+      catch (renderError) { next(renderError); }
+    }
+  });
+
+  async function renderUserEdit(req, res, options = {}) {
+    const user = (await listUsers()).find((row) => Number(row.id) === Number(req.params.id));
+    if (!user) { const error = new Error('User not found.'); error.status = 404; throw error; }
+    const choices = await recordAccessChoices();
+    res.set('Cache-Control', 'no-store');
+    res.status(options.status || 200).render('user-edit', {
+      user, roles: await listRoles(), choices,
+      selected: options.selected || selectedLabels(user.record_access, choices),
+      role: options.role || user.role,
+      active: options.active === undefined ? user.active : options.active,
+      error: options.error || null,
+    });
+  }
+
+  app.get('/settings/users/:id/edit', requireAdmin, async (req, res, next) => {
+    try { await renderUserEdit(req, res); } catch (error) { next(error); }
+  });
+
+  app.post('/settings/users/:id/edit', requireAdmin, async (req, res, next) => {
+    try {
+      const choices = await recordAccessChoices();
+      const record_access = validateRecordAccess(req.body, choices);
+      await updateUserAccess(req.currentUser.id, req.params.id, {
+        role: req.body.role, active: req.body.active === 'on', record_access,
+      });
+      res.redirect(303, '/settings/users');
+    } catch (error) {
+      try { await renderUserEdit(req, res, { status: error.status || 500, error: error.message,
+        selected: Object.fromEntries(['warehouse', 'cost_center', 'employee_id',
+          'retail_price_list', 'wholesale_price_list'].map((field) => [field, String(req.body[field] || '')])),
+        role: req.body.role, active: req.body.active === 'on' }); }
       catch (renderError) { next(renderError); }
     }
   });
@@ -355,12 +447,13 @@ function installAuth(app) {
       || users.find((user) => user.role !== 'admin') || users[0] || null;
     const selectedRole = roles.find((role) => role.slug === (options.selectedRole || req.query.role)) || roles.find((role) => role.slug === 'standard') || roles[0];
     const lists = await availablePermissionLists();
-    const recordTypes = [...ROLE_RECORD_TYPES, ...priceListRecordTypes(lists.invoicePriceLists), ...namedListRecordTypes(lists)];
+    const recordTypes = [...ROLE_RECORD_TYPES, ...priceListRecordTypes(lists.invoicePriceLists),
+      ...namedListRecordTypes(lists, activeTab === 'users')];
     if (selectedRole) selectedRole.permissions = effectiveRolePermissions(selectedRole, lists);
     const userRole = selectedUser && roles.find((role) => role.slug === selectedUser.role);
     const inheritedPermissions = effectiveRolePermissions(userRole, lists);
     const userPermissions = selectedUser
-      ? applyPermissionOverrides(inheritedPermissions, selectedUser.permission_grants, selectedUser.permission_denials) : [];
+      ? displayedUserPermissions(inheritedPermissions, selectedUser, lists) : [];
     res.set('Cache-Control', 'no-store');
     res.status(options.status || 200).render('roles', {
       roles,
@@ -369,6 +462,7 @@ function installAuth(app) {
       activeTab,
       inheritedPermissions,
       userPermissions,
+      defaultUserPermissionKeys: defaultRecordPermissions(selectedUser?.record_access),
       selectedUserRole: userRole,
       selectedRole,
       recordTypes,
@@ -412,13 +506,21 @@ function installAuth(app) {
       if (type.key === 'payments.sales') desired.add('vouchers.sales.view');
       if (type.key === 'payments.purchases') desired.add('vouchers.purchases.view');
       if (type.key === 'accounts') desired.add('accounts.view');
-      return saveUserEffectivePermissions(context, desired);
+      const forceGrant = type.permissions.view && (type.key.startsWith('warehouse:')
+        && context.user.record_access?.warehouse
+        || type.key.startsWith('invoice-price-list:')
+          && (context.user.record_access?.retail_price_list || context.user.record_access?.wholesale_price_list))
+        ? [type.permissions.view] : [];
+      return saveUserEffectivePermissions(context, desired, forceGrant);
     }));
 
   app.post('/settings/users/:id/permissions/row/remove', requireAdmin, (req, res, next) =>
     finishUserPermissionChange(req, res, next, async (context) => {
       const type = context.types.find((item) => item.key === req.body.record_type);
       if (!type) { const error = new Error('Choose a valid record type.'); error.status = 400; throw error; }
+      if (defaultRecordPermissions(context.user.record_access).includes(type.permissions.view)) {
+        const error = new Error('Change this default selection on the Edit user page.'); error.status = 400; throw error;
+      }
       const desired = new Set(context.effective);
       for (const permission of Object.values(type.permissions)) desired.delete(permission);
       if (type.key === 'vouchers.sales') for (const permission of desired) {
@@ -447,7 +549,7 @@ function installAuth(app) {
 
   app.post('/settings/users/:id/permissions/reset', requireAdmin, (req, res, next) =>
     finishUserPermissionChange(req, res, next, async (context) =>
-      saveUserEffectivePermissions(context, context.inherited)));
+      saveUserEffectivePermissions(context, context.inherited, [], false)));
 
   app.post('/settings/roles', requireAdmin, async (req, res, next) => {
     try {
@@ -521,7 +623,15 @@ function installAuth(app) {
 
   app.use(async (req, res, next) => {
     try {
-      if (!permissionCheck(req) || !await scopeCheck(req)) return denyAccess(req, res);
+      if (!permissionCheck(req)) {
+        if (req.method === 'GET' && /^\/journals(?:\/\d+(?:\/drawer)?)?$/.test(req.path)) {
+          req.accessDeniedReason = req.path === '/journals'
+            ? 'Your account needs Journal Read permission to view journals.'
+            : 'Your account needs Journal Read permission to open this journal.';
+        }
+        return denyAccess(req, res);
+      }
+      if (!await scopeCheck(req)) return denyAccess(req, res);
       return next();
     } catch (error) { return next(error); }
   });

@@ -18,15 +18,19 @@ Create the first login account on the app server:
 npm run user:create -- admin
 ```
 
-The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions last seven days and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL.
+The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after five minutes of inactivity, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL.
 
 The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Each report, including Debtors, Stock Ledger, Stock Movement, Gross Profit, General Ledger, Trial Balance, Profit & Loss, and Balance Sheet, has its own Read permission row. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Existing roles with the old Reports grant receive all individual report permissions during migration.
 
-Only admins can create, edit, activate, deactivate, or delete master records. A new master record is saved inactive; its Active switch controls whether it appears in lookups and operations. Submitted and cancelled master states are no longer exposed. Existing imported active records remain available. Manual journals retain their draft, submit, and cancel workflow because submission posts ledger entries.
+See [Permissions and voucher visibility](docs/permissions.md) for role inheritance, user overrides, permitted records, and Standard users' voucher ownership rules.
+
+See the [app guide](docs/app-guide.md) for current voucher workflows, validation rules, and other user-facing functions. Keep it updated with each behavior change.
+
+Master record actions require the corresponding master list permissions. A new master record is saved inactive; its Active switch controls whether it appears in lookups and operations. Submitted and cancelled master states are no longer exposed. Existing imported active records remain available. Manual journals retain their draft, submit, and cancel workflow because submission posts ledger entries.
 
 Sales and purchase vouchers require an active Price List. An active Item Price on that list supplies the suggested rate for its item; otherwise sales use the item's default rate and purchases use its unit cost. Existing voucher lines keep their saved rates. A master record referenced elsewhere may be deactivated, but deletion can be blocked by database references.
 
-Existing customer-group and supplier-type role restrictions are cleared during this migration. Role access is controlled by the selected permission rows. Admin always has full access.
+Role permissions, user overrides, and assigned record scopes together control access. Admin always has full access.
 
 The first existing account becomes admin when upgrading to roles (preferring the username `admin`); the first account created in a new installation is admin. Later CLI accounts default to Standard. To choose a role from the command line, run `npm run user:create -- <username> <role-slug>`.
 
@@ -67,6 +71,20 @@ docker compose restart
 
 Docker stores application records in the `postgres-data` volume and uploaded project files in the `invoice-data` volume. Both survive image rebuilds and container restarts.
 
+## Performance operations
+
+The server logs requests slower than `SLOW_REQUEST_MS` (default 300 ms). Measure response-time percentiles and database load under realistic data and concurrent users before changing capacity. PostgreSQL's `pg_stat_statements` extension can identify queries with the highest total execution time; it needs to be loaded in `shared_preload_libraries` and enabled by a database administrator. Use `EXPLAIN (ANALYZE, BUFFERS)` on slow read queries in a staging database with production-sized data. Keep autovacuum enabled and check that it keeps up with invoice, ledger, and session table activity. Display-format settings are cached for 30 seconds per app process, and simultaneous cache refreshes share one database read.
+
+Run a read-only HTTP check against a representative staging deployment with an authenticated session cookie:
+
+```bash
+PERF_COOKIE='wm_session=your-staging-session-token' npm run perf:http -- --url=http://localhost:3020/invoices --requests=200 --concurrency=20
+```
+
+The command reports response status counts, failures, requests per second, and 50th/95th/99th percentile latency. It issues only GET requests and stops after the requested count. A redirect to login counts as a failure; set `PERF_COOKIE` in the shell without putting a real session token in source control. Run the same scenario with production-sized staging data at several concurrency levels, and compare the latency and error rate. Results include the app's short-lived caches, so compare a cold run and a warm run when diagnosing database load.
+
+The invoice list limits each page to at most 200 rows. Pages without text search select their invoice IDs before joining payment totals and restrict journal calculations to those invoices; text searches still calculate totals before filtering because status and paid amount are searchable. A startup migration creates a partial index on relevant journal reference numbers using `CREATE INDEX CONCURRENTLY`. On a large existing journal table, allow time for this migration before the app begins accepting requests. The short-lived in-process invoice-list cache holds at most 200 filter combinations and shares a pending query among simultaneous requests for the same list. Each app process has its own cache and PostgreSQL connection pool, so account for all app instances when sizing database connections. A local development database with only a few invoices cannot establish peak-load performance; test the expected data volume and concurrent workload in staging.
+
 ## Release checks
 
 Run `npm run release:check` before deploying. It runs the unit suite, upgrades a
@@ -88,11 +106,9 @@ POSTGRES_DB=work_master_test npm run release:check
 
 If `POSTGRES_URL` or `DATABASE_URL` is configured, it takes precedence over
 `POSTGRES_DB`; set that URL to the dedicated test database instead. Application
-startup now applies schema version 3 under a database lock before accepting
-requests. A required migration or backfill failure stops startup.
-Version 2 replays the existing idempotent schema upgrades and accounting backfills
-once on databases marked version 1. Version 3 adds counted quantities for stock
-reconciliation. Back up the live database before upgrading.
+startup applies pending schema migrations under a database lock before accepting
+requests. A required migration or backfill failure stops startup. Back up the live
+database before upgrading. The current migration list is in `src/migrate.js`.
 
 ## What It Does
 
@@ -107,13 +123,13 @@ reconciliation. Back up the live database before upgrading.
 - Creates Purchase Order vouchers with supplier, expected delivery date, warehouse, items, quantities, and costs. Orders can be saved as drafts, submitted, or cancelled. They require active buying master records. Submitting an order does not receive stock or create a payable; record the delivery separately as a Purchase voucher.
 - Includes accounting reports for General Ledger, Trial Balance, Profit and Loss, and Balance Sheet.
 
-Purchase vouchers currently cover stock items and supplier payments. They do not yet calculate purchase tax or discounts, or support cancellation, returns, or payment edits after submission. Existing Purchase Receipt stock entries remain in the stock ledger; do not record the same delivery again as a Purchase voucher.
+Purchase vouchers currently cover stock items and supplier payments. They support cancellation, which reverses stock and ledger entries, but do not yet calculate purchase tax or discounts or support returns or payment edits after submission. Existing Purchase Receipt stock entries remain in the stock ledger; do not record the same delivery again as a Purchase voucher.
 
 ## Pricing Master Lists
 
-Open **Settings → Price Lists** or **Settings → Item Prices**. Price lists have a name, currency (default UGX), Buying/Selling direction, and Pricelist Type (Retail, Wholesale, or Distribution). Existing ERPNext records with no matching type show Unspecified until edited. Only an admin can create, update, activate, deactivate, or delete a price list. A new price list is saved inactive; turn Active on before adding item prices to it. Item prices link an active submitted item to an active price list, with a non-negative rate per stock UOM in that list's currency.
+Open **Settings → Price Lists** or **Settings → Item Prices**. Price lists have a name, currency (default UGX), Buying/Selling direction, and Pricelist Type (Retail, Wholesale, or Distribution). Existing ERPNext records with no matching type show Unspecified until edited. Price list actions require the corresponding permissions. A new price list is saved inactive; turn Active on before adding item prices to it. Item prices link an active submitted item to an active price list, with a non-negative rate per stock UOM in that list's currency.
 
-All master lists support search, pagination, row editing, record tracking, and Previous/Next navigation. The list and form show an Active switch (`1` for available, `0` for unavailable); Save creates an inactive record, and Update appears when an edit changes a field. Admin can edit saved records and delete records that have no blocking references. Price Lists and Item Prices migrate their old `disabled` columns to `active` at startup. The six other master tables expose a generated `active` column while retaining `disabled` internally for compatibility with existing ERPNext import scripts. Price Lists and Item Prices have no Submit or Cancel actions. A price list can be deactivated even when it has item prices; those prices are unavailable until the list is activated again.
+All master lists support search, pagination, row editing, record tracking, and Previous/Next navigation. The list and form show an Active switch (`1` for available, `0` for unavailable); Save creates an inactive record, and Update appears when an edit changes a field. Users with the corresponding permissions can edit saved records and delete records that have no blocking references. Price Lists and Item Prices migrate their old `disabled` columns to `active` at startup. The six other master tables expose a generated `active` column while retaining `disabled` internally for compatibility with existing ERPNext import scripts. Price Lists and Item Prices have no Submit or Cancel actions. A price list can be deactivated even when it has item prices; those prices are unavailable until the list is activated again.
 
 The tables are created automatically at app startup in Postgres mode. Import price lists from the configured old ERPNext MySQL database with `npm run import:mysql-price-lists` on the app server. The import preserves ERPNext names, currencies, buying/selling types, and enabled states. It skips same-named local lists, so rerunning it does not overwrite local edits; it fills missing Pricelist Type values when the source uses one of the three supported choices. Sales and purchase vouchers require an active UGX price list. An active Item Price on the chosen list takes priority over the item's base rate in lookups.
 
@@ -143,4 +159,4 @@ The verification script checks voucher balance, overall GL balance, balance shee
 
 The current MySQL user is still used only for reading ERPNext tables. Stock and accounting entries created by this app are local to the app's Postgres database and are not written back to ERPNext.
 
-The **Reports → Daily Activity** page reads Daily Activity Report vouchers directly from the configured ERPNext MySQL source. It filters by date, shop/unit, status, and text, and opens each DAR voucher in a read-only detail view with its sales, expenses, delivery report, and remarks. This page requires the Daily Activity report Read permission and does not copy or edit ERPNext records.
+The **Reports → Daily Activity** page reads Daily Activity Report vouchers directly from the configured ERPNext MySQL source. It filters by date, shop/unit, status, and text, and opens each DAR voucher in a read-only detail view with its sales, expenses, delivery report, and remarks. This page requires the Daily Activity report Read permission and is unavailable to Standard users because the ERPNext records cannot be reliably matched to their login. It does not copy or edit ERPNext records.

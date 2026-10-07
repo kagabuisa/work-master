@@ -17,6 +17,7 @@ async function postSalesInvoiceGlEntry(client, invoice) {
   await createOrUpdateSalesInvoiceJournalEntry(client, invoice, lines);
   await postGlEntry(client, {
     posting_date: dateOnly(invoice.invoice_date),
+    cost_center: invoice.cost_center,
     voucher_type: 'sales_invoice',
     voucher_id: Number(invoice.id),
     voucher_no: invoice.invoice_no,
@@ -80,7 +81,8 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
         reference_no = $4,
         remarks = $5,
         total_debit = $6,
-        total_credit = $7
+        total_credit = $7,
+        cost_center = $10
       WHERE id = $8
       `,
       [
@@ -93,6 +95,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
         totalCredit,
         journalId,
         storedPostingTime(invoice.posting_time),
+        invoice.cost_center || null,
       ],
     );
   } else {
@@ -100,9 +103,9 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
       `
       INSERT INTO app_journal_entries (
         docstatus, journal_type, posting_date, party_type, party_id, party_name,
-        reference_no, remarks, total_debit, total_credit, posting_time
+        reference_no, remarks, total_debit, total_credit, posting_time, cost_center
       )
-      VALUES ('submitted', 'sales_invoice', $1, 'customer', $2, $3, $4, $5, $6, $7, $8)
+      VALUES ('submitted', 'sales_invoice', $1, 'customer', $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id
       `,
       [
@@ -114,6 +117,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
         totalDebit,
         totalCredit,
         storedPostingTime(invoice.posting_time),
+        invoice.cost_center || null,
       ],
     );
     journalId = Number(result.rows[0].id);
@@ -160,6 +164,7 @@ async function postCustomerPaymentGlEntry(client, invoice, payment) {
 
   await postGlEntry(client, {
     posting_date: dateOnly(payment.payment_date),
+    cost_center: invoice.cost_center,
     voucher_type: 'customer_payment',
     voucher_id: Number(payment.id),
     voucher_no: `${invoice.invoice_no || invoice.id}-PAY-${String(payment.payment_no || payment.id).padStart(3, '0')}`,
@@ -219,7 +224,8 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
         reference_no = $4,
         remarks = $5,
         total_debit = $6,
-        total_credit = $6
+        total_credit = $6,
+        cost_center = $8
       WHERE id = $7
       RETURNING journal_no
       `,
@@ -231,6 +237,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
         remarks,
         amount,
         savedJournalId,
+        invoice.cost_center || null,
       ],
     );
     if (rows[0]) {
@@ -252,9 +259,9 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       `
       INSERT INTO app_journal_entries (
         journal_type, posting_date, party_type, party_id, party_name, reference_no,
-        remarks, total_debit, total_credit, posting_time
+        remarks, total_debit, total_credit, posting_time, cost_center
       )
-      VALUES ('payment_journal', $1, 'customer', $2, $3, $4, $5, $6, $6, $7)
+      VALUES ('payment_journal', $1, 'customer', $2, $3, $4, $5, $6, $6, $7, $8)
       RETURNING id
       `,
       [
@@ -265,6 +272,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
         remarks,
         amount,
         currentPostingTime(),
+        invoice.cost_center || null,
       ],
     );
     savedJournalId = Number(rows[0].id);
@@ -280,6 +288,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
 
   await postGlEntry(client, {
     posting_date: dateOnly(payment.payment_date),
+    cost_center: invoice.cost_center,
     voucher_type: 'payment_journal',
     voucher_id: savedJournalId,
     voucher_no: journalNo,
@@ -315,6 +324,8 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
 }
 
 async function postStockEntryGlEntry(client, entry) {
+  const costCenter = entry.costCenter !== undefined ? entry.costCenter
+    : (await client.query('SELECT cost_center FROM app_stock_entries WHERE id = $1', [Number(entry.id)])).rows[0]?.cost_center;
   const entryType = String(entry.entryType || '').replace(/^stock_/, '');
   if (entryType === 'transfer') {
     await client.query(
@@ -356,6 +367,7 @@ async function postStockEntryGlEntry(client, entry) {
 
   await postGlEntry(client, {
     posting_date: dateOnly(entry.postingDate),
+    cost_center: costCenter,
     voucher_type: stockVoucherType(entryType, entry.isReversal),
     voucher_id: Number(entry.id),
     voucher_no: entry.entryNo,
@@ -487,9 +499,9 @@ async function postGlEntry(client, entry) {
       INSERT INTO app_gl_entries (
         posting_date, account_id, party_type, party_id, party_name, voucher_type,
         voucher_id, voucher_no, line_no, debit, credit, remarks, is_reversal,
-        reversal_of_voucher_type, reversal_of_voucher_id
+        reversal_of_voucher_type, reversal_of_voucher_id, cost_center
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       `,
       [
         entry.posting_date,
@@ -507,6 +519,7 @@ async function postGlEntry(client, entry) {
         Boolean(entry.is_reversal),
         entry.reversal_of_voucher_type || null,
         entry.reversal_of_voucher_id || null,
+        line.cost_center || entry.cost_center || null,
       ],
     );
   }
@@ -514,7 +527,7 @@ async function postGlEntry(client, entry) {
 
 async function reverseVoucherGlEntries(client, voucherType, voucherId, postingDate) {
   const { rows } = await client.query(
-    `SELECT account_id, party_type, party_id, party_name, voucher_no,
+    `SELECT account_id, party_type, party_id, party_name, voucher_no, cost_center,
       debit::float, credit::float
      FROM app_gl_entries
      WHERE voucher_type = $1 AND voucher_id = $2 AND is_reversal = false
@@ -536,6 +549,7 @@ async function reverseVoucherGlEntries(client, voucherType, voucherId, postingDa
       party_type: row.party_type,
       party_id: row.party_id,
       party_name: row.party_name,
+      cost_center: row.cost_center,
       debit: Number(row.credit || 0),
       credit: Number(row.debit || 0),
     })),

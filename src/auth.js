@@ -3,9 +3,12 @@ const { promisify } = require('node:util');
 const { getPostgresPool } = require('./store');
 const { REPORTS } = require('./report-permissions');
 const { initRecordAudit } = require('./audit');
+const { defaultRecordPermissions } = require('./user-record-access');
+const { activePermissionPriceLists } = require('./permission-price-lists');
 
 const scrypt = promisify(crypto.scrypt);
 const SESSION_DAYS = 7;
+const SESSION_IDLE_MINUTES = 5;
 const PASSWORD_MIN_LENGTH = 12;
 const MASTER_LISTS = [
   ['customers', 'Customers'], ['suppliers', 'Suppliers'], ['items', 'Items'],
@@ -191,7 +194,7 @@ function validInvoicePriceListPermission(permission) {
 }
 
 function validNamedListPermission(permission) {
-  const match = /^(warehouse|account)\.view:(.+)$/.exec(String(permission || ''));
+  const match = /^(warehouse|account|cost-center|employee)\.view:(.+)$/.exec(String(permission || ''));
   return Boolean(match && match[2].length <= 140 && match[2] === match[2].trim());
 }
 
@@ -296,9 +299,14 @@ async function initAuth() {
       token_hash TEXT PRIMARY KEY,
       user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL,
+      last_activity_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  await pool.query('ALTER TABLE app_user_sessions ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ');
+  await pool.query('UPDATE app_user_sessions SET last_activity_at = COALESCE(created_at, now()) WHERE last_activity_at IS NULL');
+  await pool.query('ALTER TABLE app_user_sessions ALTER COLUMN last_activity_at SET DEFAULT now()');
+  await pool.query('ALTER TABLE app_user_sessions ALTER COLUMN last_activity_at SET NOT NULL');
   await pool.query('CREATE INDEX IF NOT EXISTS app_user_sessions_user_idx ON app_user_sessions(user_id)');
   await initRecordAudit(pool, ['app_user_sessions']);
 
@@ -414,12 +422,9 @@ async function saveRoleInvoicePriceListPermissions(slug, typeKey, actions) {
   const client = await getPostgresPool().connect();
   try {
     await client.query('BEGIN');
-    const { rows: lists } = await client.query(`
-      SELECT price_list FROM app_master_price_lists
-      WHERE currency = 'UGX'
-        AND price_type IN ('selling', 'both') ORDER BY price_list`);
+    const lists = await activePermissionPriceLists(client);
     if (!lists.some((row) => row.price_list === name)) {
-      const error = new Error('Choose an active UGX selling price list.'); error.status = 400; throw error;
+      const error = new Error('Choose an active price list.'); error.status = 400; throw error;
     }
     const { rows } = await client.query('SELECT scopes, permissions FROM app_roles WHERE slug = $1 FOR UPDATE', [slug]);
     if (!rows[0]) { const error = new Error('Role not found.'); error.status = 404; throw error; }
@@ -549,9 +554,12 @@ async function createUser(usernameValue, password, options = {}) {
   const hash = await passwordHash(password);
   const mustChange = Boolean(options.mustChangePassword);
   const role = options.role ? await validateRole(options.role) : await userCount() === 0 ? 'admin' : 'standard';
+  const recordAccess = options.record_access || {};
+  const grants = defaultRecordPermissions(recordAccess);
   const { rows } = await getPostgresPool().query(
-    'INSERT INTO app_users (username, password_hash, must_change_password, role) VALUES ($1, $2, $3, $4) RETURNING id, username, role',
-    [username, hash, mustChange, role],
+    `INSERT INTO app_users (username, password_hash, must_change_password, role, record_access, permission_grants)
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb) RETURNING id, username, role`,
+    [username, hash, mustChange, role, JSON.stringify(recordAccess), JSON.stringify(grants)],
   );
   return rows[0];
 }
@@ -592,15 +600,23 @@ async function sessionUser(token) {
   if (!token || typeof token !== 'string' || token.length > 128) return null;
   const hash = tokenHash(token);
   const { rows } = await getPostgresPool().query(`
+    WITH active_session AS (
+      UPDATE app_user_sessions
+      SET last_activity_at = now()
+      WHERE token_hash = $1 AND expires_at > now()
+        AND last_activity_at > now() - ($2::int * interval '1 minute')
+      RETURNING user_id
+    )
     SELECT u.id, u.username, u.must_change_password, u.role, u.permission_grants, u.permission_denials,
+           u.record_access,
            COALESCE(r.name, u.role) AS role_name,
            COALESCE(r.permissions, '[]'::jsonb) AS permissions,
            COALESCE(r.scopes, '{"customers":{"mode":"all","values":[]},"suppliers":{"mode":"all","values":[]}}'::jsonb) AS scopes
-    FROM app_user_sessions s
+    FROM active_session s
     JOIN app_users u ON u.id = s.user_id
     LEFT JOIN app_roles r ON r.slug = u.role
-    WHERE s.token_hash = $1 AND s.expires_at > now() AND u.active = true
-  `, [hash]);
+    WHERE u.active = true
+  `, [hash, SESSION_IDLE_MINUTES]);
   const user = rows[0];
   if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
   return user || null;
@@ -608,7 +624,7 @@ async function sessionUser(token) {
 
 async function listUsers() {
   const { rows } = await getPostgresPool().query(
-    'SELECT id, username, role, active, must_change_password, permission_grants, permission_denials, created_at FROM app_users ORDER BY username',
+    'SELECT id, username, role, active, must_change_password, permission_grants, permission_denials, record_access, created_at FROM app_users ORDER BY username',
   );
   return rows;
 }
@@ -642,11 +658,19 @@ async function updateUserAccess(actorId, targetId, changes) {
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(724091)');
-    const { rows } = await client.query('SELECT id, role, active FROM app_users WHERE id = $1 FOR UPDATE', [id]);
+    const { rows } = await client.query(`SELECT id, role, active, record_access, permission_grants,
+      permission_denials FROM app_users WHERE id = $1 FOR UPDATE`, [id]);
     const user = rows[0];
     if (!user) { const error = new Error('User not found.'); error.status = 404; throw error; }
     const role = changes.role ?? user.role;
     const active = changes.active ?? user.active;
+    const recordAccess = changes.record_access ?? user.record_access ?? {};
+    const previousDefaults = new Set(defaultRecordPermissions(user.record_access));
+    const nextDefaults = defaultRecordPermissions(recordAccess);
+    const grants = changes.record_access === undefined ? user.permission_grants
+      : [...new Set([...(user.permission_grants || []).filter((key) => !previousDefaults.has(key)), ...nextDefaults])];
+    const denials = changes.record_access === undefined ? user.permission_denials
+      : (user.permission_denials || []).filter((key) => !nextDefaults.includes(key));
     if (Number(actorId) === id && (role !== 'admin' || !active)) {
       const error = new Error('You cannot remove your own admin access.'); error.status = 400; throw error;
     }
@@ -656,11 +680,16 @@ async function updateUserAccess(actorId, targetId, changes) {
         const error = new Error('At least one active admin is required.'); error.status = 400; throw error;
       }
     }
-    if (role === user.role && active === user.active) {
+    if (role === user.role && active === user.active
+      && JSON.stringify(recordAccess) === JSON.stringify(user.record_access || {})
+      && JSON.stringify(grants) === JSON.stringify(user.permission_grants || [])
+      && JSON.stringify(denials) === JSON.stringify(user.permission_denials || [])) {
       await client.query('COMMIT');
       return;
     }
-    await client.query('UPDATE app_users SET role = $1, active = $2 WHERE id = $3', [role, active, id]);
+    await client.query(`UPDATE app_users SET role = $1, active = $2, record_access = $3::jsonb,
+      permission_grants = $4::jsonb, permission_denials = $5::jsonb WHERE id = $6`,
+    [role, active, JSON.stringify(recordAccess), JSON.stringify(grants), JSON.stringify(denials), id]);
     await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [id]);
     await client.query('COMMIT');
   } catch (error) {
@@ -731,6 +760,7 @@ async function resetUserPassword(usernameValue, newPassword) {
 
 module.exports = {
   SESSION_DAYS,
+  SESSION_IDLE_MINUTES,
   initAuth,
   userCount,
   createUser,

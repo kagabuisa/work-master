@@ -9,7 +9,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Setup</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Settings' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'settings' }) %>
@@ -169,7 +169,7 @@
         <a href="/settings/warehouses">Open Warehouses</a>
       </div>
       <% } %>
-      <% if (can('masters.employees.view')) { %>
+      <% if (can('masters.employees.view') || canViewAssignedEmployees) { %>
       <div>
         <div class="section-title">
           <h2>Employees</h2>
@@ -178,7 +178,7 @@
         <a href="/settings/employees">Open Employees</a>
       </div>
       <% } %>
-      <% if (can('masters.cost-centers.view')) { %>
+      <% if (can('masters.cost-centers.view') || canViewAssignedCostCenters) { %>
       <div>
         <div class="section-title">
           <h2>Cost Centers</h2>

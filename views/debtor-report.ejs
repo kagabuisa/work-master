@@ -30,10 +30,10 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Reports</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Debtors' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Sales', href: '/invoices' }, { label: 'Debtors' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'report' }) %>
+        <%- include('module-nav', { activeModule: 'sales' }) %>
       </nav>
     </header>
     <nav class="debtor-tabs" aria-label="Debtors views">

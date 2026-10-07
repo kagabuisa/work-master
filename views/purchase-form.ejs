@@ -9,7 +9,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchases</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: purchase.id ? 'Edit Purchase' : 'New Purchase Invoice' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices', href: '/purchases' }, { label: purchase.id ? 'Edit Purchase Invoice' : 'New Purchase Invoice' }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
     </header>
@@ -33,6 +33,7 @@
         <label>Due Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
         <label>Supplier name<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></label>
         <label>Price List<% if (purchase.purchase_order_id) { %><input type="hidden" name="price_list" value="<%= purchase.price_list || '' %>"><% } %><select name="<%= purchase.purchase_order_id ? '' : 'price_list' %>" id="purchase-price-list" <%= purchase.purchase_order_id ? 'disabled' : 'required' %>><option value="<%= purchase.price_list || '' %>"><%= purchase.price_list || 'Loading price lists...' %></option></select></label>
+        <%- include('cost-center-field', { value: purchase.cost_center, readOnly: false }) %>
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
         <label class="wide">Remarks<input name="remarks" value="<%= purchase.remarks || '' %>"></label>
       </section>
@@ -67,5 +68,6 @@
     </form>
   </main>
   <script src="/purchase-form.js?v=<%= assetVersion %>"></script>
+  <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

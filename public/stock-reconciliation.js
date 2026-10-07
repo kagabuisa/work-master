@@ -8,9 +8,6 @@ const emptyMessage = document.querySelector('#reconciliation-empty');
 const statusMessage = document.querySelector('#reconciliation-status');
 const searchInput = document.querySelector('#reconciliation-item-search');
 const searchResults = document.querySelector('#reconciliation-item-results');
-const filterInput = document.querySelector('#reconciliation-filter');
-const differencesOnly = document.querySelector('#reconciliation-differences-only');
-const resultsCount = document.querySelector('#reconciliation-results-count');
 const varianceSummary = document.querySelector('#reconciliation-variance-summary');
 const readOnly = Boolean(initial.readOnly);
 const canEditRate = Boolean(initial.canEditRate) && !readOnly;
@@ -84,18 +81,6 @@ function updateRow(tr, item) {
   tr.classList.toggle('reconciliation-loss-row', change < 0);
 }
 
-function applyFilter() {
-  const query = filterInput.value.trim().toLowerCase();
-  let visible = 0;
-  for (const tr of rowsBody.rows) {
-    const item = tr._item;
-    tr.hidden = Boolean(query && !`${item.code} ${item.name}`.toLowerCase().includes(query))
-      || differencesOnly.checked && difference(item) === 0;
-    if (!tr.hidden) visible += 1;
-  }
-  resultsCount.textContent = `${visible.toLocaleString()} of ${rows.length.toLocaleString()} items`;
-}
-
 function renderRows() {
   rowsBody.replaceChildren();
   rows.forEach((item, index) => {
@@ -123,11 +108,10 @@ function renderRows() {
     updateRow(tr, item);
   });
   emptyMessage.hidden = rows.length > 0;
-  emptyMessage.textContent = warehouseInput.value.trim()
+  emptyMessage.textContent = (warehouseInput?.value.trim() || initial.warehouse)
     ? 'No stock loaded for this warehouse. Search for an item below to add it to the count.'
     : 'Choose a warehouse to load its stock.';
   updateSummary();
-  applyFilter();
 }
 
 function itemFromSaved(item, balance, posted) {
@@ -225,7 +209,6 @@ rowsBody.addEventListener('input', (event) => {
   if (event.target.name === 'valuation_rate') tr.querySelector('.reconciliation-rate-value').textContent = rateMoney(tr._item.rate);
   updateRow(tr, tr._item);
   updateSummary();
-  applyFilter();
 });
 rowsBody.addEventListener('click', (event) => {
   const editRate = event.target.closest('[data-edit-rate]');
@@ -243,8 +226,6 @@ rowsBody.addEventListener('click', (event) => {
   rows = rows.filter((item) => item !== event.target.closest('tr')._item);
   renderRows();
 });
-filterInput.addEventListener('input', applyFilter);
-differencesOnly.addEventListener('change', applyFilter);
 if (loadButton) loadButton.addEventListener('click', loadWarehouseStock);
 if (!readOnly && !initial.entry?.id) {
   warehouseInput.addEventListener('change', loadWarehouseStock);
@@ -291,7 +272,7 @@ form.addEventListener('submit', (event) => {
   }
 });
 
-loadWarehouses();
+if (warehouseList) loadWarehouses();
 if (readOnly) {
   const balances = new Map((initial.balances || []).map((balance) => [balance.item_code, balance]));
   rows = (initial.items || []).map((item) => itemFromSaved(item, balances.get(item.item_code), initial.entry?.docstatus !== 'draft'));

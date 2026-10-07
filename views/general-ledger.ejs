@@ -10,7 +10,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'General Ledger' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Reports', href: availableReports[0]?.href || '/reports/general-ledger' }, { label: 'General Ledger' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'report' }) %>
@@ -88,17 +88,17 @@
               <td><strong><%= money(row.running_balance) %></strong></td>
               <td><%= (row.voucher_type || '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') %></td>
               <td>
-                <% if (row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
+                <% if (row.voucher_exists !== false && row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
                   <a href="/invoices/<%= row.voucher_id %>" data-voucher-drawer="/invoices/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_type === 'purchase' && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && row.voucher_type === 'purchase' && row.voucher_id) { %>
                   <a href="/purchases/<%= row.voucher_id %>" data-voucher-drawer="/purchases/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_type === 'purchase_payment' && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && row.voucher_type === 'purchase_payment' && row.voucher_id) { %>
                   <a href="/purchases/payments/<%= row.voucher_id %>" data-voucher-drawer="/purchases/payments/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_type === 'customer_payment' && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && row.voucher_type === 'customer_payment' && row.voucher_id) { %>
                   <a href="/invoices/payments/<%= row.voucher_id %>" data-voucher-drawer="/invoices/payments/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (['cash_receipt', 'payment_journal', 'journal_entry'].includes(row.voucher_type) && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && ['cash_receipt', 'payment_journal', 'journal_entry'].includes(row.voucher_type) && row.voucher_id) { %>
                   <a href="/journals/<%= row.voucher_id %>" data-voucher-drawer="/journals/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_type && row.voucher_type.startsWith('stock_') && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && row.voucher_type && row.voucher_type.startsWith('stock_') && row.voucher_id) { %>
                   <a href="/stock/entries/<%= row.voucher_id %>" data-voucher-drawer="/stock/entries/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
                 <% } else { %>
                   <%= row.voucher_no || row.voucher_id || '' %>

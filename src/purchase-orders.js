@@ -2,6 +2,7 @@ const { getPostgresPool, withPostgresTransaction } = require('./store');
 const { normalizePurchase, resolvePurchaseMasters } = require('./purchases');
 const { storedPostingTime } = require('./posting-time');
 const { auditActor } = require('./audit');
+const { addVoucherOwnerFilter } = require('./voucher-ownership');
 
 function error(message, status = 400) {
   const result = new Error(message);
@@ -15,6 +16,14 @@ function orderId(value) {
   return id;
 }
 
+function normalizePurchaseOrder(payload) {
+  const warehouse = String(payload.warehouse || '').trim();
+  if (!warehouse) throw error('Choose a warehouse for this purchase order.');
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  return normalizePurchase({ ...payload,
+    items: items.map((item) => ({ ...item, warehouse })) });
+}
+
 async function insertItems(client, id, items) {
   for (const item of items) {
     await client.query(`INSERT INTO app_purchase_order_items
@@ -26,16 +35,16 @@ async function insertItems(client, id, items) {
 }
 
 async function createPurchaseOrder(payload) {
-  const order = normalizePurchase(payload);
+  const order = normalizePurchaseOrder(payload);
   return withPostgresTransaction(async (client) => {
     await resolvePurchaseMasters(client, order);
     const result = await client.query(`INSERT INTO app_purchase_orders
       (posting_date, posting_time, due_date, supplier_id, supplier_name, price_list,
-       supplier_reference, remarks, subtotal, total)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+       supplier_reference, remarks, subtotal, total, cost_center)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
     [order.posting_date, order.posting_time, order.due_date, order.supplier_id,
       order.supplier_name, order.price_list, order.supplier_reference, order.remarks,
-      order.subtotal, order.total]);
+      order.subtotal, order.total, order.cost_center]);
     const id = Number(result.rows[0].id);
     await client.query('UPDATE app_purchase_orders SET order_no = $1 WHERE id = $2',
       [`PO-${String(id).padStart(6, '0')}`, id]);
@@ -46,7 +55,7 @@ async function createPurchaseOrder(payload) {
 
 async function updatePurchaseOrder(value, payload) {
   const id = orderId(value);
-  const order = normalizePurchase(payload);
+  const order = normalizePurchaseOrder(payload);
   return withPostgresTransaction(async (client) => {
     const existing = await client.query('SELECT docstatus FROM app_purchase_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!existing.rows.length) throw error('Purchase order not found.', 404);
@@ -54,10 +63,10 @@ async function updatePurchaseOrder(value, payload) {
     await resolvePurchaseMasters(client, order);
     await client.query(`UPDATE app_purchase_orders SET posting_date=$1, posting_time=$2, due_date=$3,
       supplier_id=$4, supplier_name=$5, price_list=$6, supplier_reference=$7, remarks=$8,
-      subtotal=$9, total=$10, updated_at=now() WHERE id=$11`,
+      subtotal=$9, total=$10, cost_center=$12, updated_at=now() WHERE id=$11`,
     [order.posting_date, order.posting_time, order.due_date, order.supplier_id,
       order.supplier_name, order.price_list, order.supplier_reference, order.remarks,
-      order.subtotal, order.total, id]);
+      order.subtotal, order.total, id, order.cost_center]);
     await client.query('DELETE FROM app_purchase_order_items WHERE purchase_order_id = $1', [id]);
     await insertItems(client, id, order.items);
     return id;
@@ -70,6 +79,7 @@ async function listPurchaseOrders(filters = {}) {
   const limit = [10, 25, 50, 100].includes(requestedLimit) ? requestedLimit : 25;
   const params = [];
   const where = [];
+  addVoucherOwnerFilter(where, params, 'o', filters.ownerId);
   if (Array.isArray(filters.allowedTypes)) {
     params.push(filters.allowedTypes);
     where.push(`EXISTS (SELECT 1 FROM app_master_suppliers s WHERE s.supplier_id = o.supplier_id
@@ -102,7 +112,7 @@ async function listPurchaseOrders(filters = {}) {
       start: total ? offset + 1 : 0, end: Math.min(offset + limit, total) } };
 }
 
-async function loadPurchaseOrder(value) {
+async function loadPurchaseOrder(value, options = {}) {
   const id = orderId(value);
   const pool = getPostgresPool();
   const result = await pool.query(`SELECT *, posting_date::text AS posting_date,
@@ -116,9 +126,16 @@ async function loadPurchaseOrder(value) {
       JOIN app_purchases p ON p.id = pi.purchase_id
       WHERE pi.purchase_order_item_id = oi.id AND p.docstatus = 'submitted'
     ) receipts ON true WHERE oi.purchase_order_id=$1 ORDER BY oi.line_no`, [id]);
+  const invoiceParams = [id];
+  const ownerFilter = options.ownerId === null || options.ownerId === undefined ? ''
+    : ' AND created_by_user_id = $2';
+  if (ownerFilter) invoiceParams.push(String(options.ownerId));
   const invoices = await pool.query(`SELECT id, purchase_no, docstatus FROM app_purchases
-    WHERE purchase_order_id=$1 ORDER BY id DESC`, [id]);
+    WHERE purchase_order_id=$1${ownerFilter} ORDER BY id DESC`, invoiceParams);
+  const warehouses = [...new Set(items.rows.map((item) => item.warehouse).filter(Boolean))];
   return { ...result.rows[0], posting_time: storedPostingTime(result.rows[0].posting_time),
+    warehouse: warehouses.length === 1 ? warehouses[0] : '',
+    mixedWarehouses: warehouses.length > 1,
     items: items.rows, invoices: invoices.rows };
 }
 
@@ -153,17 +170,23 @@ async function changeStatus(value, from, to) {
   });
 }
 
-async function deleteDraftPurchaseOrder(value) {
+async function deleteDraftPurchaseOrder(value, { allowCancelled = false } = {}) {
   const id = orderId(value);
   return withPostgresTransaction(async (client) => {
     const result = await client.query('SELECT docstatus FROM app_purchase_orders WHERE id=$1 FOR UPDATE', [id]);
     if (!result.rows.length) throw error('Purchase order not found.', 404);
-    if (result.rows[0].docstatus !== 'draft') throw error('Only draft purchase orders can be deleted.');
+    if (result.rows[0].docstatus !== 'draft' && !(allowCancelled && result.rows[0].docstatus === 'cancelled')) {
+      throw error(allowCancelled
+        ? 'Only draft or cancelled purchase orders can be deleted. Cancel a submitted order first.'
+        : 'Only draft purchase orders can be deleted.');
+    }
+    const linked = await client.query('SELECT 1 FROM app_purchases WHERE purchase_order_id=$1 LIMIT 1', [id]);
+    if (linked.rows.length) throw error('Delete linked purchase invoices before deleting this order.');
     await client.query('DELETE FROM app_purchase_orders WHERE id=$1', [id]);
   });
 }
 
-module.exports = { createPurchaseOrder, updatePurchaseOrder, listPurchaseOrders, loadPurchaseOrder,
+module.exports = { normalizePurchaseOrder, createPurchaseOrder, updatePurchaseOrder, listPurchaseOrders, loadPurchaseOrder,
   listReceivablePurchaseOrders,
   submitPurchaseOrder: (id) => changeStatus(id, 'draft', 'submitted'),
   cancelPurchaseOrder: (id) => changeStatus(id, 'submitted', 'cancelled'),

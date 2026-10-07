@@ -27,15 +27,18 @@ const {
   deleteDraftPurchaseOrder,
 } = require('../../purchase-orders');
 const { updateVoucherPostingTime, deleteDraftVoucher } = require('../../store');
+const { registerVoucherReportRoutes } = require('./voucher-report-routes');
+const { voucherOwnerId } = require('../../voucher-ownership');
 
 const router = express.Router();
 
-function purchasePayload(body) {
+function purchasePayload(body, { singleWarehouse = false } = {}) {
   const ids = arrayField(body.item_id);
   const orderItemIds = arrayField(body.purchase_order_item_id);
   const codes = arrayField(body.item_code);
   const names = arrayField(body.item_name);
-  const warehouses = arrayField(body.warehouse);
+  const warehouse = singleWarehouse ? String(body.warehouse || '').trim() : '';
+  const warehouses = singleWarehouse ? [] : arrayField(body.warehouse);
   const quantities = arrayField(body.quantity);
   const prices = arrayField(body.unit_price);
   return {
@@ -45,6 +48,8 @@ function purchasePayload(body) {
     supplier_id: body.supplier_id,
     supplier_name: body.supplier_name,
     price_list: body.price_list,
+    ...(singleWarehouse ? { warehouse } : {}),
+    cost_center: body.cost_center,
     purchase_order_id: body.purchase_order_id,
     supplier_reference: body.supplier_reference,
     remarks: body.remarks,
@@ -53,10 +58,10 @@ function purchasePayload(body) {
       purchase_order_item_id: orderItemIds[index],
       item_code: itemCode,
       item_name: names[index],
-      warehouse: warehouses[index],
+      warehouse: singleWarehouse ? warehouse : warehouses[index],
       quantity: quantities[index],
       unit_price: prices[index],
-    })).filter((item) => item.item_code || item.warehouse || item.quantity || item.unit_price),
+    })).filter((item) => item.item_code || !singleWarehouse && item.warehouse || item.quantity || item.unit_price),
   };
 }
 
@@ -83,16 +88,19 @@ async function fillPurchaseFromOrder(user, purchase, orderId) {
   }));
   if (!items.length) { const err = new Error('This purchase order is fully received.'); err.status = 400; throw err; }
   return { ...purchase, purchase_order_id: order.id, purchase_order_no: order.order_no,
-    supplier_id: order.supplier_id, supplier_name: order.supplier_name, price_list: order.price_list, items };
+    supplier_id: order.supplier_id, supplier_name: order.supplier_name, price_list: order.price_list,
+    cost_center: order.cost_center, items };
 }
 
 router.get('/purchase-orders', async (req, res, next) => {
   try {
-    const result = await listPurchaseOrders({ ...req.query,
+    const result = await listPurchaseOrders({ ...req.query, ownerId: voucherOwnerId(req.currentUser),
       allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
     res.render('purchase-orders', { result, query: req.query, money: purchaseMoney });
   } catch (err) { next(err); }
 });
+
+registerVoucherReportRoutes(router, 'purchase-orders');
 
 router.get('/purchase-orders/new', (_req, res) => {
   res.render('purchase-order-form', {
@@ -102,13 +110,14 @@ router.get('/purchase-orders/new', (_req, res) => {
 });
 
 router.post('/purchase-orders', async (req, res) => {
-  const purchase = purchasePayload(req.body);
+  const purchase = purchasePayload(req.body, { singleWarehouse: true });
   try { res.redirect(303, `/purchase-orders/${await createPurchaseOrder(purchase)}`); }
   catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message }); }
 });
 
 router.get('/purchase-orders/:id', async (req, res, next) => {
-  try { res.render('purchase-order', { order: await loadPurchaseOrder(req.params.id),
+  try { res.render('purchase-order', { order: await loadPurchaseOrder(req.params.id,
+    { ownerId: voucherOwnerId(req.currentUser) }),
     money: purchaseMoney, error: req.query.error || null }); }
   catch (err) { next(err); }
 });
@@ -122,7 +131,7 @@ router.get('/purchase-orders/:id/edit', async (req, res, next) => {
 });
 
 router.post('/purchase-orders/:id', async (req, res) => {
-  const purchase = { ...purchasePayload(req.body), id: Number(req.params.id) };
+  const purchase = { ...purchasePayload(req.body, { singleWarehouse: true }), id: Number(req.params.id) };
   try { await updatePurchaseOrder(req.params.id, purchase); res.redirect(303, `/purchase-orders/${req.params.id}`); }
   catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message }); }
 });
@@ -135,16 +144,19 @@ for (const [action, handler] of [['submit', submitPurchaseOrder], ['cancel', can
 }
 
 router.post('/purchase-orders/:id/delete', async (req, res, next) => {
-  try { await deleteDraftPurchaseOrder(req.params.id); res.redirect(303, '/purchase-orders'); }
+  try { await deleteDraftPurchaseOrder(req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/purchase-orders'); }
   catch (err) { next(err); }
 });
 
 router.get('/purchases', async (req, res, next) => {
   try {
-    const result = await listPurchases({ ...req.query, allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
+    const result = await listPurchases({ ...req.query, ownerId: voucherOwnerId(req.currentUser),
+      allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
     res.render('purchases', { result, query: req.query, money: purchaseMoney });
   } catch (err) { next(err); }
 });
+
+registerVoucherReportRoutes(router, 'purchases');
 
 router.get('/purchases/new', async (req, res, next) => {
   try {
@@ -205,7 +217,7 @@ router.post('/purchases/:id/posting-time', async (req, res, next) => {
 });
 
 router.post('/purchases/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('purchases', req.params.id); res.redirect(303, '/purchases'); }
+  try { await deleteDraftVoucher('purchases', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/purchases'); }
   catch (error) { next(error); }
 });
 

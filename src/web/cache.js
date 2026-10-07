@@ -6,9 +6,12 @@ const { DEFAULT_IMPORT_FROM } = require('../sales-invoice-importer');
 
 const DASHBOARD_CACHE_MS = Number(process.env.DASHBOARD_CACHE_MS || 15000);
 const INVOICE_LIST_CACHE_MS = Number(process.env.INVOICE_LIST_CACHE_MS || 10000);
+const INVOICE_LIST_CACHE_MAX_ENTRIES = 200;
 
 let dashboardCache = null;
 const invoiceListCache = new Map();
+const invoiceListInFlight = new Map();
+let invoiceListGeneration = 0;
 
 const syncState = { running: false, last: null };
 
@@ -43,6 +46,8 @@ function invoiceListCacheKey(query = {}) {
     page: String(query.page || '1'),
     page_size: String(query.page_size || ''),
     allowedGroups: query.allowedGroups || null,
+    ownerId: query.ownerId ?? null,
+    ownerEmployeeId: query.ownerEmployeeId ?? null,
   });
 }
 
@@ -53,22 +58,44 @@ async function cachedInvoiceList(query = {}) {
   if (cached && cached.expiresAt > now) {
     return cached.data;
   }
-  const search = String(query.q || '').trim();
-  const data = await paginatedInvoices({
-    search,
-    from: query.from,
-    to: query.to,
-    warehouse: query.warehouse,
-    page: query.page,
-    page_size: query.page_size,
-    allowedGroups: query.allowedGroups,
-  });
-  invoiceListCache.set(key, { data, expiresAt: now + INVOICE_LIST_CACHE_MS });
-  return data;
+  if (invoiceListInFlight.has(key)) return invoiceListInFlight.get(key);
+  const generation = invoiceListGeneration;
+  const request = (async () => {
+    const data = await paginatedInvoices({
+      search: String(query.q || '').trim(),
+      from: query.from,
+      to: query.to,
+      warehouse: query.warehouse,
+      page: query.page,
+      page_size: query.page_size,
+      allowedGroups: query.allowedGroups,
+      ownerId: query.ownerId,
+      ownerEmployeeId: query.ownerEmployeeId,
+    });
+    if (generation === invoiceListGeneration) {
+      const fetchedAt = Date.now();
+      for (const [cacheKey, entry] of invoiceListCache) {
+        if (entry.expiresAt <= fetchedAt) invoiceListCache.delete(cacheKey);
+      }
+      while (invoiceListCache.size >= INVOICE_LIST_CACHE_MAX_ENTRIES) {
+        invoiceListCache.delete(invoiceListCache.keys().next().value);
+      }
+      invoiceListCache.set(key, { data, expiresAt: fetchedAt + INVOICE_LIST_CACHE_MS });
+    }
+    return data;
+  })();
+  invoiceListInFlight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (invoiceListInFlight.get(key) === request) invoiceListInFlight.delete(key);
+  }
 }
 
 function clearInvoiceListCache() {
+  invoiceListGeneration += 1;
   invoiceListCache.clear();
+  invoiceListInFlight.clear();
 }
 
 function clearInvoiceCaches() {

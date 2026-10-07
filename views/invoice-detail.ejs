@@ -4,7 +4,7 @@
 <% const payments = Array.isArray(invoice.payments) ? invoice.payments : []; %>
 <% const balanceDue = Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0)); %>
 <section class="invoice-card sales-invoice-card">
-  <%- include('invoice-header', { voucherTitle }) %>
+  <%- include('invoice-header', { voucherTitle, showVoucherNumber: typeof showVoucherNumber === 'undefined' ? true : showVoucherNumber }) %>
   <div class="invoice-meta sales-invoice-meta">
     <div class="invoice-meta-card invoice-customer-card">
       <span>Customer</span>

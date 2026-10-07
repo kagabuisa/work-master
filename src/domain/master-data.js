@@ -331,6 +331,14 @@ async function masterWarehouses(options = {}) {
 async function masterEmployees(options = {}) {
   const params = [];
   const where = [];
+  if (Array.isArray(options.allowedIds)) {
+    params.push(options.allowedIds);
+    where.push(`employee_id = ANY($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedIds) && options.deniedIds.length) {
+    params.push(options.deniedIds);
+    where.push(`employee_id <> ALL($${params.length}::text[])`);
+  }
   if (!options.includeDisabled) {
     where.push('disabled = false');
   }
@@ -386,6 +394,14 @@ async function masterEmployees(options = {}) {
 async function masterCostCenters(options = {}) {
   const params = [];
   const where = [];
+  if (Array.isArray(options.allowedIds)) {
+    params.push(options.allowedIds);
+    where.push(`cost_center = ANY($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedIds) && options.deniedIds.length) {
+    params.push(options.deniedIds);
+    where.push(`cost_center <> ALL($${params.length}::text[])`);
+  }
   if (!options.includeGroups) {
     where.push('is_group = false');
   }

@@ -12,18 +12,14 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory · Physical count</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Stock Reconciliation', href: '/stock/reconciliations/new' }, { label: saved ? entry.entry_no : 'New' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Reconciliation', href: '/stock/reconciliations' }, { label: saved ? entry.entry_no : 'New' }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'stock' }) %></nav>
     </header>
 
+    <% if (saved) { %>
     <section class="reconciliation-heading">
-      <div>
-        <% if (!saved) { %><p class="eyebrow">Stock Reconciliation Voucher</p><% } %>
-        <h1><%= saved ? 'Stock Reconciliation Voucher' : 'New stock reconciliation' %></h1>
-      </div>
       <div class="reconciliation-heading-row">
-        <p>Count the items in one warehouse. The difference between book stock and counted stock is posted when you submit.</p>
         <div class="reconciliation-heading-controls">
           <span class="badge <%= status %>"><%= status === 'new' ? 'New' : status === 'draft' ? 'Draft' : status === 'cancelled' ? 'Cancelled' : 'Submitted' %></span>
           <% if (isReadOnly && saved) { %>
@@ -31,6 +27,7 @@
               <% if (status === 'draft' && can('vouchers.stock.edit')) { %><a class="button" href="/stock/reconciliations/<%= entry.id %>/edit">Edit count</a><% } %>
               <% if (status === 'draft' && can('vouchers.stock.submit')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/submit" data-confirm="Submit this reconciliation and post its stock differences?"><button type="submit">Submit reconciliation</button></form><% } %>
               <% if (status === 'draft' && can('vouchers.stock.delete')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/delete" data-confirm="Delete this draft reconciliation?"><button type="submit" class="button-light">Delete draft</button></form><% } %>
+              <% if (status === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/delete" data-confirm="Delete this cancelled reconciliation? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
               <% if (status === 'submitted' && can('vouchers.stock.cancel')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/cancel" data-confirm="Cancel this reconciliation and reverse its stock adjustment?"><button type="submit" class="button-light">Cancel reconciliation</button></form><% } %>
               <% if (status !== 'draft' && can('reports.stock-ledger.view')) { %><a class="button button-light" href="/reports/stock-ledger?entry_type=reconciliation&voucher_id=<%= entry.id %>">View stock ledger</a><% } %>
             </div>
@@ -38,10 +35,21 @@
         </div>
       </div>
     </section>
+    <% } %>
 
     <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
 
+    <% if (isReadOnly && saved) { %>
+      <div class="reconciliation-record-meta">
+        <span>Warehouse: <strong><%= warehouse || '—' %></strong></span>
+        <span>Posted: <strong><%= entry.posting_date %><%= entry.posting_time ? ' · ' + entry.posting_time : '' %></strong></span>
+        <% if (entry.cost_center) { %><span>Cost Center: <strong><%= entry.cost_center %></strong></span><% } %>
+        <% if (entry.remarks) { %><span>Remarks: <strong><%= entry.remarks %></strong></span><% } %>
+      </div>
+    <% } %>
+
     <form id="reconciliation-form" method="post" action="<%= saved ? `/stock/reconciliations/${entry.id}` : '/stock/reconciliations' %>" data-voucher-form>
+      <% if (!isReadOnly) { %>
       <section class="invoice-card reconciliation-details">
         <div class="form-grid">
           <label>Warehouse
@@ -50,10 +58,12 @@
           </label>
           <label>Posting Date<input name="posting_date" type="date" value="<%= entry && entry.posting_date ? entry.posting_date : today %>" <%= isReadOnly ? 'readonly' : '' %> required></label>
           <label>Posting Time<input name="posting_time" type="time" value="<%= entry && entry.posting_time ? entry.posting_time : postingTime %>" <%= isReadOnly ? 'readonly' : '' %> required></label>
+          <%- include('cost-center-field', { value: entry && entry.cost_center, readOnly: isReadOnly }) %>
           <label>Remarks<input name="remarks" value="<%= entry && entry.remarks ? entry.remarks : '' %>" placeholder="Count notes or reason for variance" <%= isReadOnly ? 'readonly' : '' %>></label>
+          <% if (!saved) { %><button type="button" class="button-light" id="reconciliation-load">Load warehouse stock</button><% } %>
         </div>
-        <% if (!saved) { %><button type="button" class="button-light" id="reconciliation-load">Load warehouse stock</button><% } %>
       </section>
+      <% } %>
 
       <section class="metrics reconciliation-metrics" aria-label="Count summary">
         <article><div class="reconciliation-metric-row"><span>Lines counted</span><strong id="reconciliation-lines">0</strong></div></article>
@@ -69,11 +79,6 @@
       <section class="invoice-card reconciliation-count-card">
         <div class="reconciliation-section-heading">
           <div class="reconciliation-section-title"><h2>Count sheet</h2><span class="reconciliation-variance-summary" id="reconciliation-variance-summary" aria-live="polite">No differences yet</span></div>
-          <div class="reconciliation-filters">
-            <input id="reconciliation-filter" type="search" placeholder="Search item name or code" aria-label="Search count sheet items">
-            <label class="reconciliation-difference-toggle"><input id="reconciliation-differences-only" type="checkbox"> Show differences only</label>
-            <span id="reconciliation-results-count" class="reconciliation-results-count" aria-live="polite">0 items</span>
-          </div>
         </div>
         <div class="entry-table-scroll" role="region" aria-label="Reconciliation items" tabindex="0">
           <table class="editable entry-table reconciliation-table">
@@ -105,5 +110,6 @@
   </main>
   <script>window.RECONCILIATION_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], balances: typeof balances === 'undefined' ? [] : balances, warehouse: warehouse || '', readOnly: isReadOnly, canEditRate: currentUser.role === 'admin' }) %>;</script>
   <script src="/stock-reconciliation.js?v=<%= assetVersion %>"></script>
+  <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

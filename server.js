@@ -95,7 +95,7 @@ const { currentPostingDate, currentPostingTime } = require('./src/posting-time')
 const { formatDate, formatTime, formatDateTime, formatTimestamp } = require('./src/date-time-format');
 const { installAuth } = require('./src/auth-http');
 const { invoiceFormState, duplicateInvoiceFormState } = require('./src/invoice-form-state');
-const { selectedCategories, scopeRestricted, allowedInvoicePriceLists, requireInvoicePriceList,
+const { selectedCategories, allowedInvoicePriceLists, requireInvoicePriceList,
   namedPriceListsForActions, warehouseAllowed, allowedNamedListValues,
   accountAllowed, purchaseOrderAllowed, voucherWarehousesAllowed,
   deniedNamedListValues } = require('./src/access');
@@ -106,7 +106,8 @@ const purchasingRouter = require('./src/web/routes/purchasing');
 const ledgerRouter = require('./src/web/routes/ledger');
 const settingsRouter = require('./src/web/routes/settings');
 const salesRouter = require('./src/web/routes/sales');
-const { dashboardData, cachedInvoiceList, clearInvoiceCaches } = require('./src/web/cache');
+const { cachedInvoiceList, clearInvoiceCaches } = require('./src/web/cache');
+const { homeSections } = require('./src/web/home-navigation');
 const { warehouseAccessOptions, accountAccessOptions } = require('./src/web/helpers');
 const { scriptJson } = require('./src/web/script-json');
 const apiRouter = require('./src/web/routes/api');
@@ -227,19 +228,9 @@ app.use(async (_req, res, next) => {
 
 installAuth(app);
 
-app.get('/', async (req, res, next) => {
-  try {
-    if (!res.locals.can('vouchers.sales.view') || scopeRestricted(req.currentUser, 'customers')) {
-      res.set('Cache-Control', 'private, no-store');
-      res.render('index', { limited: true, summary: {}, recent: [], debtors: [], money });
-      return;
-    }
-    const { summary, recent, debtors } = await dashboardData();
-    res.set('Cache-Control', 'private, max-age=15');
-    res.render('index', { summary, recent, debtors, money });
-  } catch (err) {
-    next(err);
-  }
+app.get('/', (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.render('index', { sections: homeSections(req.currentUser, res.locals) });
 });
 
 app.use(async (req, res, next) => {

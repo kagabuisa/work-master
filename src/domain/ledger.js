@@ -11,7 +11,9 @@ const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } 
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
 const { paginationOptions, paginationResult } = require('../lib/pagination');
 const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, postStockEntryGlEntry, postGlEntry, reverseVoucherGlEntries, syncGeneratedJournalEntryLines, resolveAccountingAccounts, setVoucherDocstatus, nonZeroAccountingLines, actorAuditValues, addReportFilters, reportFilterValues } = require('./posting');
-const { normalizeJournalEntryPayload, normalizeAccountingAccountPayload, journalTypeLabel, formatTrialBalanceRow } = require('./normalization');
+const { normalizeJournalEntryPayload, validateJournalAccountSides, normalizeAccountingAccountPayload, journalTypeLabel, formatTrialBalanceRow } = require('./normalization');
+const { validateCostCenter } = require('../cost-centers');
+const { addVoucherOwnerFilter } = require('../voucher-ownership');
 
 async function accountingAccounts(options = {}) {
   const params = [];
@@ -116,6 +118,7 @@ async function updateAccountingAccount(id, payload) {
 }
 
 async function journalEntries(options = {}) {
+  const pool = options.pool || getPostgresPool();
   const pagination = paginationOptions(typeof options === 'number' ? { limit: options } : options, 50, 200);
   const limit = pagination.limit;
   const search = typeof options === 'object'
@@ -125,6 +128,21 @@ async function journalEntries(options = {}) {
   const status = typeof options === 'object' ? String(options.status || '').trim() : '';
   const params = [];
   const where = [];
+  addVoucherOwnerFilter(where, params, 'app_journal_entries', options.ownerId);
+  const restrictedAccounts = [];
+  if (Array.isArray(options.allowedAccounts)) {
+    params.push(options.allowedAccounts.map(String));
+    restrictedAccounts.push(`restricted.account_id::text <> ALL($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedAccounts) && options.deniedAccounts.length) {
+    params.push(options.deniedAccounts.map(String));
+    restrictedAccounts.push(`restricted.account_id::text = ANY($${params.length}::text[])`);
+  }
+  if (restrictedAccounts.length) {
+    where.push(`NOT EXISTS (SELECT 1 FROM app_journal_entry_lines restricted
+      WHERE restricted.journal_entry_id = app_journal_entries.id
+        AND (${restrictedAccounts.join(' OR ')}))`);
+  }
   if (search) {
     params.push(sqlLikePattern(search));
     where.push(`(
@@ -156,17 +174,17 @@ async function journalEntries(options = {}) {
     where.push(`COALESCE(docstatus, 'submitted') = $${params.length}`);
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const countResult = await getPostgresPool().query(
+  const countResult = await pool.query(
     `SELECT COUNT(*)::int AS total FROM app_journal_entries ${whereSql}`,
     params,
   );
   params.push(Number(limit), pagination.offset);
-  const { rows } = await getPostgresPool().query(
+  const { rows } = await pool.query(
     `
     SELECT
       id, journal_no, COALESCE(docstatus, 'submitted') AS docstatus,
       journal_type, posting_date::text, posting_time::text, party_type, party_id,
-      party_name, reference_no, remarks, total_debit::float, total_credit::float,
+      party_name, reference_no, remarks, cost_center, total_debit::float, total_credit::float,
       created_at
     FROM app_journal_entries
     ${whereSql}
@@ -238,14 +256,15 @@ async function createJournalEntry(payload, options = {}) {
   const journal = normalizeJournalEntryPayload(payload);
   const submit = options.submit !== false;
   return withPostgresTransaction(async (client) => {
+    journal.cost_center = await validateCostCenter(client, journal.cost_center);
     if (submit) await validateJournalInvoicePayment(client, journal);
     const { rows } = await client.query(
       `
       INSERT INTO app_journal_entries (
         journal_type, posting_date, party_type, party_id, party_name, reference_no,
-        remarks, total_debit, total_credit, docstatus, posting_time
+        remarks, total_debit, total_credit, docstatus, posting_time, cost_center
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING id
       `,
       [
@@ -260,6 +279,7 @@ async function createJournalEntry(payload, options = {}) {
         journal.total_credit,
         submit ? 'submitted' : 'draft',
         journal.posting_time,
+        journal.cost_center,
       ],
     );
     const id = Number(rows[0].id);
@@ -284,6 +304,7 @@ async function createJournalEntry(payload, options = {}) {
     }
     if (submit) await postGlEntry(client, {
       posting_date: journal.posting_date,
+      cost_center: journal.cost_center,
       voucher_type: journal.journal_type,
       voucher_id: id,
       voucher_no: journalNo,
@@ -305,6 +326,7 @@ async function createJournalEntry(payload, options = {}) {
 async function updateJournalEntry(id, payload) {
   const journal = normalizeJournalEntryPayload(payload);
   return withPostgresTransaction(async (client) => {
+    journal.cost_center = await validateCostCenter(client, journal.cost_center);
     const existing = await client.query('SELECT docstatus FROM app_journal_entries WHERE id = $1 FOR UPDATE', [id]);
     if (!existing.rows[0]) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
     if (existing.rows[0].docstatus !== 'draft') {
@@ -312,10 +334,10 @@ async function updateJournalEntry(id, payload) {
     }
     await client.query(`UPDATE app_journal_entries SET journal_type = $2, posting_date = $3, party_type = $4,
       party_id = $5, party_name = $6, reference_no = $7, remarks = $8, total_debit = $9, total_credit = $10,
-      posting_time = $11
+      posting_time = $11, cost_center = $12
       WHERE id = $1`, [id, journal.journal_type, journal.posting_date, journal.party_type, journal.party_id,
       journal.party_name, journal.reference_no, journal.remarks, journal.total_debit, journal.total_credit,
-      journal.posting_time]);
+      journal.posting_time, journal.cost_center]);
     await syncJournalEntryLines(client, id, journal.lines);
     return Number(id);
   });
@@ -389,10 +411,12 @@ async function submitJournalEntry(id) {
     if (lines.length < 2 || roundMoney(lines.reduce((sum, line) => sum + line.debit - line.credit, 0)) !== 0) {
       const error = new Error('Journal debits and credits must balance.'); error.status = 400; throw error;
     }
+    validateJournalAccountSides(lines);
     await validateJournalInvoicePayment(client, { ...journal, lines });
     await setVoucherDocstatus(client, 'app_journal_entries', Number(id), 'submitted');
     await postGlEntry(client, {
       posting_date: dateOnly(journal.posting_date),
+      cost_center: journal.cost_center,
       voucher_type: journal.journal_type,
       voucher_id: Number(id),
       voucher_no: journal.journal_no,
@@ -520,7 +544,71 @@ function isManualJournalType(type, linkedPayment = false) {
     || (journalType === 'payment_journal' && !linkedPayment);
 }
 
-async function generalLedgerReport(filters = {}) {
+function addGeneralLedgerAccessFilter(where, params, access = {}) {
+  const accountRules = [];
+  if (Array.isArray(access.allowedAccounts)) {
+    params.push(access.allowedAccounts);
+    const position = params.length;
+    accountRules.push((column) => `${column}::text = ANY($${position}::text[])`);
+  }
+  if (Array.isArray(access.deniedAccounts) && access.deniedAccounts.length) {
+    params.push(access.deniedAccounts);
+    const position = params.length;
+    accountRules.push((column) => `${column}::text <> ALL($${position}::text[])`);
+  }
+  if (accountRules.length) where.push(accountRules.map((rule) => rule('gl.account_id')).join(' AND '));
+
+  if (access.ownerId === null || access.ownerId === undefined) return;
+  let customerRule = '';
+  if (Array.isArray(access.customerGroups)) {
+    params.push(access.customerGroups);
+    customerRule = `AND EXISTS (SELECT 1 FROM app_master_customers customer
+      WHERE customer.customer_id = i.customer_id
+        AND LOWER(customer.customer_group) = ANY($${params.length}::text[]))`;
+  }
+  let supplierRule = '';
+  if (Array.isArray(access.supplierTypes)) {
+    params.push(access.supplierTypes);
+    supplierRule = `AND EXISTS (SELECT 1 FROM app_master_suppliers supplier
+      WHERE supplier.supplier_id = purchase.supplier_id
+        AND LOWER(supplier.supplier_type) = ANY($${params.length}::text[]))`;
+  }
+  const partyScopeRestricted = Boolean(customerRule || supplierRule);
+  params.push(String(access.ownerId), String(access.ownerEmployeeId || ''));
+  const owner = `$${params.length - 1}`;
+  const employee = `$${params.length}`;
+  const sourceId = 'COALESCE(gl.reversal_of_voucher_id, gl.voucher_id)';
+  const invoiceOwner = `(i.created_by_user_id = ${owner} OR i.invoicer_id = ${employee})`;
+  const journalAccounts = accountRules.length ? `AND NOT EXISTS (
+    SELECT 1 FROM app_journal_entry_lines line
+    WHERE line.journal_entry_id = journal.id
+      AND NOT (${accountRules.map((rule) => rule('line.account_id')).join(' AND ')})
+  )` : '';
+  where.push(`(
+    (gl.voucher_type IN ('sales_invoice', 'sales_invoice_cancellation') AND EXISTS (
+      SELECT 1 FROM app_invoices i WHERE i.id = ${sourceId} AND ${invoiceOwner} ${customerRule}))
+    OR (gl.voucher_type IN ('customer_payment', 'customer_payment_cancellation') AND EXISTS (
+      SELECT 1 FROM app_invoice_payments payment
+      JOIN app_invoices i ON i.id = payment.invoice_id
+      WHERE payment.id = ${sourceId} AND ${invoiceOwner} ${customerRule}))
+    OR (gl.voucher_type IN ('purchase', 'purchase_cancellation') AND EXISTS (
+      SELECT 1 FROM app_purchases purchase
+      WHERE purchase.id = ${sourceId} AND purchase.created_by_user_id = ${owner} ${supplierRule}))
+    OR (gl.voucher_type IN ('purchase_payment', 'purchase_payment_cancellation') AND EXISTS (
+      SELECT 1 FROM app_purchase_payments payment
+      JOIN app_purchases purchase ON purchase.id = payment.purchase_id
+      WHERE payment.id = ${sourceId} AND purchase.created_by_user_id = ${owner} ${supplierRule}))
+    ${partyScopeRestricted ? '' : `OR (gl.voucher_type IN ('cash_receipt', 'payment_journal', 'journal_entry',
+        'cash_receipt_cancellation', 'payment_journal_cancellation', 'journal_entry_cancellation')
+      AND EXISTS (SELECT 1 FROM app_journal_entries journal
+        WHERE journal.id = ${sourceId} AND journal.created_by_user_id = ${owner} ${journalAccounts}))
+    OR (gl.voucher_type LIKE 'stock_%' AND EXISTS (
+      SELECT 1 FROM app_stock_entries stock
+      WHERE stock.id = ${sourceId} AND stock.created_by_user_id = ${owner}))`}
+  )`);
+}
+
+async function generalLedgerReport(filters = {}, access = {}) {
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
@@ -530,6 +618,8 @@ async function generalLedgerReport(filters = {}) {
   const party = String(filters.party || '').trim().toLowerCase();
   const voucherType = String(filters.voucher_type || '').trim();
   const search = String(filters.search || '').trim().toLowerCase();
+
+  addGeneralLedgerAccessFilter(where, params, access);
 
   if (from) {
     params.push(from);
@@ -608,6 +698,15 @@ async function generalLedgerReport(filters = {}) {
       gl.voucher_type,
       gl.voucher_id,
       gl.voucher_no,
+      CASE
+        WHEN gl.voucher_type = 'sales_invoice' THEN EXISTS (SELECT 1 FROM app_invoices i WHERE i.id = gl.voucher_id)
+        WHEN gl.voucher_type = 'purchase' THEN EXISTS (SELECT 1 FROM app_purchases p WHERE p.id = gl.voucher_id)
+        WHEN gl.voucher_type = 'purchase_payment' THEN EXISTS (SELECT 1 FROM app_purchase_payments pp WHERE pp.id = gl.voucher_id)
+        WHEN gl.voucher_type = 'customer_payment' THEN EXISTS (SELECT 1 FROM app_invoice_payments ip WHERE ip.id = gl.voucher_id)
+        WHEN gl.voucher_type IN ('cash_receipt', 'payment_journal', 'journal_entry') THEN EXISTS (SELECT 1 FROM app_journal_entries j WHERE j.id = gl.voucher_id)
+        WHEN gl.voucher_type LIKE 'stock_%' THEN EXISTS (SELECT 1 FROM app_stock_entries se WHERE se.id = gl.voucher_id)
+        ELSE true
+      END AS voucher_exists,
       gl.debit::float,
       gl.credit::float,
       gl.remarks,
@@ -699,22 +798,23 @@ async function generalLedgerAccountOptions(search = '', options = {}) {
   }));
 }
 
-async function generalLedgerPartyOptions(search = '') {
+async function generalLedgerPartyOptions(search = '', access = {}) {
   const params = [];
-  const where = ['COALESCE(party_id, party_name, party_type) IS NOT NULL'];
+  const where = ['COALESCE(gl.party_id, gl.party_name, gl.party_type) IS NOT NULL'];
+  addGeneralLedgerAccessFilter(where, params, access);
   const q = String(search || '').trim().toLowerCase();
   if (q) {
     params.push(sqlLikePattern(q));
     where.push(`(
-      LOWER(COALESCE(party_id, '')) LIKE $${params.length}
-      OR LOWER(COALESCE(party_name, '')) LIKE $${params.length}
-      OR LOWER(COALESCE(party_type, '')) LIKE $${params.length}
+      LOWER(COALESCE(gl.party_id, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(gl.party_name, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(gl.party_type, '')) LIKE $${params.length}
     )`);
   }
   const { rows } = await getPostgresPool().query(
     `
-    SELECT DISTINCT party_type, party_id, party_name
-    FROM app_gl_entries
+    SELECT DISTINCT gl.party_type, gl.party_id, gl.party_name
+    FROM app_gl_entries gl
     WHERE ${where.join(' AND ')}
     ORDER BY party_name NULLS LAST, party_id NULLS LAST, party_type NULLS LAST
     LIMIT 25
@@ -735,6 +835,8 @@ async function journalReferenceOptions(filters = {}) {
   const partyName = String(filters.party_name || '').trim();
   const search = String(filters.search || '').trim();
   const limit = Math.max(1, Math.min(Number(filters.limit || 25), 50));
+  const ownerId = filters.ownerId === null || filters.ownerId === undefined ? null : String(filters.ownerId);
+  const employeeId = String(filters.ownerEmployeeId || '');
   if (!partyType || (!partyId && !partyName)) {
     return [];
   }
@@ -790,11 +892,15 @@ async function journalReferenceOptions(filters = {}) {
           GROUP BY journal.id HAVING SUM(line.credit - line.debit) > 0
         ) payment
       ) journal_paid ON true
-      WHERE invoice.customer_id = $1 OR invoice.customer_name = $2
+      WHERE (invoice.customer_id = $1 OR invoice.customer_name = $2)
+        ${ownerId === null ? '' : employeeId
+    ? 'AND (invoice.created_by_user_id = $3 OR invoice.invoicer_id = $4)'
+    : 'AND invoice.created_by_user_id = $3'}
       ORDER BY invoice.invoice_date DESC, invoice.id DESC
       LIMIT 200
       `,
-      [partyId, partyName],
+      ownerId === null ? [partyId, partyName] : employeeId
+        ? [partyId, partyName, ownerId, employeeId] : [partyId, partyName, ownerId],
     );
     rows.forEach(addOption);
   }
@@ -807,9 +913,10 @@ async function journalReferenceOptions(filters = {}) {
           ELSE NULL::float END AS balance,
         docstatus AS status, id
        FROM app_purchases
-       WHERE supplier_id = $1 OR supplier_name = $2
+       WHERE (supplier_id = $1 OR supplier_name = $2)
+         ${ownerId === null ? '' : 'AND created_by_user_id = $3'}
        ORDER BY posting_date DESC, id DESC LIMIT 200`,
-      [partyId, partyName],
+      ownerId === null ? [partyId, partyName] : [partyId, partyName, ownerId],
     );
     purchases.rows.forEach(addOption);
     const { rows } = await getPostgresPool().query(
@@ -824,11 +931,12 @@ async function journalReferenceOptions(filters = {}) {
         docstatus AS status,
         id
       FROM app_stock_entries
-      WHERE supplier_name = $1 OR supplier_reference = $2
+      WHERE (supplier_name = $1 OR supplier_reference = $2)
+        ${ownerId === null ? '' : 'AND created_by_user_id = $3'}
       ORDER BY posting_date DESC, id DESC
       LIMIT 200
       `,
-      [partyName, partyId],
+      ownerId === null ? [partyName, partyId] : [partyName, partyId, ownerId],
     );
     rows.forEach(addOption);
   }
@@ -854,10 +962,11 @@ async function journalReferenceOptions(filters = {}) {
       WHERE party_type = $1
         AND (party_id = $2 OR party_name = $3)
         AND COALESCE(reference_no, journal_no) IS NOT NULL
+        ${ownerId === null ? '' : 'AND created_by_user_id = $4'}
       ORDER BY posting_date DESC, id DESC
       LIMIT 200
       `,
-      [partyType, partyId, partyName],
+      ownerId === null ? [partyType, partyId, partyName] : [partyType, partyId, partyName, ownerId],
     ),
     getPostgresPool().query(
       `
@@ -874,11 +983,12 @@ async function journalReferenceOptions(filters = {}) {
       WHERE party_type = $1
         AND (party_id = $2 OR party_name = $3)
         AND voucher_no IS NOT NULL
+        ${ownerId === null ? '' : 'AND created_by_user_id = $4'}
       GROUP BY voucher_type, voucher_no
       ORDER BY MAX(posting_date) DESC, MAX(id) DESC
       LIMIT 200
       `,
-      [partyType, partyId, partyName],
+      ownerId === null ? [partyType, partyId, partyName] : [partyType, partyId, partyName, ownerId],
     ),
   ]);
   journalResult.rows.forEach(addOption);
@@ -1257,6 +1367,7 @@ module.exports = {
   validateJournalInvoicePayment,
   cancelJournalEntry,
   isManualJournalType,
+  addGeneralLedgerAccessFilter,
   generalLedgerReport,
   generalLedgerFilterOptions,
   generalLedgerAccountOptions,

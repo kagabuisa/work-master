@@ -19,12 +19,14 @@
         <button type="submit" class="button-light">Cancel Journal</button>
       </form>
     <% } %>
+    <% if (journalStatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/journals/<%= journal.id %>/delete" class="inline-form" data-confirm="Delete this cancelled journal? Its ledger reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
       <div><span>Posting Date/Time</span><strong><%= formatDateTime(journal.posting_date, journal.posting_time || '00:00') %></strong></div>
       <div><span>Status</span><strong><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
       <div><span>Reference</span><strong><%= journal.reference_no || '' %></strong></div>
+      <% if (journal.cost_center) { %><div><span>Cost Center</span><strong><%= journal.cost_center %></strong></div><% } %>
     </div>
     <table>
       <thead><tr><th>#</th><th>Account</th><th>Debit</th><th>Credit</th><th>Line Remarks</th></tr></thead>

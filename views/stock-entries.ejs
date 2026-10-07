@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Stock Entries</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Entries' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'stock' }) %><% if (can('vouchers.stock.create') && (currentUser.role === 'admin' || currentUser.scopes?.suppliers?.mode !== 'selected')) { %><a class="button" href="/stock/entries/new">New</a><% } %></nav>
+    </header>
+
+    <form class="report-filters invoice-filters stock-entry-filters" method="get" action="/stock/entries">
+      <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Entry, item, supplier or remarks"></label>
+      <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
+      <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
+      <label>Type
+        <select name="entry_type">
+          <option value="">All Types</option>
+          <% [['opening', 'Opening Stock'], ['purchase', 'Purchase Receipt'], ['transfer', 'Transfer'], ['adjustment', 'Adjustment'], ['cancel', 'Cancel Entry']].forEach(([value, label]) => { %>
+            <option value="<%= value %>" <%= query.entry_type === value ? 'selected' : '' %>><%= label %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Status
+        <select name="status">
+          <option value="">All Statuses</option>
+          <% ['draft', 'submitted', 'cancelled'].forEach((status) => { %>
+            <option value="<%= status %>" <%= query.status === status ? 'selected' : '' %>><%= status[0].toUpperCase() + status.slice(1) %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Warehouse<input name="warehouse" value="<%= query.warehouse || '' %>" placeholder="Any warehouse"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/stock/entries">Reset</a>
+      </div>
+    </form>
+
+    <section class="invoice-card report-section">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Entry</th><th>Date/Time</th><th>Type</th><th>Warehouse</th><th>Items</th><th>Cost Center</th><th>Status</th><th>Remarks</th></tr>
+        </thead>
+        <tbody>
+          <% if (!result.rows.length) { %><tr><td colspan="9" class="empty">No stock entries found.</td></tr><% } %>
+          <% const typeLabels = { opening: 'Opening Stock', purchase: 'Purchase Receipt', transfer: 'Transfer', adjustment: 'Adjustment', cancel: 'Cancel Entry' }; %>
+          <% result.rows.forEach((entry, index) => { %>
+            <tr>
+              <td class="row-number"><%= result.pagination.offset + index + 1 %></td>
+              <td><a href="/stock/entries/<%= entry.id %>" data-voucher-drawer="/stock/entries/<%= entry.id %>/drawer"><%= entry.entry_no %></a></td>
+              <td><%= formatDateTime(entry.posting_date, entry.posting_time || '00:00') %></td>
+              <td><%= typeLabels[entry.entry_type] || entry.entry_type %></td>
+              <td><%= entry.warehouses %></td>
+              <td><%= entry.item_count %></td>
+              <td><%= entry.cost_center || '' %></td>
+              <td><span class="badge <%= entry.docstatus %>"><%= entry.docstatus === 'draft' ? 'Draft' : entry.docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
+              <td><%= entry.remarks || '' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <%- include('pagination', { pagination: result.pagination, query, basePath: '/stock/entries' }) %>
+    </section>
+  </main>
+</body>
+</html>

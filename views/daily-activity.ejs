@@ -9,7 +9,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Reports · ERPNext</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Daily Activity Report' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Reports', href: availableReports[0]?.href || '/reports/daily-activity' }, { label: 'Daily Activity Rpt' }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
     </header>

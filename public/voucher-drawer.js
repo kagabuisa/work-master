@@ -98,19 +98,30 @@
     setOpen(true);
 
     try {
-      const response = await fetch(url, { headers: { Accept: 'text/html' } });
-      if (!response.ok) throw new Error('Unable to load voucher.');
+      const response = await fetch(url, { headers: { Accept: 'text/html, application/json' } });
+      if (!response.ok) {
+        const details = response.headers.get('content-type')?.includes('application/json')
+          ? await response.json().catch(() => null) : null;
+        const message = details?.error || (response.status === 403 ? 'You do not have permission to open this voucher.'
+          : response.status === 404 ? 'This voucher was not found.'
+          : `Unable to load voucher (server returned ${response.status}).`);
+        throw new Error(message);
+      }
       const html = await response.text();
       if (current !== requestId) return;
       if (body) body.innerHTML = html;
       const content = body && body.querySelector('.invoice-drawer-content');
-      if (content) {
-        if (title) title.textContent = content.dataset.voucherTitle || 'Details';
-        if (eyebrow) eyebrow.textContent = content.dataset.voucherEyebrow || 'Voucher';
-      }
+      if (!content) throw new Error('Voucher details were not returned. Open the full view or sign in again.');
+      if (title) title.textContent = content.dataset.voucherTitle || 'Details';
+      if (eyebrow) eyebrow.textContent = content.dataset.voucherEyebrow || 'Voucher';
     } catch (err) {
       if (current !== requestId) return;
-      if (body) body.innerHTML = '<p class="notice warning">Unable to load voucher. Please try again.</p>';
+      if (body) {
+        const message = document.createElement('p');
+        message.className = 'notice warning';
+        message.textContent = err.message || 'Unable to load voucher. Please try again.';
+        body.replaceChildren(message);
+      }
     }
   }
 

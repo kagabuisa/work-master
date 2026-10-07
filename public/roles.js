@@ -12,13 +12,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const addForm = document.querySelector('[data-role-add-row]');
-  const typeSelect = addForm?.querySelector('[data-record-type]');
+  const typeSelect = addForm?.querySelector('[data-permission-type]');
+  const granularSelect = addForm?.querySelector('[data-granular-record]');
+  const granularOptions = granularSelect ? [...granularSelect.options].filter((option) => option.dataset.parents) : [];
+  const recordType = addForm?.querySelector('[data-record-type]');
   const table = document.querySelector('[data-auto-permissions]');
   const status = document.querySelector('[data-permission-status]');
   if (table && status) {
     table.addEventListener('change', async (event) => {
       const input = event.target;
       if (!input.matches('input[name="actions"]')) return;
+      if (input.hasAttribute('data-default-read') && !input.checked) {
+        input.checked = true;
+        status.textContent = 'Change this default on the Edit user page.';
+        return;
+      }
       const form = input.form;
       const controls = [...table.querySelectorAll('input, button'), ...addForm.querySelectorAll('input, select, button')];
       const disabled = controls.map((control) => control.disabled);
@@ -44,32 +52,58 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!response.ok) throw new Error(result.error || 'Unable to save permissions.');
         const permissions = new Set(result.permissions);
         for (const [control] of previous) control.checked = permissions.has(control.dataset.permission);
-        for (const option of typeSelect.options) {
+        for (const option of [...typeSelect.options, ...granularOptions]) {
           if (!option.dataset.permissions) continue;
           option.dataset.grantedActions = Object.entries(JSON.parse(option.dataset.permissions))
             .filter(([, permission]) => permissions.has(permission)).map(([action]) => action).join(',');
         }
-        status.textContent = 'Permissions saved.';
+        const clearedRows = [...table.tBodies[0].rows].filter((row) =>
+          row.querySelector('input[name="actions"]') && !row.querySelector('input[name="actions"]:checked'));
+        clearedRows.forEach((row) => row.remove());
+        if (!table.tBodies[0].rows.length) {
+          const empty = table.tBodies[0].insertRow();
+          empty.innerHTML = '<td colspan="7" class="empty">No record permissions yet. Add the first row below.</td>';
+        }
+        status.textContent = clearedRows.length ? 'Permission row removed.' : 'Permissions saved.';
       } catch (error) {
         for (const [control, checked] of previous) control.checked = checked;
         status.textContent = `Save failed. ${error.message} Reload to confirm saved permissions.`;
       } finally {
         controls.forEach((control, index) => { control.disabled = disabled[index]; });
-        typeSelect.dispatchEvent(new Event('change'));
+        granularSelect.dispatchEvent(new Event('change'));
       }
     });
   }
   if (addForm && typeSelect) {
     const updateActions = () => {
-      const actions = new Set(typeSelect.selectedOptions[0]?.dataset.actions?.split(',') || []);
-      const granted = new Set(typeSelect.selectedOptions[0]?.dataset.grantedActions?.split(',') || []);
+      const selected = granularSelect.value ? granularSelect.selectedOptions[0] : typeSelect.selectedOptions[0];
+      recordType.value = selected?.value || '';
+      const actions = new Set(selected?.dataset.actions?.split(',') || []);
+      const granted = new Set(selected?.dataset.grantedActions?.split(',') || []);
       for (const input of addForm.querySelectorAll('input[name="actions"]')) {
         input.disabled = !actions.has(input.value);
         input.parentElement.hidden = input.disabled;
         input.checked = !input.disabled && granted.has(input.value);
       }
     };
-    typeSelect.addEventListener('change', updateActions);
+    const updateGranular = () => {
+      const matching = granularOptions.filter((option) => option.dataset.parents.split(',').includes(typeSelect.value));
+      granularSelect.replaceChildren(granularSelect.options[0], ...matching);
+      granularSelect.value = '';
+      granularSelect.disabled = matching.length === 0;
+      granularSelect.options[0].textContent = !typeSelect.value ? 'Select a type first'
+        : matching.length ? 'No specific record' : 'No specific records available';
+      updateActions();
+    };
+    typeSelect.addEventListener('change', updateGranular);
+    granularSelect.addEventListener('change', updateActions);
+    addForm.addEventListener('submit', (event) => {
+      const existing = [...table.querySelectorAll('form input[name="record_type"]')]
+        .find((input) => input.value === recordType.value);
+      if (!existing) return;
+      event.preventDefault();
+      status.textContent = 'This permission is already in the table. Edit its checkboxes there.';
+    });
     addForm.addEventListener('change', (event) => {
       const input = event.target;
       if (!input.matches('input[name="actions"]')) return;
@@ -81,6 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         read.checked = true;
       }
     });
-    updateActions();
+    updateGranular();
   }
 });

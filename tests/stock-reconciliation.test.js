@@ -76,10 +76,12 @@ test('dedicated stock reconciliation voucher shows counts, differences and save 
     availableReports: [], currentPostingTime: () => '12:00', scriptJson,
     today: '2026-10-04', postingTime: '12:00', error: null, entry: null, items: [], warehouse: '',
   });
-  assert.match(html, /Stock Reconciliation Voucher/);
+  assert.doesNotMatch(html, /<h1>New stock reconciliation<\/h1>/);
+  assert.doesNotMatch(html, /Count the items in one warehouse/);
   assert.match(html, /Counted Qty/);
   assert.match(html, /Book Qty/);
   assert.match(html, /Net value difference/);
+  assert.match(html, /name="cost_center"/);
   assert.match(html, /id="reconciliation-gain-value"/);
   assert.match(html, /id="reconciliation-loss-value"/);
   assert.match(html, /Add an item not stocked in this warehouse/);
@@ -91,14 +93,17 @@ test('saved draft reconciliation supplies current book balances to the count she
     assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
     availableReports: [], currentPostingTime: () => '12:00', scriptJson,
     today: '2026-10-04', postingTime: '12:00', error: null,
-    entry: { id: 12, entry_no: 'REC-000012', docstatus: 'draft', posting_date: '2026-10-04' },
+    entry: { id: 12, entry_no: 'REC-000012', docstatus: 'draft', posting_date: '2026-10-04', cost_center: 'Operations' },
     items: [{ id: 1, item_code: 'ITEM-1', item_name: 'Item', warehouse: 'Main', quantity: 7 }],
     balances: [{ item_code: 'ITEM-1', quantity: 5, valuation_rate: 10 }],
     warehouse: 'Main', readOnly: true,
   });
   assert.match(html, /"balances":\[\{"item_code":"ITEM-1","quantity":5,"valuation_rate":10\}\]/);
-  assert.match(html, /<h1>Stock Reconciliation Voucher<\/h1>/);
+  assert.doesNotMatch(html, /<h1>Stock Reconciliation<\/h1>/);
   assert.doesNotMatch(html, /<h1>REC-000012<\/h1>/);
   assert.match(html, /action="\/stock\/reconciliations\/12\/submit"/);
   assert.match(html, /Submit reconciliation/);
+  assert.doesNotMatch(html, /name="cost_center"/);
+  assert.doesNotMatch(html, /class="invoice-card reconciliation-details"/);
+  assert.match(html, /Cost Center: <strong>Operations<\/strong>/);
 });

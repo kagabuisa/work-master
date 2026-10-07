@@ -9,12 +9,16 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Journals' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Journals' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
+        <% if (can('vouchers.journals.create') && (currentUser.role === 'admin' || !['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'))) { %>
+          <a class="button" href="/journals/new" aria-label="New Journal Entry">New</a>
+        <% } %>
       </nav>
     </header>
+    <%- include('voucher-report-tabs', { basePath: '/journals', title: 'Journal', activeTab: 'list' }) %>
 
     <form class="report-filters journal-filters" method="get">
       <label>

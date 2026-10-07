@@ -246,6 +246,7 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS price_list TEXT');
+  await pool.query('ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS cost_center TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_purchase_orders (
       id BIGSERIAL PRIMARY KEY,
@@ -286,6 +287,7 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_orders_date_idx ON app_purchase_orders(posting_date DESC, id DESC)');
+  await pool.query('ALTER TABLE app_purchase_orders ADD COLUMN IF NOT EXISTS cost_center TEXT');
   await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_orders_supplier_idx ON app_purchase_orders(supplier_id, posting_date DESC)');
   await pool.query('ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS purchase_order_id BIGINT REFERENCES app_purchase_orders(id)');
   await pool.query('ALTER TABLE app_purchase_items ADD COLUMN IF NOT EXISTS purchase_order_item_id BIGINT REFERENCES app_purchase_order_items(id)');
@@ -340,6 +342,7 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_stock_entry_items ADD COLUMN IF NOT EXISTS counted_quantity NUMERIC(14, 3)');
+  await pool.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_stock_balances (
       item_code TEXT NOT NULL,
@@ -433,6 +436,7 @@ async function initPostgresStore() {
       CHECK (debit = 0 OR credit = 0)
     )
   `);
+  await pool.query('ALTER TABLE app_gl_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_journal_entries (
       id BIGSERIAL PRIMARY KEY,
@@ -466,6 +470,7 @@ async function initPostgresStore() {
       CHECK (debit = 0 OR credit = 0)
     )
   `);
+  await pool.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
   for (const table of ['app_invoices', 'app_purchases', 'app_stock_entries', 'app_journal_entries']) {
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS posting_time TIME NOT NULL DEFAULT '00:00:00'`);
     await pool.query(`ALTER TABLE ${table} ALTER COLUMN posting_time SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time)`);

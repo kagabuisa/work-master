@@ -4,6 +4,7 @@ const path = require('node:path');
 const ejs = require('ejs');
 const { permissionCheck } = require('../src/authorize');
 const { normalizePurchase, validatePurchaseOrder } = require('../src/purchases');
+const { normalizePurchaseOrder } = require('../src/purchase-orders');
 
 test('purchase order actions require their own permissions', () => {
   const request = (route, method, permissions) => ({
@@ -36,6 +37,17 @@ test('purchase order lines validate dates, quantities and totals', () => {
   assert.throws(() => normalizePurchase({ ...payload, items: [{ ...payload.items[0], quantity: '0' }] }), /quantity/);
 });
 
+test('a purchase order applies its header warehouse to every item', () => {
+  const payload = { posting_date: '2026-10-02', supplier_id: 'SUP-1', price_list: 'Buying',
+    warehouse: 'Main', items: [
+      { item_code: 'ITEM-1', warehouse: 'Old', quantity: 2, unit_price: 100 },
+      { item_code: 'ITEM-2', quantity: 1, unit_price: 200 },
+    ] };
+  const order = normalizePurchaseOrder(payload);
+  assert.deepEqual(order.items.map((item) => item.warehouse), ['Main', 'Main']);
+  assert.throws(() => normalizePurchaseOrder({ ...payload, warehouse: '' }), /Choose a warehouse/);
+});
+
 test('linked invoice lines cannot exceed the unreceived order quantity', async () => {
   const client = { async query(sql) {
     if (sql.includes('FROM app_purchase_orders WHERE id=')) return { rows: [
@@ -65,6 +77,11 @@ test('purchase order form posts to order routes and detail exposes status action
   });
   assert.match(form, /action="\/purchase-orders"/);
   assert.match(form, /Expected Delivery Date/);
+  assert.match(form, /name="supplier_id"/);
+  assert.doesNotMatch(form, /name="supplier_name"/);
+  assert.match(form, /name="warehouse" id="purchase-order-warehouse"/);
+  assert.doesNotMatch(form, /<td data-label="Warehouse">/);
+  assert(form.indexOf('name="remarks"') > form.indexOf('id="purchase-items"'));
   const detail = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 1, order_no: 'PO-000001', docstatus: 'draft', posting_date: '2026-10-02',
       posting_time: '11:30', supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying',
@@ -80,6 +97,23 @@ test('purchase order form posts to order routes and detail exposes status action
   });
   assert.match(submitted, /\/purchases\/new\?purchase_order_id=1/);
   assert.match(submitted, /Remaining/);
+  assert.match(submitted, /Warehouse: <strong>Main<\/strong>/);
+  assert.doesNotMatch(submitted, /<th>Warehouse<\/th>/);
+  const mixed = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
+    ...base, order: { id: 2, order_no: 'PO-000002', docstatus: 'draft', posting_date: '2026-10-02',
+      supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying', total: 300,
+      items: [{ item_code: 'ITEM-1', item_name: 'First', warehouse: 'Main', quantity: 1, unit_price: 100, line_total: 100 },
+        { item_code: 'ITEM-2', item_name: 'Second', warehouse: 'Branch', quantity: 1, unit_price: 200, line_total: 200 }] },
+    error: null,
+  });
+  assert.match(mixed, /Warehouse: <strong>Multiple warehouses<\/strong>/);
+  assert.match(mixed, /<th>Warehouse<\/th>/);
+  const cancelled = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
+    ...base, order: { id: 1, order_no: 'PO-000001', docstatus: 'cancelled', posting_date: '2026-10-02',
+      posting_time: '11:30', supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying',
+      items: [], total: 0 }, error: null,
+  });
+  assert.match(cancelled, /\/purchase-orders\/1\/delete/);
   const invoice = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
     ...base, purchase: { purchase_order_id: 1, supplier_id: 'SUP-1', supplier_name: 'Supplier',
       price_list: 'Buying', posting_date: '2026-10-02', items: [{ purchase_order_item_id: 11,
@@ -87,6 +121,7 @@ test('purchase order form posts to order routes and detail exposes status action
   });
   assert.match(invoice, /name="purchase_order_item_id" value="11"/);
   assert.match(invoice, /name="purchase_order_id" value="1"/);
+  assert.match(invoice, /<td data-label="Warehouse">/);
   const draftInvoice = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
     ...base, purchase: { id: 9, posting_date: '2026-10-02', items: [{}] },
     purchaseOrders: [{ id: 1, order_no: 'PO-000001', supplier_name: 'Supplier' }], error: null,

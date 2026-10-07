@@ -1,5 +1,6 @@
 const { getPostgresPool, findInvoice } = require('./store');
 const { purchaseForPayment } = require('./purchases');
+const { voucherOwnedByUser } = require('./voucher-ownership');
 
 function selectedCategories(user, kind) {
   if (user?.role === 'admin') return null;
@@ -23,6 +24,23 @@ function categoryAllowed(user, kind, category) {
 
 function allowedInvoicePriceLists(user) {
   if (user?.role === 'admin') return null;
+  const assigned = [user?.record_access?.retail_price_list,
+    user?.record_access?.wholesale_price_list].filter(Boolean);
+  if (assigned.length) {
+    if (user?.permission_grants?.includes('masters.price-lists.view')) return null;
+    const names = new Set(assigned);
+    const scope = user?.scopes?.invoicePriceLists;
+    if (scope?.mode === 'selected') {
+      for (const name of scope.values || []) names.add(name);
+    }
+    for (const permission of user?.permission_grants || []) {
+      if (permission.startsWith('invoice.price-list.view:')) names.add(permission.slice('invoice.price-list.view:'.length));
+    }
+    for (const permission of user?.permission_denials || []) {
+      if (permission.startsWith('invoice.price-list.view:')) names.delete(permission.slice('invoice.price-list.view:'.length));
+    }
+    return [...names];
+  }
   const scope = user?.scopes?.invoicePriceLists;
   if (!scope || scope.mode !== 'selected') return null;
   const names = new Set(Array.isArray(scope.values) ? scope.values : []);
@@ -35,8 +53,41 @@ function allowedInvoicePriceLists(user) {
   return [...names];
 }
 
+function allowedPurchasePriceLists(user) {
+  if (user?.role === 'admin' || user?.permission_grants?.includes('masters.price-lists.view')) return null;
+  const scope = user?.scopes?.invoicePriceLists;
+  if (scope?.mode !== 'selected') return null;
+  const names = new Set(scope.values || []);
+  if (['vouchers.purchases.create', 'vouchers.purchases.edit',
+    'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit']
+    .some((permission) => user?.permissions?.includes(permission))) {
+    names.add('Standard Buying');
+  }
+  for (const permission of user?.permission_grants || []) {
+    if (permission.startsWith('invoice.price-list.view:')) names.add(permission.slice('invoice.price-list.view:'.length));
+  }
+  for (const permission of user?.permission_denials || []) {
+    if (permission.startsWith('invoice.price-list.view:')) names.delete(permission.slice('invoice.price-list.view:'.length));
+  }
+  return [...names];
+}
+
+function purchasePriceListAllowed(user, name) {
+  if (user?.role === 'admin') return true;
+  const priceList = String(name || '').trim();
+  if (user?.permission_denials?.includes(`invoice.price-list.view:${priceList}`)) return false;
+  const allowed = allowedPurchasePriceLists(user);
+  return allowed === null || allowed.includes(priceList);
+}
+
 function namedListAllowed(user, kind, value) {
   if (user?.role === 'admin') return true;
+  if (kind === 'warehouses' && user?.record_access?.warehouse) {
+    const allowed = allowedNamedListValues(user, kind);
+    return allowed === null
+      ? !user?.permission_denials?.includes(`warehouse.view:${String(value || '').trim()}`)
+      : allowed.includes(String(value || '').trim());
+  }
   const name = String(value || '').trim();
   const permission = `${kind === 'warehouses' ? 'warehouse' : 'account'}.view:${name}`;
   if (user?.permission_denials?.includes(permission)) return false;
@@ -50,6 +101,17 @@ function accountAllowed(user, id) { return namedListAllowed(user, 'accounts', id
 
 function allowedNamedListValues(user, kind) {
   if (user?.role === 'admin') return null;
+  if (kind === 'warehouses' && user?.record_access?.warehouse) {
+    if (user?.permission_grants?.includes('masters.warehouses.view')) return null;
+    const names = new Set([user.record_access.warehouse]);
+    for (const permission of user?.permission_grants || []) {
+      if (permission.startsWith('warehouse.view:')) names.add(permission.slice('warehouse.view:'.length));
+    }
+    for (const permission of user?.permission_denials || []) {
+      if (permission.startsWith('warehouse.view:')) names.delete(permission.slice('warehouse.view:'.length));
+    }
+    return [...names];
+  }
   const scope = user?.scopes?.[kind];
   if (scope?.mode !== 'selected') return null;
   const prefix = kind === 'warehouses' ? 'warehouse.view:' : 'account.view:';
@@ -82,8 +144,44 @@ function anyNamedListView(user, kind) {
 }
 
 function namedListRestricted(user, kind) {
-  return user?.role !== 'admin' && (user?.scopes?.[kind]?.mode === 'selected'
+  return user?.role !== 'admin' && (kind === 'warehouses' && Boolean(user?.record_access?.warehouse)
+    || user?.scopes?.[kind]?.mode === 'selected'
     || deniedNamedListValues(user, kind).length > 0);
+}
+
+function assignedMasterRecord(user, kind) {
+  if (user?.role === 'admin') return null;
+  const field = kind === 'cost-centers' ? 'cost_center' : kind === 'employees' ? 'employee_id' : null;
+  return field ? user?.record_access?.[field] || null : null;
+}
+
+function allowedMasterRecordIds(user, kind) {
+  if (user?.role === 'admin' || !['cost-centers', 'employees'].includes(kind)) return null;
+  if (user?.permission_grants?.includes(`masters.${kind}.view`)) return null;
+  const prefix = kind === 'cost-centers' ? 'cost-center.view:' : 'employee.view:';
+  const assigned = assignedMasterRecord(user, kind);
+  const grants = (user?.permission_grants || []).filter((key) => key.startsWith(prefix))
+    .map((key) => key.slice(prefix.length));
+  if (!assigned && user?.permissions?.includes(`masters.${kind}.view`)) return null;
+  if (!assigned && !grants.length) return null;
+  const names = new Set([assigned, ...grants].filter(Boolean));
+  for (const key of user?.permission_denials || []) {
+    if (key.startsWith(prefix)) names.delete(key.slice(prefix.length));
+  }
+  return [...names];
+}
+
+function deniedMasterRecordIds(user, kind) {
+  const prefix = kind === 'cost-centers' ? 'cost-center.view:' : 'employee.view:';
+  return (user?.permission_denials || []).filter((key) => key.startsWith(prefix))
+    .map((key) => key.slice(prefix.length));
+}
+
+function assignedMasterRecordAllowed(user, kind, id) {
+  const value = String(id || '').trim();
+  if (deniedMasterRecordIds(user, kind).includes(value)) return false;
+  const allowed = allowedMasterRecordIds(user, kind);
+  return allowed === null || allowed.includes(value);
 }
 
 async function voucherWarehousesAllowed(user, kind, id) {
@@ -103,17 +201,40 @@ async function voucherWarehousesAllowed(user, kind, id) {
     && (!row.target_warehouse || warehouseAllowed(user, row.target_warehouse)));
 }
 
-async function journalAccountsAllowed(user, id) {
-  if (!namedListRestricted(user, 'accounts')) return true;
-  if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) return false;
-  const { rows } = await getPostgresPool().query(
-    'SELECT account_id::text AS account_id FROM app_journal_entry_lines WHERE journal_entry_id = $1', [id],
+async function journalAccountAccess(user, id, { pool } = {}) {
+  if (!namedListRestricted(user, 'accounts')) return { allowed: true, restrictedAccounts: [], isCreator: false };
+  if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) {
+    return { allowed: false, restrictedAccounts: [], isCreator: false };
+  }
+  const { rows } = await (pool || getPostgresPool()).query(
+    `SELECT journal.created_by_user_id::text AS creator_id,
+      line.account_id::text AS account_id, account.account_code
+    FROM app_journal_entries journal
+    LEFT JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+    LEFT JOIN app_accounts account ON account.id = line.account_id
+    WHERE journal.id = $1`, [id],
   );
-  return rows.every((row) => accountAllowed(user, row.account_id));
+  if (!rows.length) return { allowed: false, restrictedAccounts: [], isCreator: false };
+  const restrictedAccounts = [...new Set(rows.filter((row) => row.account_id && !accountAllowed(user, row.account_id))
+    .map((row) => row.account_code || row.account_id))];
+  return { allowed: restrictedAccounts.length === 0, restrictedAccounts,
+    isCreator: Boolean(user?.id && rows[0].creator_id === String(user.id)) };
+}
+
+async function journalAccountsAllowed(user, id, options) {
+  return (await journalAccountAccess(user, id, options)).allowed;
 }
 
 function invoicePriceListAllowed(user, name) {
   if (user?.role === 'admin') return true;
+  const assigned = [user?.record_access?.retail_price_list,
+    user?.record_access?.wholesale_price_list].filter(Boolean);
+  if (assigned.length) {
+    const allowed = allowedInvoicePriceLists(user);
+    return allowed === null
+      ? !user?.permission_denials?.includes(`invoice.price-list.view:${String(name || '').trim()}`)
+      : allowed.includes(String(name || '').trim());
+  }
   const permission = `invoice.price-list.view:${String(name || '').trim()}`;
   if (user?.permission_denials?.includes(permission)) return false;
   if (user?.permission_grants?.includes(permission)) return true;
@@ -187,6 +308,7 @@ async function purchaseAllowed(user, id) {
 }
 
 async function purchaseOrderAllowed(user, id) {
+  if (!await voucherOwnedByUser(user, 'purchase-orders', id)) return false;
   if (!scopeRestricted(user, 'suppliers')) return true;
   const { rows } = await getPostgresPool().query('SELECT supplier_id FROM app_purchase_orders WHERE id = $1', [id]);
   return Boolean(rows[0] && await masterRecordAllowed(user, 'suppliers', rows[0].supplier_id));
@@ -204,7 +326,9 @@ module.exports = {
   anyScopeRestricted,
   categoryAllowed,
   allowedInvoicePriceLists,
+  allowedPurchasePriceLists,
   invoicePriceListAllowed,
+  purchasePriceListAllowed,
   namedListAllowed,
   warehouseAllowed,
   accountAllowed,
@@ -212,7 +336,12 @@ module.exports = {
   deniedNamedListValues,
   anyNamedListView,
   namedListRestricted,
+  assignedMasterRecord,
+  allowedMasterRecordIds,
+  deniedMasterRecordIds,
+  assignedMasterRecordAllowed,
   voucherWarehousesAllowed,
+  journalAccountAccess,
   journalAccountsAllowed,
   requireInvoicePriceList,
   priceListActionAllowed,

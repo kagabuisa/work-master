@@ -4,7 +4,6 @@ const itemResults = document.querySelector('#item-results');
 const warehouseSelect = document.querySelector('#warehouse-select');
 const priceListSelect = document.querySelector('#invoice-price-list');
 const costCenterInput = document.querySelector('#invoice-cost-center');
-const costCenterOptions = document.querySelector('#invoice-cost-centers');
 const refreshPricesButton = document.querySelector('#refresh-invoice-prices');
 const priceUpdateStatus = document.querySelector('#invoice-price-update-status');
 const customerSearch = document.querySelector('#customer-search');
@@ -60,33 +59,6 @@ const formatMoney = (value) => money.format(value).replace('UGX', 'Ugx');
 let preloadedCustomers = [];
 let itemRequestId = 0;
 let customersLoading = false;
-let costCenterTimer;
-let costCenterRequestId = 0;
-
-async function loadCostCenters() {
-  const requestId = ++costCenterRequestId;
-  const query = costCenterInput.value.trim();
-  try {
-    const response = await fetch(`/api/cost-centers?q=${encodeURIComponent(query)}`);
-    if (!response.ok) return;
-    const rows = await response.json();
-    if (requestId !== costCenterRequestId || query !== costCenterInput.value.trim()) return;
-    costCenterOptions.replaceChildren(...rows.map((row) => {
-      const option = document.createElement('option');
-      option.value = row.cost_center;
-      option.label = row.cost_center_name;
-      return option;
-    }));
-  } catch {
-    // The saved value remains available if suggestions cannot be loaded.
-  }
-}
-
-costCenterInput.addEventListener('focus', loadCostCenters);
-costCenterInput.addEventListener('input', () => {
-  clearTimeout(costCenterTimer);
-  costCenterTimer = setTimeout(loadCostCenters, 220);
-});
 let editingPaymentIndex = null;
 
 let itemTimer;
@@ -447,10 +419,10 @@ async function loadWarehouses() {
       '<option value="">Choose warehouse</option>',
       ...warehouses.map((warehouse) => `<option value="${escapeAttr(warehouse)}">${escapeHtml(warehouse)}</option>`),
     ].join('');
-    if (initialData.warehouse) {
+    if (initialData.warehouse && warehouses.includes(initialData.warehouse)) {
       warehouseSelect.value = initialData.warehouse;
-      activeWarehouse = initialData.warehouse;
     }
+    activeWarehouse = warehouseSelect.value;
     syncWarehouseFields();
   } catch {
     warehouseSelect.innerHTML = initialData.warehouse
@@ -480,7 +452,7 @@ async function loadPriceLists() {
       unavailable.disabled = true;
       priceListSelect.add(unavailable);
     }
-    priceListSelect.value = selected || '';
+    priceListSelect.value = rows.some((row) => row.value === selected) ? selected : '';
     activePriceList = priceListSelect.value;
   } catch {
     priceListSelect.replaceChildren(new Option(activePriceList || 'Could not load price lists', activePriceList));
@@ -939,7 +911,7 @@ function invoiceState() {
     invoice_date: document.querySelector('#invoice-date').value,
     posting_time: document.querySelector('#invoice-posting-time').value,
     due_date: document.querySelector('#due-date').value,
-    non_system_invoice: document.querySelector('#non-system-invoice').value.trim(),
+    non_system_invoice: document.querySelector('#ext-invoice').value.trim(),
     customer_id: customerId.value,
     customer_name: customerSearch.value.trim(),
     price_list: priceListSelect.value,

@@ -4,6 +4,23 @@ const path = require('node:path');
 const ejs = require('ejs');
 const { journalAccountMatches } = require('../public/journal-account-match');
 const { scriptJson } = require('../src/web/script-json');
+const { normalizeJournalEntryPayload, validateJournalAccountSides } = require('../src/domain/normalization');
+
+test('journal cannot debit and credit the same account', () => {
+  const payload = { journal_type: 'journal_entry', posting_date: '2026-10-07', posting_time: '12:00',
+    lines: [{ account_id: 5, debit: 100 }, { account_id: 5, credit: 100 }] };
+  assert.throws(() => normalizeJournalEntryPayload(payload), {
+    status: 400, message: 'The same account cannot be used for both debit and credit in one journal.',
+  });
+  assert.throws(() => validateJournalAccountSides([
+    { account_id: 5, debit: 100, credit: 0 }, { account_id: '5', debit: 0, credit: 100 },
+  ]), { status: 400 });
+
+  const valid = normalizeJournalEntryPayload({ ...payload, lines: [
+    { account_id: 5, debit: 60 }, { account_id: 5, debit: 40 }, { account_id: 6, credit: 100 },
+  ] });
+  assert.equal(valid.lines.length, 3);
+});
 
 test('journal account search matches code and name with percent wildcards', () => {
   const account = { code: '1102', name: 'Main Bank Account' };

@@ -6,6 +6,7 @@ const supplierName = document.querySelector('#purchase-supplier-name');
 const supplierList = document.querySelector('#purchase-suppliers');
 const itemList = document.querySelector('#purchase-items-list');
 const warehouseList = document.querySelector('#purchase-warehouses');
+const orderWarehouseInput = document.querySelector('#purchase-order-warehouse');
 const priceListSelect = document.querySelector('#purchase-price-list');
 const totalLabel = document.querySelector('#purchase-total');
 let suppliers = [];
@@ -53,7 +54,7 @@ async function lookup(list, input, endpoint, label, apply, filter = (rows) => ro
   requests.set(list, request);
   failures.delete(list);
   setOptions(list, [], '');
-  showLookupStatus(`Loading ${label}…`);
+  showLookupStatus();
   const current = () => requests.get(list) === request && (!input || input.isConnected && input.value.trim() === query)
     && (!endpoint.startsWith('/api/master-items?') || endpoint.includes(`price_list=${encodeURIComponent(priceListSelect.value)}`));
   try {
@@ -135,6 +136,12 @@ supplierInput.addEventListener('input', () => {
 });
 supplierInput.addEventListener('change', updateSupplierName);
 supplierInput.addEventListener('focus', loadSuppliers);
+if (orderWarehouseInput) {
+  orderWarehouseInput.addEventListener('input', () => {
+    scheduleSearch(orderWarehouseInput, () => loadWarehouses(orderWarehouseInput));
+  });
+  orderWarehouseInput.addEventListener('focus', () => loadWarehouses(orderWarehouseInput));
+}
 
 purchaseRows.addEventListener('input', (event) => {
   const input = event.target;
@@ -182,13 +189,13 @@ loadWarehouses();
 async function loadPriceLists() {
   const selected = priceListSelect.value;
   try {
-    const response = await fetch('/api/price-lists?type=buying');
+    const response = await fetch('/api/price-lists?type=buying&purchase=1');
     if (!response.ok) throw new Error('Price lists unavailable');
     const rows = await response.json();
     priceListSelect.replaceChildren(new Option('Choose price list', ''));
     for (const row of rows) priceListSelect.add(new Option(`${row.value} · ${row.label}`, row.value));
     if (selected && !rows.some((row) => row.value === selected)) priceListSelect.add(new Option(selected, selected));
-    priceListSelect.value = selected;
+    priceListSelect.value = selected || (rows.some((row) => row.value === 'Standard Buying') ? 'Standard Buying' : '');
   } catch { showLookupStatus('Could not load price lists. Retry the page.'); }
 }
 priceListSelect.addEventListener('change', () => {
