@@ -3,14 +3,14 @@
 <head>
   <title>Permissions · Work Master</title>
   <%- include('partials-head') %>
-  <script src="/roles.js?v=<%= assetVersion %>-autosave-v2" defer></script>
+  <script src="/roles.js?v=<%= assetVersion %>-granular-v2" defer></script>
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div>
         <p class="eyebrow">Administration</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Permissions' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Settings', href: '/settings' }, { label: activeTab === 'roles' ? 'Roles' : 'Permissions' }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
     </header>
@@ -25,11 +25,10 @@
     </nav>
 
     <% if (activeTab === 'permissions') { %>
-    <section class="invoice-card report-section">
+    <section class="invoice-card report-section permission-page">
       <div class="section-title"><h1>Role permissions</h1><a href="/settings/users">Assign roles to users</a></div>
-      <p>Pick a role, then add one row for each type. Tick the actions to allow and save. Turning off Read removes the other actions for that row.</p>
-      <p>For a named price list, Read allows invoice use, Create adds item prices to it, Write edits it, Submit activates it, Cancel deactivates it, and Delete removes it.</p>
-      <p>For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p>
+      <p class="permission-intro">Choose a role and tick its allowed actions. Changes save automatically; untick Read to remove a permission row.</p>
+      <details class="permission-help"><summary>How record permissions work</summary><p>For a named price list, Read allows use in eligible sales or purchase vouchers, Create adds item prices to it, Write edits it, Submit activates it, Cancel deactivates it, and Delete removes it. For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p></details>
       <form method="get" action="/settings/roles" class="role-picker">
         <label>Search roles <input type="search" id="role-search" placeholder="Type a role name" autocomplete="off"></label>
         <label>Role <select name="role" id="role-select" required>
@@ -40,36 +39,40 @@
     </section>
 
     <% if (selectedRole) { %>
-      <section class="invoice-card report-section">
+      <section class="invoice-card report-section permission-page">
         <div class="section-title"><h2><%= selectedRole.name %></h2><span class="muted-text"><%= selectedRole.user_count %> user<%= selectedRole.user_count === 1 ? '' : 's' %></span></div>
         <% if (selectedRole.slug === 'admin') { %>
           <p>Admin has full access. Its permissions cannot be changed.</p>
         <% } else { %>
           <% const configuredTypes = recordTypes.filter((type) => type.actions.some((action) => selectedRole.permissions.includes(type.permissions[action]))); %>
           <div class="role-table-wrap"><table class="role-permission-table" data-auto-permissions>
-            <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Delete</th><th>Remove</th></tr></thead>
+            <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Delete</th></tr></thead>
             <tbody>
-              <% if (!configuredTypes.length) { %><tr><td colspan="8" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
+              <% if (!configuredTypes.length) { %><tr><td colspan="7" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
               <% configuredTypes.forEach((type, index) => { const formId = `role-row-${index}`; %>
                 <tr>
                   <td data-label="Permission type"><strong><%= type.label %></strong><form id="<%= formId %>" method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions"><input type="hidden" name="record_type" value="<%= type.key %>"></form></td>
                   <% recordActions.forEach((action) => { %>
                     <td class="role-check-cell" data-label="<%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %>"><% if (type.actions.includes(action)) { %><label><input type="checkbox" form="<%= formId %>" name="actions" value="<%= action %>" data-permission="<%= type.permissions[action] %>" aria-label="<%= action %> <%= type.label %>" <%= selectedRole.permissions.includes(type.permissions[action]) ? 'checked' : '' %>></label><% } else { %><span aria-label="Not applicable">—</span><% } %></td>
                   <% }) %>
-                  <td data-label="Remove"><form method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions/remove" data-confirm="<%= type.key === 'vouchers.sales' ? 'Removing Sales Invoice also removes Customer Payment permissions.' : type.key === 'vouchers.purchases' ? 'Removing Purchase also removes Supplier Payment permissions.' : type.key === 'chart-of-accounts' ? 'Removing Chart of Accounts also removes account creation permission.' : `Remove all permissions for ${type.label}?` %>"><input type="hidden" name="record_type" value="<%= type.key %>"><button type="submit" class="button-light">Remove</button></form></td>
                 </tr>
               <% }) %>
             </tbody>
           </table></div>
           <p role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</p>
             <form method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions" class="role-add-row" data-role-add-row>
-              <label>Permission type <select name="record_type" required data-record-type>
+              <input type="hidden" name="record_type" data-record-type>
+              <label>Voucher or master list <select required data-permission-type>
                 <option value="">Select a type</option>
-                <% [...new Set(recordTypes.map((type) => type.group))].forEach((group) => { %>
+                <% [...new Set(recordTypes.filter((type) => !type.parentKey).map((type) => type.group))].forEach((group) => { %>
                   <optgroup label="<%= group %>">
-                    <% recordTypes.filter((type) => type.group === group).forEach((type) => { %><option value="<%= type.key %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => selectedRole.permissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
+                    <% recordTypes.filter((type) => !type.parentKey && type.group === group).forEach((type) => { %><option value="<%= type.key %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => selectedRole.permissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
                   </optgroup>
                 <% }) %>
+              </select></label>
+              <label>Specific record (optional) <select data-granular-record disabled>
+                <option value="">Select a type first</option>
+                <% recordTypes.filter((type) => type.parentKey).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => selectedRole.permissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
               </select></label>
               <div class="role-add-actions" aria-label="Actions">
                 <% recordActions.forEach((action) => { %><label><input type="checkbox" name="actions" value="<%= action %>"> <%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %></label><% }) %>
@@ -79,7 +82,7 @@
         <% } %>
       </section>
       <% if (selectedRole.slug !== 'admin') { %>
-        <section class="invoice-card report-section">
+        <section class="invoice-card report-section permission-page">
           <h2>Other access</h2>
           <form method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions/extra" class="role-form">
             <div class="role-extra-list">
@@ -125,10 +128,10 @@
         </form>
       </section>
     <% } else { %>
-      <section class="invoice-card report-section">
+      <section class="invoice-card report-section permission-page">
         <div class="section-title"><h1>User permissions</h1><a href="/settings/users">Manage users</a></div>
-        <p>Choose a user, then add one row for each type. Tick the actions to allow; changes save automatically. User choices override the role, and the role still supplies access where no override is set.</p>
-        <p>For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p>
+        <p class="permission-intro">Choose a user and tick their allowed actions. Changes save automatically; untick Read to remove a permission row.</p>
+        <details class="permission-help"><summary>How user permissions work</summary><p>User choices override the role; the role supplies access where no override is set. Active price lists, including buying lists, are available as permission types. Read allows a price list's use in eligible sales or purchase vouchers. For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers. Edit a user's default selections on their Edit user page.</p></details>
         <form method="get" action="/settings/roles" class="role-picker">
           <input type="hidden" name="tab" value="users">
           <label>Search users <input type="search" id="user-search" placeholder="Type a username" autocomplete="off"></label>
@@ -139,36 +142,40 @@
         </form>
       </section>
       <% if (selectedUser) { %>
-        <section class="invoice-card report-section">
+        <section class="invoice-card report-section permission-page">
           <div class="section-title"><h2><%= selectedUser.username %></h2><span class="muted-text">Role: <%= selectedUserRole?.name || selectedUser.role %></span></div>
           <% if (selectedUser.role === 'admin') { %>
             <p>Admin has full access. Its permissions cannot be changed.</p>
           <% } else { %>
             <% const configuredTypes = recordTypes.filter((type) => type.actions.some((action) => userPermissions.includes(type.permissions[action]))); %>
             <div class="role-table-wrap"><table class="role-permission-table" data-auto-permissions>
-              <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Delete</th><th>Remove</th></tr></thead>
+              <thead><tr><th>Permission type</th><th>Create</th><th>Read</th><th>Write</th><th>Submit</th><th>Cancel</th><th>Delete</th></tr></thead>
               <tbody>
-                <% if (!configuredTypes.length) { %><tr><td colspan="8" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
+                <% if (!configuredTypes.length) { %><tr><td colspan="7" class="empty">No record permissions yet. Add the first row below.</td></tr><% } %>
                 <% configuredTypes.forEach((type, index) => { const formId = `user-row-${index}`; %>
                   <tr>
-                    <td data-label="Permission type"><strong><%= type.label %></strong><form id="<%= formId %>" method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row"><input type="hidden" name="record_type" value="<%= type.key %>"></form></td>
+                    <td data-label="Permission type"><strong><%= type.label %></strong><% if (defaultUserPermissionKeys.includes(type.permissions.view)) { %> <a class="permission-default-link" href="/settings/users/<%= selectedUser.id %>/edit">Edit default</a><% } %><form id="<%= formId %>" method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row"><input type="hidden" name="record_type" value="<%= type.key %>"></form></td>
                     <% recordActions.forEach((action) => { %>
-                      <td class="role-check-cell" data-label="<%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %>"><% if (type.actions.includes(action)) { %><label><input type="checkbox" form="<%= formId %>" name="actions" value="<%= action %>" data-permission="<%= type.permissions[action] %>" aria-label="<%= action %> <%= type.label %>" <%= userPermissions.includes(type.permissions[action]) ? 'checked' : '' %>></label><% } else { %><span aria-label="Not applicable">—</span><% } %></td>
+                      <td class="role-check-cell" data-label="<%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %>"><% if (type.actions.includes(action)) { %><label><input type="checkbox" form="<%= formId %>" name="actions" value="<%= action %>" data-permission="<%= type.permissions[action] %>" <%= action === 'view' && defaultUserPermissionKeys.includes(type.permissions.view) ? 'data-default-read' : '' %> aria-label="<%= action %> <%= type.label %>" <%= userPermissions.includes(type.permissions[action]) ? 'checked' : '' %>></label><% } else { %><span aria-label="Not applicable">—</span><% } %></td>
                     <% }) %>
-                    <td data-label="Remove"><form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row/remove" data-confirm="Remove all permissions for <%= type.label %> from <%= selectedUser.username %>?"><input type="hidden" name="record_type" value="<%= type.key %>"><button type="submit" class="button-light">Remove</button></form></td>
                   </tr>
                 <% }) %>
               </tbody>
             </table></div>
             <p role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</p>
             <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row" class="role-add-row" data-role-add-row>
-              <label>Permission type <select name="record_type" required data-record-type>
+              <input type="hidden" name="record_type" data-record-type>
+              <label>Voucher or master list <select required data-permission-type>
                 <option value="">Select a type</option>
-                <% [...new Set(recordTypes.map((type) => type.group))].forEach((group) => { %>
+                <% [...new Set(recordTypes.filter((type) => !type.parentKey).map((type) => type.group))].forEach((group) => { %>
                   <optgroup label="<%= group %>">
-                    <% recordTypes.filter((type) => type.group === group).forEach((type) => { %><option value="<%= type.key %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
+                    <% recordTypes.filter((type) => !type.parentKey && type.group === group).forEach((type) => { %><option value="<%= type.key %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
                   </optgroup>
                 <% }) %>
+              </select></label>
+              <label>Specific record (optional) <select data-granular-record disabled>
+                <option value="">Select a type first</option>
+                <% recordTypes.filter((type) => type.parentKey).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
               </select></label>
               <div class="role-add-actions" aria-label="Actions">
                 <% recordActions.forEach((action) => { %><label><input type="checkbox" name="actions" value="<%= action %>"> <%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %></label><% }) %>
@@ -178,7 +185,7 @@
           <% } %>
         </section>
         <% if (selectedUser.role !== 'admin') { %>
-          <section class="invoice-card report-section">
+          <section class="invoice-card report-section permission-page">
             <h2>Other access</h2>
             <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/extra" class="role-form">
               <div class="role-extra-list">
@@ -187,7 +194,7 @@
               <button type="submit">Save other access</button>
             </form>
           </section>
-          <section class="invoice-card report-section">
+          <section class="invoice-card report-section permission-page">
             <h2>Role defaults</h2>
             <p>Reset this user's permissions to the current <%= selectedUserRole?.name || selectedUser.role %> role.</p>
             <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/reset" data-confirm="Reset all user permission overrides for <%= selectedUser.username %>?"><button type="submit" class="button-light">Reset to role permissions</button></form>

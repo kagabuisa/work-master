@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><title>Edit <%= user.username %> · Work Master</title><%- include('partials-head') %></head>
+<body>
+  <main class="shell">
+    <header class="topbar"><div>
+      <p class="eyebrow">Administration</p>
+      <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Settings', href: '/settings' },
+        { label: 'Users', href: '/settings/users' }, { label: `Edit ${user.username}` }] }) %>
+    </div><nav><%- include('module-nav', { activeModule: 'settings' }) %></nav></header>
+    <%- include('settings-tabs', { activeSettingsTab: 'users' }) %>
+    <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
+    <section class="invoice-card report-section">
+      <div class="section-title"><h1>Edit <%= user.username %></h1><a href="/settings/roles?tab=users&amp;user=<%= user.id %>">All permissions</a></div>
+      <form method="post" action="/settings/users/<%= user.id %>/edit" class="user-edit-form">
+        <label>Role<select name="role" required>
+          <% roles.forEach((item) => { %><option value="<%= item.slug %>" <%= role === item.slug ? 'selected' : '' %>><%= item.name %></option><% }) %>
+        </select></label>
+        <label class="user-edit-active"><input type="checkbox" name="active" <%= active ? 'checked' : '' %>> Active</label>
+        <p class="user-edit-help">Choose records from the suggestions. Selections grant Read access and replace the role's broad Read access for those lists. User permissions can grant more records. Leave a field blank to use the role's access.</p>
+        <%- include('user-record-access-fields', { prefix: 'edit-user', choices, selected }) %>
+        <div class="report-filter-actions"><button type="submit">Save user</button><a class="button button-light" href="/settings/users">Cancel</a></div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

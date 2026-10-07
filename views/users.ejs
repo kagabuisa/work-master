@@ -9,7 +9,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Administration</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Users' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Settings', href: '/settings' }, { label: 'Users' }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'settings' }) %></nav>
     </header>
@@ -31,7 +31,7 @@
           <tbody>
             <% users.forEach((user) => { %>
               <tr>
-                <td><strong><%= user.username %></strong><% if (Number(user.id) === Number(currentUser.id)) { %> · You<% } %><br><a href="/settings/roles?tab=users&amp;user=<%= user.id %>">Permissions</a></td>
+                <td><strong><%= user.username %></strong><% if (Number(user.id) === Number(currentUser.id)) { %> · You<% } %><br><a href="/settings/users/<%= user.id %>/edit">Edit</a> · <a href="/settings/roles?tab=users&amp;user=<%= user.id %>">Permissions</a></td>
                 <td>
                   <form method="post" action="/settings/users/<%= user.id %>/access" id="access-<%= user.id %>" class="user-access-form">
                     <select name="role" aria-label="Role for <%= user.username %>">
@@ -54,10 +54,12 @@
     </section>
     <section class="invoice-card report-section">
       <h2>Create user</h2>
-      <form method="post" action="/settings/users" class="user-create-form">
+      <form method="post" action="/settings/users" class="user-create-form user-edit-form">
         <label>Username <input name="username" pattern="[A-Za-z0-9._-]{3,64}" minlength="3" maxlength="64" required autocomplete="off"></label>
         <label>Role <select name="role"><% roles.forEach((role) => { %><option value="<%= role.slug %>" <%= role.slug === 'standard' ? 'selected' : '' %>><%= role.name %></option><% }) %></select></label>
-        <button type="submit">Create user</button>
+        <p class="user-edit-help">Selected records grant Read access and replace the role's broad Read access for those lists. User permissions can grant more records.</p>
+        <%- include('user-record-access-fields', { prefix: 'new-user', choices, selected }) %>
+        <div class="report-filter-actions"><button type="submit">Create user</button></div>
       </form>
     </section>
   </main>

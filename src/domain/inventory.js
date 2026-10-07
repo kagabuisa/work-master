@@ -13,6 +13,8 @@ const { paginationOptions, paginationResult } = require('../lib/pagination');
 const { postStockEntryGlEntry, postGlEntry, reverseVoucherGlEntries, postStockEntryMovements, applyPostgresStockMovement, insertStockEntryItems, syncStockEntryItems, normalizeStockEntryItems, normalizeSupplierInfo, setVoucherDocstatus, addReportFilters, reportFilterValues, actorAuditValues } = require('./posting');
 const { findMasterItem, findMasterWarehouse } = require('./master-data');
 const { findPostgresInvoice } = require('./sales');
+const { validateCostCenter } = require('../cost-centers');
+const { addVoucherOwnerFilter, addStockLedgerOwnerFilter } = require('../voucher-ownership');
 
 async function stockSummary() {
   const { rows } = await getPostgresPool().query(`
@@ -71,6 +73,93 @@ async function stockBalances(filters = {}) {
   return rows;
 }
 
+async function listStockEntries(filters = {}) {
+  const pagination = paginationOptions(filters, 25, 100);
+  const params = [];
+  const where = [];
+  addVoucherOwnerFilter(where, params, 'se', filters.ownerId);
+  if (filters.excludeReconciliations) where.push("se.entry_type <> 'reconciliation'");
+  const search = String(filters.q || '').trim().toLowerCase();
+  const type = String(filters.entry_type || '').trim();
+  const status = String(filters.status || '').trim();
+  const warehouse = String(filters.warehouse || '').trim();
+  if (search) {
+    params.push(sqlLikePattern(search));
+    where.push(`(LOWER(COALESCE(se.entry_no, '')) LIKE $${params.length}
+      OR LOWER(se.entry_type) LIKE $${params.length}
+      OR LOWER(COALESCE(se.remarks, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(se.supplier_name, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(se.supplier_reference, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(se.cost_center, '')) LIKE $${params.length}
+      OR EXISTS (SELECT 1 FROM app_stock_entry_items search_item
+        WHERE search_item.stock_entry_id = se.id
+          AND (LOWER(search_item.item_code) LIKE $${params.length}
+            OR LOWER(COALESCE(search_item.item_name, '')) LIKE $${params.length})))`);
+  }
+  if (type && STOCK_ENTRY_TYPES.includes(type)) {
+    params.push(type);
+    where.push(`se.entry_type = $${params.length}`);
+  }
+  if (status && ['draft', 'submitted', 'cancelled'].includes(status)) {
+    params.push(status);
+    where.push(`COALESCE(se.docstatus, 'submitted') = $${params.length}`);
+  }
+  for (const [key, operator] of [['from', '>='], ['to', '<=']]) {
+    const date = String(filters[key] || '').trim();
+    if (isValidIsoDate(date)) {
+      params.push(date);
+      where.push(`se.posting_date ${operator} $${params.length}`);
+    }
+  }
+  if (warehouse) {
+    params.push(warehouse);
+    where.push(`EXISTS (SELECT 1 FROM app_stock_entry_items warehouse_item
+      WHERE warehouse_item.stock_entry_id = se.id
+        AND (warehouse_item.warehouse = $${params.length}
+          OR warehouse_item.target_warehouse = $${params.length}))`);
+  }
+  if (Array.isArray(filters.allowedWarehouses)) {
+    params.push(filters.allowedWarehouses);
+    where.push(`NOT EXISTS (SELECT 1 FROM app_stock_entry_items restricted_item
+      WHERE restricted_item.stock_entry_id = se.id AND (
+        COALESCE(restricted_item.warehouse, '') <> ''
+          AND restricted_item.warehouse <> ALL($${params.length}::text[])
+        OR COALESCE(restricted_item.target_warehouse, '') <> ''
+          AND restricted_item.target_warehouse <> ALL($${params.length}::text[])))`);
+  }
+  if (Array.isArray(filters.deniedWarehouses) && filters.deniedWarehouses.length) {
+    params.push(filters.deniedWarehouses);
+    where.push(`NOT EXISTS (SELECT 1 FROM app_stock_entry_items denied_item
+      WHERE denied_item.stock_entry_id = se.id
+        AND (denied_item.warehouse = ANY($${params.length}::text[])
+          OR denied_item.target_warehouse = ANY($${params.length}::text[])))`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const pool = getPostgresPool();
+  const countResult = await pool.query(`SELECT COUNT(*)::int AS total FROM app_stock_entries se ${whereSql}`, params);
+  const total = Number(countResult.rows[0]?.total || 0);
+  pagination.page = Math.min(pagination.page, Math.max(1, Math.ceil(total / pagination.limit)));
+  pagination.offset = (pagination.page - 1) * pagination.limit;
+  const rowsResult = await pool.query(`
+    SELECT se.id, se.entry_no, se.entry_type, COALESCE(se.docstatus, 'submitted') AS docstatus,
+      se.posting_date::text, se.posting_time::text, se.remarks, se.cost_center,
+      COALESCE(item_summary.item_count, 0)::int AS item_count,
+      COALESCE(item_summary.warehouses, '') AS warehouses
+    FROM app_stock_entries se
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS item_count,
+        STRING_AGG(DISTINCT item.warehouse, ', ' ORDER BY item.warehouse) AS warehouses
+      FROM app_stock_entry_items item WHERE item.stock_entry_id = se.id
+    ) item_summary ON true
+    ${whereSql}
+    ORDER BY se.posting_date DESC, se.posting_time DESC, se.id DESC
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+  `, [...params, pagination.limit, pagination.offset]);
+  return { rows: rowsResult.rows.map((row) => ({ ...row,
+    id: Number(row.id), posting_time: storedPostingTime(row.posting_time),
+  })), pagination: paginationResult(total, pagination) };
+}
+
 async function localStockQuantity(itemCode, warehouse) {
   const { rows } = await getPostgresPool().query(
     `
@@ -107,14 +196,15 @@ async function createStockEntry(payload) {
   const docstatus = payload.action === 'save_draft' ? 'draft' : 'submitted';
 
   return withPostgresTransaction(async (client) => {
+    const costCenter = await validateCostCenter(client, payload.cost_center);
     const supplier = entryType === 'purchase' ? normalizeSupplierInfo(payload) : normalizeSupplierInfo();
     const { rows } = await client.query(
       `
       INSERT INTO app_stock_entries (
         entry_type, docstatus, posting_date, posting_time, remarks, supplier_name, supplier_contact,
-        supplier_phone, supplier_reference
+        supplier_phone, supplier_reference, cost_center
       )
-      VALUES ($1, $2, $3, $9, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $9, $4, $5, $6, $7, $8, $10)
       RETURNING id
       `,
       [
@@ -127,6 +217,7 @@ async function createStockEntry(payload) {
         supplier.supplier_phone || null,
         supplier.supplier_reference || null,
         postingTime,
+        costCenter,
       ],
     );
     const id = Number(rows[0].id);
@@ -156,7 +247,7 @@ async function loadStockEntry(id) {
   const { rows } = await getPostgresPool().query(
     `
     SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
-      id, entry_no, entry_type, docstatus, posting_date::text, posting_time::text, remarks,
+      id, entry_no, entry_type, docstatus, posting_date::text, posting_time::text, remarks, cost_center,
       supplier_name, supplier_contact, supplier_phone, supplier_reference,
       submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at
@@ -211,7 +302,7 @@ async function loadStockEntry(id) {
   };
 }
 
-async function stockEntryCancelTemplate(identifier) {
+async function stockEntryCancelTemplate(identifier, ownerId = null) {
   const value = String(identifier || '').trim();
   if (!value) {
     const err = new Error('Enter a stock entry number to cancel.');
@@ -221,11 +312,13 @@ async function stockEntryCancelTemplate(identifier) {
   const numericId = Number(value);
   const params = Number.isFinite(numericId) ? [numericId] : [value.toUpperCase()];
   const condition = Number.isFinite(numericId) ? 'id = $1' : 'UPPER(entry_no) = $1';
+  const ownerCondition = ownerId === null ? '' : ' AND created_by_user_id = $2';
+  if (ownerId !== null) params.push(String(ownerId));
   const { rows } = await getPostgresPool().query(
     `
     SELECT id, entry_no, entry_type, docstatus, posting_date::text, remarks
     FROM app_stock_entries
-    WHERE ${condition}
+    WHERE ${condition}${ownerCondition}
     `,
     params,
   );
@@ -268,10 +361,11 @@ async function stockEntryCancelTemplate(identifier) {
   };
 }
 
-async function searchStockEntriesForCancel(search = '') {
+async function searchStockEntriesForCancel(search = '', ownerId = null) {
   const value = String(search || '').trim();
   const params = [];
   const where = ["COALESCE(se.docstatus, 'submitted') = 'submitted'"];
+  addVoucherOwnerFilter(where, params, 'se', ownerId);
   if (value) {
     params.push(sqlLikePattern(value.toLowerCase()));
     where.push(`(
@@ -339,6 +433,7 @@ async function updateStockEntry(id, payload) {
   const docstatus = payload.action === 'save_draft' ? 'draft' : 'submitted';
 
   return withPostgresTransaction(async (client) => {
+    const costCenter = await validateCostCenter(client, payload.cost_center);
     const { rows: existingRows } = await client.query(
       'SELECT id, entry_no, docstatus FROM app_stock_entries WHERE id = $1 FOR UPDATE',
       [stockEntryId],
@@ -367,7 +462,8 @@ async function updateStockEntry(id, payload) {
           supplier_name = $5,
           supplier_contact = $6,
           supplier_phone = $7,
-          supplier_reference = $8
+          supplier_reference = $8,
+          cost_center = $11
       WHERE id = $9
       `,
       [
@@ -381,6 +477,7 @@ async function updateStockEntry(id, payload) {
         supplier.supplier_reference || null,
         stockEntryId,
         postingTime,
+        costCenter,
       ],
     );
     if (docstatus === 'submitted') {
@@ -626,6 +723,7 @@ async function stockLedgerReport(filters = {}) {
   const params = [];
   const where = [];
   addReportFilters(where, params, filters);
+  addStockLedgerOwnerFilter(where, params, 'l', filters.ownerId, filters.ownerEmployeeId);
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const countResult = await getPostgresPool().query(
     `
@@ -643,6 +741,15 @@ async function stockLedgerReport(filters = {}) {
   params.push(pagination.limit, pagination.offset);
   const { rows } = await getPostgresPool().query(
     `
+    WITH ledger_running_balances AS (
+      SELECT id,
+        SUM(qty_change) OVER (
+          PARTITION BY item_code, warehouse
+          ORDER BY posting_date ASC, id ASC
+          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS balance_qty
+      FROM app_stock_ledger
+    )
     SELECT
       l.posting_date::text AS posting_date,
       l.item_code AS item_code,
@@ -655,9 +762,9 @@ async function stockLedgerReport(filters = {}) {
       END AS stock_entry_type,
       CASE
         WHEN l.is_reversal THEN 'cancelled'
-        WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.docstatus, 'submitted')
-        WHEN l.voucher_type = 'purchase' THEN COALESCE(p.docstatus, 'submitted')
-        WHEN l.voucher_type = 'invoice' THEN COALESCE(i.docstatus, 'submitted')
+        WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.docstatus, 'deleted')
+        WHEN l.voucher_type = 'purchase' THEN COALESCE(p.docstatus, 'deleted')
+        WHEN l.voucher_type = 'invoice' THEN COALESCE(i.docstatus, 'deleted')
         ELSE 'submitted'
       END AS stock_entry_status,
       l.voucher_type AS voucher_type,
@@ -666,6 +773,12 @@ async function stockLedgerReport(filters = {}) {
         ELSE l.voucher_id
       END AS voucher_id,
       l.voucher_no AS voucher_no,
+      CASE
+        WHEN l.voucher_type LIKE 'stock_%' THEN se.id IS NOT NULL
+        WHEN l.voucher_type = 'purchase' THEN p.id IS NOT NULL
+        WHEN l.voucher_type = 'invoice' THEN i.id IS NOT NULL
+        ELSE false
+      END AS voucher_exists,
       l.is_reversal AS is_reversal,
       l.reversal_of_voucher_id AS reversal_of_voucher_id,
       l.reversal_of_voucher_no AS reversal_of_voucher_no,
@@ -674,16 +787,17 @@ async function stockLedgerReport(filters = {}) {
       l.incoming_rate::float AS incoming_rate,
       l.outgoing_rate::float AS outgoing_rate,
       l.stock_value_change::float AS stock_value_change,
-      l.qty_after_transaction::float AS qty_after_transaction,
+      running.balance_qty::float AS qty_after_transaction,
       l.stock_value_after_transaction::float AS stock_value_after_transaction
     FROM app_stock_ledger l
+    JOIN ledger_running_balances running ON running.id = l.id
     LEFT JOIN app_stock_entries se
       ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
       AND l.voucher_type LIKE 'stock_%'
     LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
     LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
     ${whereSql}
-    ORDER BY l.posting_date DESC, l.id DESC
+    ORDER BY l.posting_date ASC, l.id ASC
     LIMIT $${params.length - 1} OFFSET $${params.length}
     `,
     params,
@@ -843,6 +957,7 @@ async function stockEntryDraftReport(filters = {}) {
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
+  addVoucherOwnerFilter(where, params, 'se', filters.ownerId);
   const status = String(filters.status || 'draft').trim();
   const entryType = String(filters.entry_type || '').trim();
   const warehouse = String(filters.warehouse || '').trim();
@@ -924,7 +1039,7 @@ async function stockEntryDraftReport(filters = {}) {
     JOIN app_stock_entry_items item
       ON item.stock_entry_id = se.id
     WHERE ${whereSql}
-    ORDER BY se.posting_date DESC, se.id DESC, item.line_no
+    ORDER BY se.posting_date ASC, se.id ASC, item.line_no ASC
     LIMIT $${params.length - 1} OFFSET $${params.length}
     `,
     params,
@@ -936,6 +1051,7 @@ async function stockMovementReport(filters = {}) {
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
+  addStockLedgerOwnerFilter(where, params, 'app_stock_ledger', filters.ownerId, filters.ownerEmployeeId);
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   const warehouse = String(filters.warehouse || '').trim();
@@ -1060,6 +1176,7 @@ async function stockMovementDetails(filters = {}) {
   }
   const params = [itemCode, warehouse];
   const where = ['item_code = $1', 'warehouse = $2'];
+  addStockLedgerOwnerFilter(where, params, 'app_stock_ledger', filters.ownerId, filters.ownerEmployeeId);
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   if (from) {
@@ -1112,6 +1229,7 @@ async function grossProfitReport(filters = {}) {
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = ["invoice.docstatus = 'submitted'"];
+  addVoucherOwnerFilter(where, params, 'invoice', filters.ownerId, filters.ownerEmployeeId);
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   const search = String(filters.search || '').trim().toLowerCase();
@@ -1195,6 +1313,7 @@ async function grossProfitReport(filters = {}) {
 module.exports = {
   stockSummary,
   stockBalances,
+  listStockEntries,
   localStockQuantity,
   createStockEntry,
   loadStockEntry,

@@ -18,10 +18,11 @@ test('daily activity filters use a valid date range and ERPNext voucher status',
 
 test('daily activity links to the ERPNext voucher and requires report permission', () => {
   assert.equal(voucherLink({ name: 'DAR-000012' }), '/reports/daily-activity/DAR-000012');
-  const allowed = (permissions, path) => permissionCheck({ path, method: 'GET',
-    currentUser: { role: 'standard', permissions } });
-  assert.equal(allowed([], '/reports/daily-activity'), false);
-  assert.equal(allowed(['reports.daily-activity.view'], '/reports/daily-activity/DAR-000012'), true);
+  const allowed = (role, permissions, path) => permissionCheck({ path, method: 'GET',
+    currentUser: { role, permissions } });
+  assert.equal(allowed('standard', [], '/reports/daily-activity'), false);
+  assert.equal(allowed('standard', ['reports.daily-activity.view'], '/reports/daily-activity/DAR-000012'), false);
+  assert.equal(allowed('privileged', ['reports.daily-activity.view'], '/reports/daily-activity/DAR-000012'), true);
 });
 
 test('daily activity queries the ERPNext voucher table with parameterized filters', async () => {

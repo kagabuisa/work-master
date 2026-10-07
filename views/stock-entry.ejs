@@ -12,7 +12,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: stockEntryReadOnly && entry ? entry.entry_no : entry ? 'Edit Entry' : 'New Entry' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Entries', href: '/stock/entries' }, { label: stockEntryReadOnly && entry ? entry.entry_no : entry ? 'Edit Stock Entry' : 'New Stock Entry' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: entry && entry.entry_type === 'purchase' ? 'purchases' : 'stock' }) %>
@@ -22,8 +22,9 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
     <% if (stockEntryReadOnly && entry) { %>
-      <section class="notice"><strong><%= entry.entry_no %></strong> is <%= entry.docstatus || 'submitted' %>.</section>
+      <section class="notice">Status: <strong><%= entry.docstatus || 'submitted' %></strong>.</section>
       <% if (entry.docstatus === 'draft' && can('vouchers.stock.delete')) { %><form method="post" action="/stock/entries/<%= entry.id %>/delete" data-confirm="Delete this draft stock entry? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
+      <% if (entry.docstatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/stock/entries/<%= entry.id %>/delete" data-confirm="Delete this cancelled stock entry? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
     <% } %>
 
     <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form" id="stock-entry-form" <%= stockEntryReadOnly ? '' : 'data-voucher-form' %>>
@@ -53,6 +54,7 @@
           Posting Time
           <input type="time" name="posting_time" value="<%= typeof postingTime !== 'undefined' ? postingTime : entry && entry.posting_time ? entry.posting_time : currentPostingTime() %>" required <%= stockEntryReadOnly ? 'readonly' : '' %>>
         </label>
+        <%- include('cost-center-field', { value: typeof attemptedCostCenter !== 'undefined' ? attemptedCostCenter : entry && entry.cost_center, readOnly: stockEntryReadOnly }) %>
         <label class="wide" id="stock-entry-remarks-wrapper">
           <span class="label-row">
             Remarks
@@ -166,5 +168,6 @@
     window.STOCK_ENTRY_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], readOnly: stockEntryReadOnly }) %>;
   </script>
   <script src="/stock-entry.js"></script>
+  <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

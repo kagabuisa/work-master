@@ -3,15 +3,15 @@
 <head><title>Purchase Orders</title><%- include('partials-head') %></head>
 <body><main class="shell">
   <header class="topbar"><div><p class="eyebrow">Purchase Orders</p>
-    <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchase Orders' }] }) %>
-  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav></header>
+    <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Orders' }] }) %>
+  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav></header>
+  <%- include('voucher-report-tabs', { basePath: '/purchase-orders', title: 'Purchase Order', activeTab: 'list' }) %>
   <form class="report-filters invoice-filters" method="get" action="/purchase-orders">
     <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Number or supplier"></label>
     <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
     <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
     <div class="report-filter-actions"><button type="submit">Apply</button>
       <a class="button button-light" href="/purchase-orders">Reset</a>
-      <% if (can('vouchers.purchase-orders.create')) { %><a class="button" href="/purchase-orders/new">New Purchase Order</a><% } %>
     </div>
   </form>
   <section class="invoice-card report-section"><table>

@@ -14,8 +14,11 @@
       <button type="submit" class="button-light">Cancel Invoice</button>
     </form>
   <% } %>
+  <% if (invoice.docstatus === 'cancelled' && currentUser.role === 'admin') { %>
+    <form method="post" action="/invoices/<%= invoice.id %>/delete" class="inline-form" data-confirm="Delete this cancelled invoice? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form>
+  <% } %>
 <% } %>
 <% if (can('vouchers.sales.create')) { %>
   <a class="button button-light" href="/invoices/<%= invoice.id %>/duplicate">Duplicate</a>
-  <a class="button button-light" href="/invoices/new" aria-label="New Sales Invoice">+ New</a>
+  <a class="button button-light" href="/invoices/new" aria-label="New Sales Invoice">New</a>
 <% } %>

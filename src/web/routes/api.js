@@ -1,7 +1,8 @@
 'use strict';
 // /api lookup routes. Mounted at /api by server.js.
 const express = require('express');
-const { warehouseAllowed, allowedInvoicePriceLists, namedPriceListsForActions,
+const { warehouseAllowed, allowedInvoicePriceLists, allowedPurchasePriceLists, namedPriceListsForActions,
+  allowedMasterRecordIds, deniedMasterRecordIds,
   selectedCategories, requireInvoicePriceList } = require('../../access');
 const { warehouseAccessOptions, accountAccessOptions } = require('../helpers');
 const { normalizeStockQuantity } = require('../../lib/quantity');
@@ -26,6 +27,7 @@ const {
 } = require('../../store');
 
 const router = express.Router();
+const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 
 router.get('/items', async (req, res, next) => {
   try {
@@ -73,12 +75,15 @@ router.post('/invoice-item-prices', async (req, res, next) => {
 
 router.get('/price-lists', async (req, res, next) => {
   try {
+    const voucherLookup = req.query.invoice === '1' || req.query.purchase === '1';
     const rows = await masterPriceLists({ search: String(req.query.q || ''), priceType: String(req.query.type || ''),
-      allowedPriceLists: req.query.invoice === '1' ? allowedInvoicePriceLists(req.currentUser)
+      allowedPriceLists: req.query.purchase === '1' ? allowedPurchasePriceLists(req.currentUser)
+        : voucherLookup || req.currentUser.record_access?.retail_price_list
+        || req.currentUser.record_access?.wholesale_price_list ? allowedInvoicePriceLists(req.currentUser)
         : req.query.item_price === '1' && !['view', 'create', 'edit'].some((action) =>
           res.locals.can(`masters.item-prices.${action}`))
           ? namedPriceListsForActions(req.currentUser, ['create']) : undefined,
-      deniedPriceLists: req.query.invoice === '1' ? (req.currentUser.permission_denials || [])
+      deniedPriceLists: voucherLookup ? (req.currentUser.permission_denials || [])
         .filter((key) => key.startsWith('invoice.price-list.view:'))
         .map((key) => key.slice('invoice.price-list.view:'.length)) : undefined,
       currency: ['buying', 'selling'].includes(String(req.query.type || '')) ? 'UGX' : undefined, limit: 200 });
@@ -146,7 +151,7 @@ router.get('/stock-balance', async (req, res, next) => {
 
 router.get('/stock-entry-cancel-template', async (req, res, next) => {
   try {
-    const template = await stockEntryCancelTemplate(req.query.entry);
+    const template = await stockEntryCancelTemplate(req.query.entry, voucherOwnerId(req.currentUser));
     if (template.items.some((item) => item.warehouse && !warehouseAllowed(req.currentUser, item.warehouse)
         || item.target_warehouse && !warehouseAllowed(req.currentUser, item.target_warehouse))) {
       res.status(403).json({ error: 'Warehouse is not permitted.' }); return;
@@ -159,7 +164,7 @@ router.get('/stock-entry-cancel-template', async (req, res, next) => {
 
 router.get('/stock-entries', async (req, res, next) => {
   try {
-    const entries = await searchStockEntriesForCancel(req.query.q);
+    const entries = await searchStockEntriesForCancel(req.query.q, voucherOwnerId(req.currentUser));
     res.json(entries);
   } catch (err) {
     next(err);
@@ -205,7 +210,9 @@ router.get('/suppliers', async (req, res, next) => {
 router.get('/cost-centers', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    res.json(await masterCostCenters({ search, limit: 25 }));
+    res.json(await masterCostCenters({ search, limit: 25,
+      allowedIds: allowedMasterRecordIds(req.currentUser, 'cost-centers'),
+      deniedIds: deniedMasterRecordIds(req.currentUser, 'cost-centers') }));
   } catch (err) {
     next(err);
   }
@@ -221,7 +228,11 @@ router.get('/general-ledger/accounts', async (req, res, next) => {
 
 router.get('/general-ledger/parties', async (req, res, next) => {
   try {
-    res.json(await generalLedgerPartyOptions(req.query.q));
+    res.json(await generalLedgerPartyOptions(req.query.q, { ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
+      customerGroups: selectedCategories(req.currentUser, 'customers'),
+      supplierTypes: selectedCategories(req.currentUser, 'suppliers'),
+      ...accountAccessOptions(req.currentUser) }));
   } catch (err) {
     next(err);
   }
@@ -230,7 +241,9 @@ router.get('/general-ledger/parties', async (req, res, next) => {
 router.get('/employees', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
-    res.json(await masterEmployees({ search, limit: 25 }));
+    res.json(await masterEmployees({ search, limit: 25,
+      allowedIds: allowedMasterRecordIds(req.currentUser, 'employees'),
+      deniedIds: deniedMasterRecordIds(req.currentUser, 'employees') }));
   } catch (err) {
     next(err);
   }
@@ -239,6 +252,8 @@ router.get('/employees', async (req, res, next) => {
 router.get('/journal-reference-options', async (req, res, next) => {
   try {
     const references = await journalReferenceOptions({
+      ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
       party_type: req.query.party_type,
       party_id: req.query.party_id,
       party_name: req.query.party_name,

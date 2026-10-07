@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Sales Invoice Report</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Sales</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Sales', href: '/invoices' }, { label: 'Sales Invoices', href: '/invoices' }, { label: 'Report' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: 'sales' }) %>
+        <% if (can('vouchers.sales.create')) { %>
+          <a class="button" href="/invoices/new" aria-label="New Sales Invoice">New</a>
+        <% } %>
+      </nav>
+    </header>
+    <%- include('sales-invoice-tabs', { activeInvoiceTab: 'report' }) %>
+    <% if (columnsNotice) { %><section class="notice" role="status"><%= columnsNotice %></section><% } %>
+
+    <form class="report-filters invoice-report-filters" method="get" action="/invoices/report">
+      <label>Search<input name="q" value="<%= report.filters.search %>" placeholder="Invoice, customer or item"></label>
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <label>Status<select name="status">
+        <option value="">All statuses</option>
+        <% ['draft', 'submitted', 'cancelled'].forEach((status) => { %>
+          <option value="<%= status %>" <%= report.filters.status === status ? 'selected' : '' %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
+        <% }) %>
+      </select></label>
+      <label>Warehouse<select name="warehouse">
+        <option value="">All warehouses</option>
+        <% warehouses.forEach((warehouse) => { %>
+          <option value="<%= warehouse %>" <%= report.filters.warehouse === warehouse ? 'selected' : '' %>><%= warehouse %></option>
+        <% }) %>
+      </select></label>
+      <label>Item<input name="item" value="<%= report.filters.item %>" placeholder="Code or name"></label>
+      <label>Item Category<input name="category" value="<%= report.filters.category %>" placeholder="Category"></label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/invoices/report">Reset</a>
+        <button type="submit" formaction="/invoices/report/export" class="button-light">Download</button>
+      </div>
+      <details class="invoice-report-columns">
+        <summary>Columns <span><%= report.selectedColumns.length %> selected</span></summary>
+        <div class="invoice-report-column-options">
+          <input type="hidden" name="columns_applied" value="1">
+          <% report.columns.forEach((column) => { %>
+            <label><input type="checkbox" name="columns" value="<%= column.key %>" <%= report.selectedColumns.includes(column.key) ? 'checked' : '' %>><span><%= column.label %></span></label>
+          <% }) %>
+        </div>
+        <div class="invoice-report-column-actions">
+          <button type="button" class="button button-light" data-columns-all>All columns</button>
+          <button type="button" class="button button-light" data-columns-invoice>Only invoice</button>
+          <button type="submit">Apply columns</button>
+          <button type="submit" formmethod="post" formaction="/invoices/report/columns" class="button-light">Save as default</button>
+          <% if (report.hasSavedColumns) { %><button type="submit" formmethod="post" formaction="/invoices/report/columns/reset" class="button-light">Restore app default</button><% } %>
+        </div>
+      </details>
+    </form>
+
+    <section class="invoice-card report-section invoice-report-results">
+      <div class="invoice-report-results-heading">
+        <h1>Invoice details</h1>
+        <span><%= report.pagination.start %>–<%= report.pagination.end %> of <%= report.pagination.total %> rows</span>
+      </div>
+      <div class="entry-table-scroll" role="region" aria-label="Sales invoice report" tabindex="0">
+        <% const shownColumns = report.columns.filter((column) => report.selectedColumns.includes(column.key)); %>
+        <table data-pagination="off">
+          <thead><tr><% shownColumns.forEach((column) => { %><th class="invoice-report-col-<%= column.key %>"><%= column.label %></th><% }) %></tr></thead>
+          <tbody>
+            <% if (!report.rows.length) { %>
+              <tr><td colspan="<%= shownColumns.length %>" class="empty">No invoice details match these filters.</td></tr>
+            <% } %>
+            <% report.rows.forEach((row) => { %>
+              <tr>
+                <% shownColumns.forEach((column) => { const value = row[column.key]; %>
+                  <td class="invoice-report-col-<%= column.key %>">
+                    <% if (column.type === 'link') { %>
+                      <a href="/invoices/<%= row.invoice_id %>" data-voucher-drawer="/invoices/<%= row.invoice_id %>/drawer"><%= value || '—' %></a>
+                    <% } else if (value === null || value === undefined || value === '') { %>
+                      —
+                    <% } else if (column.type === 'money') { %>
+                      <%= money(value) %>
+                    <% } else if (column.type === 'number') { %>
+                      <%= Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }) %>
+                    <% } else if (column.type === 'boolean') { %>
+                      <%= value ? 'Yes' : 'No' %>
+                    <% } else if (column.type === 'date') { %>
+                      <%= formatDate(value) %>
+                    <% } else { %>
+                      <%= value %>
+                    <% } %>
+                  </td>
+                <% }) %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: '/invoices/report' }) %>
+    </section>
+  </main>
+  <script src="/invoice-report.js?v=<%= assetVersion %>"></script>
+</body>
+</html>

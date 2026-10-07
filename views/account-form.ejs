@@ -9,7 +9,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: editing ? 'Edit Account' : 'New Account' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Chart of Accounts', href: '/accounts' }, { label: editing ? 'Edit Account' : 'New Account' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>

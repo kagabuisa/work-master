@@ -9,10 +9,10 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Movement' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Movement' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'report' }) %>
+        <%- include('module-nav', { activeModule: 'stock' }) %>
       </nav>
     </header>
     <form class="report-filters stock-movement-filters" method="get">

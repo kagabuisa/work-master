@@ -14,7 +14,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Journals', href: '/journals' }, { label: journal.id ? journal.journal_no : 'New Journal' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Journals', href: '/journals' }, { label: journal.id ? journal.journal_no : 'New Journal Entry' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
@@ -44,6 +44,7 @@
           Posting Time
           <input type="time" name="posting_time" value="<%= journal.posting_time !== undefined ? journal.posting_time : currentPostingTime() %>" required <%= journalReadOnly ? 'readonly' : '' %>>
         </label>
+        <%- include('cost-center-field', { value: journal.cost_center, readOnly: journalReadOnly }) %>
         <label>
           Party Type
           <select name="party_type" id="party-type" <%= journalReadOnly ? 'disabled' : '' %>>
@@ -162,6 +163,7 @@
           <% if (journalStatus === 'draft' && can('vouchers.journals.edit')) { %><a class="button" href="/journals/<%= journal.id %>/edit">Edit Draft</a><% } %>
           <% if (journalStatus === 'draft' && can('vouchers.journals.submit')) { %><button type="submit" formaction="/journals/<%= journal.id %>/submit" formmethod="post">Submit Journal</button><% } %>
           <% if (journalStatus === 'draft' && can('vouchers.journals.delete')) { %><button type="submit" formaction="/journals/<%= journal.id %>/delete" formmethod="post" class="button-light" data-confirm="Delete this draft journal? This cannot be undone.">Delete Draft</button><% } %>
+          <% if (journalStatus === 'cancelled' && currentUser.role === 'admin') { %><button type="submit" formaction="/journals/<%= journal.id %>/delete" formmethod="post" class="button-light" data-confirm="Delete this cancelled journal? Its ledger reversal history will remain. This cannot be undone.">Delete Voucher</button><% } %>
           <% if (journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
           <% if (manualJournal && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
             <button type="submit" formaction="/journals/<%= journal.id %>/cancel" formmethod="post" class="button-light" data-confirm="Cancel this journal? This will reverse its ledger entries.">Cancel Journal</button>
@@ -176,6 +178,7 @@
   <% if (!journalReadOnly) { %>
     <script src="/journal-account-match.js?v=<%= assetVersion %>"></script>
     <script src="/journal-entry.js?v=<%= assetVersion %>"></script>
+    <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>
   <% } %>
 </body>
 </html>

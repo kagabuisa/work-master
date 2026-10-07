@@ -9,7 +9,7 @@
   <main class="shell">
     <header class="topbar">
       <div>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Invoices', href: '/invoices' }, { label: invoice.invoice_no }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Sales', href: '/invoices' }, { label: 'Sales Invoices', href: '/invoices' }, { label: invoice.invoice_no }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'sales' }) %>

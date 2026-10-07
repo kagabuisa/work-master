@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head><title><%= config.title %> Report</title><%- include('partials-head') %></head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow"><%= config.module === 'accounts' ? 'Accounting' : 'Purchases' %></p>
+        <%- include('breadcrumbs', { breadcrumbs: config.module === 'accounts'
+          ? [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' },
+            { label: 'Journals', href: '/journals' }, { label: 'Report' }]
+          : [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' },
+            { label: `${config.title}s`, href: config.basePath }, { label: 'Report' }] }) %>
+      </div>
+      <nav>
+        <%- include('module-nav', { activeModule: config.module }) %>
+        <% if (config.module === 'accounts') { %>
+          <% if (can('vouchers.journals.create') && (currentUser.role === 'admin' || !['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'))) { %>
+            <a class="button" href="/journals/new" aria-label="New Journal Entry">New</a>
+          <% } %>
+        <% } else { %>
+          <%- include('purchase-new-menu') %>
+        <% } %>
+      </nav>
+    </header>
+    <%- include('voucher-report-tabs', { basePath: config.basePath, title: config.title, activeTab: 'report' }) %>
+    <% if (columnsNotice) { %><section class="notice" role="status"><%= columnsNotice %></section><% } %>
+    <form class="report-filters invoice-report-filters" method="get" action="<%= config.basePath %>/report">
+      <label>Search<input name="q" value="<%= report.filters.search %>" placeholder="<%= config.module === 'accounts' ? 'Journal, party, account or user' : 'Voucher, supplier or item' %>"></label>
+      <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+      <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+      <label>Status<select name="status">
+        <option value="">All statuses</option>
+        <% ['draft', 'submitted', 'cancelled'].forEach((status) => { %>
+          <option value="<%= status %>" <%= report.filters.status === status ? 'selected' : '' %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
+        <% }) %>
+      </select></label>
+      <% if (config.module === 'accounts') { %>
+        <label>Type<select name="journal_type">
+          <option value="">All types</option>
+          <% [['cash_receipt', 'Cash Receipt'], ['payment_journal', 'Payment Journal'], ['journal_entry', 'Journal Entry'], ['sales_invoice', 'Sales Invoice']].forEach(([value, label]) => { %>
+            <option value="<%= value %>" <%= report.filters.journal_type === value ? 'selected' : '' %>><%= label %></option>
+          <% }) %>
+        </select></label>
+        <label>User<input name="user" value="<%= report.filters.user %>" placeholder="Creator login"></label>
+        <label>Account<input name="account" value="<%= report.filters.account %>" placeholder="Code or name"></label>
+      <% } else { %>
+        <label>Warehouse<input name="warehouse" value="<%= report.filters.warehouse %>" placeholder="Warehouse"></label>
+        <label>Item<input name="item" value="<%= report.filters.item %>" placeholder="Code or name"></label>
+        <label>Item Category<input name="category" value="<%= report.filters.category %>" placeholder="Category"></label>
+      <% } %>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="<%= config.basePath %>/report">Reset</a>
+        <button type="submit" formaction="<%= config.basePath %>/report/export" class="button-light">Download</button>
+      </div>
+      <details class="invoice-report-columns" data-first-column="<%= config.firstColumn %>">
+        <summary>Columns <span><%= report.selectedColumns.length %> selected</span></summary>
+        <div class="invoice-report-column-options">
+          <input type="hidden" name="columns_applied" value="1">
+          <% report.columns.forEach((column) => { %>
+            <label><input type="checkbox" name="columns" value="<%= column.key %>" <%= report.selectedColumns.includes(column.key) ? 'checked' : '' %>><span><%= column.label %></span></label>
+          <% }) %>
+        </div>
+        <div class="invoice-report-column-actions">
+          <button type="button" class="button button-light" data-columns-all>All columns</button>
+          <button type="button" class="button button-light" data-columns-invoice>Only <%= config.lineLabel %></button>
+          <button type="submit">Apply columns</button>
+          <button type="submit" formmethod="post" formaction="<%= config.basePath %>/report/columns" class="button-light">Save as default</button>
+          <% if (report.hasSavedColumns) { %><button type="submit" formmethod="post" formaction="<%= config.basePath %>/report/columns/reset" class="button-light">Restore app default</button><% } %>
+        </div>
+      </details>
+    </form>
+    <section class="invoice-card report-section invoice-report-results">
+      <div class="invoice-report-results-heading">
+        <h1><%= config.title %> details</h1>
+        <span><%= report.pagination.start %>–<%= report.pagination.end %> of <%= report.pagination.total %> rows</span>
+      </div>
+      <div class="entry-table-scroll" role="region" aria-label="<%= config.title %> report" tabindex="0">
+        <% const shownColumns = report.columns.filter((column) => report.selectedColumns.includes(column.key)); %>
+        <table data-pagination="off">
+          <thead><tr><% shownColumns.forEach((column) => { %><th class="invoice-report-col-<%= column.key %>"><%= column.label %></th><% }) %></tr></thead>
+          <tbody>
+            <% if (!report.rows.length) { %><tr><td colspan="<%= shownColumns.length %>" class="empty">No <%= config.title.toLowerCase() %> details match these filters.</td></tr><% } %>
+            <% report.rows.forEach((row) => { %>
+              <tr>
+                <% shownColumns.forEach((column) => { const value = row[column.key]; %>
+                  <td class="invoice-report-col-<%= column.key %>">
+                    <% if (column.type === 'link') { %>
+                      <% if (config.module === 'accounts' || config.basePath === '/purchases') { %>
+                        <a href="<%= config.basePath %>/<%= row.voucher_id %>" data-voucher-drawer="<%= config.basePath %>/<%= row.voucher_id %>/drawer"><%= value || '—' %></a>
+                      <% } else { %>
+                        <a href="<%= config.basePath %>/<%= row.voucher_id %>"><%= value || '—' %></a>
+                      <% } %>
+                    <% } else if (value === null || value === undefined || value === '') { %>—
+                    <% } else if (column.type === 'money') { %><%= money(value) %>
+                    <% } else if (column.type === 'number') { %><%= Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }) %>
+                    <% } else if (column.type === 'boolean') { %><%= value ? 'Yes' : 'No' %>
+                    <% } else if (column.type === 'date') { %><%= formatDate(value) %>
+                    <% } else { %><%= value %><% } %>
+                  </td>
+                <% }) %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: `${config.basePath}/report` }) %>
+    </section>
+  </main>
+  <script src="/invoice-report.js?v=<%= assetVersion %>"></script>
+</body>
+</html>

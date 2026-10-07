@@ -18,7 +18,7 @@ function isSubmitted(invoice) {
 
 function buildInvoiceData(payload) {
   if (!isValidIsoDate(payload.invoice_date)) {
-    const err = new Error('Choose a valid invoice date.');
+    const err = new Error('Choose a valid posting date.');
     err.status = 400;
     throw err;
   }
@@ -98,7 +98,7 @@ function buildInvoiceData(payload) {
 function normalizeNonSystemInvoice(value) {
   const normalized = String(value || '').trim();
   if (normalized.length > 100) {
-    const error = new Error('Non-System Invoice must be 100 characters or fewer.');
+    const error = new Error('Ext Invoice must be 100 characters or fewer.');
     error.status = 400;
     throw error;
   }
@@ -139,6 +139,7 @@ function normalizeJournalEntryPayload(payload) {
     err.status = 400;
     throw err;
   }
+  validateJournalAccountSides(lines);
 
   const totalDebit = roundMoney(lines.reduce((sum, line) => sum + line.debit, 0));
   const totalCredit = roundMoney(lines.reduce((sum, line) => sum + line.credit, 0));
@@ -152,6 +153,7 @@ function normalizeJournalEntryPayload(payload) {
     journal_type: journalType,
     posting_date: postingDate,
     posting_time: normalizePostingTime(payload.posting_time),
+    cost_center: String(payload.cost_center || '').trim() || null,
     party_type: String(payload.party_type || '').trim() || null,
     party_id: String(payload.party_id || '').trim() || null,
     party_name: String(payload.party_name || '').trim() || null,
@@ -161,6 +163,16 @@ function normalizeJournalEntryPayload(payload) {
     total_credit: totalCredit,
     lines: lines.map((line, index) => ({ ...line, line_no: index + 1 })),
   };
+}
+
+function validateJournalAccountSides(lines) {
+  const debitAccounts = new Set(lines.filter((line) => Number(line.debit) > 0)
+    .map((line) => String(line.account_id)));
+  if (lines.some((line) => Number(line.credit) > 0 && debitAccounts.has(String(line.account_id)))) {
+    const err = new Error('The same account cannot be used for both debit and credit in one journal.');
+    err.status = 400;
+    throw err;
+  }
 }
 
 function normalizeAccountingAccountPayload(payload) {
@@ -576,6 +588,7 @@ module.exports = {
   buildInvoiceData,
   normalizeNonSystemInvoice,
   normalizeJournalEntryPayload,
+  validateJournalAccountSides,
   normalizeAccountingAccountPayload,
   formatTrialBalanceRow,
   journalTypeLabel,

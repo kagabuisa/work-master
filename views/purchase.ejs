@@ -10,14 +10,14 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchase</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: purchase.purchase_no }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices', href: '/purchases' }, { label: purchase.purchase_no }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <section class="invoice-card">
       <div class="section-title">
-        <h2><%= purchase.purchase_no %></h2>
+        <h2>Purchase Invoice</h2>
         <% if (purchase.docstatus === 'draft') { %>
           <div class="actions">
             <% if (can('vouchers.purchases.edit')) { %><a class="button button-light" href="/purchases/<%= purchase.id %>/edit">Edit</a><% } %>
@@ -28,6 +28,8 @@
           <form method="post" action="/purchases/<%= purchase.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase? Stock and ledger entries will be reversed.">
             <button type="submit" class="button-light">Cancel Purchase</button>
           </form>
+        <% } else if (purchase.docstatus === 'cancelled' && currentUser.role === 'admin') { %>
+          <form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this cancelled purchase? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form>
         <% } %>
       </div>
       <div class="invoice-meta">
@@ -36,6 +38,7 @@
         <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
       </div>
       <% if (purchase.price_list) { %><p>Price List: <strong><%= purchase.price_list %></strong></p><% } %>
+      <% if (purchase.cost_center) { %><p>Cost Center: <strong><%= purchase.cost_center %></strong></p><% } %>
       <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p>Purchase Order: <a href="/purchase-orders/<%= purchase.purchase_order_id %>">PO-<%= String(purchase.purchase_order_id).padStart(6, '0') %></a></p><% } %>
       <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
       <table>

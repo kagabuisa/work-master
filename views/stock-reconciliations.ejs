@@ -9,24 +9,39 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Stock Reconciliations' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Reconciliation' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'stock' }) %></nav>
+      <nav>
+        <%- include('module-nav', { activeModule: 'stock' }) %>
+        <% if (can('vouchers.stock.create') && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/reconciliations/new">New</a><% } %>
+      </nav>
     </header>
-    <section class="reconciliation-heading">
-      <div><h1>Stock reconciliations</h1><p>Review physical counts and the adjustments they posted.</p></div>
-      <% if (can('vouchers.stock.create')) { %><a class="button" href="/stock/reconciliations/new">New reconciliation</a><% } %>
-    </section>
+    <form class="report-filters invoice-filters stock-reconciliation-filters" method="get" action="/stock/reconciliations">
+      <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Voucher, item or remarks"></label>
+      <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
+      <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
+      <label>Status
+        <select name="status">
+          <option value="">All Statuses</option>
+          <% ['draft', 'submitted', 'cancelled'].forEach((status) => { %>
+            <option value="<%= status %>" <%= query.status === status ? 'selected' : '' %>><%= status[0].toUpperCase() + status.slice(1) %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Warehouse<input name="warehouse" value="<%= query.warehouse || '' %>" placeholder="Any warehouse"></label>
+      <div class="report-filter-actions"><button type="submit">Apply</button><a class="button button-light" href="/stock/reconciliations">Reset</a></div>
+    </form>
     <section class="invoice-card report-section">
       <table>
-        <thead><tr><th>Voucher</th><th>Date</th><th>Warehouse</th><th>Items</th><th>Status</th><th>Remarks</th></tr></thead>
+        <thead><tr><th>#</th><th>Voucher</th><th>Date/Time</th><th>Warehouse</th><th>Items</th><th>Status</th><th>Remarks</th></tr></thead>
         <tbody>
-          <% if (!rows.length) { %><tr><td colspan="6" class="empty">No stock reconciliations found.</td></tr><% } %>
-          <% rows.forEach((row) => { %>
+          <% if (!result.rows.length) { %><tr><td colspan="7" class="empty">No stock reconciliations found.</td></tr><% } %>
+          <% result.rows.forEach((row, index) => { %>
             <tr>
+              <td class="row-number"><%= result.pagination.offset + index + 1 %></td>
               <td><a href="/stock/reconciliations/<%= row.id %>"><strong><%= row.entry_no %></strong></a></td>
-              <td><%= formatDate(row.posting_date) %></td>
-              <td><%= row.warehouse || '' %></td>
+              <td><%= formatDateTime(row.posting_date, row.posting_time || '00:00') %></td>
+              <td><%= row.warehouses || '' %></td>
               <td><%= row.item_count %></td>
               <td><span class="badge <%= row.docstatus %>"><%= row.docstatus %></span></td>
               <td><%= row.remarks || '' %></td>
@@ -34,10 +49,7 @@
           <% }) %>
         </tbody>
       </table>
-      <div class="actions">
-        <% if (page > 1) { %><a class="button button-light" href="/stock/reconciliations?page=<%= page - 1 %>">Previous</a><% } %>
-        <% if (hasNext) { %><a class="button button-light" href="/stock/reconciliations?page=<%= page + 1 %>">Next</a><% } %>
-      </div>
+      <%- include('pagination', { pagination: result.pagination, query, basePath: '/stock/reconciliations' }) %>
     </section>
   </main>
 </body>

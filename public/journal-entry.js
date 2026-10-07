@@ -141,6 +141,7 @@ journalLinesBody.addEventListener('input', (event) => {
   if (event.target.matches('[data-account-search]')) {
     const picker = event.target.closest('.journal-account-picker');
     picker.querySelector('[name="account_id"]').value = '';
+    updateJournalTotals();
     showAccountResults(picker);
     return;
   }
@@ -248,6 +249,13 @@ journalForm.addEventListener('submit', (event) => {
     missingAccount.querySelector('[data-account-search]').focus();
     return;
   }
+  const conflictingRow = journalAccountSideConflict();
+  if (conflictingRow) {
+    event.preventDefault();
+    balanceStatus.textContent = 'The same account cannot be used for both debit and credit in one journal.';
+    conflictingRow.querySelector('[data-account-search]').focus();
+    return;
+  }
   const totals = journalTotals();
   if (totals.debit <= 0 || totals.debit !== totals.credit) {
     event.preventDefault();
@@ -307,6 +315,7 @@ function selectAccount(picker, id) {
   input.value = `${account.code} - ${account.name}`;
   input.focus();
   hideAccountResults();
+  updateJournalTotals();
 }
 
 if (!hasEnteredAmounts()) {
@@ -692,11 +701,21 @@ function journalTotals() {
   }, { debit: 0, credit: 0 });
 }
 
+function journalAccountSideConflict() {
+  const rows = [...journalLinesBody.querySelectorAll('tr')];
+  const debitAccounts = new Set(rows.filter((row) => Number(row.querySelector('[name="debit"]').value || 0) > 0)
+    .map((row) => row.querySelector('[name="account_id"]').value).filter(Boolean));
+  return rows.find((row) => Number(row.querySelector('[name="credit"]').value || 0) > 0
+    && debitAccounts.has(row.querySelector('[name="account_id"]').value));
+}
+
 function updateJournalTotals() {
   const totals = journalTotals();
   totalDebit.textContent = formatMoney(totals.debit);
   totalCredit.textContent = formatMoney(totals.credit);
-  if (totals.debit === 0 && totals.credit === 0) {
+  if (journalAccountSideConflict()) {
+    balanceStatus.textContent = 'The same account cannot be used for both debit and credit in one journal.';
+  } else if (totals.debit === 0 && totals.credit === 0) {
     balanceStatus.textContent = '';
   } else if (totals.debit === totals.credit) {
     balanceStatus.textContent = 'Balanced';

@@ -9,15 +9,16 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Sales</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Invoices' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Sales', href: '/invoices' }, { label: 'Sales Invoices' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'sales' }) %>
         <% if (can('vouchers.sales.create')) { %>
-          <a class="button" href="/invoices/new" aria-label="New Sales Invoice">+ New</a>
+          <a class="button" href="/invoices/new" aria-label="New Sales Invoice">New</a>
         <% } %>
       </nav>
     </header>
+    <%- include('sales-invoice-tabs', { activeInvoiceTab: 'list' }) %>
     <form class="report-filters invoice-filters" method="get">
       <label>
         Search
@@ -53,7 +54,7 @@
           <tr>
             <th class="row-number">#</th>
             <th>Invoice</th>
-            <th>Date/Time</th>
+            <th>Posting Date/Time</th>
             <th>Customer</th>
             <th>Total</th>
             <th>Paid</th>

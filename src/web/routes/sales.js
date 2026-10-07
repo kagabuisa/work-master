@@ -8,8 +8,11 @@ const { invoiceFormState, duplicateInvoiceFormState } = require('../../invoice-f
 const { warehouseAccessOptions } = require('../helpers');
 const { findDbCustomer } = require('../parties');
 const { cachedInvoiceList, clearInvoiceCaches } = require('../cache');
-const { selectedCategories, warehouseAllowed, requireInvoicePriceList, accountAllowed } = require('../../access');
+const { invoiceReport, validateSavedColumns, loadSavedColumns, saveDefaultColumns,
+  resetDefaultColumns, csvLine, EXPORT_PAGE_SIZE } = require('../invoice-report');
+const { selectedCategories, warehouseAllowed, invoicePriceListAllowed, allowedNamedListValues, deniedNamedListValues, requireInvoicePriceList, accountAllowed } = require('../../access');
 const { findInvoice, getCompanyInformation, findMasterItem, findMasterRecord, localStockQuantity, createInvoice, submitInvoice, createCashSaleInvoice, submitCashSaleInvoice, updateInvoice, cancelInvoice, updateInvoiceNonSystemNumber, updateVoucherPostingTime, deleteDraftVoucher, addInvoicePayment, cancelInvoicePayment, invoiceForPayment, invoiceWarehouses, masterWarehouses } = require('../../store');
+const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 
 const router = express.Router();
 
@@ -22,9 +25,34 @@ function requireReceiptAccount(user, value) {
   }
 }
 
-router.get('/invoices/new', (_req, res) => {
-  const today = currentPostingDate();
-  res.render('new-invoice', { today, invoice: null, items: [] });
+async function defaultSalesPriceList(user) {
+  const assigned = user.record_access?.retail_price_list;
+  for (const name of [...new Set([assigned, 'Retail Pricelist'].filter(Boolean))]) {
+    if (!invoicePriceListAllowed(user, name)) continue;
+    const list = await findMasterRecord('price-lists', name);
+    if (list && list.active === 1 && list.docstatus === 'submitted'
+        && list.currency === 'UGX' && ['selling', 'both'].includes(list.price_type)) return name;
+  }
+  return '';
+}
+
+router.get('/invoices/new', async (req, res, next) => {
+  try {
+    const today = currentPostingDate();
+    const employeeId = req.currentUser.record_access?.employee_id;
+    const employee = employeeId && await findMasterRecord('employees', employeeId);
+    const defaultWarehouse = req.currentUser.record_access?.warehouse;
+    const defaultRetailPriceList = await defaultSalesPriceList(req.currentUser);
+    const invoice = {
+      ...(employee ? { invoicer_id: employee.employee_id, invoicer: employee.employee_name } : {}),
+      ...(defaultWarehouse && warehouseAllowed(req.currentUser, defaultWarehouse)
+        ? { warehouse: defaultWarehouse } : {}),
+      ...(defaultRetailPriceList ? { price_list: defaultRetailPriceList } : {}),
+    };
+    res.render('new-invoice', { today, invoice: Object.keys(invoice).length ? invoice : null, items: [] });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.post('/invoices', async (req, res, next) => {
@@ -46,6 +74,7 @@ router.post('/invoices', async (req, res, next) => {
     clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
   } catch (err) {
+    logInvoiceSaveError(err, 'create', req.body.action);
     if (id) {
       clearInvoiceCaches();
       res.redirect(`/invoices/${id}?error=${encodeURIComponent('Invoice saved, but submission failed. Review it before submitting again.')}`);
@@ -59,7 +88,8 @@ router.get('/invoices', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
     const [result, warehouses] = await Promise.all([
-      cachedInvoiceList({ ...req.query, allowedGroups: selectedCategories(req.currentUser, 'customers') }),
+      cachedInvoiceList({ ...req.query, allowedGroups: selectedCategories(req.currentUser, 'customers'),
+        ownerId: voucherOwnerId(req.currentUser), ownerEmployeeId: voucherEmployeeId(req.currentUser) }),
       invoiceWarehouseOptions(req.currentUser),
     ]);
     res.set('Cache-Control', 'private, max-age=10');
@@ -73,6 +103,96 @@ router.get('/invoices', async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+});
+
+async function invoiceReportOptions(req, res) {
+  return {
+    ...req.query,
+    savedColumns: await loadSavedColumns(req.currentUser.id),
+    allowedGroups: selectedCategories(req.currentUser, 'customers'),
+    ownerId: voucherOwnerId(req.currentUser),
+    ownerEmployeeId: voucherEmployeeId(req.currentUser),
+    allowedWarehouses: allowedNamedListValues(req.currentUser, 'warehouses'),
+    deniedWarehouses: deniedNamedListValues(req.currentUser, 'warehouses'),
+    canViewProfit: res.locals.can('reports.gross-profit.view'),
+  };
+}
+
+router.get('/invoices/report', async (req, res, next) => {
+  try {
+    const [report, warehouses] = await Promise.all([
+      invoiceReportOptions(req, res).then(invoiceReport),
+      invoiceWarehouseOptions(req.currentUser),
+    ]);
+    res.render('invoice-report', {
+      report,
+      warehouses,
+      query: new URLSearchParams(req.originalUrl.split('?')[1] || ''),
+      money,
+      columnsNotice: req.query.columns_saved === '1' ? 'Default columns saved.'
+        : req.query.columns_reset === '1' ? 'App default columns restored.' : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+function reportColumnsRedirect(body, notice) {
+  const params = new URLSearchParams();
+  for (const key of ['q', 'from', 'to', 'status', 'warehouse', 'item', 'category']) {
+    if (typeof body[key] === 'string' && body[key].trim()) params.set(key, body[key].trim());
+  }
+  params.set(notice, '1');
+  return `/invoices/report?${params}`;
+}
+
+router.post('/invoices/report/columns', async (req, res, next) => {
+  try {
+    const selected = validateSavedColumns(req.body.columns, res.locals.can('reports.gross-profit.view'));
+    await saveDefaultColumns(req.currentUser.id, selected);
+    res.redirect(303, reportColumnsRedirect(req.body, 'columns_saved'));
+  } catch (err) { next(err); }
+});
+
+router.post('/invoices/report/columns/reset', async (req, res, next) => {
+  try {
+    await resetDefaultColumns(req.currentUser.id);
+    res.redirect(303, reportColumnsRedirect(req.body, 'columns_reset'));
+  } catch (err) { next(err); }
+});
+
+router.get('/invoices/report/export', async (req, res, next) => {
+  try {
+    const options = await invoiceReportOptions(req, res);
+    let page = 1;
+    let report = await invoiceReport({ ...options, exportPage: true, page });
+    const shownColumns = report.columns.filter((column) => report.selectedColumns.includes(column.key));
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="sales-invoices-report.csv"',
+      'Cache-Control': 'private, no-store',
+    });
+    res.write(`\uFEFF${csvLine(shownColumns.map((column) => column.label))}`);
+    while (!res.destroyed) {
+      for (const row of report.rows) {
+        if (res.destroyed) return;
+        if (!res.write(csvLine(shownColumns.map((column) => row[column.key])))) {
+          await new Promise((resolve) => {
+            const resume = () => { res.off('drain', resume); res.off('close', resume); resolve(); };
+            res.once('drain', resume);
+            res.once('close', resume);
+          });
+        }
+      }
+      if (report.rows.length < EXPORT_PAGE_SIZE) break;
+      page += 1;
+      report = await invoiceReport({ ...options, exportPage: true, page });
+    }
+    if (!res.destroyed) res.end();
+  } catch (err) {
+    if (res.headersSent) res.destroy(err);
+    else next(err);
   }
 });
 
@@ -107,11 +227,19 @@ router.get('/invoices/:id/edit', async (req, res, next) => {
 router.get('/invoices/:id/duplicate', async (req, res, next) => {
   try {
     const { invoice } = await loadInvoice(req.params.id);
+    const duplicate = duplicateInvoiceFormState(invoice, {
+      invoiceDate: currentPostingDate(),
+      postingTime: currentPostingTime(),
+    });
+    duplicate.items = await Promise.all(duplicate.items.map(async (item) => ({
+      ...item,
+      warehouse: duplicate.invoice.warehouse,
+      stock_at_sale: normalizeStockQuantity((await localStockQuantity(
+        item.item_code, duplicate.invoice.warehouse,
+      )).quantity),
+    })));
     res.render('new-invoice', {
-      ...duplicateInvoiceFormState(invoice, {
-        invoiceDate: currentPostingDate(),
-        postingTime: currentPostingTime(),
-      }),
+      ...duplicate,
       duplicateOf: invoice.invoice_no,
     });
   } catch (err) {
@@ -159,6 +287,7 @@ router.post('/invoices/:id', async (req, res, next) => {
     clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
   } catch (err) {
+    logInvoiceSaveError(err, 'edit', req.body.action);
     try {
       const savedInvoice = await findInvoice(req.params.id);
       if (!savedInvoice || (savedInvoice.docstatus || 'submitted') !== 'draft') {
@@ -303,7 +432,7 @@ router.get('/invoices/:id', async (req, res, next) => {
 });
 
 router.post('/invoices/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('sales', req.params.id); clearInvoiceCaches(); res.redirect(303, '/invoices'); }
+  try { await deleteDraftVoucher('sales', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); clearInvoiceCaches(); res.redirect(303, '/invoices'); }
   catch (error) { next(error); }
 });
 
@@ -466,12 +595,23 @@ function renderInvoiceFormError(res, body, savedInvoice, err) {
   });
 }
 
+function logInvoiceSaveError(err, operation, action) {
+  if ((err.status || 500) < 500) return;
+  console.error('invoice_save_error', {
+    operation,
+    action: String(action || 'save_draft'),
+    code: err.code,
+    message: err.message,
+    stack: err.stack,
+  });
+}
+
 async function buildInvoicePayload(body, user) {
   const payload = {
     invoice_date: body.invoice_date,
     posting_time: body.posting_time,
     due_date: body.due_date,
-    non_system_invoice: body.non_system_invoice,
+    non_system_invoice: body.ext_invoice ?? body.non_system_invoice,
     customer_id: body.customer_id,
     customer_name: String(body.customer_name || '').trim(),
     customer_phone: String(body.customer_phone || '').trim(),
@@ -515,7 +655,8 @@ async function buildInvoicePayload(body, user) {
     }
   }
   const invoicer = payload.invoicer_id && await findMasterRecord('employees', payload.invoicer_id);
-  if (!invoicer || invoicer.disabled === '1') {
+  if (!invoicer || (invoicer.disabled === '1'
+      && payload.invoicer_id !== user?.record_access?.employee_id)) {
     const err = new Error('Select an invoicer from the employee list.'); err.status = 400; throw err;
   }
   payload.invoicer = invoicer.employee_name;

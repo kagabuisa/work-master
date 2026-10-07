@@ -5,10 +5,13 @@ const { money, todayString } = require('../format');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { parseStockEntryPayload } = require('../parsers');
 const { applyReconciliationRatePolicy } = require('../reconciliation-rates');
-const { warehouseAllowed, voucherWarehousesAllowed } = require('../../access');
+const { warehouseAllowed } = require('../../access');
+const { warehouseAccessOptions } = require('../helpers');
+const { voucherOwnerId } = require('../../voucher-ownership');
 const {
   stockSummary,
   stockBalances,
+  listStockEntries,
   createStockEntry,
   loadStockEntry,
   updateStockEntry,
@@ -90,19 +93,10 @@ router.get('/reconciliations/warehouse-stock', async (req, res, next) => {
 
 router.get('/reconciliations', async (req, res, next) => {
   try {
-    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const { rows } = await getPostgresPool().query(`SELECT se.id, se.entry_no,
-      se.posting_date::text, se.docstatus, se.remarks,
-      MIN(item.warehouse) AS warehouse, COUNT(item.id)::int AS item_count
-      FROM app_stock_entries se
-      LEFT JOIN app_stock_entry_items item ON item.stock_entry_id = se.id
-      WHERE se.entry_type = 'reconciliation'
-      GROUP BY se.id ORDER BY se.posting_date DESC, se.id DESC
-      LIMIT 51 OFFSET $1`, [(page - 1) * 50]);
-    const visible = (await Promise.all(rows.map(async (row) =>
-      await voucherWarehousesAllowed(req.currentUser, 'stock', row.id) ? row : null))).filter(Boolean);
-    res.render('stock-reconciliations', { rows: visible.slice(0, 50), page,
-      hasNext: rows.length > 50 });
+    const result = await listStockEntries({ ...req.query, entry_type: 'reconciliation',
+      ownerId: voucherOwnerId(req.currentUser),
+      ...warehouseAccessOptions(req.currentUser) });
+    res.render('stock-reconciliations', { result, query: req.query });
   } catch (err) { next(err); }
 });
 
@@ -118,6 +112,7 @@ router.post('/reconciliations', async (req, res) => {
     const items = parseStockEntryPayload(req.body).items;
     res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
       posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+      cost_center: req.body.cost_center,
       remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
     }, items, err.message, req.body.warehouse));
   }
@@ -157,6 +152,7 @@ router.post('/reconciliations/:id', async (req, res, next) => {
     res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
       id: Number(req.params.id), entry_no: `REC-${String(req.params.id).padStart(6, '0')}`,
       posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+      cost_center: req.body.cost_center,
       remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
     }, items, err.message, req.body.warehouse));
   }
@@ -171,6 +167,7 @@ router.post('/reconciliations/:id/submit', async (req, res, next) => {
     await updateStockEntry(req.params.id, {
       entry_type: 'reconciliation', action: 'submit',
       posting_date: current.entry.posting_date, posting_time: current.entry.posting_time,
+      cost_center: current.entry.cost_center,
       remarks: current.entry.remarks,
       items: current.items.map((item) => ({
         id: item.id, item_code: item.item_code, item_name: item.item_name,
@@ -186,7 +183,7 @@ router.post('/reconciliations/:id/submit', async (req, res, next) => {
 });
 
 router.post('/reconciliations/:id/delete', async (req, res, next) => {
-  try { await loadReconciliation(req.params.id); await deleteDraftVoucher('stock', req.params.id); res.redirect(303, '/stock'); }
+  try { await loadReconciliation(req.params.id); await deleteDraftVoucher('stock', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/stock'); }
   catch (err) { next(err); }
 });
 
@@ -225,6 +222,15 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+router.get('/entries', async (req, res, next) => {
+  try {
+    const result = await listStockEntries({ ...req.query, excludeReconciliations: true,
+      ownerId: voucherOwnerId(req.currentUser),
+      ...warehouseAccessOptions(req.currentUser) });
+    res.render('stock-entries', { result, query: req.query });
+  } catch (err) { next(err); }
+});
+
 router.get('/entries/new', (req, res) => {
   if (req.query.entry_type === 'reconciliation') return res.redirect(302, '/stock/reconciliations/new');
   const defaultEntryType = ['purchase', 'reconciliation'].includes(req.query.entry_type)
@@ -243,6 +249,7 @@ router.post('/entries', async (req, res, next) => {
     if (req.body.entry_type === 'reconciliation') {
       return res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
         posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+        cost_center: req.body.cost_center,
         remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
       }, parseStockEntryPayload(req.body).items, err.message, req.body.warehouse));
     }
@@ -251,6 +258,7 @@ router.post('/entries', async (req, res, next) => {
       postingTime: req.body.posting_time,
       error: err.message || 'Could not save stock entry.',
       entry: null,
+      attemptedCostCenter: req.body.cost_center || '',
       items: [],
     });
   }
@@ -301,7 +309,7 @@ router.post('/entries/:id/posting-time', async (req, res, next) => {
 });
 
 router.post('/entries/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('stock', req.params.id); res.redirect(303, '/stock'); }
+  try { await deleteDraftVoucher('stock', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/stock'); }
   catch (error) { next(error); }
 });
 
@@ -330,6 +338,7 @@ router.post('/entries/:id', async (req, res, next) => {
         postingTime: req.body.posting_time,
         error: err.message || 'Could not save stock entry.',
         ...data,
+        attemptedCostCenter: req.body.cost_center || '',
       });
     } catch (loadErr) {
       next(loadErr);

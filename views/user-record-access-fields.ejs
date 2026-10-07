@@ -1,0 +1,15 @@
+<% [
+  ['warehouse', 'Warehouse'],
+  ['cost_center', 'Cost Center'],
+  ['employee_id', 'Employee name'],
+  ['retail_price_list', 'Retail Price list'],
+  ['wholesale_price_list', 'Wholesale Price list'],
+].forEach(([field, label]) => { %>
+  <label><%= label %>
+    <input name="<%= field %>" list="<%= prefix %>-<%= field %>-options" value="<%= selected[field] || '' %>"
+      autocomplete="off" placeholder="Search and select <%= label.toLowerCase() %>" maxlength="300">
+    <datalist id="<%= prefix %>-<%= field %>-options">
+      <% choices[field].forEach((choice) => { %><option value="<%= choice.label %>"></option><% }) %>
+    </datalist>
+  </label>
+<% }) %>

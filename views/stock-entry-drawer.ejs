@@ -11,12 +11,14 @@
   <div class="invoice-drawer-actions">
     <% if (entry.entry_type === 'reconciliation') { %><a class="button button-light" href="/stock/reconciliations/<%= entry.id %>">Open voucher</a><% } %>
     <% if (entryStatus === 'draft' && can('vouchers.stock.edit')) { %><a class="button button-light" href="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/edit` : `/stock/entries/${entry.id}/edit` %>">Edit</a><% } %>
+    <% if (entryStatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/delete` : `/stock/entries/${entry.id}/delete` %>" class="inline-form" data-confirm="Delete this cancelled stock voucher? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
       <div><span>Type</span><strong><%= entry.entry_type %></strong></div>
       <div><span>Posting Date/Time</span><strong><%= formatDateTime(entry.posting_date, entry.posting_time || '00:00') %></strong></div>
       <div><span>Status</span><strong><span class="badge <%= entryStatus %>"><%= entryStatus === 'draft' ? 'Draft' : entryStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
+      <% if (entry.cost_center) { %><div><span>Cost Center</span><strong><%= entry.cost_center %></strong></div><% } %>
     </div>
     <% if (entry.entry_type === 'purchase' && (entry.supplier_name || entry.supplier_reference)) { %>
       <div class="invoice-meta">

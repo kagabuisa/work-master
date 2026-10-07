@@ -9,12 +9,12 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Reports · ERPNext</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Daily Activity Report', href: '/reports/daily-activity' }, { label: voucher.name }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Reports', href: availableReports[0]?.href || '/reports/daily-activity' }, { label: 'Daily Activity Rpt', href: '/reports/daily-activity' }, { label: voucher.name }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
     </header>
     <div class="daily-activity-heading">
-      <div><p class="eyebrow">Daily Activity Report voucher</p><h1><%= voucher.name %></h1><p><%= voucher.shop || 'Shop/Unit not specified' %> · <%= formatDate(voucher.date) %></p></div>
+      <div><h1>Daily Activity Report</h1><p><%= voucher.shop || 'Shop/Unit not specified' %> · <%= formatDate(voucher.date) %></p></div>
       <span class="badge <%= voucher.status_label.toLowerCase() %>"><%= voucher.status_label %></span>
     </div>
     <section class="invoice-card dar-section">

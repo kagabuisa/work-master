@@ -9,11 +9,13 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Stock', href: '/stock' }, { label: 'Ledger' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: report.filters.entry_type === 'purchase'
+          ? [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Stock Ledger' }]
+          : [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Ledger' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: report.filters.entry_type === 'purchase' ? 'purchases' : 'report' }) %>
-        <% if (can('vouchers.stock.create')) { %><a class="button" href="/stock/entries/new">New Stock Entry</a><% } %>
+        <%- include('module-nav', { activeModule: report.filters.entry_type === 'purchase' ? 'purchases' : 'stock' }) %>
+        <%- include('stock-new-menu') %>
       </nav>
     </header>
     <form class="report-filters stock-ledger-filters" method="get">
@@ -74,7 +76,7 @@
               <td><%= row.stock_entry_type || '' %></td>
               <td><%= row.stock_entry_status || '' %><%= row.is_reversal ? ' reversal' : '' %></td>
               <td>
-                <% if (row.voucher_id) { %>
+                <% if (row.voucher_id && row.voucher_exists !== false) { %>
                   <% const voucherType = row.voucher_type || ''; %>
                   <% const voucherFullUrl = voucherType.startsWith('stock_') ? `/stock/entries/${row.voucher_id}` : voucherType === 'purchase' ? `/purchases/${row.voucher_id}` : `/invoices/${row.voucher_id}`; %>
                   <% const voucherDrawerUrl = voucherType.startsWith('stock_') ? `/stock/entries/${row.voucher_id}/drawer` : voucherType === 'purchase' ? `/purchases/${row.voucher_id}/drawer` : `/invoices/${row.voucher_id}/drawer`; %>

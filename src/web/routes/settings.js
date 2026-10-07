@@ -5,7 +5,8 @@ const multer = require('multer');
 const { getCompanyInformation, saveCompanyInformation, saveDateTimeSettings, masterOptions, itemPriceListFilters, setPriceListActive, setMasterRecordActive, deletePriceList, deleteMasterRecord, updateMasterRecord, createMasterRecord, masterRecordNeighbors, priceListNeighbors } = require('../../store');
 const { listDirectory, downloadableFile, saveUploads } = require('../../project-files');
 const { DEFAULT_IMPORT_FROM, importSalesInvoicesFromMysql } = require('../../sales-invoice-importer');
-const { selectedCategories, namedPriceListsForActions, allowedInvoicePriceLists } = require('../../access');
+const { selectedCategories, namedPriceListsForActions, allowedInvoicePriceLists,
+  allowedMasterRecordIds, deniedMasterRecordIds } = require('../../access');
 const { warehouseAccessOptions } = require('../helpers');
 const { clearInvoiceCaches, salesInvoiceSyncView, syncState } = require('../cache');
 const { masterListConfig } = require('../master-lists');
@@ -277,7 +278,14 @@ router.get('/settings/:list', async (req, res, next) => {
       allowedGroups: config.key === 'customers' ? selectedCategories(req.currentUser, 'customers') : undefined,
       allowedTypes: config.key === 'suppliers' ? selectedCategories(req.currentUser, 'suppliers') : undefined,
       ...(config.key === 'warehouses' ? warehouseAccessOptions(req.currentUser) : {}),
-      allowedPriceLists: config.key === 'price-lists' && !res.locals.can('masters.price-lists.view')
+      allowedIds: ['cost-centers', 'employees'].includes(config.key)
+        ? allowedMasterRecordIds(req.currentUser, config.key) : undefined,
+      deniedIds: ['cost-centers', 'employees'].includes(config.key)
+        ? deniedMasterRecordIds(req.currentUser, config.key) : undefined,
+      allowedPriceLists: config.key === 'price-lists'
+        && (req.currentUser.record_access?.retail_price_list
+          || req.currentUser.record_access?.wholesale_price_list
+          || !res.locals.can('masters.price-lists.view'))
         ? allowedInvoicePriceLists(req.currentUser) || undefined
         : config.key === 'item-prices' && !res.locals.can('masters.item-prices.view')
           ? namedPriceListsForActions(req.currentUser, ['create']) : undefined,

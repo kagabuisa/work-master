@@ -9,11 +9,11 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Accounts' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Chart of Accounts' }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
-        <% if (can('accounts.manage')) { %><a class="button" href="/accounts/new">New Account</a><% } %>
+        <% if (can('accounts.manage')) { %><a class="button" href="/accounts/new" aria-label="New Account">New</a><% } %>
       </nav>
     </header>
 

@@ -11,6 +11,7 @@ function invoiceFormState(body, savedInvoice = null) {
   for (const key of ['invoice_date', 'posting_time', 'due_date', 'non_system_invoice', 'customer_id', 'customer_name', 'customer_phone', 'price_list', 'cost_center', 'invoicer_id', 'invoicer', 'warehouse', 'notes', 'discount_amount', 'tax_amount']) {
     invoice[key] = typeof body[key] === 'string' ? body[key] : '';
   }
+  if (typeof body.ext_invoice === 'string') invoice.non_system_invoice = body.ext_invoice;
   return { invoice, items, today: invoice.invoice_date };
 }
 

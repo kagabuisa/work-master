@@ -9,11 +9,11 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Setup</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Settings', href: '/settings' }, { label: config.title }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Settings', href: '/settings' }, { label: config.title }] }) %>
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'settings' }) %>
-        <% if (can(`masters.${config.key}.create`) || config.key === 'item-prices' && canCreateItemPrice) { %><a class="button" href="/settings/<%= config.key %>/new"><%= config.newLabel %></a><% } %>
+        <% if (can(`masters.${config.key}.create`) || config.key === 'item-prices' && canCreateItemPrice) { %><a class="button" href="/settings/<%= config.key %>/new" aria-label="<%= config.newLabel %>">New</a><% } %>
       </nav>
     </header>
 

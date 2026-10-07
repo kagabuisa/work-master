@@ -4,7 +4,7 @@
   </div>
   <div class="invoice-voucher-info">
     <h1><%= voucherTitle %></h1>
-    <p><%= invoice.invoice_no %></p>
-    <% if (invoice.non_system_invoice) { %><p>Non-System Invoice: <%= invoice.non_system_invoice %></p><% } %>
+    <% if (typeof showVoucherNumber === 'undefined' || showVoucherNumber) { %><p><%= invoice.invoice_no %></p><% } %>
+    <% if (invoice.non_system_invoice) { %><p>Ext Invoice: <%= invoice.non_system_invoice %></p><% } %>
   </div>
 </header>

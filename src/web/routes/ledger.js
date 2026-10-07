@@ -6,6 +6,8 @@ const { currentPostingDate, currentPostingTime } = require('../../posting-time')
 const { ACCOUNT_DETAIL_TYPES } = require('../../account-detail-types');
 const { accountAccessOptions } = require('../helpers');
 const { arrayField } = require('../parsers');
+const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
+const { allowedNamedListValues, deniedNamedListValues } = require('../../access');
 const {
   accountingAccounts,
   createAccountingAccount,
@@ -23,6 +25,7 @@ const {
   deleteDraftVoucher,
 } = require('../../store');
 const { findDbCustomer, findDbSupplier, findDbEmployee } = require('../parties');
+const { registerVoucherReportRoutes } = require('./voucher-report-routes');
 
 const router = express.Router();
 
@@ -36,6 +39,7 @@ function parseJournalEntryPayload(body) {
     journal_type: body.journal_type,
     posting_date: body.posting_date,
     posting_time: body.posting_time,
+    cost_center: body.cost_center,
     party_type: body.party_type,
     party_id: body.party_id,
     party_name: body.party_name,
@@ -198,12 +202,17 @@ router.get('/journals', async (req, res, next) => {
       status: req.query.status,
       page: req.query.page,
       page_size: req.query.page_size,
+      ownerId: voucherOwnerId(req.currentUser),
+      allowedAccounts: allowedNamedListValues(req.currentUser, 'accounts'),
+      deniedAccounts: deniedNamedListValues(req.currentUser, 'accounts'),
     });
     res.render('journals', { journals, pagination: journals.pagination, query: req.query, search, money, journalTypeLabel });
   } catch (err) {
     next(err);
   }
 });
+
+registerVoucherReportRoutes(router, 'journals');
 
 router.get('/journals/new', async (req, res, next) => {
   try {
@@ -291,6 +300,8 @@ router.get('/journals/:id', async (req, res, next) => {
     let selectedReference = null;
     if (journal.reference_no && journal.party_type && (journal.party_id || journal.party_name)) {
       const references = await journalReferenceOptions({
+        ownerId: voucherOwnerId(req.currentUser),
+        ownerEmployeeId: voucherEmployeeId(req.currentUser),
         party_type: journal.party_type,
         party_id: journal.party_id,
         party_name: journal.party_name,
@@ -325,7 +336,7 @@ router.post('/journals/:id/posting-time', async (req, res, next) => {
 });
 
 router.post('/journals/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('journals', req.params.id); res.redirect(303, '/journals'); }
+  try { await deleteDraftVoucher('journals', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/journals'); }
   catch (error) { next(error); }
 });
 

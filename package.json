@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node scripts/start.js",
-    "test": "node --test tests/accounting-release.test.js tests/audit.test.js tests/authorization-fail-closed.test.js tests/daily-activity.test.js tests/date-time-format.test.js tests/debtor-reconciliation.test.js tests/golden-accounting.test.js tests/invoice-form-state.test.js tests/invoice-item-details-postgres.test.js tests/journal-account-search.test.js tests/postgres-only.test.js tests/pricing.test.js tests/project-files.test.js tests/purchase-orders.test.js tests/schema-migration.test.js tests/script-json.test.js tests/stock-reconciliation.test.js tests/stock-reconciliation-postgres.test.js tests/user-permissions.test.js",
+    "perf:http": "node scripts/benchmark-http.mjs",
+    "test": "node --test tests/accounting-release.test.js tests/audit.test.js tests/authorization-fail-closed.test.js tests/cost-center-default.test.js tests/daily-activity.test.js tests/date-time-format.test.js tests/debtor-reconciliation.test.js tests/display-settings-cache.test.js tests/golden-accounting.test.js tests/invoice-form-state.test.js tests/invoice-item-details-postgres.test.js tests/invoice-list-cache.test.js tests/journal-account-search.test.js tests/postgres-only.test.js tests/pricing.test.js tests/project-files.test.js tests/purchase-orders.test.js tests/schema-migration.test.js tests/script-json.test.js tests/session-idle.test.js tests/stock-reconciliation.test.js tests/stock-reconciliation-postgres.test.js tests/user-permissions.test.js tests/voucher-shortcut.test.js",
     "test:accounting": "node scripts/test-accounting.js",
     "release:check": "npm test && npm run test:accounting",
     "user:create": "node scripts/create-user.js",

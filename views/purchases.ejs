@@ -9,10 +9,11 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchases</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Dashboard', href: '/' }, { label: 'Purchases' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
+      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
+    <%- include('voucher-report-tabs', { basePath: '/purchases', title: 'Purchase Invoice', activeTab: 'list' }) %>
     <form class="report-filters invoice-filters" method="get" action="/purchases">
       <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Number or supplier"></label>
       <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
@@ -20,7 +21,6 @@
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
         <a class="button button-light" href="/purchases">Reset</a>
-        <% if (can('vouchers.purchases.create')) { %><a class="button" href="/purchases/new">New Purchase Invoice</a><% } %>
       </div>
     </form>
     <section class="invoice-card report-section">
