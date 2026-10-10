@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const ejs = require('ejs');
+const { renderView } = require('./helpers/render-view');
 const { pool } = require('../src/db');
 const { normalizeFilters, voucherLink, dailyActivityReport, dailyActivityVoucher } = require('../src/web/daily-activity');
 const { permissionCheck } = require('../src/authorize');
@@ -58,7 +58,7 @@ test('daily activity voucher lookup uses its ERPNext name', async () => {
 test('daily activity report and voucher render ERPNext fields', async () => {
   const shared = { assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
     availableReports: [], formatDate: (value) => value, money: (value) => `Ugx ${value}` };
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'daily-activity.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'daily-activity.ejs'), {
     ...shared, query: {},
     report: { filters: { from: '2026-10-04', to: '2026-10-04', shop: '', status: '', search: '' },
       summary: { total: 1, sales: 200, expense: 25, banked: 175 },
@@ -69,7 +69,7 @@ test('daily activity report and voucher render ERPNext fields', async () => {
   });
   assert.match(html, /href="\/reports\/daily-activity\/DAR-000012">DAR-000012/);
   assert.match(html, /Fuel/);
-  const voucher = await ejs.renderFile(path.join(__dirname, '..', 'views', 'daily-activity-voucher.ejs'), {
+  const voucher = await renderView(path.join(__dirname, '..', 'views', 'daily-activity-voucher.ejs'), {
     ...shared, voucher: { name: 'DAR-000012', date: '2026-10-04', shop: 'Main', status_label: 'Submitted',
       sales: 200, expense: 25, banked: 175, expense_details: 'Fuel', packages_received: 2,
       delivery_differences: 'No', comments_or_remarks: 'Closed early' },

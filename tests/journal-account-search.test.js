@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const ejs = require('ejs');
+const { renderView } = require('./helpers/render-view');
 const { journalAccountMatches } = require('../public/journal-account-match');
 const { scriptJson } = require('../src/web/script-json');
 const { normalizeJournalEntryPayload, validateJournalAccountSides } = require('../src/domain/normalization');
@@ -34,7 +34,7 @@ test('journal account search matches code and name with percent wildcards', () =
 });
 
 test('editable journal lines render account search with a separate account id', async () => {
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'journal-entry.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'journal-entry.ejs'), {
     assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
     availableReports: [], journal: { lines: [{ account_id: 5, debit: 100 }, {}] },
     accounts: [{ id: 5, account_code: '1102', account_name: 'Main Bank Account' }],

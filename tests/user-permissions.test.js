@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const ejs = require('ejs');
+const { renderView } = require('./helpers/render-view');
 const { PERMISSIONS, ROLE_RECORD_TYPES, applyPermissionOverrides, normalizePermissions } = require('../src/auth');
 const { can, permissionCheck, scopeCheck } = require('../src/authorize');
 const { csvLine, selectedColumns, validateSavedColumns, columns: invoiceReportColumns } = require('../src/web/invoice-report');
@@ -180,7 +180,7 @@ test('Standard user with General Ledger Read sees the report link even with cate
   const availableReports = [{ slug: 'general-ledger', label: 'General Ledger', href: '/reports/general-ledger' }];
   const sections = homeSections(user, { can: (permission) => can(user, permission), availableReports });
   assert.equal(sections.find((section) => section.name === 'Reports')?.href, '/reports/general-ledger');
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'module-nav.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'module-nav.ejs'), {
     currentUser: user, availableReports, can: (permission) => can(user, permission), activeModule: 'report',
   });
   assert.match(html, /href="\/reports\/general-ledger"/);
@@ -219,7 +219,7 @@ test('every voucher exposes all six actions and Delete checks its own permission
 test('cancelled invoice deletion is shown only to admins, and submitted invoices cannot be deleted', async () => {
   const view = path.join(__dirname, '..', 'views', 'invoice-actions.ejs');
   const base = { can: () => true, invoicePriceListAllowed: () => true, receiptAccounts: [] };
-  const render = (role, docstatus) => ejs.renderFile(view, {
+  const render = (role, docstatus) => renderView(view, {
     ...base, currentUser: { role }, invoice: { id: 4, docstatus, total: 100 },
   });
   assert.match(await render('admin', 'cancelled'), /action="\/invoices\/4\/delete"/);
@@ -260,7 +260,7 @@ test('sales invoice report column defaults can be saved per user and temporarily
 });
 
 test('sales invoice report shows controls to save and restore column defaults', async () => {
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'invoice-report.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'invoice-report.ejs'), {
     assetVersion: 'test', currentUser: { role: 'admin', username: 'admin' }, can: () => true,
     availableReports: [], warehouses: [], money: String, formatDate: String,
     report: { filters: { search: '', from: '', to: '', status: '', warehouse: '', item: '', category: '' },
@@ -354,7 +354,7 @@ test('purchase and journal reports query lines with their access scopes', async 
 test('voucher report subtabs render filters, columns and CSV controls', async () => {
   for (const kind of ['purchases', 'purchase-orders', 'journals']) {
     const config = reportConfig(kind);
-    const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'voucher-report.ejs'), {
+    const html = await renderView(path.join(__dirname, '..', 'views', 'voucher-report.ejs'), {
       assetVersion: 'test', currentUser: { role: 'admin', username: 'admin' }, can: () => true,
       availableReports: [], config, money: String, formatDate: String,
       report: { filters: { search: '', from: '', to: '', status: '', warehouse: '', item: '',
@@ -398,7 +398,7 @@ test('cost centers use master list permissions and vouchers can search them', as
 });
 
 test('submitted cost centers expose an editable master form', async () => {
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'master-form.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'master-form.ejs'), {
     assetVersion: 'test', currentUser: { role: 'admin', username: 'test' }, can: () => true,
     availableReports: [], error: null, mode: 'edit', editSubmitted: true,
     neighbors: { previous: null, next: null }, optionValues: {},
@@ -536,7 +536,7 @@ test('user permissions use the role row workflow', async () => {
   const role = { slug: 'standard', name: 'Standard', user_count: 1,
     permissions: ['vouchers.sales.view'], scopes: {} };
   const user = { id: 2, username: 'worker', role: 'standard' };
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'roles.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'roles.ejs'), {
     assetVersion: 'test', activeTab: 'users', error: null, notice: null,
     currentUser: { id: 1, username: 'admin', role: 'admin', scopes: {} },
     can: () => true, availableReports: [], roles: [role], selectedRole: role,
@@ -580,7 +580,7 @@ test('warehouse and buying price list records appear under their master lists in
     recordActions: ['create', 'view', 'edit', 'submit', 'cancel', 'delete'],
     extraPermissions: [] };
   for (const activeTab of ['permissions', 'users']) {
-    const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'roles.ejs'),
+    const html = await renderView(path.join(__dirname, '..', 'views', 'roles.ejs'),
       { ...locals, activeTab });
     assert.match(html, /data-permission-type/);
     assert.match(html, /data-granular-record/);

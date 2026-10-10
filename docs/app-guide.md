@@ -27,6 +27,8 @@ This guide describes the current app behavior. Update the relevant section whene
 
 Voucher lists, reports, and full detail, new, and edit pages provide a **New** control for users permitted to create that voucher type, including when viewing submitted or cancelled vouchers. Purchase pages offer Purchase Invoice and Purchase Order when both are permitted; stock detail and form pages offer Stock Entry and Stock Reconciliation. Customer or supplier scope restrictions also apply to these controls.
 
+Invoice dates, due dates, and payment dates retain the selected calendar day when displayed and posted, regardless of the server time zone. This applies to new postings; existing postings are not rewritten.
+
 On a voucher form, press **Ctrl+S** (or **Command+S** on Mac) to use its Save action. The shortcut does not submit or post the voucher.
 On purchase-order forms, pressing **Enter** in an input field does not save the order. Use **Ctrl+S** (or **Command+S**) or the **Create Draft Order**/**Save Draft** button. Enter still inserts a newline in Remarks and activates a focused button.
 Editable voucher forms prefill the user's assigned default **Cost Center** when it is permitted, enabled, and not a group. The default is present when the page loads; a saved cost center takes precedence. Users can change the selection to another permitted cost center.

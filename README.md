@@ -120,6 +120,13 @@ example, with an existing `work_master_test` database:
 POSTGRES_DB=work_master_test npm run release:check
 ```
 
+To run the complete suite, including every PostgreSQL integration check, use
+`POSTGRES_DB=work_master_hr_test npm run test:postgres` with a dedicated database
+whose name ends in `_hr_test`. This command enables all database test flags and
+runs test files sequentially because several reset the public schema. It checks
+the database name and schema ownership before running any tests. Set the database
+connection URL to that test database too if a URL is configured.
+
 If `POSTGRES_URL` or `DATABASE_URL` is configured, it takes precedence over
 `POSTGRES_DB`; set that URL to the dedicated test database instead. Application
 startup applies pending schema migrations under a database lock before accepting

@@ -22,6 +22,12 @@ test('invoice, cash sale, payment, stock and journal postings reconcile', {
   try {
     const seed = await seedGoldenData();
     const pool = store.getPostgresPool();
+    const dates = (await pool.query(`SELECT invoice_date, due_date FROM app_invoices WHERE id = $1`,
+      [seed.invoiceId])).rows[0];
+    assert.deepEqual(dates, { invoice_date: FIXED.date, due_date: FIXED.date });
+    const postingDates = (await pool.query(`SELECT DISTINCT posting_date FROM app_gl_entries
+      WHERE voucher_type IN ('sales_invoice', 'payment_journal')`)).rows;
+    assert.deepEqual(postingDates, [{ posting_date: FIXED.date }], 'invoice and payment dates retain their calendar day');
     const previousInvoice = (await pool.query(
       'SELECT docstatus, amount_paid::float AS amount_paid FROM app_invoices WHERE id = $1', [seed.invoiceId],
     )).rows[0];
