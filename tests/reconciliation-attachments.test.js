@@ -56,7 +56,7 @@ test('scanned sheets persist with the voucher and cannot cross voucher boundarie
       DROP CONSTRAINT app_stock_reconciliation_attachments_content_type_check,
       ADD CONSTRAINT app_stock_reconciliation_attachments_content_type_check
         CHECK (content_type IN ('application/pdf', 'image/jpeg', 'image/png'))`);
-    await pool.query('DELETE FROM wm_schema_version WHERE version = 12');
+    await pool.query('DELETE FROM wm_schema_version WHERE version >= 12');
     await store.initStore();
     await store.initStore();
     const create = () => store.createStockEntry({ entry_type: 'reconciliation', action: 'save_draft', posting_date: FIXED.date,

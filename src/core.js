@@ -5,6 +5,16 @@
 
 const { AuditPool } = require('./audit');
 const { databaseTls } = require('./database-tls');
+const { types } = require('pg');
+
+// A PostgreSQL DATE is a calendar day, not a timestamp at local midnight.
+// Keep it as text so converting it to UTC cannot move postings to the day before.
+const calendarDateTypes = {
+  getTypeParser(oid, format) {
+    if (oid === types.builtins.DATE && format !== 'binary') return (value) => value;
+    return types.getTypeParser(oid, format);
+  },
+};
 
 let postgresPool;
 
@@ -22,6 +32,7 @@ function getPostgresPool() {
     const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
     postgresPool = new AuditPool(connectionString ? {
       connectionString,
+      types: calendarDateTypes,
       ssl: postgresSslConfig(),
     } : {
       host: postgresHost(),
@@ -29,6 +40,7 @@ function getPostgresPool() {
       user: process.env.PGUSER || process.env.POSTGRES_USER,
       password: process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD,
       database: process.env.PGDATABASE || process.env.POSTGRES_DB,
+      types: calendarDateTypes,
       ssl: postgresSslConfig(),
     });
   }

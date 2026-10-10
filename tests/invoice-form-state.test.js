@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const ejs = require('ejs');
+const { renderView } = require('./helpers/render-view');
 const { invoiceFormState, duplicateInvoiceFormState } = require('../src/invoice-form-state');
 const { permissionCheck } = require('../src/authorize');
 const { normalizePostingTime, storedPostingTime } = require('../src/posting-time');
@@ -39,7 +39,7 @@ test('new sales invoices default the employee and permitted retail price list', 
     assert.equal(rendered.data.invoice.invoicer_id, 'EMP-ISA');
     assert.equal(rendered.data.invoice.invoicer, 'Isa Kagabu');
     assert.equal(rendered.data.invoice.price_list, 'Retail Pricelist');
-    const html = await ejs.renderFile(path.join(__dirname, '../views/new-invoice.ejs'), {
+    const html = await renderView(path.join(__dirname, '../views/new-invoice.ejs'), {
       ...locals, ...rendered.data, formError: null,
     });
     assert.match(html, /name="invoicer"[^>]*value="Isa Kagabu"/);
@@ -50,7 +50,7 @@ test('new sales invoices default the employee and permitted retail price list', 
     } } }, res, (error) => errors.push(error));
     assert.equal(rendered.data.invoice.warehouse, 'Main');
     assert.equal(rendered.data.invoice.price_list, 'Retail Selling');
-    const defaultsHtml = await ejs.renderFile(path.join(__dirname, '../views/new-invoice.ejs'), {
+    const defaultsHtml = await renderView(path.join(__dirname, '../views/new-invoice.ejs'), {
       ...locals, ...rendered.data, formError: null,
     });
     assert.match(defaultsHtml, /name="price_list" required>\s*<option value="Retail Selling"/);
@@ -146,7 +146,7 @@ test('duplicate opens a new unpaid draft with copied invoice details and items',
   assert.equal(state.invoice.notes, source.notes);
   assert.deepEqual(state.items, [{ item_code: 'B', item_name: 'Item B', warehouse: 'Retail',
     quantity: 7, unit_price: 200, stock_at_sale: null }]);
-  const html = await ejs.renderFile(path.join(__dirname, '../views/new-invoice.ejs'), {
+  const html = await renderView(path.join(__dirname, '../views/new-invoice.ejs'), {
     ...locals, formError: null, ...state, duplicateOf: source.invoice_no,
   });
   assert.match(html, /action="\/invoices"/);
@@ -209,7 +209,7 @@ test('posting time accepts minute precision and rejects invalid values', () => {
 
 test('failed creation remains a new invoice with Save only and escaped entered values', async () => {
   const state = invoiceFormState(attempted);
-  const html = await ejs.renderFile(path.join(__dirname, '../views/new-invoice.ejs'), { ...locals, ...state });
+  const html = await renderView(path.join(__dirname, '../views/new-invoice.ejs'), { ...locals, ...state });
   assert.match(html, /id="invoice-form" method="post" action="\/invoices"/);
   assert.match(html, /form="invoice-form" data-voucher-save data-edit-save>Save<\/button>/);
   assert.doesNotMatch(html, /Submit Cash Sale|Submit Invoice|name="cash_sale_method"/);
@@ -234,40 +234,40 @@ test('malformed item data does not crash error recovery or accept non-list data'
 test('saved drafts expose submission actions with permission checks; submitted invoices do not', async () => {
   const file = path.join(__dirname, '../views/invoice-actions.ejs');
   const invoice = { id: 12, invoice_date: '2026-09-26', total: 200, docstatus: 'draft' };
-  const draft = await ejs.renderFile(file, { ...locals, invoice });
+  const draft = await renderView(file, { ...locals, invoice });
   assert.match(draft, /data-cash-sale-url="\/invoices\/12\/submit-cash-sale"/);
   assert.match(draft, /action="\/invoices\/12\/submit"/);
   assert.match(draft, /href="\/invoices\/12\/duplicate">Duplicate<\/a>\s*<a[^>]*href="\/invoices\/new"/);
-  const restricted = await ejs.renderFile(file, { invoice, can: () => false });
+  const restricted = await renderView(file, { invoice, can: () => false });
   assert.doesNotMatch(restricted, /Submit/);
   assert.doesNotMatch(restricted, /Duplicate/);
-  const blockedList = await ejs.renderFile(file, { ...locals, invoice, invoicePriceListAllowed: () => false });
+  const blockedList = await renderView(file, { ...locals, invoice, invoicePriceListAllowed: () => false });
   assert.doesNotMatch(blockedList, /action="\/invoices\/12\/submit"|data-cash-sale-url/);
   assert.match(blockedList, /Select an allowed price list/);
-  const submitted = await ejs.renderFile(file, { ...locals, invoice: { ...invoice, docstatus: 'submitted' } });
+  const submitted = await renderView(file, { ...locals, invoice: { ...invoice, docstatus: 'submitted' } });
   assert.doesNotMatch(submitted, /Submit Cash Sale|Submit Invoice/);
 });
 
 test('saved draft edit offers submission actions until the form has changes', async () => {
   const invoice = { id: 12, invoice_no: 'INV-12', invoice_date: '2026-09-26', price_list: 'Retail', warehouse: 'Main', total: 200 };
   const file = path.join(__dirname, '../views/new-invoice.ejs');
-  const draft = await ejs.renderFile(file, { ...locals, formError: null, invoice, items: [], today: '2026-09-26' });
+  const draft = await renderView(file, { ...locals, formError: null, invoice, items: [], today: '2026-09-26' });
   assert.match(draft, /data-cash-sale-url="\/invoices\/12\/submit-cash-sale"/);
   assert.match(draft, /action="\/invoices\/12\/submit"[^>]*data-edit-submit-action/);
   assert.match(draft, /data-edit-save hidden>Save<\/button>/);
 
-  const recovered = await ejs.renderFile(file, { ...locals, invoice, items: [], today: '2026-09-26' });
+  const recovered = await renderView(file, { ...locals, invoice, items: [], today: '2026-09-26' });
   assert.match(recovered, /"recovered":true/);
-  const restricted = await ejs.renderFile(file, { ...locals, can: () => false, invoice, items: [], today: '2026-09-26' });
+  const restricted = await renderView(file, { ...locals, can: () => false, invoice, items: [], today: '2026-09-26' });
   assert.doesNotMatch(restricted, /Submit Cash Sale|Submit Invoice/);
   assert.match(restricted, /data-edit-save>Save<\/button>/);
-  const blockedList = await ejs.renderFile(file, { ...locals, invoicePriceListAllowed: () => false, invoice, items: [], today: '2026-09-26' });
+  const blockedList = await renderView(file, { ...locals, invoicePriceListAllowed: () => false, invoice, items: [], today: '2026-09-26' });
   assert.doesNotMatch(blockedList, /Submit Cash Sale|Submit Invoice/);
   assert.match(blockedList, /data-edit-save>Save<\/button>/);
 });
 
 test('sales payment form offers cash and bank ledger accounts', async () => {
-  const html = await ejs.renderFile(path.join(__dirname, '../views/invoice-payments.ejs'), {
+  const html = await renderView(path.join(__dirname, '../views/invoice-payments.ejs'), {
     ...locals,
     invoice: { id: 12, status: 'unpaid', amount_paid: 0, total: 500 },
     payments: [{ id: 1, payment_date: '2026-09-26', amount: 100,

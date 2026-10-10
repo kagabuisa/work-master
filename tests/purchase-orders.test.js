@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const ejs = require('ejs');
+const { renderView } = require('./helpers/render-view');
 const { permissionCheck } = require('../src/authorize');
 const { normalizePurchase, validatePurchaseOrder } = require('../src/purchases');
 const { normalizePurchaseOrder } = require('../src/purchase-orders');
@@ -126,7 +126,7 @@ test('purchase order form posts to order routes and detail exposes status action
   const base = { assetVersion: 'test', currentUser: { role: 'admin' }, can: () => true,
     availableReports: [], formatDate: (value) => value, formatDateTime: (date, time) => `${date} ${time}`,
     currentPostingTime: () => '11:30', money: (value) => String(value) };
-  const form = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order-form.ejs'), {
+  const form = await renderView(path.join(__dirname, '..', 'views', 'purchase-order-form.ejs'), {
     ...base, purchase: { posting_date: '2026-10-02', items: [{}] }, error: null,
   });
   assert.match(form, /action="\/purchase-orders"/);
@@ -136,14 +136,14 @@ test('purchase order form posts to order routes and detail exposes status action
   assert.match(form, /name="warehouse" id="purchase-order-warehouse"/);
   assert.doesNotMatch(form, /<td data-label="Warehouse">/);
   assert(form.indexOf('name="remarks"') > form.indexOf('id="purchase-items"'));
-  const detail = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
+  const detail = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 1, order_no: 'PO-000001', docstatus: 'draft', posting_date: '2026-10-02',
       posting_time: '11:30', supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying',
       items: [], total: 0 }, error: null,
   });
   assert.match(detail, /\/purchase-orders\/1\/submit/);
   assert.match(detail, /\/purchase-orders\/1\/delete/);
-  const submitted = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
+  const submitted = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 1, order_no: 'PO-000001', docstatus: 'submitted', posting_date: '2026-10-02',
       posting_time: '11:30', supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying',
       items: [{ item_code: 'ITEM-1', item_name: 'Item', warehouse: 'Main', quantity: 5,
@@ -153,7 +153,7 @@ test('purchase order form posts to order routes and detail exposes status action
   assert.match(submitted, /Remaining/);
   assert.match(submitted, /Warehouse: <strong>Main<\/strong>/);
   assert.doesNotMatch(submitted, /<th>Warehouse<\/th>/);
-  const mixed = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
+  const mixed = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 2, order_no: 'PO-000002', docstatus: 'draft', posting_date: '2026-10-02',
       supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying', total: 300,
       items: [{ item_code: 'ITEM-1', item_name: 'First', warehouse: 'Main', quantity: 1, unit_price: 100, line_total: 100 },
@@ -162,13 +162,13 @@ test('purchase order form posts to order routes and detail exposes status action
   });
   assert.match(mixed, /Warehouse: <strong>Multiple warehouses<\/strong>/);
   assert.match(mixed, /<th>Warehouse<\/th>/);
-  const cancelled = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
+  const cancelled = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 1, order_no: 'PO-000001', docstatus: 'cancelled', posting_date: '2026-10-02',
       posting_time: '11:30', supplier_name: 'Supplier', supplier_id: 'SUP-1', price_list: 'Buying',
       items: [], total: 0 }, error: null,
   });
   assert.match(cancelled, /\/purchase-orders\/1\/delete/);
-  const invoice = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
+  const invoice = await renderView(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
     ...base, purchase: { purchase_order_id: 1, supplier_id: 'SUP-1', supplier_name: 'Supplier',
       price_list: 'Buying', posting_date: '2026-10-02', items: [{ purchase_order_item_id: 11,
         item_code: 'ITEM-1', warehouse: 'Main', quantity: 2, unit_price: 100 }] }, error: null,
@@ -176,7 +176,7 @@ test('purchase order form posts to order routes and detail exposes status action
   assert.match(invoice, /name="purchase_order_item_id" value="11"/);
   assert.match(invoice, /name="purchase_order_id" value="1"/);
   assert.match(invoice, /<td data-label="Warehouse">/);
-  const draftInvoice = await ejs.renderFile(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
+  const draftInvoice = await renderView(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
     ...base, purchase: { id: 9, posting_date: '2026-10-02', items: [{}] },
     purchaseOrders: [{ id: 1, order_no: 'PO-000001', supplier_name: 'Supplier' }], error: null,
   });

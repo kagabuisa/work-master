@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const ejs = require('ejs');
+const { renderView } = require('./helpers/render-view');
 const { normalizeStockEntryItems, applyPostgresStockMovement, stockEntryGlLines } = require('../src/domain/posting');
 const { scriptJson } = require('../src/web/script-json');
 const { permissionCheck } = require('../src/authorize');
@@ -75,7 +75,7 @@ test('reconciliation posts differences from the locked balance and skips matchin
 });
 
 test('dedicated stock reconciliation voucher shows counts, differences and save actions', async () => {
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'stock-reconciliation.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'stock-reconciliation.ejs'), {
     assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
     availableReports: [], currentPostingTime: () => '12:00', scriptJson,
     today: '2026-10-04', postingTime: '12:00', error: null, entry: null, items: [], warehouse: '',
@@ -93,7 +93,7 @@ test('dedicated stock reconciliation voucher shows counts, differences and save 
 });
 
 test('saved draft reconciliation supplies current book balances to the count sheet', async () => {
-  const html = await ejs.renderFile(path.join(__dirname, '..', 'views', 'stock-reconciliation.ejs'), {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'stock-reconciliation.ejs'), {
     assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
     availableReports: [], currentPostingTime: () => '12:00', scriptJson,
     today: '2026-10-04', postingTime: '12:00', error: null,
