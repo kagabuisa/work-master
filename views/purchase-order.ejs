@@ -7,7 +7,7 @@
 <body><main class="shell">
   <header class="topbar"><div><p class="eyebrow">Purchase Order</p>
     <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: order.order_no }] }) %>
-  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav></header>
+  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav></header>
   <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
   <section class="invoice-card">
     <div class="section-title"><h2>Purchase Order</h2><div class="actions">

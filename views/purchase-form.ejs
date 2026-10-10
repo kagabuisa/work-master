@@ -11,7 +11,7 @@
         <p class="eyebrow">Purchases</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices', href: '/purchases' }, { label: purchase.id ? 'Edit Purchase Invoice' : 'New Purchase Invoice' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
+      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <% if (!purchase.purchase_order_id && typeof purchaseOrders !== 'undefined' && purchaseOrders.length) { %>

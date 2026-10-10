@@ -3,7 +3,8 @@
 <head>
   <title>Permissions · Work Master</title>
   <%- include('partials-head') %>
-  <script src="/roles.js?v=<%= assetVersion %>-granular-v2" defer></script>
+  <script src="/permission-autocomplete.js?v=<%= assetVersion %>-v2" defer></script>
+  <script src="/roles.js?v=<%= assetVersion %>-granular-autocomplete-v4" defer></script>
 </head>
 <body>
   <main class="shell">
@@ -25,17 +26,21 @@
     </nav>
 
     <% if (activeTab === 'permissions') { %>
-    <section class="invoice-card report-section permission-page">
-      <div class="section-title"><h1>Role permissions</h1><a href="/settings/users">Assign roles to users</a></div>
-      <p class="permission-intro">Choose a role and tick its allowed actions. Changes save automatically; untick Read to remove a permission row.</p>
-      <details class="permission-help"><summary>How record permissions work</summary><p>For a named price list, Read allows use in eligible sales or purchase vouchers, Create adds item prices to it, Write edits it, Submit activates it, Cancel deactivates it, and Delete removes it. For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p></details>
-      <form method="get" action="/settings/roles" class="role-picker">
-        <label>Search roles <input type="search" id="role-search" placeholder="Type a role name" autocomplete="off"></label>
-        <label>Role <select name="role" id="role-select" required>
+    <section class="invoice-card report-section permission-page permission-selector-card" aria-labelledby="role-selector-heading">
+      <div class="permission-selector-heading">
+        <div class="permission-selector-title"><h1 id="role-selector-heading">Role permissions</h1><p>Select a role to review and update its permissions.</p></div>
+        <a class="permission-selector-link" href="/settings/users">Assign roles to users <span aria-hidden="true">↗</span></a>
+      </div>
+      <form method="get" action="/settings/roles" class="role-picker permission-selector-form">
+        <label data-static-labels><span>Search roles</span><input type="search" id="role-search" placeholder="Role name" autocomplete="off"></label>
+        <label data-static-labels><span>Role</span><select name="role" id="role-select" required>
           <% roles.forEach((role) => { %><option value="<%= role.slug %>" <%= selectedRole?.slug === role.slug ? 'selected' : '' %>><%= role.name %><%= role.built_in ? ' · built in' : '' %></option><% }) %>
         </select></label>
         <button type="submit">Open role</button>
+        <button type="button" class="permission-guide-toggle" data-permission-guide-toggle aria-expanded="false" aria-controls="role-permission-guide"><span class="permission-guide-icon" aria-hidden="true">?</span>How record permissions work</button>
+        <div id="role-permission-guide" class="permission-selector-guide" hidden><p>Permission checkbox changes save automatically. Untick Read to remove a permission row. For a named price list, Read allows use in eligible sales or purchase vouchers, Create adds item prices to it, Write edits it, Submit activates it, Cancel deactivates it, and Delete removes it. For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers.</p></div>
       </form>
+
     </section>
 
     <% if (selectedRole) { %>
@@ -59,10 +64,10 @@
               <% }) %>
             </tbody>
           </table></div>
-          <p role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</p>
-            <form method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions" class="role-add-row" data-role-add-row>
+            <fieldset class="permission-panel"><legend class="permission-panel-heading"><span id="role-add-permission-heading">Add Permission</span><span class="permission-panel-status" role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</span></legend>
+            <form id="role-add-permission-panel" aria-labelledby="role-add-permission-heading" method="post" action="/settings/roles/<%= selectedRole.slug %>/permissions" class="role-add-row" data-role-add-row>
               <input type="hidden" name="record_type" data-record-type>
-              <label>Voucher or master list <select required data-permission-type>
+              <label data-static-labels><span class="permission-field-label">Voucher or master list</span><select required data-permission-type>
                 <option value="">Select a type</option>
                 <% [...new Set(recordTypes.filter((type) => !type.parentKey).map((type) => type.group))].forEach((group) => { %>
                   <optgroup label="<%= group %>">
@@ -70,7 +75,7 @@
                   </optgroup>
                 <% }) %>
               </select></label>
-              <label>Specific record (optional) <select data-granular-record disabled>
+              <label data-static-labels><span class="permission-field-label">Specific record (optional)</span><select data-granular-record disabled>
                 <option value="">Select a type first</option>
                 <% recordTypes.filter((type) => type.parentKey).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => selectedRole.permissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
               </select></label>
@@ -79,6 +84,7 @@
               </div>
               <button type="submit">Save permission row</button>
             </form>
+            </fieldset>
         <% } %>
       </section>
       <% if (selectedRole.slug !== 'admin') { %>
@@ -128,18 +134,22 @@
         </form>
       </section>
     <% } else { %>
-      <section class="invoice-card report-section permission-page">
-        <div class="section-title"><h1>User permissions</h1><a href="/settings/users">Manage users</a></div>
-        <p class="permission-intro">Choose a user and tick their allowed actions. Changes save automatically; untick Read to remove a permission row.</p>
-        <details class="permission-help"><summary>How user permissions work</summary><p>User choices override the role; the role supplies access where no override is set. Active price lists, including buying lists, are available as permission types. Read allows a price list's use in eligible sales or purchase vouchers. For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers. Edit a user's default selections on their Edit user page.</p></details>
-        <form method="get" action="/settings/roles" class="role-picker">
+      <section class="invoice-card report-section permission-page permission-selector-card" aria-labelledby="user-selector-heading">
+        <div class="permission-selector-heading">
+          <div class="permission-selector-title"><h1 id="user-selector-heading">User permissions</h1><p>Select a user to review and update their permissions.</p></div>
+          <a class="permission-selector-link" href="/settings/users">Manage users <span aria-hidden="true">↗</span></a>
+        </div>
+        <form method="get" action="/settings/roles" class="role-picker permission-selector-form">
           <input type="hidden" name="tab" value="users">
-          <label>Search users <input type="search" id="user-search" placeholder="Type a username" autocomplete="off"></label>
-          <label>User <select name="user" required>
+          <label data-static-labels><span>Search users</span><input type="search" id="user-search" placeholder="Username" autocomplete="off"></label>
+          <label data-static-labels><span>User</span><select name="user" required>
             <% users.forEach((user) => { %><option value="<%= user.id %>" <%= selectedUser && Number(selectedUser.id) === Number(user.id) ? 'selected' : '' %>><%= user.username %></option><% }) %>
           </select></label>
           <button type="submit">Open user</button>
+        <button type="button" class="permission-guide-toggle" data-permission-guide-toggle aria-expanded="false" aria-controls="user-permission-guide"><span class="permission-guide-icon" aria-hidden="true">?</span>How user permissions work</button>
+        <div id="user-permission-guide" class="permission-selector-guide" hidden><p>Permission checkbox changes save automatically. Untick Read to remove a permission row. User choices override the role; the role supplies access where no override is set. Active price lists, including buying lists, are available as permission types. Read allows a price list's use in eligible sales or purchase vouchers. For an individual warehouse or account, Read allows it to appear in lists and be used in vouchers. Edit a user's default selections on their Edit user page.</p></div>
         </form>
+
       </section>
       <% if (selectedUser) { %>
         <section class="invoice-card report-section permission-page">
@@ -162,10 +172,10 @@
                 <% }) %>
               </tbody>
             </table></div>
-            <p role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</p>
-            <form method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row" class="role-add-row" data-role-add-row>
+              <fieldset class="permission-panel"><legend class="permission-panel-heading"><span id="user-add-permission-heading">Add Permission</span><span class="permission-panel-status" role="status" aria-live="polite" data-permission-status>Changes to the checkboxes above save automatically.</span></legend>
+            <form id="user-add-permission-panel" aria-labelledby="user-add-permission-heading" method="post" action="/settings/users/<%= selectedUser.id %>/permissions/row" class="role-add-row" data-role-add-row>
               <input type="hidden" name="record_type" data-record-type>
-              <label>Voucher or master list <select required data-permission-type>
+              <label data-static-labels><span class="permission-field-label">Voucher or master list</span><select required data-permission-type>
                 <option value="">Select a type</option>
                 <% [...new Set(recordTypes.filter((type) => !type.parentKey).map((type) => type.group))].forEach((group) => { %>
                   <optgroup label="<%= group %>">
@@ -173,7 +183,7 @@
                   </optgroup>
                 <% }) %>
               </select></label>
-              <label>Specific record (optional) <select data-granular-record disabled>
+              <label data-static-labels><span class="permission-field-label">Specific record (optional)</span><select data-granular-record disabled>
                 <option value="">Select a type first</option>
                 <% recordTypes.filter((type) => type.parentKey).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
               </select></label>
@@ -182,6 +192,7 @@
               </div>
               <button type="submit">Save permission row</button>
             </form>
+            </fieldset>
           <% } %>
         </section>
         <% if (selectedUser.role !== 'admin') { %>

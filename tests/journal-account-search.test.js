@@ -43,6 +43,8 @@ test('editable journal lines render account search with a separate account id', 
     scriptJson,
   });
   assert.match(html, /data-account-search/);
+  assert.match(html, /name="line_reference_no"/);
+  assert.match(html, /list="journal-purchase-invoices"/);
   assert.match(html, /name="account_id" value="5"/);
   assert.match(html, /value="1102 - Main Bank Account"/);
   assert.match(html, /journal-account-match\.js/);

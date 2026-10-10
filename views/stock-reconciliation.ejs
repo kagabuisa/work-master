@@ -14,7 +14,7 @@
         <p class="eyebrow">Inventory · Physical count</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Reconciliation', href: '/stock/reconciliations' }, { label: saved ? entry.entry_no : 'New' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'stock' }) %></nav>
+      <nav><%- include('module-nav', { activeModule: 'stock' }) %><%- include('stock-new-menu') %></nav>
     </header>
 
     <% if (saved) { %>
@@ -79,7 +79,16 @@
       <section class="invoice-card reconciliation-count-card">
         <div class="reconciliation-section-heading">
           <div class="reconciliation-section-title"><h2>Count sheet</h2><span class="reconciliation-variance-summary" id="reconciliation-variance-summary" aria-live="polite">No differences yet</span></div>
+          <div class="actions reconciliation-sheet-actions">
+            <button type="button" class="button-light" id="reconciliation-download-sheet">Download Excel template</button>
+            <% if (!isReadOnly) { %>
+              <button type="button" class="button-light" id="reconciliation-upload-sheet">Upload count sheet</button>
+              <input type="file" id="reconciliation-count-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Excel count sheet" hidden>
+            <% } %>
+          </div>
         </div>
+        <p class="field-hint">Choose a warehouse, download the Excel template, and fill Counted Qty. Blank counts are ignored; enter 0 for zero stock. Upload an .xlsx file up to 5 MB to fill a new or draft voucher, then review and save.</p>
+        <p id="reconciliation-sheet-status" role="status" hidden></p>
         <div class="entry-table-scroll" role="region" aria-label="Reconciliation items" tabindex="0">
           <table class="editable entry-table reconciliation-table">
             <thead><tr><th>#</th><th>Item</th><th>Book Qty</th><th>Counted Qty</th><th>Qty difference</th><th>Rate</th><th>Value difference</th><th></th></tr></thead>
@@ -106,10 +115,12 @@
         </div>
       <% } %>
     </form>
+    <%- include('reconciliation-attachments', { saved, entry }) %>
     <% if (saved) { %><%- include('record-audit', { record: entry }) %><% } %>
   </main>
   <script>window.RECONCILIATION_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], balances: typeof balances === 'undefined' ? [] : balances, warehouse: warehouse || '', readOnly: isReadOnly, canEditRate: currentUser.role === 'admin' }) %>;</script>
   <script src="/stock-reconciliation.js?v=<%= assetVersion %>"></script>
+  <script src="/reconciliation-attachments.js?v=<%= assetVersion %>"></script>
   <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

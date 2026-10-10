@@ -13,7 +13,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY server.js ./
 COPY src ./src
-COPY scripts/start.js scripts/create-user.js scripts/reset-user-password.js scripts/update-products-item-categories.js ./scripts/
+COPY scripts ./scripts
+COPY tests ./tests
+COPY docs ./docs
 COPY views ./views
 COPY public ./public
 COPY README.md ./

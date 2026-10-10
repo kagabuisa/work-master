@@ -1,0 +1,9 @@
+<section class="invoice-card hr-card">
+<p>Manage employment dates, shop assignments and dated pay plans. Employee master records remain under Settings.</p>
+<% if(can('masters.employees.create')){ %><a class="button" href="/settings/employees/new">New employee</a><% } %>
+<label>Find employee<input type="search" data-hr-search placeholder="Name, ID or company"></label>
+<div class="table-wrap"><table data-hr-filter><thead><tr><th>Employee</th><th>ID</th><th>Company</th><th>Employment status</th><th>Shop / cost center</th><th>Joined</th><th>Leaving</th></tr></thead><tbody>
+<% opts.employees.forEach(e=>{ %><tr><td><a href="/hr/employees/<%= encodeURIComponent(e.employee_id) %>"><%= e.employee_name %></a></td><td><%= e.employee_id %></td><td><%= e.company %></td><td><%= e.status|| (e.disabled?'Inactive':'Active') %></td><td><%= e.cost_center %></td><td><%= formatDate(e.joining_date) %></td><td><%= formatDate(e.leaving_date) %></td></tr><% }) %>
+</tbody></table></div>
+<% if(!opts.employees.length){ %><p>No permitted employees.</p><% } %>
+</section>

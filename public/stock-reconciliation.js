@@ -9,6 +9,11 @@ const statusMessage = document.querySelector('#reconciliation-status');
 const searchInput = document.querySelector('#reconciliation-item-search');
 const searchResults = document.querySelector('#reconciliation-item-results');
 const varianceSummary = document.querySelector('#reconciliation-variance-summary');
+const downloadSheet = document.querySelector('#reconciliation-download-sheet');
+const uploadSheet = document.querySelector('#reconciliation-upload-sheet');
+const countFile = document.querySelector('#reconciliation-count-file');
+const sheetStatus = document.querySelector('#reconciliation-sheet-status');
+let countSheetBusy = false;
 const readOnly = Boolean(initial.readOnly);
 const canEditRate = Boolean(initial.canEditRate) && !readOnly;
 let rows = [];
@@ -35,6 +40,95 @@ function setStatus(message, error = false) {
   statusMessage.textContent = message;
   statusMessage.classList.toggle('warning-text', error);
 }
+
+function setSheetStatus(message, error = false) {
+  sheetStatus.textContent = message;
+  sheetStatus.hidden = !message;
+  sheetStatus.classList.toggle('warning-text', error);
+}
+
+function sheetWarehouse() { return warehouseInput?.value.trim() || initial.warehouse || ''; }
+
+downloadSheet?.addEventListener('click', async () => {
+  const warehouse = sheetWarehouse();
+  if (!warehouse) { setSheetStatus('Choose a warehouse before downloading the template.', true); warehouseInput?.focus(); return; }
+  downloadSheet.disabled = true;
+  setSheetStatus('Preparing Excel count sheet…');
+  try {
+    const params = new URLSearchParams({ warehouse });
+    if (initial.entry?.id) params.set('voucher_id', initial.entry.id);
+    const response = await fetch(`/stock/reconciliations/count-sheet-template?${params}`);
+    if (!response.ok) throw new Error('Could not download the template. Check your warehouse and permissions.');
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const encodedName = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+    const plainName = /filename="([^"]+)"/i.exec(disposition);
+    link.download = encodedName ? decodeURIComponent(encodedName[1]) : plainName?.[1] || 'stock-count-sheet.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setSheetStatus('Template downloaded. Fill Counted Qty, then upload the completed sheet.');
+  } catch (error) { setSheetStatus(error.message, true); }
+  finally { downloadSheet.disabled = false; }
+});
+
+uploadSheet?.addEventListener('click', () => {
+  if (!sheetWarehouse()) { setSheetStatus('Choose a warehouse before uploading a count sheet.', true); warehouseInput?.focus(); return; }
+  countFile.click();
+});
+
+countFile?.addEventListener('change', async () => {
+  const file = countFile.files[0];
+  if (!file || countSheetBusy || readOnly) return;
+  const warehouse = sheetWarehouse();
+  if (!warehouse) { setSheetStatus('Choose a warehouse first.', true); countFile.value = ''; return; }
+  if (!/\.xlsx$/i.test(file.name) || file.size > 5 * 1024 * 1024) {
+    setSheetStatus('Upload an Excel .xlsx count sheet no larger than 5 MB.', true); countFile.value = ''; return;
+  }
+  if (rows.length && loadedWarehouse && warehouse !== loadedWarehouse) {
+    setSheetStatus('Load the selected warehouse stock before uploading its count sheet.', true); countFile.value = ''; return;
+  }
+  const wasReadOnly = warehouseInput.readOnly;
+  const saveButtons = [...form.querySelectorAll('button[type="submit"]')].map((button) => [button, button.disabled]);
+  countSheetBusy = true;
+  ++loadToken;
+  uploadSheet.disabled = true;
+  if (loadButton) loadButton.disabled = true;
+  warehouseInput.readOnly = true;
+  saveButtons.forEach(([button]) => { button.disabled = true; });
+  setSheetStatus('Reading and validating count sheet…');
+  try {
+    const body = new FormData();
+    body.append('count_sheet', file);
+    body.append('warehouse', warehouse);
+    if (initial.entry?.id) body.append('voucher_id', initial.entry.id);
+    const response = await fetch('/stock/reconciliations/count-sheet-upload', { method: 'POST', headers: { Accept: 'application/json' }, body });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not import the count sheet.');
+    if (result.warehouse !== sheetWarehouse() || !Array.isArray(result.items)) throw new Error('Warehouse changed. Upload the sheet again.');
+    const existing = new Map(rows.map((item) => [item.code, item]));
+    for (const item of result.items) {
+      const previous = existing.get(item.code);
+      if (previous) Object.assign(previous, item, { id: previous.id, rate: previous.rate });
+      else rows.push({ ...item, id: '' });
+    }
+    loadedWarehouse = warehouse;
+    if (searchInput) searchInput.disabled = false;
+    renderRows();
+    setSheetStatus(`${result.items.length.toLocaleString()} count${result.items.length === 1 ? '' : 's'} imported. Review the differences, then save or submit the voucher.`);
+  } catch (error) { setSheetStatus(error.message || 'Could not import the count sheet.', true); }
+  finally {
+    countSheetBusy = false;
+    uploadSheet.disabled = false;
+    if (loadButton) loadButton.disabled = false;
+    warehouseInput.readOnly = wasReadOnly;
+    saveButtons.forEach(([button, disabled]) => { button.disabled = disabled; });
+    countFile.value = '';
+  }
+});
 
 function difference(item) { return rounded(item.counted - item.book); }
 function valueDifference(item) {
@@ -124,6 +218,7 @@ function itemFromSaved(item, balance, posted) {
 }
 
 async function loadWarehouseStock(event) {
+  if (countSheetBusy) return;
   const warehouse = warehouseInput.value.trim();
   if (!warehouse) { setStatus('Choose a warehouse first.', true); warehouseInput.focus(); return; }
   if (loadedWarehouse && rows.length && (warehouse !== loadedWarehouse || event?.type === 'click')
@@ -252,6 +347,7 @@ if (searchInput) {
   });
 }
 form.addEventListener('submit', (event) => {
+  if (countSheetBusy) { event.preventDefault(); setStatus('Wait for the count sheet upload to finish.', true); return; }
   if (!rows.length) { event.preventDefault(); setStatus('Add at least one item to count.', true); return; }
   for (const input of rowsBody.querySelectorAll('[name="quantity"]')) {
     if (input.value === '' || !Number.isFinite(Number(input.value)) || Number(input.value) < 0) {

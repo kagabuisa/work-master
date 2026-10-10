@@ -7,10 +7,13 @@
 <body class="home-page">
   <main class="shell home-shell">
     <section class="home-directory" aria-labelledby="home-directory-title">
+      <header class="home-directory-header">
       <div class="home-directory-heading">
         <img src="/work-master-logo.svg" width="48" height="48" alt="">
         <h1 id="home-directory-title">Work Master <span>- Work Starts Here</span></h1>
       </div>
+        <%- include('account-bar', { showPasswordLink: false }) %>
+      </header>
 
       <% if (sections.length) { %>
         <div class="home-card-grid">

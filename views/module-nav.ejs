@@ -82,6 +82,17 @@
     </section>
     <% } %>
 
+    <% if (['employees','attendance','leave','payroll','money','settings'].some((key) => can(`hr.${key}.view`))) { %>
+    <section class="module-nav-section <%= currentModule === 'hr' ? 'active' : '' %>">
+      <a class="module-nav-primary" href="/hr">HR</a>
+      <div class="module-nav-links">
+        <% [['employees','Employees'],['attendance','Attendance'],['leave','Leave'],['payroll','Payroll'],['money','Employee Money'],['settings','HR Settings']].forEach(([key,label]) => { if (can(`hr.${key}.view`)) { %>
+          <a href="/hr/<%= key %>"><%= label %></a>
+        <% } }) %>
+      </div>
+    </section>
+    <% } %>
+
     <% if (visibleReports.length) { %>
     <section class="module-nav-section <%= currentModule === 'report' ? 'active' : '' %>">
       <a class="module-nav-primary" href="<%= visibleReports[0].href %>">Reports</a>
@@ -110,11 +121,5 @@
     </section>
     <% } %>
   </div>
-  <% if (currentUser) { %>
-    <div class="module-nav-account">
-      <span>Signed in as <strong><%= currentUser.username %></strong> · <%= currentUser.role_name || currentUser.role %></span>
-      <a href="/account/password">Change password</a>
-      <form method="post" action="/logout"><button type="submit">Log out</button></form>
-    </div>
-  <% } %>
 </aside>
+<% if (currentUser) { %><%- include('account-bar', { showPasswordLink: true }) %><% } %>

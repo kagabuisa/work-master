@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head><title><%= title %> · HR</title><%- include('partials-head') %><script src="/hr.js?v=<%= assetVersion %>" defer></script></head>
+<body><main class="shell hr-shell">
+<header class="topbar hr-no-print"><div><p class="eyebrow">Human Resources</p><%- include('breadcrumbs',{breadcrumbs:[{label:'Home',href:'/'},{label:'HR',href:'/hr'},{label:title}]}) %></div><nav><%- include('module-nav',{activeModule:'hr'}) %></nav></header>
+<div class="hr-tabs hr-no-print" role="navigation" aria-label="HR workspaces">
+<% [['employees','Employees'],['attendance','Attendance'],['leave','Leave'],['payroll','Payroll'],['money','Employee Money'],['settings','Settings']].forEach(([key,label])=>{if(can(`hr.${key}.view`)){ %><a href="/hr/<%= key %>" class="button secondary"><%= label %></a><% }}) %>
+</div>
+<h1><%= title %></h1>
+<%- include(`hr-${page}`) %>
+</main></body></html>

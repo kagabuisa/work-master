@@ -38,6 +38,15 @@ function homeSections(user, locals) {
     ...(!scoped ? link('vouchers.journals.create', 'New Journal Entry', '/journals/new') : []),
   ], 'accounts');
 
+  add('HR', 'Employees, attendance, leave, payroll and employee balances.', [
+    ...link('hr.employees.view', 'Employees', '/hr/employees'),
+    ...link('hr.attendance.view', 'Attendance', '/hr/attendance'),
+    ...link('hr.leave.view', 'Leave', '/hr/leave'),
+    ...link('hr.payroll.view', 'Payroll', '/hr/payroll'),
+    ...link('hr.money.view', 'Employee Money', '/hr/money'),
+    ...link('hr.settings.view', 'HR Settings', '/hr/settings'),
+  ], 'accounts');
+
   const visibleReports = scoped ? (user.role === 'standard'
     ? availableReports.filter((report) => report.slug === 'general-ledger') : []) : availableReports;
   add('Reports', 'Financial, sales and stock reporting.', visibleReports.map((report) => ({

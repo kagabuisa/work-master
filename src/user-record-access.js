@@ -17,7 +17,7 @@ async function recordAccessChoices() {
   return {
     warehouse: warehouses.rows.map((row) => ({ id: row.warehouse, label: row.warehouse })),
     cost_center: costCenters.rows.map((row) => ({ id: row.cost_center,
-      label: `${row.cost_center_name} · ${row.cost_center}` })),
+      label: row.cost_center_name || row.cost_center })),
     employee_id: employees.rows.map((row) => ({ id: row.employee_id,
       label: `${row.employee_name} · ${row.employee_id}` })),
     retail_price_list: priceLists.rows.filter((row) => row.pricelist_type === 'Retail')

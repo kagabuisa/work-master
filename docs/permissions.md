@@ -28,3 +28,45 @@ Daily Activity and Debtors reports remain unavailable to Standard users because 
 If Isa Kagabu is the permitted employee for a Standard user, that user can open a sales invoice they created, or an invoice whose invoicer is Isa Kagabu's employee ID. They cannot open a purchase order created by another login, even if they have the Purchase Order Read permission.
 
 Assigning an employee also prefills that employee as the invoicer on a new sales invoice. The user can select another valid invoicer where their other permissions permit it, but that does not make the resulting invoice visible to a different Standard user unless the other user created it or is assigned as its invoicer.
+
+## Stock balance downloads
+
+Downloading Stock Balance CSV requires Stock Entry Read (`vouchers.stock.view`), the same permission used to open Stock Balance.
+
+## Journal invoice allocations
+
+Journal purchase invoice row references use the selected supplier and the same voucher ownership restrictions as the journal reference picker. An inaccessible invoice cannot be allocated by entering its number manually or by submitting an older draft.
+
+## Stock reconciliation count sheets
+
+Downloading an Excel count template requires Stock Entry Read, Create, or Edit. Uploading requires Create for a new reconciliation, or Edit for an existing draft. A saved voucher must satisfy the user's ownership rules and match the selected permitted warehouse. Both actions require an active permitted warehouse; supplier scope restrictions on reconciliations continue to apply. Uploads only populate the form and do not grant Save or Submit permission. Existing valuation-rate restrictions remain in force.
+
+## Scanned reconciliation sheets
+
+Listing and downloading scanned stock sheets requires Stock Entry Read or Edit; uploading or removing scans requires Stock Entry Edit. Every attachment request also checks ownership of the reconciliation voucher, permitted warehouses, and the existing supplier-scope restrictions. Attachments cannot be accessed through another voucher's URL. Attachment changes are permitted on saved reconciliations regardless of status and do not grant permission to edit submitted count rows or post stock.
+
+General Ledger CSV, Excel, and PDF downloads require General Ledger Read permission and preserve the report’s ownership, account, and customer/supplier scope restrictions. Downloads include only the rows accessible to the current user.
+
+
+## HR permissions and visibility
+
+HR has independent permission types under the **HR** group in role and user permission tables. New non-admin built-in roles, including Privileged, receive no HR access by default. Existing roles retain their existing grants; Admin continues to have full access. Employee master Read and journal permissions do not imply access to HR payroll or employee-money records.
+
+| Permission type | Available actions and meaning |
+| --- | --- |
+| HR Employees | Read opens profiles; Write updates employment dates, manager, branch, employment type, and cost center. Employee master creation/editing stays under its existing permissions. |
+| Attendance | Read lists records; Create saves individual/bulk drafts; Submit confirms attendance; Cancel voids records. |
+| Leave | Read shows requests/balances; Create saves requests; Write sets annual allocations; Submit approves; Cancel voids requests. |
+| Employee Money | Read shows employee obligations and payment history; Create saves drafts; Submit approves and posts recoveries/reimbursements; Cancel voids transactions or reverses their payments. |
+| Employee Money Payment | Create records advance/loan disbursements, reimbursements, and cash returns/repayments. It is separate from creating the underlying request. |
+| Payroll | Read shows permitted pay plans, payroll runs, payslips, and CSV exports; Create prepares runs; Write saves dated employee pay plans and reviews draft slips; Submit approves/posts runs; Cancel reverses payments and runs. |
+| Payroll Payment | Create records salary payments against posted payslips. |
+| HR Settings | Read shows calendars, leave types, and mappings; Write configures them. |
+
+Give users Read alongside the actions needed for a workspace. Pay-plan editing from an employee page also needs HR Employees Read and Payroll Read. Recovery selection needs Employee Money Read. Salary and account/payment permissions remain separate even when one user performs several roles.
+
+HR applies existing employee and cost-center assignments/named grants and denials, and account scopes. It checks both current employee scope and stored voucher cost centers where applicable. A whole payroll run and its export require access to every employee and every component/payable account; an individual payslip requires only that slip's employee and accounts. Assign an employee in Settings → Users and grant Payroll Read for restricted payslip access. A user's employee assignment is configured by an administrator, not inferred from ERPNext names or logins.
+
+Non-admin users cannot approve their own leave or employee-money requests. They cannot post payroll they created or last edited. Admin can approve directly. Submitted transactions are immutable, and cancellations enforce dependent payment/recovery rules. Unknown HR paths and unsupported methods are denied by the central route classifier.
+
+General Ledger and its CSV/Excel/PDF exports additionally enforce Payroll Read for payroll accruals/payments and Employee Money Read for employee-money accruals/payments, plus HR employee/cost-center scope. Without that HR grant, the new HR rows are excluded from the detailed ledger and party suggestions. Financial statements continue to include the accounting totals. Generic journal reference copying excludes HR vouchers to keep settlement within the HR allocation workflows.

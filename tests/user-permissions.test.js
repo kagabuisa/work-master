@@ -628,8 +628,16 @@ test('specific warehouse and account choices filter records and reject duplicate
     querySelector(selector) { return ({ '[data-role-add-row]': form,
       '[data-auto-permissions]': table, '[data-permission-status]': status })[selector] || null; },
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'roles.js'), 'utf8'), { document });
+  const enhanced = [];
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'roles.js'), 'utf8'), {
+    document,
+    enhancePermissionSelect(select) {
+      enhanced.push(select);
+      return { refresh() {} };
+    },
+  });
   listeners.DOMContentLoaded();
+  assert.deepEqual(enhanced, [broad, specific]);
   broad.value = 'masters.warehouses';
   listeners['broad:change']();
   assert.equal(specific.disabled, false);

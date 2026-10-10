@@ -59,6 +59,7 @@ const formatMoney = (value) => money.format(value).replace('UGX', 'Ugx');
 let preloadedCustomers = [];
 let itemRequestId = 0;
 let customersLoading = false;
+let customerRequestId = 0;
 let editingPaymentIndex = null;
 
 let itemTimer;
@@ -156,6 +157,8 @@ invoicerSearch.addEventListener('click', searchInvoicers);
 invoicerSearch.addEventListener('blur', () => setTimeout(clearUnselectedInvoicer, 150));
 
 customerSearch.addEventListener('input', () => {
+  customerResults.dataset.closed = '';
+  customerRequestId += 1;
   customerId.value = '';
   clearTimeout(customerTimer);
   customerTimer = setTimeout(searchCustomers, 220);
@@ -169,24 +172,10 @@ customerSearch.addEventListener('click', () => {
   showPreloadedCustomers();
 });
 
-customerSearch.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
-    customerResults.innerHTML = '';
-    return;
-  }
-  if (event.key !== 'Enter' || event.ctrlKey) {
-    return;
-  }
-  const firstResult = customerResults.querySelector('[data-id]');
-  if (!firstResult) {
-    return;
-  }
-  event.preventDefault();
-  selectCustomer(firstResult);
-});
-
 customerSearch.addEventListener('blur', () => {
-  setTimeout(clearUnselectedCustomer, 150);
+  setTimeout(() => {
+    if (!customerResults.contains(document.activeElement)) clearUnselectedCustomer();
+  }, 150);
 });
 
 document.addEventListener('click', (event) => {
@@ -256,6 +245,7 @@ form.addEventListener('submit', (event) => {
 });
 
 form.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented) return;
   if (event.key !== 'Enter' || event.ctrlKey) {
     return;
   }
@@ -350,9 +340,9 @@ function renderItemResults(rows) {
       </div>
       <label class="item-result-quantity">
         <span class="item-result-label">Qty</span>
-        <input type="text" inputmode="decimal" value="1" data-qty>
+        <input type="text" inputmode="decimal" value="1" data-qty aria-label="Quantity for ${escapeAttr(item.item_name || item.item_code)}">
       </label>
-      <button type="button" data-item='${escapeAttr(JSON.stringify(item))}'>Add</button>
+      <button type="button" data-item='${escapeAttr(JSON.stringify(item))}' aria-label="Add ${escapeAttr(item.item_name || item.item_code)}">Add</button>
     </div>
   `).join('') || '<p>No matching items.</p>';
 
@@ -549,6 +539,10 @@ function confirmWithDialog(message) {
 }
 
 async function searchCustomers() {
+  const requestId = ++customerRequestId;
+  const isCurrent = () => requestId === customerRequestId && customerResults.dataset.closed !== 'true'
+    && q === customerSearch.value.trim()
+    && (document.activeElement === customerSearch || customerResults.contains(document.activeElement));
   const q = customerSearch.value.trim();
   if (!q) {
     showPreloadedCustomers();
@@ -556,9 +550,9 @@ async function searchCustomers() {
   }
   try {
     const rows = await fetchCustomers(q);
-    renderCustomerResults(rows);
+    if (isCurrent()) renderCustomerResults(rows);
   } catch {
-    customerResults.innerHTML = '<p>Could not load customers.</p>';
+    if (isCurrent()) customerResults.innerHTML = '<p>Could not load customers.</p>';
   }
 }
 
@@ -578,13 +572,14 @@ async function preloadCustomers() {
     preloadedCustomers = [];
   } finally {
     customersLoading = false;
-    if (document.activeElement === customerSearch && !customerSearch.value.trim()) {
+    if (document.activeElement === customerSearch && !customerSearch.value.trim() && customerResults.dataset.closed !== 'true') {
       showPreloadedCustomers();
     }
   }
 }
 
 function showPreloadedCustomers() {
+  customerResults.dataset.closed = '';
   if (customersLoading) {
     customerResults.innerHTML = '<p>Loading customers...</p>';
     return;
@@ -1068,3 +1063,55 @@ function selectCustomer(button) {
   customerResults.innerHTML = '';
   updateEditActions();
 }
+
+
+// Results contain native buttons and quantity fields; retain their native semantics.
+function enableLookupKeyboard(input, panel, selector) {
+  input.setAttribute('aria-controls', panel.id);
+  input.setAttribute('aria-expanded', 'false');
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', 'Search suggestions');
+  const status = document.createElement('span');
+  status.className = 'lookup-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  panel.after(status);
+  const update = () => {
+    const count = panel.querySelectorAll(selector).length;
+    input.setAttribute('aria-expanded', String(count > 0));
+    status.textContent = count ? `${count} suggestions. Use arrow keys to browse.` : panel.textContent.trim();
+  };
+  new MutationObserver(update).observe(panel, { childList: true, subtree: true });
+  const handleKey = (event) => {
+    const buttons = [...panel.querySelectorAll(selector)];
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      panel.innerHTML = '';
+      if (document.activeElement !== input) input.focus();
+      panel.dataset.closed = 'true';
+      // Focus can start a new search; invalidate pending results and close again.
+      if (input === itemSearch) { clearTimeout(itemTimer); itemRequestId += 1; }
+      if (input === customerSearch) { clearTimeout(customerTimer); customerRequestId += 1; }
+      panel.innerHTML = '';
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key) || !buttons.length) return;
+    event.preventDefault();
+    const index = buttons.indexOf(document.activeElement);
+    const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : buttons.length - 1)
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next].focus();
+  };
+  input.addEventListener('focus', () => { panel.dataset.closed = ''; });
+  input.addEventListener('keydown', handleKey);
+  panel.addEventListener('keydown', (event) => {
+    // Let Enter activate the focused button instead of the form's first-result shortcut.
+    if (event.key === 'Enter' && event.target.matches(selector)) event.stopPropagation();
+    handleKey(event);
+  });
+  update();
+}
+
+enableLookupKeyboard(itemSearch, itemResults, '[data-item]');
+enableLookupKeyboard(customerSearch, customerResults, '[data-id]');

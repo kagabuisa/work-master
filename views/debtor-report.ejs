@@ -13,6 +13,8 @@
     if (report.filters.to) statementParams.set('to', report.filters.to);
     if (report.filters.statement_from && report.filters.statement_from !== report.filters.from) statementParams.set('statement_from', report.filters.statement_from);
     if (report.filters.statement_to && report.filters.statement_to !== report.filters.to) statementParams.set('statement_to', report.filters.statement_to);
+    const pdfParams = new URLSearchParams(statementParams);
+    pdfParams.set('format', 'pdf');
     const closeParams = new URLSearchParams();
     if (report.filters.search) closeParams.set('q', report.filters.search);
     if (report.filters.from) closeParams.set('from', report.filters.from);
@@ -176,6 +178,7 @@
           </div>
         </div>
         <div class="statement-actions no-print">
+          <a class="button button-light" href="/reports/debtors?<%= pdfParams.toString() %>" download>Download PDF</a>
           <button type="button" class="button button-light" data-print-statement>Print</button>
           <button type="button" class="button button-light" data-export-statement>Export</button>
           <% if (paymentInvoiceId) { %>
@@ -236,7 +239,8 @@
             <% } %>
           </form>
           <div class="statement-actions">
-            <button type="button" class="button button-light" data-print-statement>Print</button>
+            <a class="button button-light" href="/reports/debtors?<%= pdfParams.toString() %>" download>Download PDF</a>
+          <button type="button" class="button button-light" data-print-statement>Print</button>
             <button type="button" class="button button-light" data-export-statement>Export</button>
             <% if (paymentInvoiceId) { %>
               <a class="button" href="/reports/debtors?<%= paymentParams.toString() %>">Receive Payment</a>

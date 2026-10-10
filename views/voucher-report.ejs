@@ -15,9 +15,7 @@
       <nav>
         <%- include('module-nav', { activeModule: config.module }) %>
         <% if (config.module === 'accounts') { %>
-          <% if (can('vouchers.journals.create') && (currentUser.role === 'admin' || !['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'))) { %>
-            <a class="button" href="/journals/new" aria-label="New Journal Entry">New</a>
-          <% } %>
+          <%- include('journal-new-button') %>
         <% } else { %>
           <%- include('purchase-new-menu') %>
         <% } %>

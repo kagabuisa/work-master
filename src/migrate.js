@@ -2,11 +2,11 @@
 // Schema bootstrap and historical backfills run under this session lock.
 // Version 1 only recorded that the old startup bootstrap had run. Version 2
 // executes the current idempotent bootstrap once for new and v1 databases.
-const { initPostgresStore } = require('./domain/schema');
+const { initPostgresStore, initReconciliationAttachments } = require('./domain/schema');
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 14;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -114,6 +114,26 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 11,
+    name: 'journal_purchase_invoice_allocations',
+    up: async (client) => {
+      await client.query('ALTER TABLE app_journal_entry_lines ADD COLUMN IF NOT EXISTS reference_no TEXT');
+      await client.query('ALTER TABLE app_purchase_payments ADD COLUMN IF NOT EXISTS journal_entry_id BIGINT REFERENCES app_journal_entries(id) ON DELETE SET NULL');
+      await client.query('CREATE INDEX IF NOT EXISTS app_purchase_payments_journal_idx ON app_purchase_payments(journal_entry_id)');
+    },
+  },
+  { version: 12, name: 'reconciliation_attachments_and_spreadsheets', up: initReconciliationAttachments },
+  { version: 13, name: 'hr_and_payroll', transactional: false, up: async () => {
+    const { initHrSchema, HR_TABLES } = require('./hr-schema');
+    const { withPostgresTransaction } = require('./core');
+    await withPostgresTransaction(initHrSchema);
+    await require('./audit').initRecordAudit(getPostgresPool(), HR_TABLES);
+  } },
+  { version: 14, name: 'hr_working_week_and_payroll_review', up: async (client) => {
+    await client.query("ALTER TABLE app_hr_settings ADD COLUMN IF NOT EXISTS working_weekdays JSONB NOT NULL DEFAULT '[0,1,2,3,4,5,6]'::jsonb");
+    await client.query('ALTER TABLE app_hr_runs ADD COLUMN IF NOT EXISTS review_version INTEGER NOT NULL DEFAULT 0');
+  } },
 ];
 
 async function ensureSchema(pool) {

@@ -3,7 +3,7 @@
 const express = require('express');
 const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
-const { accountAccessOptions } = require('../helpers');
+const { accountAccessOptions, hrLedgerAccessOptions } = require('../helpers');
 const { selectedCategories } = require('../../access');
 const { money, todayString } = require('../format');
 const {
@@ -22,6 +22,8 @@ const {
   getCompanyInformation,
 } = require('../../store');
 
+const { sendCustomerStatementPdf } = require('../customer-statement-pdf');
+const { sendGeneralLedgerExport } = require('../general-ledger-export');
 const router = express.Router();
 
 router.get('/daily-activity', async (req, res, next) => {
@@ -61,6 +63,12 @@ router.get('/debtors', async (req, res, next) => {
       page: req.query.page,
       page_size: req.query.page_size,
     });
+    if (req.query.format === 'pdf') {
+      if (!req.query.customer || !report.selected) {
+        return res.status(404).send('Customer statement not found.');
+      }
+      return await sendCustomerStatementPdf(res, report, await getCompanyInformation(), res.locals.formatDate);
+    }
     const paymentData = req.query.view === 'payment' && report.paymentInvoiceId
       ? await loadInvoice(report.paymentInvoiceId)
       : null;
@@ -173,14 +181,19 @@ router.get('/general-ledger', async (req, res, next) => {
       page: req.query.page,
       page_size: req.query.page_size,
     };
+    const format = String(req.query.format || '').toLowerCase();
+    if (format && !['csv', 'xlsx', 'pdf'].includes(format)) {
+      const error = new Error('Choose CSV, Excel, or PDF.'); error.status = 400; throw error;
+    }
     const [report, filterOptions] = await Promise.all([
-      generalLedgerReport(filters, { ownerId: voucherOwnerId(req.currentUser),
+      generalLedgerReport(filters, { ...hrLedgerAccessOptions(req.currentUser), exportAll: Boolean(format), ownerId: voucherOwnerId(req.currentUser),
         ownerEmployeeId: voucherEmployeeId(req.currentUser),
         customerGroups: selectedCategories(req.currentUser, 'customers'),
         supplierTypes: selectedCategories(req.currentUser, 'suppliers'),
         ...accountAccessOptions(req.currentUser) }),
       generalLedgerFilterOptions(),
     ]);
+    if (format) return await sendGeneralLedgerExport(res, report, format);
     res.render('general-ledger', { report, filterOptions, query: req.query, money });
   } catch (err) {
     next(err);

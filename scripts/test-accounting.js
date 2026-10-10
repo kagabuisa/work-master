@@ -29,8 +29,9 @@ async function main() {
     SCHEMA_TEST_POSTGRES: '1',
     RECONCILIATION_TEST_POSTGRES: '1',
     ITEM_DETAILS_TEST_POSTGRES: '1',
+    JOURNAL_TEST_POSTGRES: '1',
   };
-  for (const file of ['tests/schema-migration.test.js', 'tests/golden-accounting.test.js', 'tests/accounting-release.test.js', 'tests/stock-reconciliation-postgres.test.js', 'tests/invoice-item-details-postgres.test.js']) {
+  for (const file of ['tests/schema-migration.test.js', 'tests/golden-accounting.test.js', 'tests/accounting-release.test.js', 'tests/stock-reconciliation-postgres.test.js', 'tests/invoice-item-details-postgres.test.js', 'tests/journal-purchase-allocations.test.js']) {
     const result = spawnSync(process.execPath, ['--test', file], { env, stdio: 'inherit' });
     if (result.error) throw result.error;
     if (result.status !== 0) {

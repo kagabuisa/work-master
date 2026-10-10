@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { rejectCrossOrigin, secureSessionCookie } = require('./transport-security');
 const { runWithAuditUser } = require('./audit');
 const { REPORTS } = require('./report-permissions');
 const { can, permissionCheck, scopeCheck } = require('./authorize');
@@ -49,7 +50,7 @@ function sessionToken(req) {
 function setSessionCookie(req, res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: req.secure,
+    secure: secureSessionCookie(req),
     sameSite: 'lax',
     path: '/',
     maxAge: SESSION_DAYS * 86400000,
@@ -60,45 +61,6 @@ function safeNext(value) {
   const path = String(value || '');
   return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\') && !path.startsWith('/login')
     ? path : '/';
-}
-
-function allowedRequestHosts(req) {
-  const hosts = new Set();
-  for (const value of [req.get('host'), req.hostname, req.get('x-forwarded-host')]) {
-    if (!value) continue;
-    for (const part of String(value).split(',')) {
-      const host = part.trim();
-      if (host) hosts.add(host);
-    }
-  }
-  return hosts;
-}
-
-function rejectCrossOrigin(req, res, next) {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-
-  const fetchSite = String(req.get('sec-fetch-site') || '').trim().toLowerCase();
-  if (fetchSite === 'cross-site') {
-    return res.status(403).send('Request origin is not allowed.');
-  }
-  if (['same-origin', 'same-site', 'none'].includes(fetchSite)) {
-    return next();
-  }
-
-  const origin = req.get('origin');
-  if (!origin) {
-    return next();
-  }
-
-  try {
-    const originHost = new URL(origin).host;
-    if (!allowedRequestHosts(req).has(originHost)) {
-      return res.status(403).send('Request origin is not allowed.');
-    }
-  } catch {
-    return res.status(403).send('Request origin is not allowed.');
-  }
-  return next();
 }
 
 function loginKey(req, username) {

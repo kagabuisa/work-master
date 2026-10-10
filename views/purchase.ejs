@@ -12,7 +12,7 @@
         <p class="eyebrow">Purchase</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices', href: '/purchases' }, { label: purchase.purchase_no }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
+      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <section class="invoice-card">
@@ -64,12 +64,12 @@
           <% if (!purchase.payments.length) { %><tr><td colspan="10" class="empty">No payments recorded.</td></tr><% } %>
           <% purchase.payments.forEach((payment) => { %>
             <tr>
-              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td>
+              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><% if (payment.journal_entry_id && can('vouchers.journals.view')) { %><a href="/journals/<%= payment.journal_entry_id %>"><%= payment.reference %></a><% } else { %><%= payment.reference || '' %><% } %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td>
               <td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td>
               <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (lineAuditTime(payment.created_at)) { %> <small><%= lineAuditTime(payment.created_at) %></small><% } %></td>
               <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (lineAuditTime(payment.updated_at)) { %> <small><%= lineAuditTime(payment.updated_at) %></small><% } %></td>
               <td>
-                <% if (purchase.docstatus === 'submitted' && payment.docstatus !== 'cancelled' && can('payments.purchases.cancel')) { %>
+                <% if (purchase.docstatus === 'submitted' && payment.docstatus !== 'cancelled' && !payment.journal_entry_id && can('payments.purchases.cancel')) { %>
                   <form method="post" action="/purchases/<%= purchase.id %>/payments/<%= payment.payment_no %>/cancel" class="inline-form" data-confirm="Cancel this payment? Its ledger entry will be reversed.">
                     <button type="submit" class="button-light">Cancel</button>
                   </form>

@@ -112,12 +112,13 @@ function postgresInvoiceBalancesCte() {
       FROM (
         SELECT invoice.id AS invoice_id, gl.credit - gl.debit AS amount
         FROM app_invoices invoice
-        JOIN app_journal_entries journal ON journal.reference_no = invoice.invoice_no
+        JOIN app_journal_entries journal ON EXISTS (SELECT 1 FROM app_journal_entry_lines ref_line WHERE ref_line.journal_entry_id=journal.id AND COALESCE(NULLIF(ref_line.reference_no, ''), journal.reference_no)=invoice.invoice_no)
           AND journal.party_type = 'customer'
           AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
           AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
             OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
         JOIN ar_ledger gl ON gl.voucher_id = journal.id
+          AND EXISTS (SELECT 1 FROM app_journal_entry_lines ref_line WHERE ref_line.journal_entry_id=journal.id AND ref_line.line_no=gl.line_no AND COALESCE(NULLIF(ref_line.reference_no, ''), journal.reference_no)=invoice.invoice_no)
           AND gl.voucher_type IN (journal.journal_type, journal.journal_type || '_cancellation')
         UNION ALL
         SELECT payment.invoice_id, gl.credit - gl.debit AS amount
@@ -345,7 +346,7 @@ async function postgresCustomerStatement(customerKey, filters = {}) {
       AND gl.voucher_type IN ('customer_payment', 'customer_payment_cancellation')
     LEFT JOIN invoice_balances invoice ON invoice.docstatus = 'submitted'
       AND ((gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id)
-        OR (journal.reference_no = invoice.invoice_no
+        OR (EXISTS (SELECT 1 FROM app_journal_entry_lines ref_line WHERE ref_line.journal_entry_id=journal.id AND ref_line.line_no=gl.line_no AND COALESCE(NULLIF(ref_line.reference_no, ''), journal.reference_no)=invoice.invoice_no)
           AND journal.party_type = 'customer'
           AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
             OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name)))
@@ -485,7 +486,7 @@ async function paginatedPostgresInvoices(options = {}) {
         SELECT invoice.id AS invoice_id, SUM(journal_payment.amount) AS amount_paid
         FROM ${invoiceSource} invoice
         JOIN (
-          SELECT journal.id, journal.reference_no, journal.party_id, journal.party_name,
+          SELECT journal.id, COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) AS reference_no, journal.party_id, journal.party_name,
             SUM(line.credit - line.debit) AS amount
           FROM app_journal_entries journal
           JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
@@ -495,10 +496,10 @@ async function paginatedPostgresInvoices(options = {}) {
             AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
             ${invoiceSource === 'selected_invoices' ? `AND EXISTS (
               SELECT 1 FROM selected_invoices scoped_invoice
-              WHERE scoped_invoice.invoice_no = journal.reference_no
+              WHERE scoped_invoice.invoice_no = COALESCE(NULLIF(line.reference_no, ''), journal.reference_no)
             )` : ''}
             AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
-          GROUP BY journal.id
+          GROUP BY journal.id, COALESCE(NULLIF(line.reference_no, ''), journal.reference_no)
           HAVING SUM(line.credit - line.debit) > 0
         ) journal_payment ON journal_payment.reference_no = invoice.invoice_no
           AND (NULLIF(journal_payment.party_id, '') = NULLIF(invoice.customer_id, '')
@@ -1068,7 +1069,7 @@ async function addPostgresInvoicePayment(id, payload) {
         JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
         JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
           AND setting.account_id = line.account_id
-        WHERE journal.reference_no = $1 AND journal.docstatus = 'submitted'
+        WHERE COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) = $1 AND journal.docstatus = 'submitted'
           AND journal.party_type = 'customer'
           AND (NULLIF(journal.party_id, '') = NULLIF($2, '') OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = $3))
           AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
@@ -1239,7 +1240,7 @@ async function hydratePostgresInvoices(invoiceRows) {
         journal.remarks, journal.created_at, journal.updated_at,
         SUM(line.credit - line.debit)::float AS amount
       FROM app_invoices invoice
-      JOIN app_journal_entries journal ON journal.reference_no = invoice.invoice_no
+      JOIN app_journal_entries journal ON EXISTS (SELECT 1 FROM app_journal_entry_lines ref_line WHERE ref_line.journal_entry_id=journal.id AND COALESCE(NULLIF(ref_line.reference_no, ''), journal.reference_no)=invoice.invoice_no)
         AND journal.party_type = 'customer'
         AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
           OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
@@ -1249,6 +1250,7 @@ async function hydratePostgresInvoices(invoiceRows) {
       JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
         AND setting.account_id = line.account_id
       WHERE invoice.id = ANY($1::bigint[])
+        AND COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) = invoice.invoice_no
         AND NOT EXISTS (
           SELECT 1 FROM app_invoice_payments payment
           WHERE payment.journal_entry_id = journal.id

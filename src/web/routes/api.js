@@ -4,7 +4,7 @@ const express = require('express');
 const { warehouseAllowed, allowedInvoicePriceLists, allowedPurchasePriceLists, namedPriceListsForActions,
   allowedMasterRecordIds, deniedMasterRecordIds,
   selectedCategories, requireInvoicePriceList } = require('../../access');
-const { warehouseAccessOptions, accountAccessOptions } = require('../helpers');
+const { warehouseAccessOptions, accountAccessOptions, hrLedgerAccessOptions } = require('../helpers');
 const { normalizeStockQuantity } = require('../../lib/quantity');
 const {
   masterItemsWithStock,
@@ -24,6 +24,8 @@ const {
   generalLedgerAccountOptions,
   generalLedgerPartyOptions,
   journalReferenceOptions,
+  getPostgresPool,
+  postableAccountingAccounts,
 } = require('../../store');
 
 const router = express.Router();
@@ -228,7 +230,7 @@ router.get('/general-ledger/accounts', async (req, res, next) => {
 
 router.get('/general-ledger/parties', async (req, res, next) => {
   try {
-    res.json(await generalLedgerPartyOptions(req.query.q, { ownerId: voucherOwnerId(req.currentUser),
+    res.json(await generalLedgerPartyOptions(req.query.q, { ...hrLedgerAccessOptions(req.currentUser), ownerId: voucherOwnerId(req.currentUser),
       ownerEmployeeId: voucherEmployeeId(req.currentUser),
       customerGroups: selectedCategories(req.currentUser, 'customers'),
       supplierTypes: selectedCategories(req.currentUser, 'suppliers'),
@@ -258,7 +260,24 @@ router.get('/journal-reference-options', async (req, res, next) => {
       party_id: req.query.party_id,
       party_name: req.query.party_name,
       search: req.query.q,
+      purchaseInvoicesOnly: req.query.purchase_invoices_only === '1',
+      outstandingOnly: req.query.purchase_invoices_only === '1',
     });
+    if (req.query.party_type === 'employee') {
+      const accounts = await postableAccountingAccounts(accountAccessOptions(req.currentUser));
+      const allowed = new Set(accounts.map((account) => Number(account.id)));
+      const ownerId = voucherOwnerId(req.currentUser);
+      const { rows } = await getPostgresPool().query(`SELECT voucher_no, account_id, debit::float, credit::float
+        FROM app_gl_entries WHERE party_type='employee' AND party_id=$1 AND voucher_type NOT LIKE 'hr_%'
+          AND voucher_no=ANY($2::text[]) AND is_reversal=false
+          ${ownerId == null ? '' : 'AND created_by_user_id=$3'} ORDER BY id`,
+      ownerId == null ? [req.query.party_id, references.map((row) => row.reference)]
+        : [req.query.party_id, references.map((row) => row.reference), ownerId]);
+      for (const reference of references) {
+        const lines = rows.filter((line) => line.voucher_no === reference.reference);
+        reference.account_rows = lines.every((line) => allowed.has(Number(line.account_id))) ? lines : [];
+      }
+    }
     res.json(references);
   } catch (err) {
     next(err);

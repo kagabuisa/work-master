@@ -49,6 +49,7 @@ test('a purchase order applies its header warehouse to every item', () => {
 });
 
 test('linked invoice lines cannot exceed the unreceived order quantity', async () => {
+  let receivedQuantity = 3;
   const client = { async query(sql) {
     if (sql.includes('FROM app_purchase_orders WHERE id=')) return { rows: [
       { id: 7, order_no: 'PO-000007', supplier_id: 'SUP-1', price_list: 'Buying', docstatus: 'submitted' },
@@ -56,16 +57,69 @@ test('linked invoice lines cannot exceed the unreceived order quantity', async (
     if (sql.includes('FROM app_purchase_order_items')) return { rows: [
       { id: '11', item_code: 'ITEM-1', warehouse: 'Main', quantity: 5 },
     ] };
-    if (sql.includes('FROM app_purchase_items pi')) return { rows: [{ id: '11', quantity: 3 }] };
+    if (sql.includes('FROM app_purchase_items pi')) return { rows: [{ id: '11', quantity: receivedQuantity }] };
+    if (sql.includes('FROM app_purchases')) return { rows: [] };
     throw new Error(`Unexpected query: ${sql}`);
   } };
   const purchase = { purchase_order_id: 7, supplier_id: 'SUP-1', price_list: 'Buying',
     items: [{ purchase_order_item_id: 11, item_code: 'ITEM-1', warehouse: 'Main', quantity: 2 }] };
-  await validatePurchaseOrder(client, purchase, null, true);
+  await validatePurchaseOrder(client, { ...purchase, purchase_order_id: '7' }, 9, true);
+  await assert.rejects(validatePurchaseOrder(client, { ...purchase, purchase_order_id: '7',
+    items: [{ ...purchase.items[0], quantity: 2.001 }] }, 9, true), /exceeds the remaining/);
+  for (const purchase_order_id of ['invalid', '0', '-1', '7.5', '9007199254740993']) {
+    await assert.rejects(validatePurchaseOrder(client, { ...purchase, purchase_order_id }, 9, true),
+      /Select a valid purchase order/);
+  }
+  for (const [excludeId, submitting] of [[null, false], [9, false], [9, true]]) {
+    await validatePurchaseOrder(client, purchase, excludeId, submitting);
+    await assert.rejects(validatePurchaseOrder(client, { ...purchase,
+      items: [{ ...purchase.items[0], quantity: 2.001 }] }, excludeId, submitting),
+    { message: 'Invoice quantity 2.001 exceeds the remaining quantity for ITEM-1 on purchase order PO-000007. Ordered: 5; already received: 3; remaining: 2.' });
+    await assert.rejects(validatePurchaseOrder(client, { ...purchase,
+      items: [{ ...purchase.items[0], quantity: 1.001 }, { ...purchase.items[0], quantity: 1 }] },
+    excludeId, submitting), /exceeds the remaining/);
+  }
+  receivedQuantity = 0;
+  await validatePurchaseOrder(client, { ...purchase, items: [{ ...purchase.items[0], quantity: 5 }] });
   await assert.rejects(validatePurchaseOrder(client, { ...purchase,
-    items: [{ ...purchase.items[0], quantity: 2.001 }] }, null, true), /exceeds the remaining/);
+    items: [{ ...purchase.items[0], quantity: 5.001 }] }), /exceeds the remaining/);
   await assert.rejects(validatePurchaseOrder(client, { ...purchase,
     items: [{ ...purchase.items[0], item_code: 'ITEM-2' }] }), /must match/);
+});
+
+test('a purchase order permits only one draft invoice and allows editing that draft', async () => {
+  const purchase = { purchase_order_id: 7, supplier_id: 'SUP-1', price_list: 'Buying', items: [] };
+  let draft = { id: 9, purchase_no: 'PUR-000009', docstatus: 'draft' };
+  let locked = false;
+  const client = { async query(sql, params) {
+    if (sql.includes('FROM app_purchase_orders')) {
+      assert.match(sql, /FOR UPDATE/);
+      locked = true;
+      return { rows: [{ id: 7, supplier_id: 'SUP-1', price_list: 'Buying', docstatus: 'submitted' }] };
+    }
+    if (sql.includes('FROM app_purchases')) {
+      assert.equal(locked, true);
+      assert.match(sql, /docstatus='draft'/);
+      assert.match(sql, /SELECT id, purchase_no/);
+      assert.equal(params[0], 7);
+      assert.match(sql, /\$2::bigint IS NULL OR id<>\$2/);
+      return { rows: draft && draft.docstatus === 'draft' && draft.id !== params[1] ? [draft] : [] };
+    }
+    if (sql.includes('FROM app_purchase_order_items') || sql.includes('FROM app_purchase_items pi')) return { rows: [] };
+    throw new Error(`Unexpected query: ${sql}`);
+  } };
+  await assert.rejects(validatePurchaseOrder(client, purchase), /draft purchase invoice: PUR-000009/);
+  draft.purchase_no = null;
+  await assert.rejects(validatePurchaseOrder(client, purchase), /draft purchase invoice: PUR-000009/);
+  await validatePurchaseOrder(client, purchase, 9);
+  await assert.rejects(validatePurchaseOrder(client, purchase, 10), /already has a draft purchase invoice/);
+  for (const docstatus of ['submitted', 'cancelled']) {
+    draft = { id: 9, docstatus };
+    await validatePurchaseOrder(client, purchase);
+  }
+  draft = null;
+  await validatePurchaseOrder(client, purchase);
+  await validatePurchaseOrder(client, { purchase_order_id: null, items: [] });
 });
 
 test('purchase order form posts to order routes and detail exposes status actions', async () => {

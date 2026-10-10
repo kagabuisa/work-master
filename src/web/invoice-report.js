@@ -222,7 +222,7 @@ const params = [];
             AND setting.account_id = journal_line.account_id
           WHERE journal.docstatus = 'submitted' AND journal.party_type = 'customer'
             AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
-            AND journal.reference_no = invoice.invoice_no
+            AND COALESCE(NULLIF(journal_line.reference_no, ''), journal.reference_no) = invoice.invoice_no
             AND (nullif(journal.party_id, '') = nullif(invoice.customer_id, '')
               OR (coalesce(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
             AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment

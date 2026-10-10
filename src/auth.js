@@ -22,7 +22,10 @@ const VOUCHER_TYPES = [
   ['stock', 'Stock entries', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
   ['journals', 'Journals', ['view', 'create', 'edit', 'submit', 'cancel', 'delete']],
 ];
+const { HR_AREAS } = require('./hr-policy');
 const PERMISSIONS = [
+  ...HR_AREAS.flatMap((area) => area.actions.map((action) => ({
+    key: `hr.${area.key}.${action}`, label: `${action} ${area.label}`, group: 'HR' }))),
   ...MASTER_LISTS.flatMap(([key, label]) => ['view', 'create', 'edit', 'submit', 'cancel', 'delete']
     .map((action) => ({ key: `masters.${key}.${action}`,
       label: `${action[0].toUpperCase()}${action.slice(1)} ${label}`, group: 'Master lists' }))),
@@ -45,6 +48,11 @@ const RECORD_TITLES = {
   customers: 'Customer', suppliers: 'Supplier', items: 'Item', warehouses: 'Warehouse', employees: 'Employee', 'cost-centers': 'Cost Center', options: 'Option',
 };
 const ROLE_RECORD_TYPES = [
+  ...HR_AREAS.map((area) => ({ key: `hr.${area.key}`, label: area.label, group: 'HR',
+    actions: area.actions.filter((action) => action !== 'pay'),
+    permissions: Object.fromEntries(area.actions.filter((action) => action !== 'pay').map((action) => [action, `hr.${area.key}.${action}`])) })),
+  ...['money', 'payroll'].map((area) => ({ key: `hr.${area}-payments`, label: area === 'money' ? 'Employee Money Payment' : 'Payroll Payment',
+    group: 'HR', actions: ['create'], permissions: { create: `hr.${area}.pay` } })),
   ...VOUCHER_TYPES.map(([key, , actions]) => ({ key: `vouchers.${key}`, label: RECORD_TITLES[key], group: 'Voucher types',
     actions, permissions: Object.fromEntries(actions.map((action) => [action, `vouchers.${key}.${action}`])) })),
   ...MASTER_LISTS.map(([key]) => ({ key: `masters.${key}`, label: RECORD_TITLES[key], group: 'Master lists',
@@ -62,7 +70,7 @@ const ROLE_RECORD_TYPES = [
 ];
 const RECORD_PERMISSION_KEYS = new Set(ROLE_RECORD_TYPES.flatMap((type) => Object.values(type.permissions)));
 const EXTRA_PERMISSIONS = PERMISSIONS.filter((permission) => !RECORD_PERMISSION_KEYS.has(permission.key));
-const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('masters.')
+const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('hr.') && !item.key.startsWith('masters.')
   && !item.key.endsWith('.cancel') && !item.key.endsWith('.delete') && item.key !== 'sync.run').map((item) => item.key);
 const PREVIOUS_ROUTINE_PERMISSIONS = [...ROUTINE_PERMISSIONS,
   ...PERMISSIONS.filter((item) => item.key.startsWith('masters.') && item.key.endsWith('.view')).map((item) => item.key)];
@@ -75,7 +83,7 @@ const DEFAULT_SCOPES = { customers: { mode: 'all', values: [] }, suppliers: { mo
   accounts: { mode: 'all', values: [] } };
 const BUILT_IN_ROLES = [
   { slug: 'standard', name: 'Standard', permissions: ROUTINE_PERMISSIONS },
-  { slug: 'privileged', name: 'Privileged', permissions: PERMISSIONS.map((item) => item.key) },
+  { slug: 'privileged', name: 'Privileged', permissions: PERMISSIONS.filter((item) => !item.key.startsWith('hr.')).map((item) => item.key) },
   { slug: 'admin', name: 'Admin', permissions: PERMISSIONS.map((item) => item.key) },
   { slug: 'retail', name: 'Retail', permissions: ROUTINE_PERMISSIONS },
   { slug: 'wholesale', name: 'Wholesale', permissions: ROUTINE_PERMISSIONS },
@@ -119,7 +127,7 @@ function migratePermissions(oldPermissions) {
     for (const item of PERMISSIONS.filter((entry) => entry.key.startsWith('masters.'))) result.add(item.key);
   }
   if (old.has('vouchers.cancel')) {
-    for (const item of PERMISSIONS.filter((entry) => entry.key.endsWith('.cancel'))) result.add(item.key);
+    for (const item of PERMISSIONS.filter((entry) => !entry.key.startsWith('hr.') && entry.key.endsWith('.cancel'))) result.add(item.key);
   }
   if (old.has('sync.run')) result.add('sync.run');
   return [...result];
@@ -144,7 +152,7 @@ function migrateCurrentPermissions(role) {
   if (lowPrivilegeRole && (matchesRoutine(PREVIOUS_ROUTINE_PERMISSIONS)
       || matchesRoutine(OLDER_ROUTINE_PERMISSIONS))) return ROUTINE_PERMISSIONS;
   if (role.permissions_version < 6) {
-    if (role.slug === 'privileged' || role.slug === 'admin') return PERMISSIONS.map((permission) => permission.key);
+    if (role.slug === 'privileged' || role.slug === 'admin') return PERMISSIONS.filter((permission) => role.slug === 'admin' || !permission.key.startsWith('hr.')).map((permission) => permission.key);
     if (filtered.includes('vouchers.journals.create')) {
       filtered.push('vouchers.journals.edit', 'vouchers.journals.submit');
     }
@@ -759,6 +767,7 @@ async function resetUserPassword(usernameValue, newPassword) {
 }
 
 module.exports = {
+  BUILT_IN_ROLES,
   SESSION_DAYS,
   SESSION_IDLE_MINUTES,
   initAuth,

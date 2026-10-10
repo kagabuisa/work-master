@@ -1,0 +1,5 @@
+<label><%= label %><select name="<%= name %>" <%= typeof required !== 'undefined' && required ? 'required' : '' %>>
+<option value="">Choose account</option>
+<% opts.accounts.filter(a=>(!types||types.includes(a.account_type))&&(!bank||['Bank','Cash'].includes(a.account_detail_type))&&(typeof details==='undefined'||details.includes(a.account_detail_type))).forEach(a=>{ %>
+<option value="<%= a.id %>" <%= String(typeof selected==='undefined'?'':selected)===String(a.id)?'selected':'' %>><%= a.account_name %></option>
+<% }) %></select></label>

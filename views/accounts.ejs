@@ -17,6 +17,47 @@
       </nav>
     </header>
 
+    <form class="report-filters accounts-filters" method="get" action="/accounts" data-static-labels>
+      <label><span>Search</span>
+        <input type="search" name="q" value="<%= filters.q %>" placeholder="Account code or name">
+      </label>
+      <label><span>Root Type</span>
+        <select name="root_type">
+          <option value="">All root types</option>
+          <% ['asset', 'liability', 'equity', 'income', 'expense'].forEach((type) => { %>
+            <option value="<%= type %>" <%= filters.root_type === type ? 'selected' : '' %>><%= type.charAt(0).toUpperCase() + type.slice(1) %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label><span>Account Type</span>
+        <select name="detail_type">
+          <option value="">All account types</option>
+          <% detailTypes.forEach((type) => { %>
+            <option value="<%= type %>" <%= filters.detail_type === type ? 'selected' : '' %>><%= type %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label><span>Status</span>
+        <select name="status">
+          <option value="">All statuses</option>
+          <option value="active" <%= filters.status === 'active' ? 'selected' : '' %>>Active</option>
+          <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+        </select>
+      </label>
+      <label><span>Account Kind</span>
+        <select name="kind">
+          <option value="">All accounts</option>
+          <option value="posting" <%= filters.kind === 'posting' ? 'selected' : '' %>>Posting accounts</option>
+          <option value="group" <%= filters.kind === 'group' ? 'selected' : '' %>>Group accounts</option>
+        </select>
+      </label>
+      <div class="report-filter-actions">
+        <button type="submit">Apply</button>
+        <a class="button button-light" href="/accounts">Reset</a>
+      </div>
+    </form>
+    <p class="muted">Showing <%= accounts.length %> of <%= totalAccounts %> accounts.</p>
+
     <section class="invoice-card report-section">
       <table>
         <thead>
