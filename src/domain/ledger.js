@@ -13,6 +13,7 @@ const { paginationOptions, paginationResult } = require('../lib/pagination');
 const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, postStockEntryGlEntry, postGlEntry, reverseVoucherGlEntries, syncGeneratedJournalEntryLines, resolveAccountingAccounts, setVoucherDocstatus, nonZeroAccountingLines, actorAuditValues, addReportFilters, reportFilterValues } = require('./posting');
 const { normalizeJournalEntryPayload, validateJournalAccountSides, normalizeAccountingAccountPayload, journalTypeLabel, formatTrialBalanceRow } = require('./normalization');
 const { validateCostCenter } = require('../cost-centers');
+const { validatePurchaseAllocations, postPurchaseAllocations, cancelPurchaseAllocations } = require('../journal-purchase-allocations');
 const { addVoucherOwnerFilter } = require('../voucher-ownership');
 
 async function accountingAccounts(options = {}) {
@@ -234,7 +235,7 @@ async function findJournalEntry(id) {
       line.id, line.line_no, line.created_by, line.created_by_user_id, line.created_at,
       line.updated_by, line.updated_by_user_id, line.updated_at,
       line.account_id, account.account_code,
-      account.account_name, line.debit::float, line.credit::float, line.remarks
+      account.account_name, line.debit::float, line.credit::float, line.remarks, line.reference_no
     FROM app_journal_entry_lines line
     INNER JOIN app_accounts account ON account.id = line.account_id
     WHERE line.journal_entry_id = $1
@@ -257,7 +258,8 @@ async function createJournalEntry(payload, options = {}) {
   const submit = options.submit !== false;
   return withPostgresTransaction(async (client) => {
     journal.cost_center = await validateCostCenter(client, journal.cost_center);
-    if (submit) await validateJournalInvoicePayment(client, journal);
+    const allocations = journal.party_type === 'supplier' ? await validatePurchaseAllocations(client, journal) : [];
+    if (submit || journal.lines.some((line) => line.reference_no)) await validateJournalInvoicePayment(client, journal);
     const { rows } = await client.query(
       `
       INSERT INTO app_journal_entries (
@@ -295,11 +297,11 @@ async function createJournalEntry(payload, options = {}) {
       await client.query(
         `
         INSERT INTO app_journal_entry_lines (
-          journal_entry_id, line_no, account_id, debit, credit, remarks
+          journal_entry_id, line_no, account_id, debit, credit, remarks, reference_no
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         `,
-        [id, line.line_no, line.account_id, line.debit, line.credit, line.remarks],
+        [id, line.line_no, line.account_id, line.debit, line.credit, line.remarks, line.reference_no],
       );
     }
     if (submit) await postGlEntry(client, {
@@ -319,6 +321,7 @@ async function createJournalEntry(payload, options = {}) {
         remarks: line.remarks,
       })),
     });
+    if (submit) await postPurchaseAllocations(client, { ...journal, id, journal_no: journalNo }, allocations);
     return id;
   });
 }
@@ -332,6 +335,8 @@ async function updateJournalEntry(id, payload) {
     if (existing.rows[0].docstatus !== 'draft') {
       const error = new Error('Only draft journals can be edited.'); error.status = 400; throw error;
     }
+    if (journal.party_type === 'supplier') await validatePurchaseAllocations(client, journal);
+    if (journal.lines.some((line) => line.reference_no)) await validateJournalInvoicePayment(client, journal);
     await client.query(`UPDATE app_journal_entries SET journal_type = $2, posting_date = $3, party_type = $4,
       party_id = $5, party_name = $6, reference_no = $7, remarks = $8, total_debit = $9, total_credit = $10,
       posting_time = $11, cost_center = $12
@@ -362,11 +367,11 @@ async function syncJournalEntryLines(client, journalId, lines) {
           account_id = $2,
           debit = $3,
           credit = $4,
-          remarks = $5
+          remarks = $5, reference_no = $8
         WHERE id = $6
           AND journal_entry_id = $7
         `,
-        [index + 1, line.account_id, line.debit, line.credit, line.remarks, dbId, journalId],
+        [index + 1, line.account_id, line.debit, line.credit, line.remarks, dbId, journalId, line.reference_no],
       );
       seenIds.add(dbId);
     }
@@ -390,10 +395,10 @@ async function syncJournalEntryLines(client, journalId, lines) {
     await client.query(
       `
       INSERT INTO app_journal_entry_lines
-        (journal_entry_id, line_no, account_id, debit, credit, remarks)
-      VALUES ($1, $2, $3, $4, $5, $6)
+        (journal_entry_id, line_no, account_id, debit, credit, remarks, reference_no)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       `,
-      [journalId, index + 1, line.account_id, line.debit, line.credit, line.remarks],
+      [journalId, index + 1, line.account_id, line.debit, line.credit, line.remarks, line.reference_no],
     );
   }
 }
@@ -406,12 +411,13 @@ async function submitJournalEntry(id) {
     if (journal.docstatus !== 'draft') {
       const error = new Error('Only draft journals can be submitted.'); error.status = 400; throw error;
     }
-    const lines = (await client.query(`SELECT account_id, debit::float, credit::float, remarks
+    const lines = (await client.query(`SELECT account_id, debit::float, credit::float, remarks, reference_no
       FROM app_journal_entry_lines WHERE journal_entry_id = $1 ORDER BY line_no`, [id])).rows;
     if (lines.length < 2 || roundMoney(lines.reduce((sum, line) => sum + line.debit - line.credit, 0)) !== 0) {
       const error = new Error('Journal debits and credits must balance.'); error.status = 400; throw error;
     }
     validateJournalAccountSides(lines);
+    const allocations = journal.party_type === 'supplier' ? await validatePurchaseAllocations(client, { ...journal, lines }) : [];
     await validateJournalInvoicePayment(client, { ...journal, lines });
     await setVoucherDocstatus(client, 'app_journal_entries', Number(id), 'submitted');
     await postGlEntry(client, {
@@ -426,11 +432,39 @@ async function submitJournalEntry(id) {
       remarks: journal.remarks || journal.reference_no || journalTypeLabel(journal.journal_type),
       lines,
     });
+    await postPurchaseAllocations(client, { ...journal, posting_date: dateOnly(journal.posting_date), lines }, allocations);
     return Number(id);
   });
 }
 
 async function validateJournalInvoicePayment(client, journal) {
+  const referenced = (journal.lines || []).filter((line) => line.reference_no);
+  if (!referenced.length) return validateSingleJournalInvoicePayment(client, journal);
+  if (journal.party_type !== 'customer') return;
+  if (!['cash_receipt', 'payment_journal', 'journal_entry'].includes(journal.journal_type)) {
+    const error = new Error('Use a Cash Receipt, Payment Journal, or Journal Entry for invoice allocations.');
+    error.status = 400; throw error;
+  }
+  const { rows } = await client.query("SELECT account_id FROM app_accounting_settings WHERE setting_key='accounts_receivable'");
+  const receivableId = Number(rows[0]?.account_id);
+  for (const line of referenced) {
+    if (Number(line.account_id) !== receivableId || Number(line.credit) <= 0 || Number(line.debit) > 0) {
+      const error = new Error('Sales invoice references belong on credit rows of Accounts Receivable.');
+      error.status = 400; throw error;
+    }
+  }
+  for (const reference of [...new Set(referenced.map((line) => line.reference_no))].sort()) {
+    const { rows: invoices } = await client.query('SELECT customer_id, invoice_date::text FROM app_invoices WHERE invoice_no=$1 FOR UPDATE', [reference]);
+    if (!invoices[0] || invoices[0].customer_id !== journal.party_id || dateOnly(journal.posting_date) < invoices[0].invoice_date) {
+      const error = new Error(`Sales invoice ${reference} must belong to the selected customer and cannot be paid before its posting date.`);
+      error.status = 400; throw error;
+    }
+    await validateSingleJournalInvoicePayment(client, { ...journal, reference_no: reference,
+      lines: referenced.filter((line) => line.reference_no === reference) });
+  }
+}
+
+async function validateSingleJournalInvoicePayment(client, journal) {
   if (journal.party_type !== 'customer' || !journal.reference_no
       || !['cash_receipt', 'payment_journal', 'journal_entry'].includes(journal.journal_type)) return;
   const invoiceResult = await client.query(
@@ -463,7 +497,7 @@ async function validateJournalInvoicePayment(client, journal) {
          SELECT SUM(line.credit - line.debit) AS amount
          FROM app_journal_entries existing
          JOIN app_journal_entry_lines line ON line.journal_entry_id = existing.id
-         WHERE existing.reference_no = $2 AND existing.docstatus = 'submitted'
+         WHERE COALESCE(NULLIF(line.reference_no, ''), existing.reference_no) = $2 AND existing.docstatus = 'submitted'
            AND existing.party_type = 'customer'
            AND existing.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
            AND (NULLIF(existing.party_id, '') = NULLIF($3, '') OR (COALESCE(existing.party_id, '') = '' AND existing.party_name = $4))
@@ -533,6 +567,7 @@ async function cancelJournalEntry(id) {
       `,
       [actor.by, actor.by_user_id, actor.at, 'Cancelled', journalId],
     );
+    await cancelPurchaseAllocations(client, journalId);
     await reverseVoucherGlEntries(client, journal.journal_type, journalId, dateOnly(new Date()));
     return journalId;
   });
@@ -545,6 +580,27 @@ function isManualJournalType(type, linkedPayment = false) {
 }
 
 function addGeneralLedgerAccessFilter(where, params, access = {}) {
+  let hrRule='';
+  if(access.hrAccess) {
+    const hr=access.hrAccess;const rules=[];
+    const source='COALESCE(gl.reversal_of_voucher_id,gl.voucher_id)';
+    if(hr.payroll)rules.push("gl.voucher_type IN ('hr_payroll','hr_payroll_cancellation')");
+    if(hr.money)rules.push("gl.voucher_type IN ('hr_money','hr_money_cancellation')");
+    if(hr.payroll||hr.money)rules.push(`(gl.voucher_type IN ('hr_payment','hr_payment_cancellation') AND EXISTS (
+      SELECT 1 FROM app_hr_payments hp WHERE hp.id=${source} AND (${hr.payroll?'hp.slip_id IS NOT NULL':'false'} OR ${hr.money?'hp.money_id IS NOT NULL':'false'})))`);
+    const restrictions=[];
+    for(const [values,column,denial] of [[hr.employees,'gl.party_id',false],[hr.deniedEmployees,'gl.party_id',true],
+      [hr.costCenters,'gl.cost_center',false],[hr.deniedCostCenters,'gl.cost_center',true]]) {
+      if(Array.isArray(values)&&(!denial||values.length)) {
+        params.push(values);
+        restrictions.push(column==='gl.cost_center'
+          ? `(${column} IS NULL OR ${column} ${denial?'<> ALL':'= ANY'}($${params.length}::text[]))`
+          : `${column} ${denial?'<> ALL':'= ANY'}($${params.length}::text[])`);
+      }
+    }
+    hrRule=rules.length?`((${rules.join(' OR ')})${restrictions.length?' AND '+restrictions.join(' AND '):''})`:'false';
+    where.push(`(gl.voucher_type NOT LIKE 'hr_%' OR ${hrRule})`);
+  }
   const accountRules = [];
   if (Array.isArray(access.allowedAccounts)) {
     params.push(access.allowedAccounts);
@@ -605,6 +661,7 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
     OR (gl.voucher_type LIKE 'stock_%' AND EXISTS (
       SELECT 1 FROM app_stock_entries stock
       WHERE stock.id = ${sourceId} AND stock.created_by_user_id = ${owner}))`}
+    ${hrRule ? `OR (${hrRule})` : ''}
   )`);
 }
 
@@ -683,7 +740,7 @@ async function generalLedgerReport(filters = {}, access = {}) {
     `,
     params,
   );
-  params.push(pagination.limit, pagination.offset);
+  if (!access.exportAll) params.push(pagination.limit, pagination.offset);
   const { rows } = await getPostgresPool().query(
     `
     SELECT
@@ -718,7 +775,7 @@ async function generalLedgerReport(filters = {}, access = {}) {
     INNER JOIN app_accounts account ON account.id = gl.account_id
     ${whereSql}
     ORDER BY gl.posting_date ASC, gl.id ASC
-    LIMIT $${params.length - 1} OFFSET $${params.length}
+    ${access.exportAll ? '' : `LIMIT $${params.length - 1} OFFSET $${params.length}`}
     `,
     params,
   );
@@ -841,6 +898,22 @@ async function journalReferenceOptions(filters = {}) {
     return [];
   }
 
+  if (filters.purchaseInvoicesOnly) {
+    if (partyType !== 'supplier' || !partyId) return [];
+    const params = [partyId, sqlLikePattern(search)];
+    if (ownerId !== null) params.push(ownerId);
+    return (await getPostgresPool().query(`SELECT purchase_no AS reference, 'Purchase' AS type,
+      posting_date::text, supplier_name AS party_name, total::float AS amount,
+      GREATEST(total - amount_paid, 0)::float AS balance, docstatus AS status, id,
+      (SELECT account_id FROM app_accounting_settings WHERE setting_key='accounts_payable') AS account_id
+      FROM app_purchases WHERE supplier_id=$1 AND purchase_no ILIKE $2
+        ${filters.outstandingOnly ? "AND docstatus='submitted' AND total > amount_paid" : ''}
+        ${ownerId === null ? '' : 'AND created_by_user_id=$3'}
+      ORDER BY posting_date DESC, id DESC LIMIT 50`, params)).rows;
+  }
+
+  const { rows: referenceAccounts } = await getPostgresPool().query("SELECT setting_key, account_id FROM app_accounting_settings WHERE setting_key IN ('accounts_receivable', 'accounts_payable')");
+  const referenceAccountId = (key) => referenceAccounts.find((row) => row.setting_key === key)?.account_id;
   const options = [];
   const seen = new Set();
   const addOption = (row) => {
@@ -853,7 +926,7 @@ async function journalReferenceOptions(filters = {}) {
       return;
     }
     seen.add(key);
-    options.push(row);
+    options.push({ ...row, account_id: row.type === 'Invoice' ? referenceAccountId('accounts_receivable') : row.type === 'Purchase' ? referenceAccountId('accounts_payable') : null });
   };
 
   if (partyType === 'customer') {
@@ -883,7 +956,7 @@ async function journalReferenceOptions(filters = {}) {
           JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
           JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
             AND setting.account_id = line.account_id
-          WHERE journal.reference_no = invoice.invoice_no AND journal.docstatus = 'submitted'
+          WHERE COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) = invoice.invoice_no AND journal.docstatus = 'submitted'
             AND journal.party_type = 'customer'
             AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
             AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
@@ -983,6 +1056,7 @@ async function journalReferenceOptions(filters = {}) {
       WHERE party_type = $1
         AND (party_id = $2 OR party_name = $3)
         AND voucher_no IS NOT NULL
+        AND voucher_type NOT LIKE 'hr_%'
         ${ownerId === null ? '' : 'AND created_by_user_id = $4'}
       GROUP BY voucher_type, voucher_no
       ORDER BY MAX(posting_date) DESC, MAX(id) DESC

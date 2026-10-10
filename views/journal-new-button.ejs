@@ -1,0 +1,3 @@
+<% if (can('vouchers.journals.create') && (currentUser.role === 'admin' || !['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'))) { %>
+  <a class="button" href="/journals/new" aria-label="New Journal Entry">New</a>
+<% } %>

@@ -1,0 +1,2358 @@
+{
+  "reviewed_at": "2026-10-09T02:05:50.715Z",
+  "source": "https://zenjji.com",
+  "scope": "Read-only ERPNext metadata and aggregate transaction review; no employee-level records retained",
+  "doctypes": [
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Appraisal",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "kra_template",
+          "type": "Link",
+          "options": "Appraisal Template",
+          "required": true
+        },
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "\nDraft\nSubmitted\nCompleted\nCancelled",
+          "required": true
+        },
+        {
+          "field": "start_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "end_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "goals",
+          "type": "Table",
+          "options": "Appraisal Goal",
+          "required": false
+        },
+        {
+          "field": "total_score",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "remarks",
+          "type": "Text",
+          "required": false
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Appraisal",
+          "required": false
+        }
+      ],
+      "records": 0,
+      "complete": true,
+      "docstatus_counts": {},
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Appraisal Goal",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Appraisal Template",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "kra_title",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "description",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "goals",
+          "type": "Table",
+          "options": "Appraisal Template Goal",
+          "required": false
+        }
+      ],
+      "records": 0,
+      "complete": true,
+      "docstatus_counts": {},
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Appraisal Template Goal",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Attendance",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "naming_series",
+          "type": "Select",
+          "options": "ATT-",
+          "required": true
+        },
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "\nPresent\nAbsent\nHalf Day",
+          "required": true
+        },
+        {
+          "field": "leave_type",
+          "type": "Link",
+          "options": "Leave Type",
+          "required": false
+        },
+        {
+          "field": "att_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Attendance",
+          "required": false
+        },
+        {
+          "field": "late_arrival",
+          "type": "Select",
+          "options": "\nYes\nOnLeave",
+          "required": false
+        },
+        {
+          "field": "la_time",
+          "type": "Time",
+          "required": false
+        },
+        {
+          "field": "early_departure",
+          "type": "Select",
+          "options": "\nYes\nOnLeave",
+          "required": false
+        },
+        {
+          "field": "ed_time",
+          "type": "Time",
+          "required": false
+        }
+      ],
+      "records": 24166,
+      "complete": true,
+      "docstatus_counts": {
+        "1": 24145,
+        "2": 21
+      },
+      "status_counts": {
+        "Half Day": 17,
+        "Present": 24111,
+        "Absent": 38
+      },
+      "company_counts": {
+        "SUPERTEX APA CO. LTD": 24166
+      },
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Branch",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "branch",
+          "type": "Data",
+          "required": true
+        }
+      ],
+      "records": 28,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 28
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Charges on Salary",
+      "module": "Setup",
+      "custom": 1,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "charge_name",
+          "type": "Select",
+          "options": "\nStock shrink\nUnder pricing\nCash recovery\nMissing reports\nFixed asset recovery\nTraining fees recovery\nOperational loss recovery\nOther Charges",
+          "required": false
+        },
+        {
+          "field": "amount",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "remarks",
+          "type": "Data",
+          "required": false
+        }
+      ],
+      "records": 645,
+      "complete": true,
+      "docstatus_counts": {
+        "1": 556,
+        "2": 89
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {
+        "amount": 87454480
+      }
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Deduction Type",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "deduction_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "description",
+          "type": "Small Text",
+          "required": false
+        }
+      ],
+      "records": 21,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 21
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Department",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "department_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "leave_block_list",
+          "type": "Link",
+          "options": "Leave Block List",
+          "required": false
+        }
+      ],
+      "records": 14,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 14
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Designation",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "designation_name",
+          "type": "Data",
+          "required": true
+        }
+      ],
+      "records": 31,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 31
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Earning Type",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "earning_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "description",
+          "type": "Small Text",
+          "required": false
+        }
+      ],
+      "records": 10,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 10
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Employee",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "employee",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "naming_series",
+          "type": "Select",
+          "options": "EMP/",
+          "required": true
+        },
+        {
+          "field": "salutation",
+          "type": "Select",
+          "options": "\nMr\nMs",
+          "required": false
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "image",
+          "type": "Attach Image",
+          "options": "",
+          "required": false
+        },
+        {
+          "field": "user_id",
+          "type": "Link",
+          "options": "User",
+          "required": false
+        },
+        {
+          "field": "employee_number",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "date_of_joining",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "date_of_birth",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "gender",
+          "type": "Select",
+          "options": "\nMale\nFemale",
+          "required": true
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "\nActive\nLeft",
+          "required": true
+        },
+        {
+          "field": "employment_type",
+          "type": "Link",
+          "options": "Employment Type",
+          "required": false
+        },
+        {
+          "field": "holiday_list",
+          "type": "Link",
+          "options": "Holiday List",
+          "required": false
+        },
+        {
+          "field": "assigned_to",
+          "type": "Link",
+          "options": "Cost Center",
+          "required": true
+        },
+        {
+          "field": "scheduled_confirmation_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "final_confirmation_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "contract_end_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "date_of_retirement",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "branch",
+          "type": "Link",
+          "options": "Branch",
+          "required": false
+        },
+        {
+          "field": "department",
+          "type": "Link",
+          "options": "Department",
+          "required": false
+        },
+        {
+          "field": "designation",
+          "type": "Link",
+          "options": "Designation",
+          "required": false
+        },
+        {
+          "field": "company_email",
+          "type": "Data",
+          "options": "Email",
+          "required": false
+        },
+        {
+          "field": "notice_number_of_days",
+          "type": "Int",
+          "required": false
+        },
+        {
+          "field": "salary_mode",
+          "type": "Select",
+          "options": "\nBank\nCash\nCheque",
+          "required": false
+        },
+        {
+          "field": "bank_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "bank_ac_no",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "reports_to",
+          "type": "Link",
+          "options": "Employee",
+          "required": false
+        },
+        {
+          "field": "leave_approvers",
+          "type": "Table",
+          "options": "Employee Leave Approver",
+          "required": false
+        },
+        {
+          "field": "cell_number",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "personal_email",
+          "type": "Data",
+          "options": "Email",
+          "required": false
+        },
+        {
+          "field": "unsubscribed",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "person_to_be_contacted",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "relation",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "emergency_phone_number",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "permanent_accommodation_type",
+          "type": "Select",
+          "options": "\nRented\nOwned",
+          "required": false
+        },
+        {
+          "field": "permanent_address",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "current_accommodation_type",
+          "type": "Select",
+          "options": "\nRented\nOwned",
+          "required": false
+        },
+        {
+          "field": "current_address",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "bio",
+          "type": "Text Editor",
+          "required": false
+        },
+        {
+          "field": "passport_number",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "date_of_issue",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "valid_upto",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "place_of_issue",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "marital_status",
+          "type": "Select",
+          "options": "\nSingle\nMarried\nDivorced\nWidowed",
+          "required": false
+        },
+        {
+          "field": "blood_group",
+          "type": "Select",
+          "options": "\nA+\nA-\nB+\nB-\nAB+\nAB-\nO+\nO-",
+          "required": false
+        },
+        {
+          "field": "family_background",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "health_details",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "education",
+          "type": "Table",
+          "options": "Employee Education",
+          "required": false
+        },
+        {
+          "field": "external_work_history",
+          "type": "Table",
+          "options": "Employee External Work History",
+          "required": false
+        },
+        {
+          "field": "internal_work_history",
+          "type": "Table",
+          "options": "Employee Internal Work History",
+          "required": false
+        },
+        {
+          "field": "resignation_letter_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "relieving_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "reason_for_leaving",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "leave_encashed",
+          "type": "Select",
+          "options": "\nYes\nNo",
+          "required": false
+        },
+        {
+          "field": "encashment_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "held_on",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "reason_for_resignation",
+          "type": "Select",
+          "options": "\nBetter Prospects\nHealth Concerns",
+          "required": false
+        },
+        {
+          "field": "new_workplace",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "feedback",
+          "type": "Small Text",
+          "required": false
+        }
+      ],
+      "records": 180,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 180
+      },
+      "status_counts": {
+        "Left": 97,
+        "Active": 83
+      },
+      "company_counts": {
+        "SUPERTEX APA CO. LTD": 180
+      },
+      "date_ranges": {
+        "date_of_joining": {
+          "min": "2009-01-01",
+          "max": "2026-10-05"
+        },
+        "relieving_date": {
+          "min": "2016-07-31",
+          "max": "2026-05-31"
+        }
+      },
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 1,
+      "name": "Employee Attendance Tool",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "department",
+          "type": "Link",
+          "options": "Department",
+          "required": false
+        },
+        {
+          "field": "branch",
+          "type": "Link",
+          "options": "Branch",
+          "required": false
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": false
+        }
+      ],
+      "note": "Singleton settings; values not collected"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Employee Education",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Employee External Work History",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Employee Internal Work History",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Employee Leave Approver",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Employment Type",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "employee_type_name",
+          "type": "Data",
+          "required": true
+        }
+      ],
+      "records": 9,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 9
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Expense Claim",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "naming_series",
+          "type": "Select",
+          "options": "EXP",
+          "required": true
+        },
+        {
+          "field": "approval_status",
+          "type": "Select",
+          "options": "Draft\nApproved\nRejected",
+          "required": false
+        },
+        {
+          "field": "exp_approver",
+          "type": "Link",
+          "options": "User",
+          "required": false
+        },
+        {
+          "field": "total_claimed_amount",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "total_sanctioned_amount",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "expenses",
+          "type": "Table",
+          "options": "Expense Claim Detail",
+          "required": true
+        },
+        {
+          "field": "posting_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "total_amount_reimbursed",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "remark",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "project",
+          "type": "Link",
+          "options": "Project",
+          "required": false
+        },
+        {
+          "field": "task",
+          "type": "Link",
+          "options": "Task",
+          "required": false
+        },
+        {
+          "field": "title",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "email_id",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Expense Claim",
+          "required": false
+        }
+      ],
+      "records": 0,
+      "complete": true,
+      "docstatus_counts": {},
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Expense Claim Detail",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Expense Claim Type",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "expense_type",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "default_account",
+          "type": "Link",
+          "options": "Account",
+          "required": false
+        },
+        {
+          "field": "description",
+          "type": "Small Text",
+          "required": false
+        }
+      ],
+      "records": 5,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 5
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Holiday",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Holiday List",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "holiday_list_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "from_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "to_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "weekly_off",
+          "type": "Select",
+          "options": "\nSunday\nMonday\nTuesday\nWednesday\nThursday\nFriday\nSaturday",
+          "required": false
+        },
+        {
+          "field": "holidays",
+          "type": "Table",
+          "options": "Holiday",
+          "required": false
+        }
+      ],
+      "records": 1,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 1
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {
+        "from_date": {
+          "min": "2016-12-25",
+          "max": "2016-12-25"
+        },
+        "to_date": {
+          "min": "2017-12-25",
+          "max": "2017-12-25"
+        }
+      },
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 1,
+      "name": "HR Settings",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "emp_created_by",
+          "type": "Select",
+          "options": "Naming Series\nEmployee Number",
+          "required": false
+        },
+        {
+          "field": "stop_birthday_reminders",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "include_holidays_in_total_working_days",
+          "type": "Check",
+          "required": false
+        }
+      ],
+      "note": "Singleton settings; values not collected"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Job Applicant",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "applicant_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "email_id",
+          "type": "Data",
+          "options": "Email",
+          "required": true
+        },
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "Open\nReplied\nRejected\nHold",
+          "required": true
+        },
+        {
+          "field": "job_title",
+          "type": "Link",
+          "options": "Job Opening",
+          "required": false
+        },
+        {
+          "field": "cover_letter",
+          "type": "Text",
+          "required": false
+        },
+        {
+          "field": "resume_attachment",
+          "type": "Attach",
+          "required": false
+        }
+      ],
+      "records": 0,
+      "complete": true,
+      "docstatus_counts": {},
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Job Opening",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "job_title",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "publish",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "Open\nClosed",
+          "required": false
+        },
+        {
+          "field": "description",
+          "type": "Text Editor",
+          "required": false
+        },
+        {
+          "field": "page_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "parent_website_route",
+          "type": "Data",
+          "required": false
+        }
+      ],
+      "records": 2,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 2
+      },
+      "status_counts": {
+        "Open": 2
+      },
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Leave Allocation",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "description",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "leave_type",
+          "type": "Link",
+          "options": "Leave Type",
+          "required": true
+        },
+        {
+          "field": "from_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "to_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "new_leaves_allocated",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "carry_forward",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "carry_forwarded_leaves",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "total_leaves_allocated",
+          "type": "Float",
+          "required": true
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Leave Allocation",
+          "required": false
+        }
+      ],
+      "records": 410,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 22,
+        "1": 388
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {
+        "from_date": {
+          "min": "2016-01-01",
+          "max": "2021-06-05"
+        },
+        "to_date": {
+          "min": "2016-09-04",
+          "max": "2021-06-07"
+        }
+      },
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Leave Application",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "Open\nApproved\nApproved by SUP\nRejected",
+          "required": false
+        },
+        {
+          "field": "leave_type",
+          "type": "Link",
+          "options": "Leave Type",
+          "required": true
+        },
+        {
+          "field": "leave_balance",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "from_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "to_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "half_day",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "total_leave_days",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "description",
+          "type": "Small Text",
+          "required": false
+        },
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "leave_approver",
+          "type": "Link",
+          "options": "User",
+          "required": false
+        },
+        {
+          "field": "leave_approver_name",
+          "type": "Read Only",
+          "required": false
+        },
+        {
+          "field": "posting_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "follow_via_email",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "letter_head",
+          "type": "Link",
+          "options": "Letter Head",
+          "required": false
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Leave Application",
+          "required": false
+        },
+        {
+          "field": "workflow_state",
+          "type": "Link",
+          "options": "Workflow State",
+          "required": false
+        }
+      ],
+      "records": 120,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 6,
+        "1": 114
+      },
+      "status_counts": {
+        "Approved": 114,
+        "Rejected": 6
+      },
+      "company_counts": {
+        "SUPERTEX APA CO. LTD": 120
+      },
+      "date_ranges": {
+        "from_date": {
+          "min": "2016-07-04",
+          "max": "2019-12-17"
+        },
+        "to_date": {
+          "min": "2016-07-04",
+          "max": "2019-12-19"
+        },
+        "posting_date": {
+          "min": "2016-06-19",
+          "max": "2019-12-31"
+        }
+      },
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Leave Block List",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "leave_block_list_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "applies_to_all_departments",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "leave_block_list_dates",
+          "type": "Table",
+          "options": "Leave Block List Date",
+          "required": false
+        },
+        {
+          "field": "leave_block_list_allowed",
+          "type": "Table",
+          "options": "Leave Block List Allow",
+          "required": false
+        }
+      ],
+      "records": 0,
+      "complete": true,
+      "docstatus_counts": {},
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Leave Block List Allow",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Leave Block List Date",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 1,
+      "name": "Leave Control Panel",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "employment_type",
+          "type": "Link",
+          "options": "Employment Type",
+          "required": false
+        },
+        {
+          "field": "branch",
+          "type": "Link",
+          "options": "Branch",
+          "required": false
+        },
+        {
+          "field": "department",
+          "type": "Link",
+          "options": "Department",
+          "required": false
+        },
+        {
+          "field": "designation",
+          "type": "Link",
+          "options": "Designation",
+          "required": false
+        },
+        {
+          "field": "from_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "to_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "leave_type",
+          "type": "Link",
+          "options": "Leave Type",
+          "required": true
+        },
+        {
+          "field": "carry_forward",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "no_of_days",
+          "type": "Float",
+          "required": true
+        }
+      ],
+      "note": "Singleton settings; values not collected"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Leave Type",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "leave_type_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "max_days_allowed",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "is_carry_forward",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "is_encash",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "is_lwp",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "allow_negative",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "include_holiday",
+          "type": "Check",
+          "required": false
+        }
+      ],
+      "records": 8,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 8
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Offer Letter",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "job_applicant",
+          "type": "Link",
+          "options": "Job Applicant",
+          "required": true
+        },
+        {
+          "field": "applicant_name",
+          "type": "Data",
+          "options": "job_applicant.applicant_name",
+          "required": true
+        },
+        {
+          "field": "status",
+          "type": "Select",
+          "options": "Awaiting Response\nAccepted\nRejected",
+          "required": false
+        },
+        {
+          "field": "offer_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "designation",
+          "type": "Link",
+          "options": "Designation",
+          "required": true
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "offer_terms",
+          "type": "Table",
+          "options": "Offer Letter Term",
+          "required": false
+        },
+        {
+          "field": "select_terms",
+          "type": "Link",
+          "options": "Terms and Conditions",
+          "required": false
+        },
+        {
+          "field": "terms",
+          "type": "Text Editor",
+          "options": "",
+          "required": false
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Offer Letter",
+          "required": false
+        }
+      ],
+      "records": 0,
+      "complete": true,
+      "docstatus_counts": {},
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Offer Letter Term",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Offer Term",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "offer_term",
+          "type": "Data",
+          "required": true
+        }
+      ],
+      "records": 12,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 12
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Payslip",
+      "module": "HR",
+      "custom": 1,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": false
+        },
+        {
+          "field": "date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "month",
+          "type": "Select",
+          "options": "\nJan\nFeb\nMar\nApr\nMay\nJun\nJul\nAug\nSep\nOct\nNov\nDec",
+          "required": false
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "options": "",
+          "required": false
+        },
+        {
+          "field": "shop",
+          "type": "Link",
+          "options": "Cost Center",
+          "required": false
+        },
+        {
+          "field": "year",
+          "type": "Link",
+          "options": "Year",
+          "required": false
+        },
+        {
+          "field": "position",
+          "type": "Link",
+          "options": "Position",
+          "required": false
+        },
+        {
+          "field": "naming_series",
+          "type": "Data",
+          "options": "PSLIP-",
+          "required": false
+        },
+        {
+          "field": "basic_pay",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "commision",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "pay_method",
+          "type": "Select",
+          "options": "\nFixed\nCommission",
+          "required": false
+        },
+        {
+          "field": "deduction",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "net_pay",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "delayed_reports",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "stock_shrink",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "half_days",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "other_deds",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "other_deductions_details",
+          "type": "Long Text",
+          "required": false
+        },
+        {
+          "field": "balance_bf",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "charge",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "deducted",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "balance_cf",
+          "type": "Currency",
+          "required": false
+        }
+      ],
+      "records": 1,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 1
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {
+        "date": {
+          "min": "2016-12-30",
+          "max": "2016-12-30"
+        }
+      },
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Penalty",
+      "module": "HR",
+      "custom": 1,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "description",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "amount",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "remarks",
+          "type": "Data",
+          "required": false
+        }
+      ],
+      "records": 2,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 2
+      },
+      "status_counts": {},
+      "company_counts": {},
+      "date_ranges": {},
+      "submitted_totals": {}
+    },
+    {
+      "istable": 0,
+      "issingle": 1,
+      "name": "Process Payroll",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "branch",
+          "type": "Link",
+          "options": "Branch",
+          "required": false
+        },
+        {
+          "field": "send_email",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "department",
+          "type": "Link",
+          "options": "Department",
+          "required": false
+        },
+        {
+          "field": "designation",
+          "type": "Link",
+          "options": "Designation",
+          "required": false
+        },
+        {
+          "field": "fiscal_year",
+          "type": "Link",
+          "options": "Fiscal Year",
+          "required": true
+        },
+        {
+          "field": "month",
+          "type": "Select",
+          "options": "\n01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12",
+          "required": true
+        }
+      ],
+      "note": "Singleton settings; values not collected"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Salary Slip",
+      "module": "HR",
+      "custom": 0,
+      "submittable": true,
+      "fields": [
+        {
+          "field": "date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": true
+        },
+        {
+          "field": "department",
+          "type": "Link",
+          "options": "Department",
+          "required": false
+        },
+        {
+          "field": "designation",
+          "type": "Link",
+          "options": "Designation",
+          "required": false
+        },
+        {
+          "field": "branch",
+          "type": "Link",
+          "options": "Branch",
+          "required": false
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "letter_head",
+          "type": "Link",
+          "options": "Letter Head",
+          "required": false
+        },
+        {
+          "field": "sales",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "margin",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "commission2",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "approved",
+          "type": "Select",
+          "options": "\nNo\nYes",
+          "required": false
+        },
+        {
+          "field": "month",
+          "type": "Select",
+          "options": "\n01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n12",
+          "required": true
+        },
+        {
+          "field": "fiscal_year",
+          "type": "Link",
+          "options": "Fiscal Year",
+          "required": true
+        },
+        {
+          "field": "total_days_in_month",
+          "type": "Float",
+          "required": true
+        },
+        {
+          "field": "leave_without_pay",
+          "type": "Float",
+          "required": false
+        },
+        {
+          "field": "payment_days",
+          "type": "Float",
+          "required": true
+        },
+        {
+          "field": "bank_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "bank_account_no",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "email_check",
+          "type": "Check",
+          "required": false
+        },
+        {
+          "field": "amended_from",
+          "type": "Link",
+          "options": "Salary Slip",
+          "required": false
+        },
+        {
+          "field": "earnings",
+          "type": "Table",
+          "options": "Salary Slip Earning",
+          "required": false
+        },
+        {
+          "field": "deductions",
+          "type": "Table",
+          "options": "Salary Slip Deduction",
+          "required": false
+        },
+        {
+          "field": "arrear_amount",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "leave_encashment_amount",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "gross_pay",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "total_deduction",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "net_pay",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "rounded_total",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "total_in_words",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "charges_to_recover",
+          "type": "Table",
+          "options": "Charges on Salary",
+          "required": false
+        },
+        {
+          "field": "salary_slip",
+          "type": "Link",
+          "options": "Salary Slip",
+          "required": false
+        },
+        {
+          "field": "employee2",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "month2",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "balance_bf",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "grand_total",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "deducted",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "balance_cf",
+          "type": "Currency",
+          "required": false
+        },
+        {
+          "field": "kagabu",
+          "type": "Data",
+          "required": false
+        }
+      ],
+      "records": 4793,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 2,
+        "1": 4528,
+        "2": 263
+      },
+      "status_counts": {},
+      "company_counts": {
+        "SUPERTEX APA CO. LTD": 4793
+      },
+      "date_ranges": {
+        "date": {
+          "min": "2018-10-31",
+          "max": "2026-09-30"
+        }
+      },
+      "submitted_totals": {
+        "gross_pay": 1677807593.634832,
+        "net_pay": 1535907356.634832,
+        "total_deduction": 141900237
+      }
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Salary Slip Deduction",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Salary Slip Earning",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 0,
+      "name": "Salary Structure",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "employee",
+          "type": "Link",
+          "options": "Employee",
+          "required": true
+        },
+        {
+          "field": "employee_name",
+          "type": "Data",
+          "required": false
+        },
+        {
+          "field": "branch",
+          "type": "Link",
+          "options": "Branch",
+          "required": false
+        },
+        {
+          "field": "designation",
+          "type": "Link",
+          "options": "Designation",
+          "required": false
+        },
+        {
+          "field": "department",
+          "type": "Link",
+          "options": "Department",
+          "required": false
+        },
+        {
+          "field": "company",
+          "type": "Link",
+          "options": "Company",
+          "required": true
+        },
+        {
+          "field": "letter_head",
+          "type": "Link",
+          "options": "Letter Head",
+          "required": false
+        },
+        {
+          "field": "is_active",
+          "type": "Select",
+          "options": "\nYes\nNo",
+          "required": true
+        },
+        {
+          "field": "from_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "to_date",
+          "type": "Date",
+          "required": false
+        },
+        {
+          "field": "earnings",
+          "type": "Table",
+          "options": "Salary Structure Earning",
+          "required": true
+        },
+        {
+          "field": "deductions",
+          "type": "Table",
+          "options": "Salary Structure Deduction",
+          "required": false
+        },
+        {
+          "field": "total_earning",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "total_deduction",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        },
+        {
+          "field": "net_pay",
+          "type": "Currency",
+          "options": "Company:company:default_currency",
+          "required": false
+        }
+      ],
+      "records": 217,
+      "complete": true,
+      "docstatus_counts": {
+        "0": 217
+      },
+      "status_counts": {},
+      "company_counts": {
+        "SUPERTEX APA CO. LTD": 217
+      },
+      "date_ranges": {
+        "from_date": {
+          "min": "2014-03-03",
+          "max": "2026-05-30"
+        },
+        "to_date": {
+          "min": "2016-12-31",
+          "max": "2036-09-30"
+        }
+      },
+      "submitted_totals": {}
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Salary Structure Deduction",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 1,
+      "issingle": 0,
+      "name": "Salary Structure Earning",
+      "module": "HR",
+      "custom": 0,
+      "note": "Child table; reviewed through parent metadata"
+    },
+    {
+      "istable": 0,
+      "issingle": 1,
+      "name": "Upload Attendance",
+      "module": "HR",
+      "custom": 0,
+      "submittable": false,
+      "fields": [
+        {
+          "field": "att_fr_date",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "field": "att_to_date",
+          "type": "Date",
+          "required": true
+        }
+      ],
+      "note": "Singleton settings; values not collected"
+    }
+  ],
+  "app_summary": {
+    "employees": 178,
+    "enabled_employees": 81,
+    "submitted_employee_party_journals": 3
+  }
+}

@@ -61,3 +61,16 @@ test('voucher cost center preserves saved and manually entered values', async ()
   await new Promise(setImmediate);
   assert.equal(edited.input.value, 'Manual');
 });
+
+test('cost center is prefilled in rendered editable forms while saved and read-only values take precedence', () => {
+  const ejs = require('ejs');
+  const template = fs.readFileSync(path.join(__dirname, '..', 'views', 'cost-center-field.ejs'), 'utf8');
+  const render = (value, readOnly) => ejs.render(template, {
+    currentUser: { record_access: { cost_center: 'Assigned' } }, defaultCostCenter: 'Assigned', value, readOnly,
+  });
+  assert.match(render('', false), /value="Assigned"/);
+  assert.match(render('Saved', false), /value="Saved"/);
+  assert.match(render('', true), /value=""/);
+  assert.match(render('Saved', true), /value="Saved"/);
+  assert.match(ejs.render(template, { currentUser: {}, defaultCostCenter: '', value: '', readOnly: false }), /value=""/);
+});

@@ -15,6 +15,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'sales' }) %>
+        <% if (can('vouchers.sales.create')) { %><a class="button" href="/invoices/new" aria-label="New Sales Invoice">New</a><% } %>
         <div class="actions page-actions">
           <button type="button" class="button-light" id="refresh-invoice-prices">Refresh Prices</button>
           <% if (editing && savedListAllowed && can('vouchers.sales.submit') && can('payments.sales.record')) { %>
@@ -29,6 +30,7 @@
         </div>
       </nav>
     </header>
+    <p class="muted">Save keeps this invoice as a draft. Review and submit it to post stock and accounting entries.</p>
     <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %>
       <section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft.</section>
     <% } %>
@@ -85,7 +87,7 @@
             <label class="field-label app-floating-label" for="invoice-cost-center">Cost Center</label>
             <input id="invoice-cost-center" name="cost_center" list="invoice-cost-centers" data-cost-center-input
               data-default-cost-center="<%= currentUser && currentUser.record_access && currentUser.record_access.cost_center || '' %>"
-              value="<%= invoice && invoice.cost_center || '' %>" autocomplete="off" placeholder="Search cost centers">
+              value="<%= invoice && invoice.cost_center || (typeof defaultCostCenter !== 'undefined' ? defaultCostCenter : '') %>" autocomplete="off" placeholder="Search cost centers">
             <datalist id="invoice-cost-centers"></datalist>
           </div>
           <div class="form-field lookup-field app-floating-field app-floating-choice">

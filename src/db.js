@@ -1,11 +1,9 @@
 const mysql = require('mysql2/promise');
+const { databaseTls } = require('./database-tls');
 require('dotenv').config({ quiet: true });
 
 function sslConfig() {
-  const value = String(process.env.DB_SSL || '').toLowerCase();
-  return ['1', 'true', 'required', 'yes'].includes(value)
-    ? { rejectUnauthorized: false }
-    : undefined;
+  return databaseTls(process.env.DB_SSL, process.env.DB_SSL_CA_FILE);
 }
 
 const pool = mysql.createPool({

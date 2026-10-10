@@ -207,13 +207,23 @@ async function validatePurchaseOrder(client, purchase, excludePurchaseId = null,
     if (purchase.items.some((item) => item.purchase_order_item_id)) throw badRequest('Select a purchase order for linked items.');
     return;
   }
-  if (!Number.isSafeInteger(purchase.purchase_order_id) || purchase.purchase_order_id < 1) throw badRequest('Select a valid purchase order.');
+  const purchaseOrderId = Number(purchase.purchase_order_id);
+  if (!Number.isSafeInteger(purchaseOrderId) || purchaseOrderId < 1) throw badRequest('Select a valid purchase order.');
   const { rows: orders } = await client.query(`SELECT id, order_no, supplier_id, price_list, docstatus
-    FROM app_purchase_orders WHERE id=$1 FOR UPDATE`, [purchase.purchase_order_id]);
+    FROM app_purchase_orders WHERE id=$1 FOR UPDATE`, [purchaseOrderId]);
   const order = orders[0];
   if (!order || order.docstatus !== 'submitted') throw badRequest('Select a submitted purchase order.');
   if (order.supplier_id !== purchase.supplier_id || order.price_list !== purchase.price_list) {
     throw badRequest('Supplier and price list must match the purchase order.');
+  }
+  if (!checkRemaining) {
+    const { rows: drafts } = await client.query(`SELECT id, purchase_no FROM app_purchases
+      WHERE purchase_order_id=$1 AND docstatus='draft'
+        AND ($2::bigint IS NULL OR id<>$2) ORDER BY id LIMIT 1`, [order.id, excludePurchaseId]);
+    if (drafts.length) {
+      const invoiceNo = drafts[0].purchase_no || `PUR-${String(drafts[0].id).padStart(6, '0')}`;
+      throw badRequest(`This purchase order already has a draft purchase invoice: ${invoiceNo}. Edit or submit this draft, or delete it before creating another.`);
+    }
   }
   const { rows: orderItems } = await client.query(`SELECT id, item_code, warehouse, quantity::float AS quantity
     FROM app_purchase_order_items WHERE purchase_order_id=$1`, [order.id]);
@@ -227,7 +237,6 @@ async function validatePurchaseOrder(client, purchase, excludePurchaseId = null,
     const sourceId = Number(source.id);
     requested.set(sourceId, (requested.get(sourceId) || 0) + item.quantity);
   }
-  if (!checkRemaining) return;
   const { rows: received } = await client.query(`SELECT pi.purchase_order_item_id AS id, SUM(pi.quantity)::float AS quantity
     FROM app_purchase_items pi JOIN app_purchases p ON p.id=pi.purchase_id
     WHERE p.docstatus='submitted' AND p.purchase_order_id=$1 AND ($2::bigint IS NULL OR p.id<>$2)
@@ -235,7 +244,11 @@ async function validatePurchaseOrder(client, purchase, excludePurchaseId = null,
   const receivedById = new Map(received.map((row) => [Number(row.id), Number(row.quantity)]));
   for (const [id, quantity] of requested) {
     if (Math.round((quantity + (receivedById.get(id) || 0)) * 1000) > Math.round(byId.get(id).quantity * 1000)) {
-      throw badRequest(`Received quantity exceeds the remaining quantity for ${byId.get(id).item_code}.`);
+      const ordered = Number(byId.get(id).quantity);
+      const received = receivedById.get(id) || 0;
+      const remaining = Math.round((ordered - received) * 1000) / 1000;
+      const invoiceQuantity = Math.round(quantity * 1000) / 1000;
+      throw badRequest(`Invoice quantity ${invoiceQuantity} exceeds the remaining quantity for ${byId.get(id).item_code} on purchase order ${order.order_no}. Ordered: ${ordered}; already received: ${received}; remaining: ${remaining}.`);
     }
   }
 }
@@ -275,7 +288,7 @@ async function updatePurchase(id, payload) {
       throw badRequest('This invoice is already linked to a purchase order.');
     }
     await resolvePurchaseMasters(client, purchase);
-    await validatePurchaseOrder(client, purchase);
+    await validatePurchaseOrder(client, purchase, purchaseId);
     await assertUniqueSupplierReference(client, purchase, purchaseId);
     await client.query(`
       UPDATE app_purchases SET posting_date = $1, posting_time = $11, due_date = $2, supplier_id = $3,
@@ -367,7 +380,7 @@ async function loadPurchase(id) {
     pool.query(`
       SELECT id, payment_no, created_by, created_by_user_id, created_at,
         updated_by, updated_by_user_id, updated_at,
-        payment_date::text, amount::float, method, reference, notes, docstatus
+        payment_date::text, amount::float, method, reference, notes, docstatus, journal_entry_id
       FROM app_purchase_payments WHERE purchase_id = $1 ORDER BY payment_no
     `, [purchaseId]),
   ]);
@@ -583,12 +596,13 @@ async function cancelPurchasePayment(id, paymentNo) {
     if (!purchase) throw notFound();
     if (purchase.docstatus !== 'submitted') throw badRequest('Only payments on submitted purchases can be cancelled.');
     const { rows: payments } = await client.query(
-      'SELECT id, docstatus FROM app_purchase_payments WHERE purchase_id = $1 AND payment_no = $2 FOR UPDATE',
+      'SELECT id, docstatus, journal_entry_id FROM app_purchase_payments WHERE purchase_id = $1 AND payment_no = $2 FOR UPDATE',
       [purchaseId, Number(paymentNo)],
     );
     const payment = payments[0];
     if (!payment) throw badRequest('Payment not found.');
     if (payment.docstatus !== 'submitted') throw badRequest('Payment is already cancelled.');
+    if (payment.journal_entry_id) throw badRequest('Cancel the linked journal to reverse this payment allocation.');
 
     const postingDate = new Date().toISOString().slice(0, 10);
     await reverseVoucherGlEntries(client, 'purchase_payment', payment.id, postingDate);

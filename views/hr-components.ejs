@@ -1,0 +1,15 @@
+<div class="table-wrap"><table data-hr-components>
+<thead><tr><th>Component</th><th>Type</th><th>Amount (UGX)</th><th>Prorate by paid days</th><th>Posting account</th><th>Employer payable</th><th></th></tr></thead>
+<tbody>
+<% const inputComponents=(items||[]).filter(c=>!c.money_id); if(!inputComponents.length)inputComponents.push({label:'Basic salary',kind:'earning',amount:0,prorate:true}); %>
+<% inputComponents.forEach((c,index)=>{ %>
+<tr><td><input aria-label="Component name" name="components[<%= index %>][label]" value="<%= c.label %>" maxlength="150" required></td>
+<td><select aria-label="Component type" name="components[<%= index %>][kind]"><% ['earning','deduction','employer'].forEach(kind=>{ %><option value="<%= kind %>" <%= c.kind===kind?'selected':'' %>><%= {earning:'Earning',deduction:'Deduction',employer:'Employer contribution'}[kind] %></option><% }) %></select></td>
+<td><input aria-label="Component amount" type="number" min="0" step="0.01" name="components[<%= index %>][amount]" value="<%= c.amount %>" required></td>
+<td><input aria-label="Prorate component" type="checkbox" name="components[<%= index %>][prorate]" value="1" <%= c.prorate?'checked':'' %>></td>
+<td><select aria-label="Posting account" name="components[<%= index %>][account_id]" required><option value="">Choose account</option><% opts.accounts.filter(a=>['expense','liability'].includes(a.account_type)).forEach(a=>{ %><option value="<%= a.id %>" <%= String(c.account_id)===String(a.id)?'selected':'' %>><%= a.account_name %></option><% }) %></select></td>
+<td><select aria-label="Employer payable account" name="components[<%= index %>][payable_account_id]"><option value="">For employer contributions</option><% opts.accounts.filter(a=>a.account_type==='liability').forEach(a=>{ %><option value="<%= a.id %>" <%= String(c.payable_account_id)===String(a.id)?'selected':'' %>><%= a.account_name %></option><% }) %></select></td>
+<td><button type="button" class="button secondary" data-hr-remove aria-label="Remove component">Remove</button></td></tr>
+<% }) %>
+</tbody></table></div><button type="button" class="button secondary" data-hr-add>Add component</button>
+<p class="muted">Earnings use expense accounts. Deductions use liability accounts. Employer contributions need both an expense account and a payable account. Prorating uses paid calendar days.</p>

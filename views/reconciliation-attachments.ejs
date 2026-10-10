@@ -1,0 +1,25 @@
+<section class="invoice-card reconciliation-attachments" aria-labelledby="reconciliation-attachments-title" data-reconciliation-attachments <%= saved ? `data-voucher-id=${entry.id}` : '' %> data-can-manage="<%= can('vouchers.stock.edit') %>">
+  <div class="section-title"><h2 id="reconciliation-attachments-title">Scanned stock sheets</h2></div>
+  <% if (!saved) { %>
+    <p class="field-hint">Save the reconciliation as a draft first, then attach the scanned physical stock sheets.</p>
+  <% } else { %>
+    <p class="field-hint">Attach the original physical count as PDF, JPG, PNG, CSV, or Excel (.xls/.xlsx). Attachments are supporting documents and do not change counts or ledger entries.</p>
+    <div class="table-wrap">
+      <table data-scan-table hidden>
+        <thead><tr><th>File</th><th>Size</th><th>Uploaded by</th><th>Uploaded</th><th></th></tr></thead>
+        <tbody data-scan-rows></tbody>
+      </table>
+    </div>
+    <p class="empty" data-scan-empty>No scanned sheets attached.</p>
+    <% if (can('vouchers.stock.edit')) { %>
+      <form method="post" action="/stock/reconciliations/<%= entry.id %>/attachments" enctype="multipart/form-data" data-scan-upload>
+        <label>Scanned physical count sheets
+          <input type="file" name="scans" accept=".pdf,.jpg,.jpeg,.png,.csv,.xls,.xlsx" multiple required>
+        </label>
+        <p class="field-hint">Up to three files per upload, maximum 10 MB each.</p>
+        <button type="submit" class="button-light">Attach scanned sheets</button>
+      </form>
+    <% } %>
+    <p data-scan-status role="status" hidden></p>
+  <% } %>
+</section>

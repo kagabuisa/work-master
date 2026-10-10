@@ -1,0 +1,548 @@
+{
+  "reviewed_at": "2026-10-09T02:06:45.762Z",
+  "attendance_date_range": {
+    "min": "2016-07-28",
+    "max": "2022-02-02"
+  },
+  "employee_gap": {
+    "erpnext_total": 180,
+    "app_total": 178,
+    "missing_locally": 2,
+    "missing_active_locally": 2,
+    "local_only": 0,
+    "source_with_cost_center": 180,
+    "source_with_user_link": 37
+  },
+  "live_salary_scripts": [
+    {
+      "dt": "Salary Slip",
+      "script": "frappe.ui.form.on(\"Salary Slip\", {\n\tvalidate: function(frm) {\n\t\tfrm.trigger(\"calculate_commission2\")\n\t},\n\n\tsales: function(frm) {\n\t\tfrm.trigger(\"calculate_commission2\")\n\t},\n\n\tmargin: function(frm) {\n\t\tfrm.trigger(\"calculate_commission2\")\n\t},\n\n\tcalculate_commission2: function(frm) {\n\t\tif (frm.doc.sales && frm.doc.margin){ \n\t\t\tcommission = flt(frm.doc.sales * frm.doc.margin * 12500 / 20 / 1000000);\n\t\t\tfrm.set_value('commission2', commission)\n                        refresh_field(\"commission2\");\n\t\t}\n\t}\n})\n\ncur_frm.add_fetch('salary_slip','balance_cf','balance_bf')\ncur_frm.add_fetch('salary_slip','employee_name','employee2')\ncur_frm.add_fetch('salary_slip','month','month2')\n\nfunction compute(doc, cdt, cdn){\n    if (doc.balance_bf && doc.grand_total && doc.deducted){ //it's check if the fields contains a value\n          doc.balance_cf = doc.balance_bf + doc.grand_total - doc.deducted;\n          refresh_field(\"balance_cf\");\n    }\n    else {\n        if (doc.grand_total && doc.deducted){\n            doc.balance_cf = doc.grand_total - doc.deducted;\n            refresh_field(\"balance_cf\"); \n         }\n         else {\n            if (doc.balance_bf && doc.grand_total){\n              doc.balance_cf = doc.balance_bf + doc.grand_total;\n              refresh_field(\"balance_cf\");\n              }\n              else {\n                  if (doc.grand_total){\n                     doc.balance_cf = doc.grand_total;\n                     refresh_field(\"balance_cf\");\n                     }\n                     else {\n                          if (doc.balance_cf){\n                             doc.balance_cf = doc.balance_bf - doc.deducted;\n                             refresh_field(\"balance_cf\");\n                           }\n                           else {\n                                if (doc.balance_bf){\n                                   doc.balance_cf = doc.balance_bf;\n                                   refresh_field(\"balance_cf\");\n                                }\n                                else {\n                                     doc.balance_cf = -doc.deducted;\n                                     refresh_field(\"balance_cf\");\n                                     }\n                                }\n                          }\n                      }\n                  }\n            }\n       }\n            \t\t\ncur_frm.cscript.custom_balance_bf = compute;\ncur_frm.cscript.custom_grand_total = compute;\ncur_frm.cscript.custom_deducted = compute;\ncur_frm.cscript.custom_balance_cf = compute;"
+    }
+  ],
+  "leave_workflows": [
+    {
+      "document_type": "Leave Application",
+      "is_active": 0
+    }
+  ],
+  "salary_samples": [
+    {
+      "docstatus": 0,
+      "date": "2026-08-31",
+      "month": "08",
+      "fiscal_year": "2026",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic"
+      ],
+      "deduction_types": [
+        "Half day charge"
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": false,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 0,
+      "date": "2024-10-10",
+      "month": "11",
+      "fiscal_year": "2024",
+      "approved": "",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic",
+        "Commission"
+      ],
+      "deduction_types": [
+        "Other charges"
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": false,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 1,
+      "date": "2026-09-30",
+      "month": "09",
+      "fiscal_year": "2026",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic"
+      ],
+      "deduction_types": [
+        "Debt recovery.",
+        "Salary Advance"
+      ],
+      "charge_rows": 1,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": true,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 1,
+      "date": "2026-09-30",
+      "month": "09",
+      "fiscal_year": "2026",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic"
+      ],
+      "deduction_types": [
+        "Other charges"
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": false,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 1,
+      "date": "2026-09-30",
+      "month": "09",
+      "fiscal_year": "2026",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic"
+      ],
+      "deduction_types": [
+        "Debt recovery."
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": true,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 2,
+      "date": "2026-09-30",
+      "month": "09",
+      "fiscal_year": "2026",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic"
+      ],
+      "deduction_types": [
+        "Debt recovery.",
+        "Salary Advance"
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": false,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 2,
+      "date": "2026-08-31",
+      "month": "08",
+      "fiscal_year": "2026",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic"
+      ],
+      "deduction_types": [
+        "Other charges"
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": false,
+      "has_commission": false,
+      "has_carried_balance": false,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    },
+    {
+      "docstatus": 2,
+      "date": "2025-12-31",
+      "month": "12",
+      "fiscal_year": "2025",
+      "approved": "Yes",
+      "earnings_fields": [
+        "modified_by",
+        "name",
+        "parent",
+        "e_depends_on_lwp",
+        "creation",
+        "e_amount",
+        "modified",
+        "e_type",
+        "e_modified_amount",
+        "idx",
+        "parenttype",
+        "doctype",
+        "owner",
+        "docstatus",
+        "parentfield"
+      ],
+      "deductions_fields": [
+        "d_depends_on_lwp",
+        "modified_by",
+        "name",
+        "parent",
+        "creation",
+        "modified",
+        "d_amount",
+        "idx",
+        "parenttype",
+        "d_modified_amount",
+        "doctype",
+        "owner",
+        "docstatus",
+        "d_type",
+        "parentfield"
+      ],
+      "earning_types": [
+        "Basic",
+        "Commission"
+      ],
+      "deduction_types": [
+        "Other charges"
+      ],
+      "charge_rows": 0,
+      "has_previous_slip": true,
+      "has_sales": true,
+      "has_commission": false,
+      "has_carried_balance": false,
+      "gross_less_deductions_matches_net": true,
+      "charges_balance_matches": true
+    }
+  ],
+  "hr_accounts": [
+    {
+      "account_type": "Expense Account",
+      "name": "Commission Expense - SACL",
+      "root_type": "Expense"
+    },
+    {
+      "account_type": "Payable",
+      "name": "Commission Payable - SACL",
+      "root_type": "Liability"
+    },
+    {
+      "account_type": "Income Account",
+      "name": "Deduction - Absent - SACL",
+      "root_type": "Income"
+    },
+    {
+      "account_type": "Income Account",
+      "name": "Deduction - Early Departure - SACL",
+      "root_type": "Income"
+    },
+    {
+      "account_type": "Income Account",
+      "name": "Deduction - Late Arrival - SACL",
+      "root_type": "Income"
+    },
+    {
+      "account_type": "Income Account",
+      "name": "Deduction - Mispricing - SACL",
+      "root_type": "Income"
+    },
+    {
+      "account_type": "Receivable",
+      "name": "Employee Cash Advance - SACL",
+      "root_type": "Asset"
+    },
+    {
+      "account_type": "Receivable",
+      "name": "Employee Loan - SACL",
+      "root_type": "Asset"
+    },
+    {
+      "account_type": "Receivable",
+      "name": "Employee Loss Recoverable - SACL",
+      "root_type": "Asset"
+    },
+    {
+      "account_type": "Expense Account",
+      "name": "Employee welfare - SACL - SACL",
+      "root_type": "Expense"
+    },
+    {
+      "account_type": "",
+      "name": "Loans and Advances (Assets) - SACL",
+      "root_type": "Asset"
+    },
+    {
+      "account_type": "Expense Account",
+      "name": "PAYE Expense - SACL",
+      "root_type": "Expense"
+    },
+    {
+      "account_type": "Expense Account",
+      "name": "Salary - SACL",
+      "root_type": "Expense"
+    },
+    {
+      "account_type": "Payable",
+      "name": "Salary Payable - SACL",
+      "root_type": "Liability"
+    },
+    {
+      "account_type": "Expense Account",
+      "name": "Staff Meals and Refreshments - SACL",
+      "root_type": "Expense"
+    },
+    {
+      "account_type": "Expense Account",
+      "name": "Wages Expenses - SACL",
+      "root_type": "Expense"
+    }
+  ]
+}

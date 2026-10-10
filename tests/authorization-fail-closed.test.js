@@ -23,7 +23,7 @@ function registeredRoutes() {
   for (const match of serverSource.matchAll(appPattern)) {
     routes.push({ method: match[1].toUpperCase(), route: match[2] });
   }
-  const routerMounts = { 'api.js': '/api', 'reports.js': '/reports', 'stock.js': '/stock', 'ledger.js': '', 'purchasing.js': '', 'settings.js': '', 'sales.js': '' };
+  const routerMounts = { 'api.js': '/api', 'reports.js': '/reports', 'stock.js': '/stock', 'ledger.js': '', 'purchasing.js': '', 'settings.js': '', 'sales.js': '', 'hr.js': '/hr' };
   const routersDir = path.join(__dirname, '..', 'src', 'web', 'routes');
   for (const [file, prefix] of Object.entries(routerMounts)) {
     const routerPath = path.join(routersDir, file);

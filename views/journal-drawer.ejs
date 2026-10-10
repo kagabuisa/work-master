@@ -29,7 +29,7 @@
       <% if (journal.cost_center) { %><div><span>Cost Center</span><strong><%= journal.cost_center %></strong></div><% } %>
     </div>
     <table>
-      <thead><tr><th>#</th><th>Account</th><th>Debit</th><th>Credit</th><th>Line Remarks</th></tr></thead>
+      <thead><tr><th>#</th><th>Account</th><th>Debit</th><th>Credit</th><th>Purchase Invoice</th><th>Line Remarks</th></tr></thead>
       <tbody>
         <% journalLines.forEach((line, index) => { %>
           <tr>
@@ -37,12 +37,13 @@
             <td><strong><%= line.account_code %></strong> - <%= line.account_name %></td>
             <td><%= Number(line.debit || 0) ? money(line.debit) : '' %></td>
             <td><%= Number(line.credit || 0) ? money(line.credit) : '' %></td>
+            <td><%= line.reference_no || '' %></td>
             <td><%= line.remarks || '' %></td>
           </tr>
         <% }) %>
       </tbody>
       <tfoot>
-        <tr><th colspan="2">Total</th><th><%= money(journal.total_debit || 0) %></th><th><%= money(journal.total_credit || 0) %></th><th></th></tr>
+        <tr><th colspan="2">Total</th><th><%= money(journal.total_debit || 0) %></th><th><%= money(journal.total_credit || 0) %></th><th></th><th></th></tr>
       </tfoot>
     </table>
     <% if (journal.remarks) { %><p class="notes"><%= journal.remarks %></p><% } %>

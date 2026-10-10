@@ -64,7 +64,7 @@ async function stockBalances(filters = {}) {
     SELECT item_code, item_name, warehouse, quantity::float, stock_value::float, valuation_rate::float
     FROM app_stock_balances
     WHERE ${whereSql}
-    ORDER BY item_name, warehouse
+    ORDER BY item_name, warehouse, item_code
     LIMIT $${params.length - 1} OFFSET $${params.length}
     `,
     params,
@@ -275,7 +275,8 @@ async function loadStockEntry(id) {
     [stockEntryId],
   );
   let reconciliationValues = new Map();
-  if (entry.entry_type === 'reconciliation' && entry.docstatus !== 'draft') {
+  const postedReconciliation = entry.entry_type === 'reconciliation' && entry.docstatus !== 'draft';
+  if (postedReconciliation) {
     const { rows: movements } = await getPostgresPool().query(`SELECT item_code, warehouse,
       stock_value_change::float FROM app_stock_ledger WHERE voucher_id = $1
       AND voucher_type = 'stock_reconciliation' AND is_reversal = false`, [stockEntryId]);
@@ -292,9 +293,10 @@ async function loadStockEntry(id) {
     items: items.map((item) => ({
       ...item,
       id: Number(item.id),
-      quantity_change: entry.entry_type === 'reconciliation' && entry.docstatus !== 'draft'
+      quantity_change: postedReconciliation
         ? Number(item.quantity || 0) : null,
-      value_change: reconciliationValues.get(`${item.item_code}\0${item.warehouse}`) ?? null,
+      value_change: reconciliationValues.get(`${item.item_code}\0${item.warehouse}`)
+        ?? (postedReconciliation && Number(item.quantity || 0) === 0 ? 0 : null),
       quantity: entry.entry_type === 'reconciliation' && item.counted_quantity != null
         ? Number(item.counted_quantity) : Number(item.quantity || 0),
       valuation_rate: Number(item.valuation_rate || 0),

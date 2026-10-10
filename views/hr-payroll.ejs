@@ -1,0 +1,19 @@
+<% const payrollForm = typeof formData !== 'undefined' ? formData : {}; const selectedEmployees = Array.isArray(payrollForm.employee_ids) ? payrollForm.employee_ids : [payrollForm.employee_ids].filter(Boolean); %>
+<% if(typeof payrollError !== 'undefined' && payrollError){ %>
+<section class="notice warning" role="alert"><p><%= payrollError %></p>
+<% if(correctionHref){ %><a class="button button-light" href="<%= correctionHref %>"><%= correctionLabel %></a><% } %>
+</section>
+<% } %>
+<% if(can('hr.payroll.create')){ %>
+<section class="invoice-card hr-card"><h2>Prepare monthly payroll</h2>
+<p>First open <strong>HR → Employees → select employee → Pay plans</strong> and save a plan effective on or before the first day of the payroll month.
+<% if(can('hr.employees.view')){ %><a href="/hr/employees">Set up employee pay plans</a>.<% } %>
+<% if(!can('hr.payroll.edit')){ %>Ask a user with Payroll Write permission to save the plan.<% } %></p>
+<form method="post" action="/hr/payroll" class="hr-grid">
+<label>Company<select name="company" required><option value="">Choose company</option><% [...new Set(opts.employees.map(e=>e.company).filter(Boolean))].sort().forEach(company=>{ %><option <%= payrollForm.company===company?'selected':'' %>><%= company %></option><% }) %></select></label>
+<label>Payroll month<input type="month" name="period" value="<%= payrollForm.period||today.slice(0,7) %>" required></label>
+<label>Posting date<input type="date" name="posting_date" value="<%= payrollForm.posting_date||new Date(Date.UTC(Number(today.slice(0,4)),Number(today.slice(5,7)),0)).toISOString().slice(0,10) %>" required></label>
+<%- include('hr-employee-select',{label:'Employees (choose the same company)',name:'employee_ids',multiple:true,activeOnly:false,selectedIds:selectedEmployees}) %>
+<div><button class="button">Create draft payroll</button></div></form>
+<p>Review and save each employee’s paid days, variable pay, and recoveries before posting. Inactive employees need a leaving date under HR → Employees → Employment.</p></section><% } %>
+<section class="invoice-card hr-card"><h2>Payroll register</h2><a class="button secondary" href="/hr/payslips">Individual payslips</a><div class="table-wrap"><table><thead><tr><th>Payroll</th><th>Company</th><th>Employees</th><th>Gross</th><th>Net</th><th>Paid</th><th>Outstanding</th><th>Status</th></tr></thead><tbody><% runs.forEach(r=>{ %><tr><td><a href="/hr/payroll/<%= r.id %>">PAY-<%= r.id %> · <%= r.period %></a></td><td><%= r.company %></td><td><%= r.employees %></td><td><%= money(r.gross) %></td><td><%= money(r.net) %></td><td><%= money(r.paid) %></td><td><%= r.docstatus==='submitted'?money(r.net-r.paid):'—' %></td><td><span class="badge <%= r.docstatus %>"><%= r.docstatus %></span></td></tr><% }) %></tbody></table></div><% if(!runs.length){ %><p>No payroll runs in your permitted scope.</p><% } %></section>

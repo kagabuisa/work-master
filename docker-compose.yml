@@ -12,7 +12,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-invoice_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-invoice_password}
     ports:
-      - "${PORT:-3020}:${PORT:-3020}"
+      - "127.0.0.1:${PORT:-3020}:${PORT:-3020}"
     volumes:
       - invoice-data:/app/data
     depends_on:

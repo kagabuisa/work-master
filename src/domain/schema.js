@@ -13,6 +13,35 @@ const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } 
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
 const { paginationOptions, paginationResult } = require('../lib/pagination');
 
+async function initReconciliationAttachments(client) {
+  await client.query(`CREATE TABLE IF NOT EXISTS app_stock_reconciliation_attachments (
+    id BIGSERIAL PRIMARY KEY,
+    stock_entry_id BIGINT NOT NULL REFERENCES app_stock_entries(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL,
+    content_type TEXT NOT NULL CHECK (content_type IN ('application/pdf', 'image/jpeg', 'image/png', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')),
+    byte_size INTEGER NOT NULL CHECK (byte_size > 0 AND byte_size <= 10485760),
+    content BYTEA NOT NULL CHECK (octet_length(content) = byte_size),
+    uploaded_by TEXT,
+    uploaded_by_user_id BIGINT,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  // Expand the type constraint on installations that already stored scanned sheets.
+  await client.query(`DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'app_stock_reconciliation_attachments'::regclass
+        AND conname = 'app_stock_reconciliation_attachments_content_type_check'
+        AND pg_get_constraintdef(oid) NOT LIKE '%text/csv%') THEN
+      ALTER TABLE app_stock_reconciliation_attachments
+        DROP CONSTRAINT app_stock_reconciliation_attachments_content_type_check;
+      ALTER TABLE app_stock_reconciliation_attachments
+        ADD CONSTRAINT app_stock_reconciliation_attachments_content_type_check
+        CHECK (content_type IN ('application/pdf', 'image/jpeg', 'image/png', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'));
+    END IF;
+  END $$`);
+  await client.query(`CREATE INDEX IF NOT EXISTS app_stock_reconciliation_attachments_voucher_idx
+    ON app_stock_reconciliation_attachments (stock_entry_id)`);
+}
+
 async function initPostgresStore() {
   const pool = getPostgresPool();
   await pool.query(`
@@ -342,6 +371,8 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_stock_entry_items ADD COLUMN IF NOT EXISTS counted_quantity NUMERIC(14, 3)');
+  await initReconciliationAttachments(pool);
+
   await pool.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_stock_balances (
@@ -396,6 +427,8 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_accounts ADD COLUMN IF NOT EXISTS account_detail_type TEXT');
+  await pool.query('ALTER TABLE app_accounts ADD COLUMN IF NOT EXISTS erpnext_account_name TEXT');
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS app_accounts_erpnext_name_idx ON app_accounts (erpnext_account_name)');
   await pool.query('ALTER TABLE app_invoice_payments ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES app_accounts(id)');
   await pool.query(`
     DO $$ BEGIN
@@ -471,6 +504,9 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
+  await pool.query('ALTER TABLE app_journal_entry_lines ADD COLUMN IF NOT EXISTS reference_no TEXT');
+  await pool.query('ALTER TABLE app_purchase_payments ADD COLUMN IF NOT EXISTS journal_entry_id BIGINT REFERENCES app_journal_entries(id) ON DELETE SET NULL');
+  await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_payments_journal_idx ON app_purchase_payments(journal_entry_id)');
   for (const table of ['app_invoices', 'app_purchases', 'app_stock_entries', 'app_journal_entries']) {
     await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS posting_time TIME NOT NULL DEFAULT '00:00:00'`);
     await pool.query(`ALTER TABLE ${table} ALTER COLUMN posting_time SET DEFAULT ((CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Kampala')::time)`);
@@ -918,6 +954,7 @@ async function backfillInvoicePaymentJournals(pool) {
   }
 }
 module.exports = {
+  initReconciliationAttachments,
   initPostgresStore,
   createPerformanceIndexes,
   migratePostgresInvoiceItems,

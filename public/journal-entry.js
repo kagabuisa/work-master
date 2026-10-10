@@ -9,6 +9,10 @@ const selectionSummary = document.querySelector('#journal-selection-summary');
 const partyDetail = document.querySelector('#party-selection-detail');
 const referenceSearch = document.querySelector('#reference-search');
 const referenceResults = document.querySelector('#reference-results');
+const selectedReferenceList = document.querySelector('#journal-selected-references');
+const headerReference = document.querySelector('#journal-header-reference');
+let displayedReferences = [];
+let referenceRequestVersion = 0;
 const referenceDetail = document.querySelector('#reference-selection-detail');
 const journalLinesBody = document.querySelector('#journal-lines tbody');
 const addJournalRow = document.querySelector('#add-journal-row');
@@ -41,6 +45,7 @@ addJournalRow.addEventListener('click', () => {
   journalLinesBody.appendChild(blankJournalRow());
   updateJournalTotals();
   updateJournalRowNumbers();
+  refreshPurchaseInvoiceChoices();
 });
 
 journalType.addEventListener('change', () => {
@@ -104,7 +109,6 @@ if (partyType && partySearch) {
 
 if (referenceSearch) {
   referenceSearch.addEventListener('input', () => {
-    setSelectionDetail(referenceDetail, '');
     clearTimeout(referenceTimer);
     referenceTimer = setTimeout(searchReferences, 220);
   });
@@ -121,7 +125,7 @@ if (referenceSearch) {
     if (event.key !== 'Enter' || event.ctrlKey) {
       return;
     }
-    const firstResult = referenceResults.querySelector('[data-reference]');
+    const firstResult = referenceResults.querySelector('[data-reference][aria-pressed="false"]');
     if (!firstResult) {
       return;
     }
@@ -130,7 +134,7 @@ if (referenceSearch) {
   });
 
   document.addEventListener('click', (event) => {
-    if (event.target === referenceSearch || referenceResults.contains(event.target)) {
+    if (event.target === referenceSearch || event.composedPath().includes(referenceResults) || event.composedPath().includes(selectedReferenceList)) {
       return;
     }
     referenceResults.innerHTML = '';
@@ -144,6 +148,10 @@ journalLinesBody.addEventListener('input', (event) => {
     updateJournalTotals();
     showAccountResults(picker);
     return;
+  }
+  if (event.target.matches('[name="line_reference_no"]')) {
+    searchPurchaseInvoiceRow(event.target);
+    renderSelectedReferences();
   }
   if (event.target.matches('[name="debit"]')) {
     const row = event.target.closest('tr');
@@ -171,9 +179,12 @@ journalLinesBody.addEventListener('click', (event) => {
   }
   updateJournalTotals();
   updateJournalRowNumbers();
+  refreshPurchaseInvoiceChoices();
+  renderSelectedReferences();
 });
 
 journalLinesBody.addEventListener('focusin', (event) => {
+  if (event.target.matches('[name="line_reference_no"]')) searchPurchaseInvoiceRow(event.target);
   if (event.target.matches('[data-account-search]')) showAccountResults(event.target.closest('.journal-account-picker'));
 });
 
@@ -324,9 +335,10 @@ if (!hasEnteredAmounts()) {
 configurePartySearch();
 configureReferenceSearch();
 preloadParties();
-if (hasSelectedParty() && referenceSearch.value.trim()) preloadReferences();
+if (hasSelectedParty()) preloadReferences();
 updateJournalTotals();
 updateJournalRowNumbers();
+renderSelectedReferences();
 
 function applyJournalTypeTemplate() {
   const rows = [...journalLinesBody.querySelectorAll('tr')];
@@ -360,13 +372,42 @@ function configurePartySearch() {
   }
 }
 
+let rowReferenceTimer;
+function searchPurchaseInvoiceRow(input) {
+  clearTimeout(rowReferenceTimer);
+  if (!hasSelectedParty() || !['supplier', 'customer'].includes(partyType.value)) return;
+  const selectedParty = partyId.value;
+  const query = input.value.trim();
+  rowReferenceTimer = setTimeout(async () => {
+    try {
+      const rows = await fetchReferences(query, partyType.value === 'supplier');
+      if (partyId.value !== selectedParty || !['supplier', 'customer'].includes(partyType.value) || input.value.trim() !== query) return;
+      preloadedReferences = rows;
+      refreshPurchaseInvoiceChoices();
+    } catch {
+      const list = document.querySelector('#journal-purchase-invoices');
+      if (list) list.replaceChildren();
+    }
+  }, 220);
+}
+
+function refreshPurchaseInvoiceChoices() {
+  const list = document.querySelector('#journal-purchase-invoices');
+  if (list) list.innerHTML = preloadedReferences.filter((row) => ['Purchase', 'Invoice'].includes(row.type) && Number(row.balance) > 0)
+    .map((row) => `<option value="${escapeAttr(row.reference)}">${escapeHtml(referenceMeta(row))}</option>`).join('');
+  journalLinesBody.querySelectorAll('[name="line_reference_no"]').forEach((input) => {
+    input.disabled = !hasSelectedParty();
+  });
+}
+
 function configureReferenceSearch() {
+  refreshPurchaseInvoiceChoices();
   if (!referenceSearch) {
     return;
   }
   const hasParty = Boolean(partyType && partyType.value && partyId && partyId.value);
   referenceSearch.disabled = !hasParty;
-  referenceSearch.placeholder = hasParty ? 'Search this party transactions' : 'Select a party first';
+  referenceSearch.placeholder = hasParty ? 'Select references to add rows' : 'Select a party first';
   if (!hasParty) {
     referenceResults.innerHTML = '';
     preloadedReferences = [];
@@ -535,6 +576,7 @@ async function searchReferences() {
     referenceResults.innerHTML = '<p>Select a party first.</p>';
     return;
   }
+  const requestVersion = referenceRequestVersion;
   const q = referenceSearch.value.trim();
   if (!q) {
     showPreloadedReferences();
@@ -542,24 +584,28 @@ async function searchReferences() {
   }
   try {
     const rows = await fetchReferences(q);
-    renderReferenceResults(rows);
+    if (requestVersion === referenceRequestVersion && hasSelectedParty() && referenceSearch.value.trim() === q) renderReferenceResults(rows);
   } catch {
-    referenceResults.innerHTML = '<p>Could not load references.</p>';
+    if (requestVersion === referenceRequestVersion) referenceResults.innerHTML = '<p>Could not load references.</p>';
   }
 }
 
-async function fetchReferences(q = '') {
+async function fetchReferences(q = '', purchaseInvoicesOnly = false) {
+  const requestVersion = referenceRequestVersion;
   const params = new URLSearchParams({
     party_type: partyType.value,
     party_id: partyId.value,
     party_name: partyName.value,
     q,
   });
+  if (purchaseInvoicesOnly) params.set('purchase_invoices_only', '1');
   const response = await fetch(`/api/journal-reference-options?${params.toString()}`);
   if (!response.ok) {
     throw new Error('Reference request failed.');
   }
-  return response.json();
+  const rows = await response.json();
+  if (requestVersion !== referenceRequestVersion) return [];
+  return rows;
 }
 
 async function preloadReferences() {
@@ -567,9 +613,12 @@ async function preloadReferences() {
     preloadedReferences = [];
     return;
   }
+  const requestVersion = referenceRequestVersion;
   referencesLoading = true;
   try {
-    preloadedReferences = await fetchReferences();
+    const rows = await fetchReferences();
+    if (requestVersion !== referenceRequestVersion) return;
+    preloadedReferences = rows;
     const selectedReference = referenceSearch.value.trim();
     if (selectedReference) {
       let selected = preloadedReferences.find((row) => row.reference === selectedReference);
@@ -582,7 +631,9 @@ async function preloadReferences() {
   } catch {
     preloadedReferences = [];
   } finally {
+    if (requestVersion !== referenceRequestVersion) return;
     referencesLoading = false;
+    refreshPurchaseInvoiceChoices();
     if (document.activeElement === referenceSearch && !referenceSearch.value.trim()) {
       showPreloadedReferences();
     }
@@ -602,21 +653,18 @@ function showPreloadedReferences() {
 }
 
 function renderReferenceResults(rows) {
-  referenceResults.innerHTML = rows.map((row) => `
-    <button type="button" data-reference="${escapeAttr(row.reference)}" data-detail="${escapeAttr(referenceMeta(row))}">
-      <strong>${escapeHtml(row.reference)}</strong>
+  displayedReferences = rows.filter((row) => partyType.value === 'supplier' ? row.type === 'Purchase' && Number(row.balance) > 0
+    : partyType.value === 'customer' ? row.type === 'Invoice' && Number(row.balance) > 0 : row.account_rows?.length);
+  const selected = new Set([...journalLinesBody.querySelectorAll('[name="line_reference_no"]')].map((input) => input.value));
+  referenceResults.innerHTML = displayedReferences.map((row) => `
+    <button type="button" data-reference="${escapeAttr(row.reference)}" aria-pressed="${selected.has(row.reference)}">
+      <strong>${selected.has(row.reference) ? '✓ ' : '+ '}${escapeHtml(row.reference)}</strong>
       <span>${escapeHtml(referenceMeta(row))}</span>
     </button>
-  `).join('') || '<p>No transactions found for this party.</p>';
-
+  `).join('') || '<p>No available references for this party.</p>';
   referenceResults.querySelectorAll('[data-reference]').forEach((button) => {
-    button.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      selectReference(button);
-    });
-    button.addEventListener('click', () => {
-      selectReference(button);
-    });
+    button.addEventListener('mousedown', (event) => event.preventDefault());
+    button.addEventListener('click', () => selectReference(button));
   });
 }
 
@@ -631,19 +679,72 @@ function referenceMeta(row) {
 }
 
 function selectReference(button) {
-  referenceSearch.value = button.dataset.reference;
-  setSelectionDetail(referenceDetail, button.dataset.detail);
-  referenceResults.innerHTML = '';
+  const reference = displayedReferences.find((row) => row.reference === button.dataset.reference);
+  if (!reference || !hasSelectedParty()) return;
+  if ([...journalLinesBody.querySelectorAll('[name="line_reference_no"]')].some((input) => input.value === reference.reference)) return;
+  const details = reference.account_rows?.length ? reference.account_rows : [{ account_id: reference.account_id,
+    debit: partyType.value === 'supplier' ? reference.balance : 0,
+    credit: partyType.value === 'customer' ? reference.balance : 0 }];
+  if (details.some((detail) => !journalAccounts.some((account) => Number(account.id) === Number(detail.account_id)))) {
+    setSelectionDetail(referenceDetail, 'The account for this reference is unavailable or not permitted.');
+    return;
+  }
+  if (partyType.value === 'supplier' && journalType.value === 'cash_receipt') journalType.value = 'payment_journal';
+  if (partyType.value === 'customer' && journalType.value === 'payment_journal') journalType.value = 'cash_receipt';
+  for (const detail of details) {
+    const row = [...journalLinesBody.querySelectorAll('tr')].find((row) =>
+      [...row.querySelectorAll('input')].every((input) => !input.value)) || blankJournalRow();
+    if (!row.isConnected) journalLinesBody.appendChild(row);
+    const account = journalAccounts.find((account) => Number(account.id) === Number(detail.account_id));
+    row.querySelector('[name="account_id"]').value = account.id;
+    row.querySelector('[data-account-search]').value = `${account.code} - ${account.name}`;
+    row.querySelector('[name="debit"]').value = detail.debit || '';
+    row.querySelector('[name="credit"]').value = detail.credit || '';
+    row.querySelector('[name="line_reference_no"]').value = reference.reference;
+    row.querySelector('[name="line_remarks"]').value = `${reference.reference} · ${partyName.value}`;
+    row.dataset.selectedReference = reference.reference;
+  }
+  headerReference.value = '';
+  referenceSearch.value = '';
+  setSelectionDetail(referenceDetail, '');
+  updateJournalTotals();
+  updateJournalRowNumbers();
+  refreshPurchaseInvoiceChoices();
+  renderSelectedReferences();
+  renderReferenceResults(displayedReferences);
+}
+
+function renderSelectedReferences() {
+  if (!selectedReferenceList) return;
+  const references = [...new Set([...journalLinesBody.querySelectorAll('[name="line_reference_no"]')].map((input) => input.value).filter(Boolean))];
+  selectedReferenceList.innerHTML = references.map((reference) => `<button type="button" class="button-light" data-remove-reference="${escapeAttr(reference)}" aria-label="Remove ${escapeAttr(reference)}">${escapeHtml(reference)} <span aria-hidden="true">×</span></button>`).join('');
+  selectedReferenceList.querySelectorAll('[data-remove-reference]').forEach((button) => button.addEventListener('click', () => {
+    journalLinesBody.querySelectorAll('tr').forEach((row) => {
+      if (row.querySelector('[name="line_reference_no"]').value === button.dataset.removeReference) {
+        if (journalLinesBody.rows.length > 2) row.remove(); else clearJournalRow(row);
+      }
+    });
+    renderSelectedReferences(); updateJournalTotals(); updateJournalRowNumbers();
+    if (referenceResults.children.length) renderReferenceResults(displayedReferences);
+  }));
 }
 
 function clearReferenceSelection() {
-  if (!referenceSearch) {
-    return;
-  }
+  referenceRequestVersion += 1;
+  referencesLoading = false;
+  clearTimeout(referenceTimer);
+  if (!referenceSearch) return;
   referenceSearch.value = '';
+  headerReference.value = '';
+  journalLinesBody.querySelectorAll('tr').forEach((row) => {
+    if (row.dataset.selectedReference || row.querySelector('[name="line_reference_no"]').value) clearJournalRow(row);
+  });
   setSelectionDetail(referenceDetail, '');
   referenceResults.innerHTML = '';
   preloadedReferences = [];
+  displayedReferences = [];
+  renderSelectedReferences(); updateJournalTotals();
+  refreshPurchaseInvoiceChoices();
 }
 
 function partyDetailText(party, type) {
@@ -669,6 +770,7 @@ function blankJournalRow() {
 }
 
 function clearJournalRow(row) {
+  delete row.dataset.selectedReference;
   row.querySelectorAll('input').forEach((input) => {
     input.value = '';
     input.placeholder = '';

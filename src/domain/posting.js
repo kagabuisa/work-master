@@ -910,6 +910,14 @@ async function applyPostgresStockMovement(client, movement) {
   const newValue = roundMoney(previousValue + valueChange);
   const newRate = newQuantity > 0 ? roundMoney(newValue / newQuantity) : 0;
 
+  // Retain the count on the voucher, but do not post a movement for a matching item.
+  if (movement.voucher_type === 'stock_reconciliation' && qtyChange === 0 && valueChange === 0) {
+    return {
+      qty_change: 0, previous_quantity: previousQuantity, quantity: previousQuantity,
+      valuation_rate: previousRate, incoming_rate: 0, outgoing_rate: 0, stock_value_change: 0,
+    };
+  }
+
   await client.query(
     `
     UPDATE app_stock_balances

@@ -17,7 +17,7 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Journals', href: '/journals' }, { label: journal.id ? journal.journal_no : 'New Journal Entry' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'accounts' }) %>
+        <%- include('module-nav', { activeModule: 'accounts' }) %><%- include('journal-new-button') %>
       </nav>
     </header>
 
@@ -36,14 +36,19 @@
             <option value="sales_invoice" <%= journal.journal_type === 'sales_invoice' ? 'selected' : '' %>>Sales Invoice</option>
           </select>
         </label>
-        <label>
-          Posting Date
-          <input type="date" name="posting_date" value="<%= journal.posting_date || today %>" required <%= journalReadOnly ? 'readonly' : '' %>>
-        </label>
-        <label>
-          Posting Time
-          <input type="time" name="posting_time" value="<%= journal.posting_time !== undefined ? journal.posting_time : currentPostingTime() %>" required <%= journalReadOnly ? 'readonly' : '' %>>
-        </label>
+        <div class="journal-posting-date">
+          <label>
+            Posting Date
+            <input type="date" name="posting_date" value="<%= journal.posting_date || today %>" required <%= journalReadOnly ? 'readonly' : '' %>>
+          </label>
+          <details class="journal-posting-time" <%= journal.posting_time === '' ? 'open' : '' %>>
+            <summary><%= journalReadOnly ? 'View time' : 'Edit time' %></summary>
+            <label>
+              Posting Time
+              <input type="time" name="posting_time" value="<%= journal.posting_time !== undefined ? journal.posting_time : currentPostingTime() %>" required <%= journalReadOnly ? 'readonly' : '' %>>
+            </label>
+          </details>
+        </div>
         <%- include('cost-center-field', { value: journal.cost_center, readOnly: journalReadOnly }) %>
         <label>
           Party Type
@@ -75,15 +80,14 @@
           </label>
         <% } else { %>
           <label class="lookup-field">
-            Reference
-            <input name="reference_no" id="reference-search" autocomplete="off" placeholder="Select a party first" value="<%= journal.reference_no || '' %>">
+            References
+            <input id="reference-search" autocomplete="off" placeholder="Select a party first" value="<%= journal.reference_no || '' %>">
+            <input type="hidden" name="reference_no" id="journal-header-reference" value="<%= journal.reference_no || '' %>">
             <div id="reference-results" class="results"></div>
+            <span class="field-hint">Select multiple references to add their party account rows. Edit amounts for partial payments.</span>
+            <div id="journal-selected-references" class="journal-reference-chips" aria-label="Selected references"></div>
           </label>
         <% } %>
-        <label class="wide">
-          Remarks
-          <input name="remarks" value="<%= journal.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>>
-        </label>
       </section>
 
       <section id="journal-selection-summary" class="journal-selection-summary" aria-label="Selected party and reference" <%= journal.party_name || journalReadOnly && journal.reference_no ? '' : 'hidden' %>>
@@ -106,6 +110,8 @@
       <% if (!journalReadOnly) { %>
         <script id="journal-account-data" type="application/json"><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))) %></script>
       <% } %>
+      <p class="field-hint">Select References above to add party account rows. Supplier invoices use Accounts Payable debits; customer invoices use Accounts Receivable credits. Adjust amounts for partial payments and add the balancing bank or cash row with no reference.</p>
+      <datalist id="journal-purchase-invoices"></datalist>
       <table class="editable" id="journal-lines">
         <thead>
           <tr>
@@ -113,6 +119,7 @@
             <th>Account</th>
             <th>Debit</th>
             <th>Credit</th>
+            <th>Reference</th>
             <th>Line Remarks</th>
             <th>Status</th>
             <% if (journalReadOnly) { %><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><% } %>
@@ -136,6 +143,11 @@
               </td>
               <td><input class="journal-money" name="debit" type="number" step="1" min="0" value="<%= line.debit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
               <td><input class="journal-money" name="credit" type="number" step="1" min="0" value="<%= line.credit || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
+              <td>
+                <% if (journalReadOnly) { %><%= line.reference_no || '' %><% } else { %>
+                  <input name="line_reference_no" value="<%= line.reference_no || '' %>" list="journal-purchase-invoices" autocomplete="off" aria-label="Invoice reference" placeholder="Select party invoice">
+                <% } %>
+              </td>
               <td><input name="line_remarks" value="<%= line.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
               <td><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
               <% if (journalReadOnly) { %><td class="tracking-info"><%= line.created_by || 'Unknown' %><% if (lineAuditTime(line.created_at)) { %> <small><%= lineAuditTime(line.created_at) %></small><% } %></td><td class="tracking-info"><%= line.updated_by || 'Unknown' %><% if (lineAuditTime(line.updated_at)) { %> <small><%= lineAuditTime(line.updated_at) %></small><% } %></td><% } %>
@@ -148,10 +160,17 @@
             <th colspan="2">Total</th>
             <th id="journal-total-debit"><%= money(journal.total_debit || 0) %></th>
             <th id="journal-total-credit"><%= money(journal.total_credit || 0) %></th>
-            <th id="journal-balance-status" colspan="3"></th>
+            <th id="journal-balance-status" colspan="4"></th>
           </tr>
         </tfoot>
       </table>
+
+      <section class="form-grid">
+        <label class="wide">
+          Remarks
+          <input name="remarks" value="<%= journal.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>>
+        </label>
+      </section>
 
       <div class="actions">
         <% if (!journalReadOnly) { %>

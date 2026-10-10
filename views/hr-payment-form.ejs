@@ -1,0 +1,7 @@
+<form method="post" action="<%= action %>" class="hr-grid">
+<% if(typeof slipId!=='undefined'){ %><input type="hidden" name="slip_id" value="<%= slipId %>"><% } %>
+<label>Amount (UGX)<input type="number" name="amount" min="0.01" step="0.01" max="<%= maximum %>" value="<%= maximum %>" required></label>
+<label>Payment date<input type="date" name="posting_date" value="<%= today %>" required></label>
+<%- include('hr-account-select',{label:'Cash / bank account',name:'bank_account_id',types:['asset'],bank:true,selected:'',required:true}) %>
+<label>Reference<input name="reference" required maxlength="2000" placeholder="Bank reference or receipt number"></label>
+<div><button class="button"><%= buttonLabel %></button></div></form>

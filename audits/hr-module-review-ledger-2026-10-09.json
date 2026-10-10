@@ -1,0 +1,102 @@
+{
+  "reviewed_at": "2026-10-09T02:08:08.197Z",
+  "records": 10509,
+  "complete": true,
+  "accounts": {
+    "Salary - SACL": {
+      "entries": 5252,
+      "debit": 1635694706,
+      "credit": 434652361,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 5250,
+        "Period Closing Voucher": 2
+      },
+      "date_min": "2016-06-04",
+      "date_max": "2026-10-07"
+    },
+    "PAYE Expense - SACL": {
+      "entries": 116,
+      "debit": 15912635,
+      "credit": 6256600,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 114,
+        "Period Closing Voucher": 2
+      },
+      "date_min": "2016-06-13",
+      "date_max": "2026-09-15"
+    },
+    "Employee Loan - SACL": {
+      "entries": 149,
+      "debit": 11190000,
+      "credit": 8828774,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 149
+      },
+      "date_min": "2019-04-01",
+      "date_max": "2026-10-08"
+    },
+    "Employee Cash Advance - SACL": {
+      "entries": 3781,
+      "debit": 162726122,
+      "credit": 132207000,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 3781
+      },
+      "date_min": "2019-04-12",
+      "date_max": "2026-10-07"
+    },
+    "Employee Loss Recoverable - SACL": {
+      "entries": 306,
+      "debit": 77737881,
+      "credit": 24791793,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 306
+      },
+      "date_min": "2019-04-01",
+      "date_max": "2026-10-07"
+    },
+    "Salary Payable - SACL": {
+      "entries": 538,
+      "debit": 66090000,
+      "credit": 66090000,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 538
+      },
+      "date_min": "2019-04-30",
+      "date_max": "2019-10-09"
+    },
+    "Commission Expense - SACL": {
+      "entries": 123,
+      "debit": 22942356,
+      "credit": 0,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 123
+      },
+      "date_min": "2019-05-01",
+      "date_max": "2019-09-30"
+    },
+    "Commission Payable - SACL": {
+      "entries": 244,
+      "debit": 22748162,
+      "credit": 22748162,
+      "employee_party_entries": 0,
+      "voucher_types": {
+        "Journal Entry": 244
+      },
+      "date_min": "2019-05-01",
+      "date_max": "2019-10-09"
+    }
+  },
+  "company_currency": [
+    {
+      "default_currency": "UGX"
+    }
+  ]
+}

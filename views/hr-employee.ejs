@@ -1,0 +1,21 @@
+<section class="invoice-card hr-card" id="employment"><h2>Employment</h2>
+<p><%= employee.employee_id %> · <%= employee.company %> · <%= employee.department||'No department' %> · <%= employee.designation||'No job title' %> · <%= employee.status||'Unspecified status' %></p>
+<% if(can('masters.employees.edit')){ %><a href="/settings/employees/<%= encodeURIComponent(employee.employee_id) %>/edit">Edit employee master</a><% } %>
+<% if(can('hr.employees.edit')){ %>
+<form action="/hr/employees/<%= encodeURIComponent(employee.employee_id) %>/profile" method="post" class="hr-grid">
+<label>Joining date<input type="date" name="joining_date" value="<%= employee.joining_date||'' %>"></label>
+<label>Leaving date<input type="date" name="leaving_date" value="<%= employee.leaving_date||'' %>"></label>
+<label>Manager<select name="manager_id"><option value="">No manager</option><% if(employee.manager_id&&!opts.employees.some(e=>e.employee_id===employee.manager_id)){ %><option value="<%= employee.manager_id %>" selected>Existing manager assignment</option><% } %><% opts.employees.filter(e=>e.employee_id!==employee.employee_id).forEach(e=>{ %><option value="<%= e.employee_id %>" <%= e.employee_id===employee.manager_id?'selected':'' %>><%= e.employee_name %></option><% }) %></select></label>
+<label>Shop / cost center<select name="cost_center"><option value="">Unassigned</option><% opts.centers.forEach(c=>{ %><option <%= c.cost_center===employee.cost_center?'selected':'' %>><%= c.cost_center %></option><% }) %></select></label>
+<label>Branch<input name="branch" value="<%= employee.branch||'' %>"></label><label>Employment type<input name="employment_type" value="<%= employee.employment_type||'' %>" placeholder="Permanent, contract, casual"></label>
+<div><button class="button">Save employment details</button></div></form>
+<% }else{ %><p>Joined: <%= formatDate(employee.joining_date) %> · Leaving: <%= formatDate(employee.leaving_date) %> · Shop: <%= employee.cost_center||'Unassigned' %></p><% } %>
+</section>
+<% if(can('hr.payroll.view')){ %>
+<section class="invoice-card hr-card" id="pay-plans"><h2>Pay plans</h2><p>Plans take effect on their date. Payroll snapshots the plan effective at the start of its month; later plan changes do not alter existing payroll.</p>
+<% plans.forEach(plan=>{ %><details><summary>Effective <%= formatDate(plan.effective_from) %> · <%= plan.notes||'Pay plan' %></summary><table><thead><tr><th>Component</th><th>Type</th><th>Monthly amount</th><th>Prorated</th></tr></thead><tbody><% plan.components.forEach(c=>{ %><tr><td><%= c.label %></td><td><%= c.kind %></td><td><%= money(c.amount) %></td><td><%= c.prorate?'Yes':'No' %></td></tr><% }) %></tbody></table></details><% }) %>
+<% if(!plans.length){ %><p>No pay plan saved.</p><% } %>
+<% if(can('hr.payroll.edit')){ %><details <%= !plans.length?'open':'' %>><summary>Add or replace a dated pay plan</summary><form action="/hr/employees/<%= encodeURIComponent(employee.employee_id) %>/pay-plan" method="post" class="hr-stack"><label>Effective from<input type="date" name="effective_from" value="<%= today.slice(0,7)+'-01' %>" required></label><%- include('hr-components',{items:plans[0]?.components||[]}) %><label>Notes<input name="notes" maxlength="2000"></label><button class="button">Save pay plan</button></form></details><% } %>
+</section><% } %>
+
+<% if(can('hr.payroll.view') && !can('hr.payroll.edit')){ %><p>To add a pay plan, ask a user with Payroll Write permission.</p><% } %>

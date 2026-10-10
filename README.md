@@ -9,6 +9,8 @@ npm install
 npm start
 ```
 
+Excel count-sheet downloads and uploads use the ExcelJS dependency installed by `npm install`/`npm ci`. After updating an existing installation, install the updated dependencies and restart the app; Docker deployments must rebuild the app image. Count-sheet uploads are limited to 5 MB and are processed in memory without retaining the uploaded workbook. Scanned reconciliation sheets (PDF/JPG/PNG/CSV/XLS/XLSX) are stored in PostgreSQL with their voucher link and uploader metadata, so include them in database backups. Startup creates the attachment table and upgrades its allowed file types when needed. Scan uploads allow three files per request, up to 10 MB each; files are removed when their voucher is deleted.
+
 Open the URL printed by the server. In this workspace it uses `PORT` from `.env`.
 When PostgreSQL points to localhost, `npm start` starts the installed service if it is stopped. Starting a stopped service requires permission to manage system services. Remote and Docker PostgreSQL connections are left to their own service managers.
 
@@ -48,6 +50,18 @@ POSTGRES_PASSWORD=invoice_password
 
 You can use `POSTGRES_URL` or `DATABASE_URL` instead of the separate Postgres fields.
 
+## Production transport and database TLS
+
+For Nginx, set `client_max_body_size 32m;` inside the app server block so three 10 MB reconciliation attachments plus multipart overhead can reach the app. Validate with `nginx -t` and reload Nginx after changing the configuration. The application still enforces 10 MB per attachment; the proxy limit applies to the whole request.
+
+For a TLS reverse proxy, set `TRUST_PROXY=true` and forward the original Host and `X-Forwarded-Proto: https`. Restrict direct access to the app to that proxy. Production always issues Secure session cookies unless `ALLOW_INSECURE_COOKIES=true` explicitly enables HTTP on a trusted private network. `TLS_TERMINATED_PROXY` alone does not satisfy the startup check. Set one of these supported configurations before starting the production Docker image.
+
+Mutation requests with an Origin must match the app origin, including scheme and port; sibling subdomains are rejected. Non-browser clients without Origin remain supported.
+
+Pages use `Referrer-Policy: same-origin` so browsers preserve the Origin on same-origin form submissions while withholding referrers from external sites. A `no-referrer` policy can cause form POST requests to carry `Origin: null` and be rejected with “Request origin is not allowed.”
+
+Enable PostgreSQL TLS with `POSTGRES_SSL=true` (or `PGSSL=true`) and ERPNext MySQL TLS with `DB_SSL=true`. Server certificates are verified. For a private CA, set `POSTGRES_SSL_CA_FILE` or `DB_SSL_CA_FILE` to a readable PEM file; mount that file into Docker when applicable. Invalid or missing CA files fail connection setup.
+
 ## Run With Docker
 
 ```bash
@@ -68,6 +82,8 @@ docker compose logs -f
 docker compose down
 docker compose restart
 ```
+
+The Docker image includes the operational scripts, tests, and app documentation. Run supported imports and accounting utilities with `docker compose exec invoice-app npm run <command>`. Release checks still require a dedicated test database as described below.
 
 Docker stores application records in the `postgres-data` volume and uploaded project files in the `invoice-data` volume. Both survive image rebuilds and container restarts.
 
@@ -160,3 +176,20 @@ The verification script checks voucher balance, overall GL balance, balance shee
 The current MySQL user is still used only for reading ERPNext tables. Stock and accounting entries created by this app are local to the app's Postgres database and are not written back to ERPNext.
 
 The **Reports → Daily Activity** page reads Daily Activity Report vouchers directly from the configured ERPNext MySQL source. It filters by date, shop/unit, status, and text, and opens each DAR voucher in a read-only detail view with its sales, expenses, delivery report, and remarks. This page requires the Daily Activity report Read permission and is unavailable to Standard users because the ERPNext records cannot be reliably matched to their login. It does not copy or edit ERPNext records.
+
+Schema migration 11 adds journal row invoice references and links supplier payment allocations to their journals. It runs automatically on app startup.
+
+General Ledger downloads use ExcelJS for `.xlsx` files and PDFKit for PDF files. Install updated dependencies and restart the app after updating; Docker installations must rebuild the app image.
+
+Import the current ERPNext chart of accounts with `npm run sync:erpnext-accounts` (preview with `-- --dry-run`). Configure `ERPNEXT_URL`, `ERPNEXT_USERNAME`, and `ERPNEXT_PASSWORD` for an ERPNext user who can read Accounts. This imports the accounts visible to that user into the existing PostgreSQL schema. Imported accounts receive unique four-digit local codes: 1xxx for assets, 2xxx for liabilities, 3xxx for equity, 4xxx for income, and 5xxx for expenses. Category groups and their posting accounts share numbering ranges. Existing numeric local codes are retained. ERPNext document names remain display names, preserving company suffixes and parent relationships, and are stored separately as source identifiers. Reruns preserve assigned codes, including subsequent local code edits; legacy imports that used document names as codes are numbered on their next sync. The import retains local accounts, posting defaults, and existing account IDs; reruns refresh imported names, detail types, parent links, and enabled states. The sync summary includes the number of recoded accounts. Account metadata is read before importing so older ERPNext versions without a disabled field are supported. Frozen accounts are imported inactive. Classification changes require manual review and abort the import. All account changes run in one transaction; connection or validation errors leave accounts unchanged.
+
+
+## HR and payroll
+
+The app includes an HR module for employee employment profiles and dated pay plans, daily/bulk attendance, leave allocations/approvals, advances, simple loans, approved recoveries, reimbursements, monthly payroll, payslips, CSV payroll registers, and partial payments/reversals. Schema migrations 13–14 create the HR tables, their record-audit triggers, working-week calendar, and payroll review tracking at startup. Existing employee masters, cost centers, and accounts are reused; ERPNext HR transactions and opening balances are not imported automatically.
+
+After updating the app, rebuild the local Docker service with `docker compose up -d --build invoice-app`. An admin should configure **HR → Settings** (salary payable account, workweek, holidays, leave types), save employee employment details and pay plans, and grant the necessary HR permissions. HR is not granted by default to non-admin built-in roles. See [the application guide](docs/app-guide.md#human-resources) and [HR permissions](docs/permissions.md#hr-permissions-and-visibility).
+
+Payroll uses approved manual paid-day and component amounts. Statutory calculations, commission formulas, attendance-based deductions, employee-file uploads, and automated loan schedules are not automated. Payslips can be printed/saved as PDF using the browser. Accounting posts to PostgreSQL and never writes HR data back to ERPNext.
+
+Run `npm test` for the standard checks. To exercise HR accounting, concurrent payment protection, permission checks, and actual HTTP page rendering, configure a separate PostgreSQL database whose name ends in `_hr_test`, then run `npm run test:hr`. That integration test resets its dedicated public schema and refuses any other database name. Do not point it at the application database.

@@ -13,9 +13,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'accounts' }) %>
-        <% if (can('vouchers.journals.create') && (currentUser.role === 'admin' || !['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'))) { %>
-          <a class="button" href="/journals/new" aria-label="New Journal Entry">New</a>
-        <% } %>
+        <%- include('journal-new-button') %>
       </nav>
     </header>
     <%- include('voucher-report-tabs', { basePath: '/journals', title: 'Journal', activeTab: 'list' }) %>
@@ -56,7 +54,7 @@
           <tr>
             <th class="row-number">#</th>
             <th>Journal</th>
-            <th>Date/Time</th>
+            <th>Date</th>
             <th>Type</th>
             <th>Party</th>
             <th>Reference</th>
@@ -74,7 +72,7 @@
             <tr>
               <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
               <td><a href="/journals/<%= journal.id %>" data-voucher-drawer="/journals/<%= journal.id %>/drawer"><%= journal.journal_no %></a></td>
-              <td><%= formatDateTime(journal.posting_date, journal.posting_time || '00:00') %></td>
+              <td><%= formatDate(journal.posting_date) %></td>
               <td><%= journalTypeLabel(journal.journal_type) %></td>
               <td><%= journal.party_name || journal.party_id || '' %></td>
               <td><%= journal.reference_no || '' %></td>

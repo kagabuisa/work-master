@@ -15,12 +15,12 @@ test('version 1 upgrades once without duplicating accounting postings', {
       SELECT (SELECT count(*)::int FROM app_gl_entries) AS gl,
         (SELECT count(*)::int FROM app_journal_entries) AS journals
     `)).rows[0];
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)');
     await pool.query("INSERT INTO wm_schema_version (version, name) VALUES (1, 'baseline')");
 
     await store.initStore();
     assert.deepEqual((await pool.query('SELECT version FROM wm_schema_version ORDER BY version')).rows,
-      [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }]);
+      [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 }, { version: 14 }]);
     const journalReferenceIndex = await pool.query(`SELECT 1 FROM pg_indexes
       WHERE tablename = 'app_journal_entries'
         AND indexname = 'app_journal_entries_invoice_reference_idx'`);
@@ -74,7 +74,7 @@ test('version 4 databases gain missing invoice item snapshot columns', {
     for (const column of ['item_category', 'source', 'cost']) {
       await pool.query(`ALTER TABLE app_invoice_items DROP COLUMN ${column}`);
     }
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14)');
 
     await store.initStore();
     const snapshot = await pool.query(`SELECT item_category, source, cost::float
@@ -85,7 +85,7 @@ test('version 4 databases gain missing invoice item snapshot columns', {
       items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName,
         warehouse: FIXED.warehouse, quantity: 1, unit_price: 180 }] });
     assert.equal((await store.findInvoice(id)).items[0].item_category, 'Hardware');
-    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, 10);
+    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, 14);
   } finally {
     await store.closeStore();
   }
@@ -98,7 +98,7 @@ test('version 8 databases gain the session activity column', {
     await seedGoldenData();
     const pool = store.getPostgresPool();
     await pool.query('ALTER TABLE app_user_sessions DROP COLUMN IF EXISTS last_activity_at');
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14)');
 
     await store.initStore();
 
@@ -107,7 +107,7 @@ test('version 8 databases gain the session activity column', {
       WHERE table_name = 'app_user_sessions' AND column_name = 'last_activity_at'`);
     assert.equal(activityColumn.rows[0].is_nullable, 'NO');
     assert.equal(activityColumn.rows[0].column_default, 'now()');
-    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, 10);
+    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, 14);
   } finally {
     await store.closeStore();
   }

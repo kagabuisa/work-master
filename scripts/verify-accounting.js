@@ -1,11 +1,9 @@
 const { Pool } = require('pg');
+const { databaseTls } = require('../src/database-tls');
 require('dotenv').config({ quiet: true });
 
 function postgresSslConfig() {
-  const value = String(process.env.POSTGRES_SSL || process.env.PGSSLMODE || '').toLowerCase();
-  return ['1', 'true', 'required', 'require', 'yes'].includes(value)
-    ? { rejectUnauthorized: false }
-    : undefined;
+  return databaseTls(process.env.PGSSL || process.env.POSTGRES_SSL || process.env.PGSSLMODE, process.env.POSTGRES_SSL_CA_FILE);
 }
 
 function createPool() {

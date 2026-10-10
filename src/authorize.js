@@ -45,6 +45,12 @@ function permissionCheck(req) {
   const all = (...keys) => keys.every(has);
 
   if (!parts.length) return true;
+  if (parts[0] === 'hr') {
+    const { permissionForHr, HR_AREAS } = require('./hr-policy');
+    const permission = permissionForHr(req.path, method);
+    return permission === 'any' ? HR_AREAS.some((area) => has(`hr.${area.key}.view`))
+      : Boolean(permission && has(permission));
+  }
   if (parts[0] === 'settings') {
     if (parts[1] === 'company-information') return user.role === 'admin';
     if (parts[1] === 'date-time') return parts.length === 2 && user.role === 'admin' && method === 'POST';
@@ -174,13 +180,24 @@ function permissionCheck(req) {
   if (parts[0] === 'stock') {
     const prefix = 'vouchers.stock.';
     if (parts.length === 1) return has(prefix + 'view');
+    if (parts[1] === 'export') return parts.length === 2 && method === 'GET' && has(prefix + 'view');
     if (parts[1] === 'reconciliations') {
+      if (parts[2] === 'count-sheet-template') return parts.length === 3 && method === 'GET' && canAny(user,
+        [prefix + 'view', prefix + 'create', prefix + 'edit']);
+      if (parts[2] === 'count-sheet-upload') return parts.length === 3 && method === 'POST' && canAny(user,
+        [prefix + 'create', prefix + 'edit']);
       if (parts[2] === 'warehouse-stock') return parts.length === 3 && method === 'GET' && canAny(user,
         [prefix + 'create', prefix + 'edit']);
       if (parts[2] === 'new') return parts.length === 3 && method === 'GET' && has(prefix + 'create');
       if (parts.length === 2) return method === 'GET' ? has(prefix + 'view')
         : method === 'POST' && all(prefix + 'create',
           ...(req.body.action === 'save_draft' ? [] : [prefix + 'submit']));
+      if (parts[3] === 'attachments') {
+        if (parts.length === 4) return method === 'GET' ? canAny(user, [prefix + 'view', prefix + 'edit'])
+          : method === 'POST' && has(prefix + 'edit');
+        if (parts.length === 5) return method === 'GET' && canAny(user, [prefix + 'view', prefix + 'edit']);
+        return parts.length === 6 && parts[5] === 'delete' && method === 'POST' && has(prefix + 'edit');
+      }
       if (parts[3] === 'edit') return parts.length === 4 && method === 'GET' && has(prefix + 'edit');
       if (parts[3] === 'submit') return parts.length === 4 && method === 'POST' && has(prefix + 'submit');
       if (parts[3] === 'delete') return parts.length === 4 && method === 'POST' && has(prefix + 'delete');
@@ -273,6 +290,7 @@ function permissionCheck(req) {
 
 async function scopeCheck(req) {
   const user = req.currentUser;
+  const body = req.body || {};
   const parts = req.path.split('/').filter(Boolean);
   const method = req.method;
   if (user.role === 'admin') return true;
@@ -300,18 +318,18 @@ async function scopeCheck(req) {
 
   if (method === 'POST' && ['invoices', 'purchases', 'purchase-orders', 'stock'].includes(parts[0])) {
     for (const field of ['warehouse', 'target_warehouse']) {
-      const values = Array.isArray(req.body[field]) ? req.body[field] : req.body[field] ? [req.body[field]] : [];
+      const values = Array.isArray(body[field]) ? body[field] : body[field] ? [body[field]] : [];
       if (values.some((value) => value && !warehouseAllowed(user, value))) return false;
     }
   }
   if (method === 'POST' && ['invoices', 'purchases', 'purchase-orders', 'stock', 'journals'].includes(parts[0])
-      && req.body.cost_center
-      && !assignedMasterRecordAllowed(user, 'cost-centers', req.body.cost_center)) return false;
+      && body.cost_center
+      && !assignedMasterRecordAllowed(user, 'cost-centers', body.cost_center)) return false;
   if (method === 'POST' && ['purchases', 'purchase-orders'].includes(parts[0])
       && (parts.length === 1 || parts.length === 2)
-      && req.body.price_list && !purchasePriceListAllowed(user, req.body.price_list)) return false;
+      && body.price_list && !purchasePriceListAllowed(user, body.price_list)) return false;
   if (method === 'POST' && parts[0] === 'journals') {
-    const ids = Array.isArray(req.body.account_id) ? req.body.account_id : req.body.account_id ? [req.body.account_id] : [];
+    const ids = Array.isArray(body.account_id) ? body.account_id : body.account_id ? [body.account_id] : [];
     if (ids.some((id) => id && !accountAllowed(user, id))) return false;
   }
 
@@ -320,7 +338,7 @@ async function scopeCheck(req) {
     if (parts[2] && parts[2] !== 'new' && !await masterRecordAllowed(user, kind, decodeURIComponent(parts[2]))) return false;
     if (method === 'POST' && !['submit', 'cancel'].includes(parts[3])) {
       const field = kind === 'customers' ? 'customer_group' : 'supplier_type';
-      if (!categoryAllowed(user, kind, req.body[field])) return false;
+      if (!categoryAllowed(user, kind, body[field])) return false;
     }
   }
   if (parts[0] === 'invoices') {
@@ -338,7 +356,7 @@ async function scopeCheck(req) {
     if (parts[1] && !['new', 'report', 'payments'].includes(parts[1])
         && !await voucherWarehousesAllowed(user, 'sales', parts[1])) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2)
-        && !await masterRecordAllowed(user, 'customers', req.body.customer_id)) return false;
+        && !await masterRecordAllowed(user, 'customers', body.customer_id)) return false;
   }
   if (parts[0] === 'purchases') {
     if (user.role === 'standard' && parts[1] === 'payments' && parts[2]) {
@@ -350,33 +368,33 @@ async function scopeCheck(req) {
     }
     if (parts[1] && !['new', 'payments', 'report'].includes(parts[1])
         && !await voucherOwnedByUser(user, 'purchases', parts[1])) return false;
-    if (method === 'POST' && (parts.length === 1 || parts.length === 2) && req.body.purchase_order_id
-        && (!await purchaseOrderAllowed(user, req.body.purchase_order_id)
-          || !await voucherWarehousesAllowed(user, 'purchase-orders', req.body.purchase_order_id))) return false;
+    if (method === 'POST' && (parts.length === 1 || parts.length === 2) && body.purchase_order_id
+        && (!await purchaseOrderAllowed(user, body.purchase_order_id)
+          || !await voucherWarehousesAllowed(user, 'purchase-orders', body.purchase_order_id))) return false;
     if (parts[1] === 'payments' && parts[2] && !await purchasePaymentAllowed(user, parts[2])) return false;
     if (parts[1] && !['new', 'payments', 'report'].includes(parts[1])
         && !await purchaseAllowed(user, parts[1])) return false;
     if (parts[1] && !['new', 'payments', 'report'].includes(parts[1])
         && !await voucherWarehousesAllowed(user, 'purchases', parts[1])) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2)
-        && !await masterRecordAllowed(user, 'suppliers', req.body.supplier_id)) return false;
+        && !await masterRecordAllowed(user, 'suppliers', body.supplier_id)) return false;
   }
   if (parts[0] === 'purchase-orders') {
     if (parts[1] && !['new', 'report'].includes(parts[1]) && !await purchaseOrderAllowed(user, parts[1])) return false;
     if (parts[1] && !['new', 'report'].includes(parts[1])
         && !await voucherWarehousesAllowed(user, 'purchase-orders', parts[1])) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2)
-        && !await masterRecordAllowed(user, 'suppliers', req.body.supplier_id)) return false;
+        && !await masterRecordAllowed(user, 'suppliers', body.supplier_id)) return false;
   }
   if (parts[0] === 'stock' && parts[1] === 'entries' && parts[2] && parts[2] !== 'new'
       && !await voucherOwnedByUser(user, 'stock', parts[2])) return false;
   if (parts[0] === 'stock' && parts[1] === 'reconciliations' && parts[2]
-      && !['new', 'warehouse-stock'].includes(parts[2])
+      && !['new', 'warehouse-stock', 'count-sheet-template', 'count-sheet-upload'].includes(parts[2])
       && !await voucherOwnedByUser(user, 'stock', parts[2])) return false;
   if (parts[0] === 'stock' && parts[1] === 'entries' && parts[2] && parts[2] !== 'new'
       && !await voucherWarehousesAllowed(user, 'stock', parts[2])) return false;
   if (parts[0] === 'stock' && parts[1] === 'reconciliations' && parts[2]
-      && !['new', 'warehouse-stock'].includes(parts[2])
+      && !['new', 'warehouse-stock', 'count-sheet-template', 'count-sheet-upload'].includes(parts[2])
       && !await voucherWarehousesAllowed(user, 'stock', parts[2])) return false;
   if (parts[0] === 'journals' && parts[1] && !['new', 'report'].includes(parts[1])) {
     if (!await voucherOwnedByUser(user, 'journals', parts[1])) {

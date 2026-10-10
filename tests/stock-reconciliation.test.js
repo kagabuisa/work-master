@@ -46,7 +46,7 @@ test('only admins can change reconciliation valuation rates', () => {
   assert.equal(applyReconciliationRatePolicy(submitted, { role: 'admin' }, balances, existing), submitted);
 });
 
-test('reconciliation posts the difference from the locked current balance, including unchanged counts', async () => {
+test('reconciliation posts differences from the locked balance and skips matching counts', async () => {
   const ledger = [];
   const balance = { quantity: 5, stock_value: 50, valuation_rate: 10 };
   const client = { async query(sql, params) {
@@ -67,7 +67,11 @@ test('reconciliation posts the difference from the locked current balance, inclu
   assert.equal((await applyPostgresStockMovement(client, movement(2))).qty_change, 0);
   assert.equal((await applyPostgresStockMovement(client, movement(4))).qty_change, 2);
   assert.equal(balance.quantity, 4);
-  assert.deepEqual(ledger.map((params) => params[7]), [-3, 0, 2]);
+  assert.deepEqual(ledger.map((params) => params[7]), [-3, 2]);
+  balance.stock_value = 0;
+  balance.valuation_rate = 0;
+  assert.equal(Math.abs((await applyPostgresStockMovement(client, movement(3))).stock_value_change), 0);
+  assert.deepEqual(ledger.map((params) => params[7]), [-3, 2, -1]);
 });
 
 test('dedicated stock reconciliation voucher shows counts, differences and save actions', async () => {

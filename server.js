@@ -1,4 +1,5 @@
 const express = require('express');
+const { assertSecureTransportConfiguration } = require('./src/transport-security');
 const compression = require('compression');
 const path = require('path');
 const { listDirectory, downloadableFile, saveUploads } = require('./src/project-files');
@@ -98,7 +99,7 @@ const { invoiceFormState, duplicateInvoiceFormState } = require('./src/invoice-f
 const { selectedCategories, allowedInvoicePriceLists, requireInvoicePriceList,
   namedPriceListsForActions, warehouseAllowed, allowedNamedListValues,
   accountAllowed, purchaseOrderAllowed, voucherWarehousesAllowed,
-  deniedNamedListValues } = require('./src/access');
+  deniedNamedListValues, assignedMasterRecordAllowed } = require('./src/access');
 const { money, purchaseMoney, paymentReturnPath, todayString } = require('./src/web/format');
 const reportsRouter = require('./src/web/routes/reports');
 const stockRouter = require('./src/web/routes/stock');
@@ -145,7 +146,7 @@ app.locals.scriptJson = scriptJson;
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
@@ -228,6 +229,20 @@ app.use(async (_req, res, next) => {
 
 installAuth(app);
 
+app.use(async (req, res, next) => {
+  res.locals.defaultCostCenter = '';
+  const preferred = String(req.currentUser?.record_access?.cost_center || '').trim();
+  if (req.method !== 'GET' || !preferred
+      || !/^\/(?:invoices|journals|purchases|purchase-orders|stock\/(?:entries|reconciliations))\/(?:new|\d+)(?:\/(?:edit|duplicate))?$/.test(req.path)
+      || !assignedMasterRecordAllowed(req.currentUser, 'cost-centers', preferred)) return next();
+  try {
+    const { rows } = await getPostgresPool().query(`SELECT cost_center FROM app_master_cost_centers
+      WHERE cost_center=$1 AND disabled=false AND is_group=false LIMIT 1`, [preferred]);
+    res.locals.defaultCostCenter = rows[0]?.cost_center || '';
+    next();
+  } catch (error) { next(error); }
+});
+
 app.get('/', (req, res) => {
   res.set('Cache-Control', 'private, no-store');
   res.render('index', { sections: homeSections(req.currentUser, res.locals) });
@@ -250,6 +265,8 @@ app.use(settingsRouter);
 app.use('/stock', stockRouter);
 
 app.use(ledgerRouter);
+
+app.use('/hr', require('./src/web/routes/hr'));
 
 app.use(salesRouter);
 
@@ -364,26 +381,8 @@ app.use((err, _req, res, _next) => {
   res.status(status).render('error', { status, message });
 });
 
-// The session cookie is issued with `secure: req.secure` (src/auth-http.js), and
-// app.set('trust proxy') controls whether X-Forwarded-Proto is believed. Behind a
-// TLS-terminating proxy with the proxy untrusted, req.secure stays false and the
-// session cookie is sent without Secure over what the operator believes is HTTPS.
-// Refuse to start rather than serve in that state silently.
-function assertSecureTransportConfiguration() {
-  if (process.env.NODE_ENV !== 'production') return;
-  if (process.env.ALLOW_INSECURE_COOKIES === 'true') return;
-  const trustProxy = process.env.TRUST_PROXY === 'true';
-  const terminatingTls = Boolean(process.env.TLS_TERMINATED_PROXY);
-  if (!trustProxy && !terminatingTls) {
-    throw new Error(
-      'Refusing to start in production with an insecure session cookie. '
-      + 'Set TRUST_PROXY=true when a reverse proxy terminates TLS (so X-Forwarded-Proto '
-      + 'is honoured and the session cookie is marked Secure), or set ALLOW_INSECURE_COOKIES=true '
-      + 'to run without TLS on a trusted private network.',
-    );
-  }
-}
-
+// Production requires an explicitly configured TLS proxy or private HTTP mode.
+// Secure cookies are enforced independently of forwarded request headers.
 ensureStoreInitialized()
   .then(() => {
     try {

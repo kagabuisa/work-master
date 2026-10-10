@@ -11,11 +11,11 @@
         <p class="eyebrow">Purchase Orders</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: purchase.id ? 'Edit Purchase Order' : 'New Purchase Order' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %></nav>
+      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <% if (purchase.mixedWarehouses) { %><section class="notice warning">This order has items in multiple warehouses. Choose one warehouse before saving the draft.</section><% } %>
-    <form method="post" action="<%= purchase.id ? `/purchase-orders/${purchase.id}` : '/purchase-orders' %>" class="invoice-form entry-form" id="purchase-form" data-static-labels data-voucher-form data-single-warehouse>
+    <form method="post" action="<%= purchase.id ? `/purchase-orders/${purchase.id}` : '/purchase-orders' %>" class="invoice-form entry-form" id="purchase-form" data-static-labels data-voucher-form data-prevent-enter-submit data-single-warehouse>
       <datalist id="purchase-suppliers"></datalist>
       <datalist id="purchase-items-list"></datalist>
       <datalist id="purchase-warehouses"></datalist>

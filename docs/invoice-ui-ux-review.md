@@ -4,6 +4,10 @@
 - **Scope:** invoice list, new and draft edit form, invoice detail drawer, payment section, print view, and their client-side behavior.
 - **Method:** review of the current EJS, JavaScript, and CSS, followed by Chromium screenshots at 1440 × 900 and 390 × 844 and an A4 PDF check. The browser used representative demo data, not a live customer invoice. This review does not include user testing.
 
+## Follow-up changes (7 October 2026)
+
+Code updates add arrow-key navigation and result announcements for customer and item suggestions, give item quantity and Add controls contextual names, and render unavailable pagination actions as non-focusable disabled text. The invoice button remains **Save**, with a note explaining that saving keeps a draft and submission posts stock and accounting entries. These updates have not received a fresh browser or screen-reader review. The original findings below describe the September review.
+
 ## Overall assessment
 
 The core workflow is coherent: invoices have a distinct draft state, submission is a separate action, the list distinguishes document status from payment status, and the form preserves entered data after a server error. The recent price-list behavior keeps invoice lines and recalculates totals. The largest remaining UX gaps are in how the app identifies line items, explains price sources, and supports keyboard and touch input.

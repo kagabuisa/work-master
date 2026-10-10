@@ -4,14 +4,12 @@
 // back out of store.js, which keeps the require graph acyclic.
 
 const { AuditPool } = require('./audit');
+const { databaseTls } = require('./database-tls');
 
 let postgresPool;
 
 function postgresSslConfig() {
-  const value = String(process.env.PGSSL || process.env.POSTGRES_SSL || '').toLowerCase();
-  return ['1', 'true', 'required', 'yes'].includes(value)
-    ? { rejectUnauthorized: false }
-    : undefined;
+  return databaseTls(process.env.PGSSL || process.env.POSTGRES_SSL, process.env.POSTGRES_SSL_CA_FILE);
 }
 
 function postgresHost() {

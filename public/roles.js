@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const guideToggle = document.querySelector('[data-permission-guide-toggle]');
+  if (guideToggle) {
+    const guide = document.getElementById(guideToggle.getAttribute('aria-controls'));
+    guideToggle.addEventListener('click', () => {
+      guide.hidden = !guide.hidden;
+      guideToggle.setAttribute('aria-expanded', String(!guide.hidden));
+    });
+  }
   const search = document.querySelector('#role-search, #user-search');
   const select = document.querySelector('#role-select, select[name="user"]');
   if (search && select) {
@@ -16,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const granularSelect = addForm?.querySelector('[data-granular-record]');
   const granularOptions = granularSelect ? [...granularSelect.options].filter((option) => option.dataset.parents) : [];
   const recordType = addForm?.querySelector('[data-record-type]');
+  let granularAutocomplete;
   const table = document.querySelector('[data-auto-permissions]');
   const status = document.querySelector('[data-permission-status]');
   if (table && status) {
@@ -93,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
       granularSelect.disabled = matching.length === 0;
       granularSelect.options[0].textContent = !typeSelect.value ? 'Select a type first'
         : matching.length ? 'No specific record' : 'No specific records available';
+      granularAutocomplete?.refresh();
       updateActions();
     };
     typeSelect.addEventListener('change', updateGranular);
@@ -116,5 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     updateGranular();
+    enhancePermissionSelect(typeSelect);
+    granularAutocomplete = enhancePermissionSelect(granularSelect);
   }
 });

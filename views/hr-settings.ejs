@@ -1,0 +1,24 @@
+<% if(typeof settingsError!=='undefined' && settingsError){ %><section class="notice warning" role="alert"><%= settingsError %></section><% } %>
+<section class="invoice-card hr-card"><h2>Payroll accounts</h2><p>Salary payable holds approved net pay until payment. Pay plans select their expense and deduction accounts.</p>
+<% if(can('hr.settings.edit')){ %><form action="/hr/settings" method="post" class="hr-grid"><input type="hidden" name="action" value="accounts"><%- include('hr-account-select',{label:'Salary payable',name:'salary_payable_account_id',types:['liability'],bank:false,selected:settings.salary_payable_account_id,required:true}) %><div><button class="button">Save account</button></div></form><% } %>
+</section>
+<section class="invoice-card hr-card"><h2>Leave types</h2>
+<p>Paid leave needs an allocation. Unpaid leave can be approved without an allocation. Used types can be renamed; their paid status and existing records are preserved. Only unused types can be removed.</p>
+<div class="table-wrap"><table><thead><tr><th>Leave type</th><th>Paid</th><% if(can('hr.settings.edit')){ %><th>Actions</th><% } %></tr></thead><tbody>
+<% opts.leaveTypes.forEach(t=>{ %><tr><td><%= t.name %></td><td><%= t.is_paid?'Yes':'No' %></td>
+<% if(can('hr.settings.edit')){ %><td><div class="hr-actions">
+<details><summary>Edit</summary><form action="/hr/settings" method="post" class="hr-stack" data-static-labels>
+<input type="hidden" name="action" value="leave_type_edit"><input type="hidden" name="leave_type_id" value="<%= t.id %>">
+<label>Name<input name="name" value="<%= t.name %>" maxlength="100" required></label>
+<label>Paid leave<select name="is_paid"><option value="1" <%= t.is_paid?'selected':'' %>>Yes</option><option value="0" <%= !t.is_paid?'selected':'' %>>No</option></select></label>
+<button type="submit">Save leave type</button></form></details>
+<form action="/hr/settings" method="post"><input type="hidden" name="action" value="leave_type_delete"><input type="hidden" name="leave_type_id" value="<%= t.id %>"><button type="submit" class="button secondary" data-confirm="Remove this leave type? Types with allocations or leave requests cannot be removed.">Remove</button></form>
+</div></td><% } %></tr><% }) %>
+<% if(!opts.leaveTypes.length){ %><tr><td colspan="<%= can('hr.settings.edit')?3:2 %>">No leave types yet.</td></tr><% } %>
+</tbody></table></div>
+<% if(can('hr.settings.edit')){ %><form action="/hr/settings" method="post" class="hr-grid"><input type="hidden" name="action" value="leave_type"><label>Name<input name="name" maxlength="100" required></label><label>Paid leave<select name="is_paid"><option value="1">Yes</option><option value="0">No</option></select></label><div><button class="button">Add leave type</button></div></form><% } %>
+</section>
+<section class="invoice-card hr-card"><h2>Holiday calendar</h2><p>Choose regular working weekdays and add public holidays. This calendar applies to all HR employees. Approved leave excludes rest days and holidays. Payroll prorating uses calendar days.</p>
+<p>Working weekdays: <%= ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].filter((name,index)=>settings.working_weekdays.includes(index)).join(', ') %></p>
+<% if(can('hr.settings.edit')){ %><form action="/hr/settings" method="post" class="hr-grid"><input type="hidden" name="action" value="calendar"><fieldset><legend>Working weekdays</legend><% ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].forEach((name,index)=>{ %><label><input type="checkbox" name="working_weekdays" value="<%= index %>" <%= settings.working_weekdays.includes(index)?'checked':'' %>><%= name %></label><% }) %></fieldset><div><button class="button">Save working week</button></div></form><form action="/hr/settings" method="post" class="hr-grid"><input type="hidden" name="action" value="holiday"><label>Date<input type="date" name="holiday_date" required></label><label>Description<input name="description" required maxlength="2000"></label><div><button class="button">Save holiday</button></div></form><% } %>
+<table><thead><tr><th>Date</th><th>Description</th></tr></thead><tbody><% opts.holidays.forEach(h=>{ %><tr><td><%= formatDate(h.holiday_date) %></td><td><%= h.description %></td></tr><% }) %></tbody></table></section>

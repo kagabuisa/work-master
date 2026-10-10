@@ -126,8 +126,10 @@ function normalizeJournalEntryPayload(payload) {
       debit: roundMoney(line.debit),
       credit: roundMoney(line.credit),
       remarks: String(line.remarks || '').trim() || null,
+      reference_no: String(line.reference_no || '').trim() || null,
     }))
-    .filter((line) => Number.isFinite(line.account_id) && (line.debit > 0 || line.credit > 0));
+    .filter((line) => Number.isFinite(line.account_id) && (line.debit > 0 || line.credit > 0))
+    .map((line, index) => ({ ...line, line_no: index + 1 }));
 
   if (lines.length < 2) {
     const err = new Error('Add at least two journal lines.');

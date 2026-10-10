@@ -1,0 +1,14 @@
+    <div class="home-account-bar <%= typeof showPasswordLink !== 'undefined' && showPasswordLink ? 'module-header-account' : '' %>" aria-label="Your session">
+      <span class="home-account-avatar" aria-hidden="true"><%= currentUser.username.slice(0, 1).toUpperCase() %></span>
+      <div class="home-account-details">
+        <span class="home-account-user"><span class="home-account-status" aria-hidden="true"></span><span class="sr-only">Signed in as </span><strong><%= currentUser.username %></strong></span>
+        <span class="home-clock">Kampala · <time data-home-clock data-date-format="<%= dateTimeSettings.date_format %>" data-time-format="<%= dateTimeSettings.time_format %>" datetime="<%= new Date().toISOString() %>"><%= formatTimestamp(new Date()) %></time></span>
+      </div>
+      <% if (typeof showPasswordLink !== 'undefined' && showPasswordLink) { %><a class="account-password-link" href="/account/password">Change password</a><% } %>
+      <form method="post" action="/logout">
+        <button type="submit" title="Log out">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M9 12h9"/></svg>
+          <span>Log out</span>
+        </button>
+      </form>
+    </div>

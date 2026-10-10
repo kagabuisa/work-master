@@ -35,6 +35,7 @@ function parseJournalEntryPayload(body) {
   const debits = arrayField(body.debit);
   const credits = arrayField(body.credit);
   const remarks = arrayField(body.line_remarks);
+  const references = arrayField(body.line_reference_no);
   return {
     journal_type: body.journal_type,
     posting_date: body.posting_date,
@@ -51,8 +52,25 @@ function parseJournalEntryPayload(body) {
       debit: debits[index],
       credit: credits[index],
       remarks: remarks[index],
+      reference_no: references[index],
     })),
   };
+}
+
+async function validateJournalReferencesForUser(user, journal) {
+  const references = [...new Set((journal.lines || []).map((line) => line.reference_no).filter(Boolean))];
+  for (const reference of references) {
+    const available = await journalReferenceOptions({
+      ownerId: voucherOwnerId(user), ownerEmployeeId: voucherEmployeeId(user),
+      party_type: journal.party_type, party_id: journal.party_id,
+      party_name: journal.party_name, search: reference, purchaseInvoicesOnly: journal.party_type === 'supplier',
+    });
+    if (!available.some((row) => row.reference === reference && (journal.party_type !== 'customer' || row.type === 'Invoice'))) {
+      const error = new Error(`Reference ${reference} is not available for the selected party.`);
+      error.status = 403;
+      throw error;
+    }
+  }
 }
 
 async function validateJournalParty(payload) {
@@ -119,7 +137,24 @@ function journalTypeLabel(type) {
 router.get('/accounts', async (req, res, next) => {
   try {
     const accounts = await accountingAccounts(accountAccessOptions(req.currentUser));
-    res.render('accounts', { accounts });
+    const queryText = (key) => typeof req.query[key] === 'string' ? req.query[key].trim() : '';
+    const filters = {
+      q: queryText('q'),
+      root_type: queryText('root_type'),
+      detail_type: queryText('detail_type'),
+      status: queryText('status'),
+      kind: queryText('kind'),
+    };
+    const detailTypes = [...new Set(accounts.map((account) => account.account_detail_type).filter(Boolean))].sort();
+    const search = filters.q.toLowerCase();
+    const filteredAccounts = accounts.filter((account) =>
+      (!search || [account.account_code, account.account_name].some((value) => String(value || '').toLowerCase().includes(search)))
+      && (!filters.root_type || account.account_type === filters.root_type)
+      && (!filters.detail_type || account.account_detail_type === filters.detail_type)
+      && (!filters.status || (filters.status === 'active' ? account.is_active : filters.status === 'inactive' && !account.is_active))
+      && (!filters.kind || (filters.kind === 'group' ? account.is_group : filters.kind === 'posting' && !account.is_group))
+    );
+    res.render('accounts', { accounts: filteredAccounts, filters, detailTypes, totalAccounts: accounts.length });
   } catch (err) {
     next(err);
   }
@@ -240,6 +275,7 @@ router.post('/journals', async (req, res, next) => {
   try {
     const payload = parseJournalEntryPayload(req.body);
     await validateJournalParty(payload);
+    await validateJournalReferencesForUser(req.currentUser, payload);
     const id = await createJournalEntry(payload, { submit: req.body.action !== 'save_draft' });
     res.redirect(`/journals/${id}`);
   } catch (err) {
@@ -274,6 +310,7 @@ router.post('/journals/:id', async (req, res, next) => {
   try {
     const payload = parseJournalEntryPayload(req.body);
     await validateJournalParty(payload);
+    await validateJournalReferencesForUser(req.currentUser, payload);
     await updateJournalEntry(req.params.id, payload);
     res.redirect(`/journals/${req.params.id}`);
   } catch (err) { next(err); }
@@ -281,6 +318,9 @@ router.post('/journals/:id', async (req, res, next) => {
 
 router.post('/journals/:id/submit', async (req, res, next) => {
   try {
+    const journal = await findJournalEntry(req.params.id);
+    if (!journal) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
+    await validateJournalReferencesForUser(req.currentUser, journal);
     await submitJournalEntry(req.params.id);
     res.redirect(`/journals/${req.params.id}`);
   } catch (err) { next(err); }

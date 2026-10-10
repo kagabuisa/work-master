@@ -15,7 +15,7 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Entries', href: '/stock/entries' }, { label: stockEntryReadOnly && entry ? entry.entry_no : entry ? 'Edit Stock Entry' : 'New Stock Entry' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: entry && entry.entry_type === 'purchase' ? 'purchases' : 'stock' }) %>
+        <%- include('module-nav', { activeModule: entry && entry.entry_type === 'purchase' ? 'purchases' : 'stock' }) %><%- include('stock-new-menu') %>
       </nav>
     </header>
     <% if (error) { %>
