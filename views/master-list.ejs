@@ -39,6 +39,25 @@
         </div>
         <span class="field-hint item-price-filter-status" id="item-price-code-status" role="status"></span>
       </form>
+    <% } else if (config.key === 'employees') { %>
+      <form class="employee-list-toolbar" method="get" data-static-labels>
+        <label class="employee-list-search">
+          <span>Find employee</span>
+          <input type="search" name="q" value="<%= search %>" placeholder="Search name, ID, or department" autocomplete="off">
+        </label>
+        <div class="employee-list-search-actions">
+          <button type="submit">Search</button>
+          <% if (search) { %><a class="button button-light" href="/settings/employees<%= query.left_only === '1' ? '?left_only=1' : '' %>">Clear</a><% } %>
+        </div>
+        <div class="employee-list-status-field">
+          <span class="employee-list-field-label">Employment status</span>
+          <label class="employee-list-status-filter">
+            <input type="checkbox" name="left_only" value="1" role="switch" <%= query.left_only === '1' ? 'checked' : '' %> onchange="this.form.requestSubmit()">
+            <span class="employee-list-switch" aria-hidden="true"></span>
+            <span>Show left employees only</span>
+          </label>
+        </div>
+      </form>
     <% } else { %>
       <form class="search" method="get">
         <label><input name="q" value="<%= search %>" placeholder="Search <%= config.title.toLowerCase() %>" autocomplete="off">Search <%= config.title %></label>
@@ -55,7 +74,7 @@
             <% config.columns.forEach((column) => { %>
               <th class="master-col-<%= column.key %>"><%= column.label %></th>
             <% }) %>
-            <th>Active</th>
+            <th><%= config.key==='employees'?'Employment status':'Active' %></th>
             <th class="actions-cell">Actions</th>
           </tr>
         </thead>
@@ -63,7 +82,7 @@
           <% if (!rows.length) { %>
             <tr><td colspan="<%= config.columns.length + 3 %>" class="empty">No <%= config.title.toLowerCase() %> found.</td></tr>
           <% } %>
-          <% rows.forEach((row, index) => { const priceListEditHref = (config.key === 'price-lists'
+          <% rows.forEach((row, index) => { const priceListEditHref = config.key==='employees'&&can('hr.employees.view') ? '/hr/employees/'+encodeURIComponent(row[config.idField]) : (config.key === 'price-lists'
             ? canPriceListAction(row.price_list, 'edit') : can(`masters.${config.key}.edit`))
             ? '/settings/' + config.key + '/' + encodeURIComponent(row[config.idField]) + '/edit' + (config.key === 'price-lists' && row.docstatus === 'submitted' ? '?editing=1' : '') : null; %>
             <tr <% if (priceListEditHref) { %>data-edit-href="<%= priceListEditHref %>"<% } %>>
@@ -92,10 +111,10 @@
                 <td>
                   <form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/active">
                     <input type="hidden" name="active" value="<%= isActive ? '0' : '1' %>">
-                    <% for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) { if (query[key]) { %><input type="hidden" name="<%= key %>" value="<%= query[key] %>"><% } } %>
-                    <button type="submit" class="price-list-active-button" role="switch" aria-checked="<%= isActive %>" aria-label="<%= isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= row[config.idField] %>" <%= (config.key === 'price-lists' ? canPriceListAction(row.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
+                    <% for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'left_only', 'page', 'page_size']) { if (query[key]) { %><input type="hidden" name="<%= key %>" value="<%= query[key] %>"><% } } %>
+                    <button type="submit" class="price-list-active-button" role="switch" aria-checked="<%= isActive %>" aria-label="<%= config.key==='employees' ? (isActive?'Mark Left':'Mark Active') : isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= row[config.idField] %>" <%= (config.key==='employees' ? can('masters.employees.edit') : config.key === 'price-lists' ? canPriceListAction(row.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
                       <span class="price-list-active-track" aria-hidden="true"><span class="price-list-active-thumb"></span></span>
-                      <span>Active</span>
+                      <span><%= config.key==='employees'?(row.status||'Not specified'):'Active' %></span>
                     </button>
                   </form>
                 </td>
@@ -106,7 +125,7 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m16 3 5 5L8 21H3v-5Z"/><path d="m14 5 5 5"/></svg>
                 </a><% } %>
                 <% if (config.key === 'price-lists' ? canPriceListAction(row.price_list, 'delete') : can(`masters.${config.key}.delete`)) { %><form method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(row[config.idField]) %>/delete" data-confirm="Delete <%= config.singular.toLowerCase() %> <%= row[config.idField] %> permanently? This cannot be undone.">
-                  <% for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) { if (query[key]) { %><input type="hidden" name="<%= key %>" value="<%= query[key] %>"><% } } %>
+                  <% for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'left_only', 'page', 'page_size']) { if (query[key]) { %><input type="hidden" name="<%= key %>" value="<%= query[key] %>"><% } } %>
                   <button type="submit" class="button-light master-action-icon master-action-cancel" title="Delete" aria-label="Delete <%= config.singular.toLowerCase() %> <%= row[config.idField] %>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h16M9 7V4h6v3m-9 0 1 13h10l1-13M10 11v6m4-6v6"/></svg>
                   </button>

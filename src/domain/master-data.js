@@ -342,6 +342,10 @@ async function masterEmployees(options = {}) {
   if (!options.includeDisabled) {
     where.push('disabled = false');
   }
+  if (['Active', 'Left'].includes(options.employmentStatus)) {
+    params.push(options.employmentStatus);
+    where.push(`status = $${params.length}`);
+  }
   const search = String(options.search || '').trim().toLowerCase();
   if (search) {
     params.push(sqlLikePattern(search));
@@ -807,6 +811,11 @@ const MASTER_RECORD_TABLES = {
 async function setMasterRecordActive(kind, id, active) {
   if (typeof active !== 'boolean') { const error = new Error('Choose an active state.'); error.status = 400; throw error; }
   if (kind === 'item-prices') return pricing.setItemPriceActive(getPostgresPool(), id, active);
+  if (kind === 'employees') {
+    const { rowCount } = await getPostgresPool().query('UPDATE app_master_employees SET status=$2,disabled=$3,updated_at=now() WHERE employee_id=$1',[id,active?'Active':'Left',!active]);
+    if (!rowCount) { const error=new Error('Employee not found.');error.status=404;throw error; }
+    return;
+  }
   const fields = MASTER_RECORD_TABLES[kind];
   if (!fields) { const error = new Error('Unknown master list.'); error.status = 404; throw error; }
   const { rowCount } = await getPostgresPool().query(
@@ -1132,7 +1141,7 @@ function assertMasterUpdateApplied(rowCount) {
 async function createMasterEmployee(payload) {
   const employeeName = requiredValue(payload.employee_name, 'Employee name is required.');
   const employeeId = optionalValue(payload.employee_id) || employeeName;
-  const disabled = true;
+  const disabled = payload.status === 'Left';
   await getPostgresPool().query(
     `
     INSERT INTO app_master_employees (
@@ -1164,6 +1173,7 @@ async function updateMasterEmployee(id, payload) {
     UPDATE app_master_employees
     SET employee_name = $2,
         status = $3,
+        disabled = COALESCE($3='Left',false),
         company = $4,
         department = $5,
         designation = $6,

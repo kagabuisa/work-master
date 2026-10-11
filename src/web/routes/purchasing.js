@@ -4,7 +4,8 @@ const express = require('express');
 const { purchaseMoney, todayString } = require('../format');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { arrayField } = require('../parsers');
-const { selectedCategories, purchaseOrderAllowed, voucherWarehousesAllowed } = require('../../access');
+const { selectedCategories, purchaseOrderAllowed, voucherWarehousesAllowed,
+  allowedNamedListValues, deniedNamedListValues } = require('../../access');
 const {
   createPurchase,
   updatePurchase,
@@ -66,10 +67,12 @@ function purchasePayload(body, { singleWarehouse = false } = {}) {
 }
 
 async function receivableOrdersForUser(user) {
-  const available = await listReceivablePurchaseOrders();
-  return (await Promise.all(available.map(async (order) =>
-    await purchaseOrderAllowed(user, order.id)
-    && await voucherWarehousesAllowed(user, 'purchase-orders', order.id) ? order : null))).filter(Boolean);
+  return listReceivablePurchaseOrders({
+    ownerId: voucherOwnerId(user),
+    allowedTypes: selectedCategories(user, 'suppliers'),
+    allowedWarehouses: allowedNamedListValues(user, 'warehouses'),
+    deniedWarehouses: user?.role === 'admin' ? [] : deniedNamedListValues(user, 'warehouses'),
+  });
 }
 
 async function fillPurchaseFromOrder(user, purchase, orderId) {

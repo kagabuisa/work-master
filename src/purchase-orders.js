@@ -139,14 +139,40 @@ async function loadPurchaseOrder(value, options = {}) {
     items: items.rows, invoices: invoices.rows };
 }
 
-async function listReceivablePurchaseOrders() {
-  const result = await getPostgresPool().query(`SELECT o.id, o.order_no, o.supplier_name
-    FROM app_purchase_orders o WHERE o.docstatus = 'submitted' AND EXISTS (
+async function listReceivablePurchaseOrders(options = {}, pool = getPostgresPool()) {
+  const params = [];
+  const where = ["o.docstatus = 'submitted'"];
+  addVoucherOwnerFilter(where, params, 'o', options.ownerId);
+  if (options.allowedTypes !== null && options.allowedTypes !== undefined) {
+    params.push(options.allowedTypes);
+    where.push(`EXISTS (SELECT 1 FROM app_master_suppliers supplier
+      WHERE supplier.supplier_id = o.supplier_id
+        AND LOWER(BTRIM(COALESCE(supplier.supplier_type, ''))) = ANY($${params.length}::text[]))`);
+  }
+  const warehouseChecks = [];
+  if (options.allowedWarehouses !== null && options.allowedWarehouses !== undefined) {
+    params.push(options.allowedWarehouses);
+    warehouseChecks.push(`NOT (BTRIM(item.warehouse) = ANY($${params.length}::text[]))`);
+  }
+  if (options.deniedWarehouses?.length) {
+    params.push(options.deniedWarehouses);
+    warehouseChecks.push(`BTRIM(item.warehouse) = ANY($${params.length}::text[])`);
+  }
+  if (warehouseChecks.length) {
+    // All nonempty line warehouses must be permitted, including received lines.
+    where.push(`NOT EXISTS (SELECT 1 FROM app_purchase_order_items item
+      WHERE item.purchase_order_id = o.id AND COALESCE(item.warehouse, '') <> ''
+        AND (${warehouseChecks.join(' OR ')}))`);
+  }
+  where.push(`EXISTS (
       SELECT 1 FROM app_purchase_order_items oi WHERE oi.purchase_order_id = o.id
       AND oi.quantity > COALESCE((SELECT SUM(pi.quantity) FROM app_purchase_items pi
         JOIN app_purchases p ON p.id = pi.purchase_id
         WHERE pi.purchase_order_item_id = oi.id AND p.docstatus = 'submitted'), 0)
-    ) ORDER BY o.posting_date DESC, o.id DESC LIMIT 100`);
+    )`);
+  const result = await pool.query(`SELECT o.id, o.order_no, o.supplier_name
+    FROM app_purchase_orders o WHERE ${where.join(' AND ')}
+    ORDER BY o.posting_date DESC, o.id DESC LIMIT 100`, params);
   return result.rows;
 }
 

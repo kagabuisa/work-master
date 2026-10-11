@@ -63,3 +63,12 @@ test('payroll setup errors link to employee pay plans and retain draft inputs', 
   assert.match(html,/<option value="E-1" selected>/);
   assert.match(html,/Set up employee pay plans/);
 });
+
+
+test('shared employee directory permits HR Read and status switching requires master Write',()=>{
+  const request=(path,method,permissions)=>({path,method,currentUser:{role:'finance',permissions},body:{active:'1'}});
+  assert.equal(permissionCheck(request('/settings/employees','GET',['hr.employees.view'])),true);
+  assert.equal(permissionCheck(request('/settings/employees/E1/active','POST',['masters.employees.edit'])),true);
+  assert.equal(permissionCheck(request('/settings/employees/E1/active','POST',['masters.employees.submit','masters.employees.cancel'])),false);
+  assert.equal(permissionCheck(request('/settings/employees/E1/active','POST',['hr.employees.edit'])),false);
+});

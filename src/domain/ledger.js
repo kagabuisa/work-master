@@ -665,8 +665,7 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
   )`);
 }
 
-async function generalLedgerReport(filters = {}, access = {}) {
-  const pagination = paginationOptions(filters, 50, 200);
+function generalLedgerQuery(filters = {}, access = {}) {
   const params = [];
   const where = [];
   const from = String(filters.from || '').trim();
@@ -722,6 +721,16 @@ async function generalLedgerReport(filters = {}, access = {}) {
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return { params, whereSql, filters: {
+    search: String(filters.search || '').trim(), account: String(filters.account || '').trim(),
+    party: String(filters.party || '').trim(), voucher_type: voucherType, from, to,
+  } };
+}
+
+async function generalLedgerReport(filters = {}, access = {}) {
+  const pagination = paginationOptions(filters, 50, 200);
+  const query = generalLedgerQuery(filters, access);
+  const { params, whereSql } = query;
   const countResult = await getPostgresPool().query(
     `
     SELECT COUNT(*)::int AS total
@@ -742,7 +751,25 @@ async function generalLedgerReport(filters = {}, access = {}) {
   );
   if (!access.exportAll) params.push(pagination.limit, pagination.offset);
   const { rows } = await getPostgresPool().query(
-    `
+    `${generalLedgerRowsSql(whereSql)}
+      ${access.exportAll ? '' : `LIMIT $${params.length - 1} OFFSET $${params.length}`}`,
+    params,
+  );
+  const summary = summaryResult.rows[0] || { debit: 0, credit: 0 };
+  return {
+    filters: query.filters,
+    rows,
+    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
+    summary: {
+      debit: roundMoney(summary.debit),
+      credit: roundMoney(summary.credit),
+      balance: roundMoney(summary.debit - summary.credit),
+    },
+  };
+}
+
+function generalLedgerRowsSql(whereSql) {
+  return `
     SELECT
       gl.id,
       gl.posting_date::text,
@@ -775,28 +802,42 @@ async function generalLedgerReport(filters = {}, access = {}) {
     INNER JOIN app_accounts account ON account.id = gl.account_id
     ${whereSql}
     ORDER BY gl.posting_date ASC, gl.id ASC
-    ${access.exportAll ? '' : `LIMIT $${params.length - 1} OFFSET $${params.length}`}
-    `,
-    params,
-  );
-  const summary = summaryResult.rows[0] || { debit: 0, credit: 0 };
-  return {
-    filters: {
-      search: String(filters.search || '').trim(),
-      account: String(filters.account || '').trim(),
-      party: String(filters.party || '').trim(),
-      voucher_type: voucherType,
-      from,
-      to,
-    },
-    rows,
-    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
-    summary: {
-      debit: roundMoney(summary.debit),
-      credit: roundMoney(summary.credit),
-      balance: roundMoney(summary.debit - summary.credit),
-    },
-  };
+`;
+}
+
+// One snapshot keeps totals and running balances consistent while pages are read.
+async function withGeneralLedgerExport(filters, access, consume, { signal, batchSize = 500 } = {}) {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 5000) throw new Error('Invalid export batch size.');
+  const query = generalLedgerQuery(filters, access);
+  const client = await getPostgresPool().connect();
+  let failed;
+  const check = () => { if (signal?.aborted) throw signal.reason || new Error('Export cancelled.'); };
+  try {
+    check();
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    const { rows } = await client.query(`SELECT COUNT(*)::int AS total,
+      COALESCE(SUM(gl.debit), 0)::float AS debit, COALESCE(SUM(gl.credit), 0)::float AS credit
+      FROM app_gl_entries gl INNER JOIN app_accounts account ON account.id = gl.account_id
+      ${query.whereSql}`, query.params);
+    const summary = rows[0];
+    await client.query(`DECLARE ledger_export_cursor NO SCROLL CURSOR FOR
+      ${generalLedgerRowsSql(query.whereSql)}`, query.params);
+    async function* entries() {
+      while (true) {
+        check();
+        const batch = await client.query(`FETCH FORWARD ${batchSize} FROM ledger_export_cursor`);
+        if (!batch.rows.length) break;
+        for (const row of batch.rows) { check(); yield row; }
+      }
+    }
+    await consume({ filters: query.filters, rows: entries(), pagination: { total: summary.total },
+      summary: { debit: roundMoney(summary.debit), credit: roundMoney(summary.credit),
+        balance: roundMoney(summary.debit - summary.credit) } });
+    await client.query('COMMIT');
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (rollbackError) { failed = rollbackError; }
+    throw error;
+  } finally { client.release(failed); }
 }
 
 async function generalLedgerFilterOptions() {
@@ -1443,6 +1484,7 @@ module.exports = {
   isManualJournalType,
   addGeneralLedgerAccessFilter,
   generalLedgerReport,
+  withGeneralLedgerExport,
   generalLedgerFilterOptions,
   generalLedgerAccountOptions,
   generalLedgerPartyOptions,

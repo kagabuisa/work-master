@@ -14,6 +14,7 @@ let items = [];
 const searchTimers = new WeakMap();
 
 function scheduleSearch(input, callback) {
+  lookupControllers.get(input)?.abort();
   clearTimeout(searchTimers.get(input));
   searchTimers.set(input, setTimeout(callback, 180));
 }
@@ -37,6 +38,7 @@ const lookupMessage = lookupStatus.querySelector('[data-lookup-message]');
 const retryLookup = lookupStatus.querySelector('[data-lookup-retry]');
 const failures = new Map();
 const requests = new WeakMap();
+const lookupControllers = new WeakMap();
 
 function showLookupStatus(message = '') {
   const errors = [...failures.values()];
@@ -50,15 +52,17 @@ function showLookupStatus(message = '') {
 
 async function lookup(list, input, endpoint, label, apply, filter = (rows) => rows) {
   const query = input ? input.value.trim() : '';
-  const request = {};
+  requests.get(list)?.abort();
+  const request = new AbortController();
+  if (input) lookupControllers.set(input, request);
   requests.set(list, request);
   failures.delete(list);
   setOptions(list, [], '');
   showLookupStatus();
-  const current = () => requests.get(list) === request && (!input || input.isConnected && input.value.trim() === query)
+  const current = () => !request.signal.aborted && requests.get(list) === request && (!input || input.isConnected && input.value.trim() === query)
     && (!endpoint.startsWith('/api/master-items?') || endpoint.includes(`price_list=${encodeURIComponent(priceListSelect.value)}`));
   try {
-    const response = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}q=${encodeURIComponent(query)}`);
+    const response = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}q=${encodeURIComponent(query)}`, { signal: request.signal });
     if (!response.ok) throw new Error('Lookup failed');
     const result = await response.json();
     if (!Array.isArray(result)) throw new Error('Invalid lookup result');
@@ -200,6 +204,7 @@ async function loadPriceLists() {
 }
 priceListSelect.addEventListener('change', () => {
   if (fromPurchaseOrder) return;
+  requests.get(itemList)?.abort();
   items = [];
   for (const row of purchaseRows.rows) {
     row.querySelector('[name="item_code"]').value = '';

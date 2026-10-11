@@ -1,0 +1,10 @@
+<% const value=employee[field.name]||''; const creating=typeof isNewEmployee!=='undefined'&&isNewEmployee; const locked=creating ? (field.master?!can('masters.employees.create'):!can('hr.employees.edit')) : !can('hr.employees.edit') || field.master&&!can('masters.employees.edit'); %>
+<label class="<%= field.type==='textarea'&&field.name!=='address'||field.name==='next_of_kin_relation'?'hr-detail-wide':'' %>"><%= field.label %>
+<% if(field.type==='select'){ %>
+<select name="<%= field.name %>" <%= locked?'disabled':'' %>><option value="">Select <%= field.label.toLowerCase() %></option><% field.options.forEach(option=>{ %><option value="<%= option %>" <%= value===option?'selected':'' %>><%= option %></option><% }) %></select>
+<% }else if(field.type==='textarea'){ %>
+<textarea name="<%= field.name %>" rows="<%= field.rows %>" maxlength="<%= field.maxlength||2000 %>" <%= locked?'disabled':'' %>><%= value %></textarea>
+<% }else{ %>
+<input name="<%= field.name %>" type="<%= field.type||'text' %>" value="<%= value %>" maxlength="<%= field.maxlength||2000 %>" <%= locked?'disabled':'' %>>
+<% } %>
+<% if(field.hint){ %><span class="field-hint"><%= field.hint %></span><% } %></label>

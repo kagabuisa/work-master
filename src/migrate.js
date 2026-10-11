@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 16;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -133,6 +133,15 @@ const MIGRATIONS = [
   { version: 14, name: 'hr_working_week_and_payroll_review', up: async (client) => {
     await client.query("ALTER TABLE app_hr_settings ADD COLUMN IF NOT EXISTS working_weekdays JSONB NOT NULL DEFAULT '[0,1,2,3,4,5,6]'::jsonb");
     await client.query('ALTER TABLE app_hr_runs ADD COLUMN IF NOT EXISTS review_version INTEGER NOT NULL DEFAULT 0');
+  } },
+  { version: 15, name: 'hr_employee_personal_details', up: async (client) => {
+    await client.query("ALTER TABLE app_hr_profiles ADD COLUMN IF NOT EXISTS details JSONB NOT NULL DEFAULT '{}'::jsonb");
+  } },
+  { version: 16, name: 'employee_employment_status', up: async (client) => {
+    await client.query(`UPDATE app_master_employees SET status=CASE
+      WHEN lower(status)='active' THEN 'Active' WHEN lower(status)='left' THEN 'Left'
+      WHEN disabled AND NULLIF(trim(status),'') IS NULL THEN 'Left' ELSE status END`);
+    await client.query("UPDATE app_master_employees SET disabled=COALESCE(status='Left',false)");
   } },
 ];
 

@@ -1,6 +1,4 @@
 'use strict';
-const ExcelJS = require('exceljs');
-const PDFDocument = require('pdfkit');
 const columns = ['Date', 'Account Code', 'Account Name', 'Debit', 'Credit', 'Balance', 'Voucher Type', 'Voucher No.', 'Party', 'Remarks'];
 const values = row => [row.posting_date, row.account_code, row.account_name, Number(row.debit || 0), Number(row.credit || 0), Number(row.running_balance || 0), row.voucher_type, row.voucher_no || row.voucher_id || '', row.party_name || row.party_id || '', row.remarks || ''];
 const csvCell = value => {
@@ -10,42 +8,84 @@ const csvCell = value => {
 };
 const filterDescription = report => Object.entries(report.filters).filter(([,value]) => value).map(([key,value]) => `${key}: ${value}`).join(' | ') || 'All transactions';
 
-async function sendGeneralLedgerExport(res, report, format) {
-  const filename = `general-ledger${report.filters.from ? '-' + report.filters.from : ''}${report.filters.to ? '-to-' + report.filters.to : ''}.${format}`;
-  res.set('Cache-Control', 'private, no-store');
-  res.attachment(filename);
-  if (format === 'csv') {
-    res.type('text/csv');
-    const rows = [columns, ...report.rows.map(values), ['', '', 'Total', report.summary.debit, report.summary.credit, report.summary.balance, '', '', '', '']];
-    return res.send('\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n');
-  }
-  if (format === 'xlsx') {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('General Ledger', { views: [{ state: 'frozen', ySplit: 1 }] });
-    sheet.columns = columns.map((header, index) => ({ header, width: [15,18,30,18,18,18,22,24,28,50][index] }));
-    sheet.addRows(report.rows.map(values));
-    sheet.autoFilter = { from: 'A1', to: 'J1' };
-    const total = sheet.addRow(['', '', 'Total', report.summary.debit, report.summary.credit, report.summary.balance]);
-    total.font = { bold: true };
-    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16324F' } };
-    for (const column of [4,5,6]) sheet.getColumn(column).numFmt = '#,##0.00;[Red]-#,##0.00';
-    sheet.getColumn(10).alignment = { wrapText: true, vertical: 'top' };
-    const info = workbook.addWorksheet('Report Details');
-    info.addRows([['Report', 'General Ledger'], ['Filters', filterDescription(report)], ['Entries', report.rows.length], ['Balance', 'Running balance per account within the selected filters']]);
-    info.getColumn(1).width = 20; info.getColumn(2).width = 100;
-    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    return res.send(Buffer.from(await workbook.xlsx.writeBuffer()));
-  }
-  res.type('application/pdf');
-  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 34, bufferPages: true, info: { Title: 'General Ledger' } });
-  const chunks = [];
-  const complete = new Promise((resolve, reject) => { doc.on('data', chunk => chunks.push(chunk)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject); });
-  renderLedgerTable(doc, report);
-  doc.end();
-  res.send(await complete);
+const { finished } = require('node:stream/promises');
+const { once } = require('node:events');
+const { setImmediate: yieldToIo } = require('node:timers/promises');
+
+function exportFilename(filters, format) {
+  return `general-ledger${filters.from ? '-' + filters.from : ''}${filters.to ? '-to-' + filters.to : ''}.${format}`;
 }
-function renderLedgerTable(doc, report) {
+
+async function outputReady(output) {
+  if (output.destroyed) throw new Error('Export output closed.');
+  if (output.writableNeedDrain) await once(output, 'drain');
+}
+
+async function writeGeneralLedgerExport(output, report, format) {
+  const complete = finished(output);
+  // Attach immediately; a disk/write failure must not become an unhandled rejection.
+  complete.catch(() => {});
+  try {
+    if (format === 'csv') {
+      output.write('\uFEFF' + columns.map(csvCell).join(',') + '\r\n');
+      for await (const row of report.rows) {
+        output.write(values(row).map(csvCell).join(',') + '\r\n');
+        await outputReady(output);
+      }
+      output.end(['', '', 'Total', report.summary.debit, report.summary.credit, report.summary.balance, '', '', '', '']
+        .map(csvCell).join(',') + '\r\n');
+    } else if (format === 'xlsx') {
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: output, useStyles: true, useSharedStrings: false });
+      const sheet = workbook.addWorksheet('General Ledger', { views: [{ state: 'frozen', ySplit: 1 }] });
+      sheet.columns = columns.map((header, index) => ({ header, width: [15,18,30,18,18,18,22,24,28,50][index] }));
+      sheet.autoFilter = { from: 'A1', to: 'J1' };
+      sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16324F' } };
+      for (const column of [4,5,6]) sheet.getColumn(column).numFmt = '#,##0.00;[Red]-#,##0.00';
+      sheet.getColumn(10).alignment = { wrapText: true, vertical: 'top' };
+      sheet.getRow(1).commit();
+      let count = 0;
+      for await (const row of report.rows) {
+        sheet.addRow(values(row)).commit();
+        if (++count % 100 === 0) { await yieldToIo(); await outputReady(output); }
+      }
+      const total = sheet.addRow(['', '', 'Total', report.summary.debit, report.summary.credit, report.summary.balance]);
+      total.font = { bold: true }; total.commit();
+      sheet.commit();
+      const info = workbook.addWorksheet('Report Details');
+      info.getColumn(1).width = 20; info.getColumn(2).width = 100;
+      for (const row of [['Report', 'General Ledger'], ['Filters', filterDescription(report)], ['Entries', count],
+        ['Balance', 'Running balance per account within the selected filters']]) info.addRow(row).commit();
+      info.commit();
+      await workbook.commit();
+    } else if (format === 'pdf') {
+      const PDFDocument = require('pdfkit');
+      const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 34,
+        bufferPages: false, info: { Title: 'General Ledger' } });
+      doc.on('error', error => output.destroy(error));
+      doc.pipe(output);
+      try { await renderLedgerTable(doc, report, output); doc.end(); }
+      catch (error) { doc.destroy(error); throw error; }
+    } else {
+      throw new Error('Choose CSV, Excel, or PDF.');
+    }
+    await complete;
+  } catch (error) {
+    output.destroy(error);
+    await complete.catch(() => {});
+    throw error;
+  }
+}
+
+async function sendGeneralLedgerExport(res, report, format) {
+  res.set('Cache-Control', 'private, no-store');
+  res.attachment(exportFilename(report.filters, format));
+  res.type({ csv: 'text/csv', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pdf: 'application/pdf' }[format]);
+  await writeGeneralLedgerExport(res, report, format);
+}
+
+async function renderLedgerTable(doc, report, output) {
   const left = 34;
   const width = doc.page.width - left * 2;
   const bottom = doc.page.height - 54;
@@ -54,12 +94,16 @@ function renderLedgerTable(doc, report) {
   const navy = '#16324F';
   const widths = [24, 60, 120, 68, 68, 76, 106, 92, 160].map(value => value * width / 774);
   const headers = ['#', 'Date', 'Account', 'Debit', 'Credit', 'Balance', 'Voucher', 'Party', 'Remarks'];
-  const amount = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const amountFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const amount = value => amountFormatter.format(Number(value || 0));
+  const wrapCaches = Array.from({ length: 9 }, () => new Map());
   let y;
+  let pageNumber = 1;
+  const rowCount = report.pagination?.total ?? report.rows.length;
 
   function header(first = false) {
     doc.font('Helvetica-Bold').fontSize(first ? 23 : 16).fillColor(navy).text('General Ledger', left, 30, { lineBreak: false });
-    doc.font('Helvetica').fontSize(9).fillColor('#64748B').text(`${report.rows.length.toLocaleString('en-US')} transactions`, left + width - 150, 36, { width: 150, align: 'right', lineBreak: false });
+    doc.font('Helvetica').fontSize(9).fillColor('#64748B').text(`${rowCount.toLocaleString('en-US')} transactions`, left + width - 150, 36, { width: 150, align: 'right', lineBreak: false });
     y = first ? 65 : 58;
     if (first) {
       const labels = { search: 'Search', account: 'Account', party: 'Party', voucher_type: 'Voucher', from: 'From', to: 'To' };
@@ -83,22 +127,51 @@ function renderLedgerTable(doc, report) {
     });
     y += 26;
   }
-  function newPage() { doc.addPage(); header(); }
+  function footer() {
+    const originalBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+    doc.moveTo(left, doc.page.height - 37).lineTo(left + width, doc.page.height - 37).strokeColor('#CBD5E1').stroke();
+    doc.font('Helvetica').fontSize(8).fillColor('#64748B').text('Balances run per account within the selected filters. Net = debit minus credit.', left, doc.page.height - 27, { lineBreak: false });
+    doc.text(`Page ${pageNumber}`, left + width - 110, doc.page.height - 27, { width: 110, align: 'right', lineBreak: false });
+    doc.page.margins.bottom = originalBottomMargin;
+  }
+  function newPage() { footer(); doc.addPage(); pageNumber++; header(); }
   function wrap(value, column) {
     doc.font('Helvetica').fontSize(8);
     const max = widths[column] - padding * 2;
     const lines = [];
     for (const paragraph of String(value ?? '').split(/\r?\n/)) {
-      let line = '';
-      for (const character of paragraph) {
-        if (line && doc.widthOfString(line + character) > max) {
-          const space = line.lastIndexOf(' ');
-          if (space > 0) { lines.push(line.slice(0, space)); line = line.slice(space + 1); }
-          else { lines.push(line); line = ''; }
-        }
-        line += character;
+      const cache = wrapCaches[column];
+      if (cache.has(paragraph)) {
+        const cached = cache.get(paragraph);
+        cache.delete(paragraph); cache.set(paragraph, cached);
+        lines.push(...cached); continue;
       }
-      lines.push(line);
+      const start = lines.length;
+      let remainder = paragraph;
+      while (remainder) {
+        let low = 1;
+        let high = Math.min(32, remainder.length);
+        while (high < remainder.length && doc.widthOfString(remainder.slice(0, high)) <= max) high = Math.min(high * 2, remainder.length);
+        if (doc.widthOfString(remainder.slice(0, high)) <= max) break;
+        while (low < high) {
+          const mid = Math.ceil((low + high) / 2);
+          if (doc.widthOfString(remainder.slice(0, mid)) <= max) low = mid;
+          else high = mid - 1;
+        }
+        let length = low;
+        // Do not split a surrogate pair when an oversized word wraps.
+        if (length > 1 && /[\uD800-\uDBFF]/.test(remainder[length - 1])) length--;
+        const prefix = remainder.slice(0, length);
+        const space = prefix.lastIndexOf(' ');
+        if (space > 0) { lines.push(prefix.slice(0, space)); remainder = remainder.slice(space + 1); }
+        else { lines.push(prefix); remainder = remainder.slice(length); }
+      }
+      lines.push(remainder);
+      if (column !== 0 && column !== 5 && paragraph.length <= 2048) {
+        if (cache.size >= 256) cache.delete(cache.keys().next().value);
+        cache.set(paragraph, lines.slice(start));
+      }
     }
     return lines;
   }
@@ -126,24 +199,19 @@ function renderLedgerTable(doc, report) {
     }
   }
   header(true);
-  report.rows.forEach((row, index) => drawRow([
-    index + 1, row.posting_date, `${row.account_code || ''}\n${row.account_name || ''}`,
-    amount(row.debit), amount(row.credit), amount(row.running_balance),
-    `${String(row.voucher_type || '').replaceAll('_', ' ')}\n${row.voucher_no || row.voucher_id || ''}`,
-    row.party_name || row.party_id || '', row.remarks || '',
-  ], index));
-  if (!report.rows.length) drawRow(['', '', 'No entries found', '', '', '', '', '', ''], 0);
-  drawRow(['', '', 'TOTAL / NET', amount(report.summary.debit), amount(report.summary.credit), amount(report.summary.balance), '', '', ''], report.rows.length, true);
-  const range = doc.bufferedPageRange();
-  for (let page = range.start; page < range.start + range.count; page++) {
-    doc.switchToPage(page);
-    const originalBottomMargin = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
-    doc.moveTo(left, doc.page.height - 37).lineTo(left + width, doc.page.height - 37).strokeColor('#CBD5E1').stroke();
-    doc.font('Helvetica').fontSize(8).fillColor('#64748B').text('Balances run per account within the selected filters. Net = debit minus credit.', left, doc.page.height - 27, { lineBreak: false });
-    doc.text(`Page ${page + 1} of ${range.count}`, left + width - 110, doc.page.height - 27, { width: 110, align: 'right', lineBreak: false });
-    doc.page.margins.bottom = originalBottomMargin;
+  let index = 0;
+  for await (const row of report.rows) {
+    drawRow([
+      index + 1, row.posting_date, `${row.account_code || ''}\n${row.account_name || ''}`,
+      amount(row.debit), amount(row.credit), amount(row.running_balance),
+      `${String(row.voucher_type || '').replaceAll('_', ' ')}\n${row.voucher_no || row.voucher_id || ''}`,
+      row.party_name || row.party_id || '', row.remarks || '',
+    ], index++);
+    if (index % 100 === 0) { await yieldToIo(); await outputReady(output); }
   }
+  if (!index) drawRow(['', '', 'No entries found', '', '', '', '', '', ''], 0);
+  drawRow(['', '', 'TOTAL / NET', amount(report.summary.debit), amount(report.summary.credit), amount(report.summary.balance), '', '', ''], index, true);
+  footer();
 }
 
-module.exports = { sendGeneralLedgerExport };
+module.exports = { sendGeneralLedgerExport, writeGeneralLedgerExport, exportFilename };

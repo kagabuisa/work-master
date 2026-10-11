@@ -18,8 +18,11 @@ const readOnly = Boolean(initial.readOnly);
 const canEditRate = Boolean(initial.canEditRate) && !readOnly;
 let rows = [];
 let loadToken = 0;
+let warehouseStockController;
 let searchTimer;
 let warehouseTimer;
+let warehouseLookupController;
+let itemLookupController;
 let loadedWarehouse = '';
 if (searchInput) searchInput.disabled = true;
 
@@ -231,13 +234,16 @@ async function loadWarehouseStock(event) {
     renderRows();
   }
   if (searchInput) searchInput.disabled = true;
+  warehouseStockController?.abort();
+  warehouseStockController = new AbortController();
+  const signal = warehouseStockController.signal;
   const token = ++loadToken;
   setStatus('Loading warehouse stock…');
   try {
-    const response = await fetch(`/stock/reconciliations/warehouse-stock?warehouse=${encodeURIComponent(warehouse)}`);
+    const response = await fetch(`/stock/reconciliations/warehouse-stock?warehouse=${encodeURIComponent(warehouse)}`, { signal });
     const stock = await response.json();
     if (!response.ok || !Array.isArray(stock)) throw new Error(stock.error || 'Could not load warehouse stock.');
-    if (token !== loadToken) return;
+    if (signal.aborted || token !== loadToken) return;
     const saved = Array.isArray(initial.items) ? initial.items : [];
     const savedByCode = new Map(saved.map((item) => [item.item_code, item]));
     rows = stock.map((balance) => {
@@ -256,32 +262,40 @@ async function loadWarehouseStock(event) {
     renderRows();
     setStatus(`${stock.length.toLocaleString()} stocked item${stock.length === 1 ? '' : 's'} loaded. Add other counted items below.`);
   } catch (err) {
-    if (token !== loadToken) return;
+    if (signal.aborted || token !== loadToken) return;
     if (searchInput) searchInput.disabled = true;
     setStatus(err.message || 'Could not load warehouse stock.', true);
   }
 }
 
 async function loadWarehouses(query = '') {
+  warehouseLookupController?.abort();
+  warehouseLookupController = new AbortController();
+  const signal = warehouseLookupController.signal;
   try {
-    const response = await fetch(`/api/warehouses?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`/api/warehouses?q=${encodeURIComponent(query)}`, { signal });
     if (!response.ok) throw new Error('Warehouse lookup failed');
     const warehouses = await response.json();
+    if (signal.aborted) return;
     warehouseList.replaceChildren(...warehouses.map((warehouse) => {
       const option = document.createElement('option');
       option.value = warehouse;
       return option;
     }));
-  } catch { warehouseList.replaceChildren(); }
+  } catch { if (!signal.aborted) warehouseList.replaceChildren(); }
 }
 
 async function searchItems(query) {
+  itemLookupController?.abort();
+  itemLookupController = new AbortController();
+  const signal = itemLookupController.signal;
   if (!searchResults) return;
   if (!query.trim()) { searchResults.replaceChildren(); return; }
   try {
-    const response = await fetch(`/api/master-items?q=${encodeURIComponent(query.trim())}`);
+    const response = await fetch(`/api/master-items?q=${encodeURIComponent(query.trim())}`, { signal });
     if (!response.ok) throw new Error('Item lookup failed');
     const items = await response.json();
+    if (signal.aborted) return;
     searchResults.replaceChildren();
     for (const item of items) {
       if (rows.some((row) => row.code === item.item_code) || item.disabled === '1') continue;
@@ -293,7 +307,7 @@ async function searchItems(query) {
       searchResults.appendChild(button);
     }
     if (!searchResults.children.length) searchResults.textContent = 'No other matching items.';
-  } catch { searchResults.textContent = 'Could not search items.'; }
+  } catch { if (!signal.aborted) searchResults.textContent = 'Could not search items.'; }
 }
 
 rowsBody.addEventListener('input', (event) => {
@@ -325,12 +339,14 @@ if (loadButton) loadButton.addEventListener('click', loadWarehouseStock);
 if (!readOnly && !initial.entry?.id) {
   warehouseInput.addEventListener('change', loadWarehouseStock);
   warehouseInput.addEventListener('input', () => {
+    warehouseLookupController?.abort();
     clearTimeout(warehouseTimer);
     warehouseTimer = setTimeout(() => loadWarehouses(warehouseInput.value), 180);
   });
 }
 if (searchInput) {
   searchInput.addEventListener('input', () => {
+    itemLookupController?.abort();
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => searchItems(searchInput.value), 180);
   });
@@ -340,6 +356,8 @@ if (searchInput) {
     if (!warehouseInput.value.trim()) { setStatus('Choose a warehouse first.', true); warehouseInput.focus(); return; }
     rows.push({ id: '', code: button.dataset.itemCode, name: button.dataset.itemName,
       book: 0, counted: 0, rate: 0, bookRate: 0 });
+    itemLookupController?.abort();
+    clearTimeout(searchTimer);
     searchInput.value = '';
     searchResults.replaceChildren();
     renderRows();

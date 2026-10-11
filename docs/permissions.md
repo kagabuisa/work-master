@@ -13,7 +13,7 @@ Role permissions are defined in [`src/auth.js`](../src/auth.js). User record ass
 
 ## Standard role voucher rule
 
-Standard users can see a voucher when its `created_by_user_id` matches their login. For a **sales invoice**, they can also see it when `invoicer_id` matches the employee assigned to their user. These are alternative ways to qualify: a Standard user can see an invoice they created or one assigned to their permitted employee. Purchases, purchase orders, stock entries, stock reconciliations, and journals use the creator login because they have no employee assignee field.
+Standard users can see a voucher when its `created_by_user_id` matches their login. For a **sales invoice**, they can also see it when `invoicer_id` matches the employee assigned to their user. These are alternative ways to qualify: a Standard user can see an invoice they created or one assigned to their permitted employee. Purchases, purchase orders, stock entries, stock reconciliations, and journals use the creator login because they have no employee assignee field. The Purchase Invoice purchase-order selector applies ownership, supplier-category, and warehouse restrictions before selecting its newest 100 receivable orders. Every nonempty line warehouse must be permitted, including lines already received; access is checked again when an order is used.
 
 The rule applies to voucher lists, voucher reports and CSV exports, direct detail/edit/action URLs, linked payment pages, stock entry cancellation lookups, stock ledger and movement details, gross profit, and journal reference suggestions. Other roles keep their existing role permissions and record scopes.
 
@@ -54,7 +54,7 @@ HR has independent permission types under the **HR** group in role and user perm
 
 | Permission type | Available actions and meaning |
 | --- | --- |
-| HR Employees | Read opens profiles; Write updates employment dates, manager, branch, employment type, and cost center. Employee master creation/editing stays under its existing permissions. |
+| HR Employees | Read opens profiles and downloads employee details PDFs including personal details, family contacts, education, work history, and references; Write updates these details along with employment dates, manager, branch, employment type, and cost center. Status, Department, Position, Telephone, and Email additionally require Employee master Write and access to that employee master record. These master fields are disabled without Employee master Write. The shared employee directory also accepts HR Employees Read, applying employee and cost-center restrictions. New employee creation requires Employee master Create; adding HR details also requires HR Employees Write. Core profile fields, including name and company, require both HR Employees Write and Employee master Write. Existing master edit links open the comprehensive profile for HR readers; users without HR Read retain core-only master editing. The quick Active/Left switch requires Employee master Write; Submit/Cancel no longer controls employee employment status. |
 | Attendance | Read lists records; Create saves individual/bulk drafts; Submit confirms attendance; Cancel voids records. |
 | Leave | Read shows requests/balances; Create saves requests; Write sets annual allocations; Submit approves; Cancel voids requests. |
 | Employee Money | Read shows employee obligations and payment history; Create saves drafts; Submit approves and posts recoveries/reimbursements; Cancel voids transactions or reverses their payments. |
@@ -62,6 +62,8 @@ HR has independent permission types under the **HR** group in role and user perm
 | Payroll | Read shows permitted pay plans, payroll runs, payslips, and CSV exports; Create prepares runs; Write saves dated employee pay plans and reviews draft slips; Submit approves/posts runs; Cancel reverses payments and runs. |
 | Payroll Payment | Create records salary payments against posted payslips. |
 | HR Settings | Read shows calendars, leave types, and mappings; Write configures them. |
+
+Employee details PDFs require HR Employees Read and access to the employee. Pay-plan history is included only with Payroll Read and uses the same account visibility restrictions as the profile.
 
 Give users Read alongside the actions needed for a workspace. Pay-plan editing from an employee page also needs HR Employees Read and Payroll Read. Recovery selection needs Employee Money Read. Salary and account/payment permissions remain separate even when one user performs several roles.
 

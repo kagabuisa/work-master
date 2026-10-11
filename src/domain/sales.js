@@ -517,7 +517,7 @@ async function paginatedPostgresInvoices(options = {}) {
   )`;
   const [countResult, pageResult] = await Promise.all([
     getPostgresPool().query(
-      `SELECT COUNT(*)::int AS total ${invoiceListSql()} ${whereSql}`,
+      `SELECT COUNT(*)::int AS total ${search ? invoiceListSql() : 'FROM app_invoices invoice'} ${whereSql}`,
       params,
     ),
     getPostgresPool().query(

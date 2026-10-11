@@ -2,6 +2,9 @@
 // /settings routes and the master-data form/list helpers. Mounted at the app root.
 const express = require('express');
 const multer = require('multer');
+const hr = require('../../hr');
+const {employeeDetailFields}=require('../../hr-employee-fields');
+const {todayString}=require('../format');
 const { getCompanyInformation, saveCompanyInformation, saveDateTimeSettings, masterOptions, itemPriceListFilters, setPriceListActive, setMasterRecordActive, deletePriceList, deleteMasterRecord, updateMasterRecord, createMasterRecord, masterRecordNeighbors, priceListNeighbors } = require('../../store');
 const { listDirectory, downloadableFile, saveUploads } = require('../../project-files');
 const { DEFAULT_IMPORT_FROM, importSalesInvoicesFromMysql } = require('../../sales-invoice-importer');
@@ -166,9 +169,15 @@ router.post('/settings/erpnext-sync/sales-invoices', async (_req, res, next) => 
   }
 });
 
+async function renderEmployeeCreate(req,res,payload={},error=null) {
+  const opts=res.locals.can('hr.employees.edit') || res.locals.can('hr.employees.view') ? await hr.options(req.currentUser) : {employees:[],centers:[],accounts:[]};
+  res.render('hr',{page:'employee',title:'New employee',employee:payload,plans:[],opts,employeeDetailFields,isNewEmployee:true,profileError:error,today:todayString(),money:value=>`Ugx ${Number(value||0).toLocaleString('en-UG')}`});
+}
+
 router.get('/settings/:list/new', async (req, res, next) => {
   try {
     const config = masterListConfig(req.params.list);
+    if(config.key==='employees') return await renderEmployeeCreate(req,res);
     await renderMasterForm(res, { config, record: newMasterRecord(config, req.query), error: null, mode: 'new' });
   } catch (err) {
     next(err);
@@ -190,6 +199,7 @@ router.get('/settings/:list/:id/edit', async (req, res, next) => {
   try {
     const config = masterListConfig(req.params.list);
     const id = decodeURIComponent(req.params.id);
+    if(config.key==='employees' && res.locals.can('hr.employees.view')) return res.redirect(303,`/hr/employees/${encodeURIComponent(id)}`);
     const record = await findVisibleMasterRecord(config, id);
     if (!record) {
       const err = new Error(`${config.singular} not found.`);
@@ -265,10 +275,12 @@ router.get('/settings/:list', async (req, res, next) => {
     const priceListOptions = config.key === 'item-prices'
       ? (await itemPriceListFilters()).filter((name) => res.locals.can('masters.item-prices.view')
         || namedPriceListsForActions(req.currentUser, ['create']).includes(name)) : [];
+    const hrEmployeeIds=config.key==='employees' && res.locals.can('hr.employees.view') && !res.locals.can('masters.employees.view') ? (await hr.options(req.currentUser)).employees.map(e=>e.employee_id) : null;
     const rows = await config.loader({
       search,
       priceList,
       priceListExact: priceListOptions.includes(priceList),
+      employmentStatus: config.key === 'employees' ? (req.query.left_only === '1' ? 'Left' : 'Active') : undefined,
       itemCode,
       itemCodeExact,
       limit: 50,
@@ -279,7 +291,7 @@ router.get('/settings/:list', async (req, res, next) => {
       allowedTypes: config.key === 'suppliers' ? selectedCategories(req.currentUser, 'suppliers') : undefined,
       ...(config.key === 'warehouses' ? warehouseAccessOptions(req.currentUser) : {}),
       allowedIds: ['cost-centers', 'employees'].includes(config.key)
-        ? allowedMasterRecordIds(req.currentUser, config.key) : undefined,
+        ? hrEmployeeIds || allowedMasterRecordIds(req.currentUser, config.key) : undefined,
       deniedIds: ['cost-centers', 'employees'].includes(config.key)
         ? deniedMasterRecordIds(req.currentUser, config.key) : undefined,
       allowedPriceLists: config.key === 'price-lists'
@@ -294,7 +306,7 @@ router.get('/settings/:list', async (req, res, next) => {
         .map((key) => key.slice('invoice.price-list.view:'.length)) : undefined,
     });
     if (config.key !== 'item-prices' && config.key !== 'price-lists') {
-      for (const row of rows) row.active = row.disabled === '0' && row.docstatus === 'submitted' ? 1 : 0;
+      for (const row of rows) row.active = config.key==='employees' ? (row.status==='Active'?1:0) : row.disabled === '0' && row.docstatus === 'submitted' ? 1 : 0;
     }
     res.render('master-list', { config, rows, pagination: rows.pagination, query: req.query, search,
       priceList, priceListOptions, itemCode, itemCodeExact });
@@ -332,7 +344,7 @@ router.post('/settings/:list/:id/active', async (req, res, next) => {
       return;
     }
     const query = new URLSearchParams();
-    for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) if (req.body[key]) query.set(key, String(req.body[key]));
+    for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'left_only', 'page', 'page_size']) if (req.body[key]) query.set(key, String(req.body[key]));
     res.redirect(303, `/settings/${config.key}${query.size ? `?${query}` : ''}`);
   } catch (err) { next(err); }
 });
@@ -353,7 +365,7 @@ router.post('/settings/:list/:id/delete', async (req, res, next) => {
     const config = masterListConfig(req.params.list);
     await deleteMasterRecord(config.key, decodeURIComponent(req.params.id));
     const query = new URLSearchParams();
-    for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'page', 'page_size']) if (req.body[key]) query.set(key, String(req.body[key]));
+    for (const key of ['q', 'price_list', 'item_code', 'item_code_exact', 'left_only', 'page', 'page_size']) if (req.body[key]) query.set(key, String(req.body[key]));
     res.redirect(303, `/settings/${config.key}${query.size ? `?${query}` : ''}`);
   } catch (err) { next(err); }
 });
@@ -383,7 +395,8 @@ router.post('/settings/:list/:id', async (req, res, next) => {
 router.post('/settings/:list', async (req, res, next) => {
   const config = masterListConfig(req.params.list);
   try {
-    const id = await createMasterRecord(config.key, req.body);
+    const id = config.key==='employees' ? await hr.createEmployee(req.body,req.currentUser) : await createMasterRecord(config.key, req.body);
+    if(config.key==='employees') return res.redirect(303,res.locals.can('hr.employees.view')?`/hr/employees/${encodeURIComponent(id)}`:'/settings/employees');
     res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
     if (err.code === '23505') {
@@ -391,6 +404,7 @@ router.post('/settings/:list', async (req, res, next) => {
       err.status = 400;
     }
     res.status(err.status || 500);
+    if(config.key==='employees') return await renderEmployeeCreate(req,res,req.body,err.message);
     await renderMasterForm(res, {
       config,
       record: req.body,

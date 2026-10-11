@@ -50,6 +50,8 @@ POSTGRES_PASSWORD=invoice_password
 
 You can use `POSTGRES_URL` or `DATABASE_URL` instead of the separate Postgres fields.
 
+Employee personal and contact details are stored in PostgreSQL alongside HR employment profiles. Startup adds the profile details column and synchronizes the employee compatibility flag with Active/Left employment status. Existing disabled employees with a blank status become Left; an explicit Active/Left status takes precedence over the old disabled flag. After updating the code, restart the app; Docker installations must rebuild and recreate the `invoice-app` service to apply the form and schema changes.
+
 ## Production transport and database TLS
 
 For Nginx, set `client_max_body_size 32m;` inside the app server block so three 10 MB reconciliation attachments plus multipart overhead can reach the app. Validate with `nginx -t` and reload Nginx after changing the configuration. The application still enforces 10 MB per attachment; the proxy limit applies to the whole request.
@@ -89,7 +91,21 @@ Docker stores application records in the `postgres-data` volume and uploaded pro
 
 ## Performance operations
 
+See the [export follow-up and repeat benchmark](audits/performance-2026-10-11/export-follow-up.md) for the implemented worker protections and remaining PDF capacity limits. See the [11 October 2026 performance review](audits/performance-2026-10-11/review.md) for measured search/export behavior, the concurrent Excel export failure, and the limitations of that synthetic historical-data test.
+
 The server logs requests slower than `SLOW_REQUEST_MS` (default 300 ms). Measure response-time percentiles and database load under realistic data and concurrent users before changing capacity. PostgreSQL's `pg_stat_statements` extension can identify queries with the highest total execution time; it needs to be loaded in `shared_preload_libraries` and enabled by a database administrator. Use `EXPLAIN (ANALYZE, BUFFERS)` on slow read queries in a staging database with production-sized data. Keep autovacuum enabled and check that it keeps up with invoice, ledger, and session table activity. Display-format settings are cached for 30 seconds per app process, and simultaneous cache refreshes share one database read.
+
+Database pool settings apply to each app process and to operational scripts:
+
+| Variable | Default | Behavior |
+| --- | --- | --- |
+| `POSTGRES_POOL_MAX` | `10` | Maximum connections per process. |
+| `POSTGRES_CONNECTION_TIMEOUT_MS` | `10000` | Maximum wait to acquire/connect a database connection; `0` disables the timeout. |
+| `POSTGRES_STATEMENT_TIMEOUT_MS` | `0` | PostgreSQL statement timeout; disabled by default because exports, imports, and migrations share the pool. |
+| `POSTGRES_IDLE_TIMEOUT_MS` | `30000` | Idle connection lifetime; `0` disables idle eviction. |
+| `POSTGRES_POOL_METRICS_MS` | `0` | Interval for `postgres_pool total=… idle=… waiting=…` log snapshots; `0` disables logging. |
+
+Values must be nonnegative integers (pool maximum must be at least one). Restart after changing these settings. Start with `POSTGRES_POOL_METRICS_MS=10000` during a staging load test. Pool counts are per process; sample logs alongside database CPU, memory, and query plans. Setting a statement timeout also affects startup and maintenance commands, so choose it against the measured workloads or override it for those commands.
 
 Run a read-only HTTP check against a representative staging deployment with an authenticated session cookie:
 
@@ -99,7 +115,35 @@ PERF_COOKIE='wm_session=your-staging-session-token' npm run perf:http -- --url=h
 
 The command reports response status counts, failures, requests per second, and 50th/95th/99th percentile latency. It issues only GET requests and stops after the requested count. A redirect to login counts as a failure; set `PERF_COOKIE` in the shell without putting a real session token in source control. Run the same scenario with production-sized staging data at several concurrency levels, and compare the latency and error rate. Results include the app's short-lived caches, so compare a cold run and a warm run when diagnosing database load.
 
-The invoice list limits each page to at most 200 rows. Pages without text search select their invoice IDs before joining payment totals and restrict journal calculations to those invoices; text searches still calculate totals before filtering because status and paid amount are searchable. A startup migration creates a partial index on relevant journal reference numbers using `CREATE INDEX CONCURRENTLY`. On a large existing journal table, allow time for this migration before the app begins accepting requests. The short-lived in-process invoice-list cache holds at most 200 filter combinations and shares a pending query among simultaneous requests for the same list. Each app process has its own cache and PostgreSQL connection pool, so account for all app instances when sizing database connections. A local development database with only a few invoices cannot establish peak-load performance; test the expected data volume and concurrent workload in staging.
+The invoice list limits each page to at most 200 rows. Pages without text search select their invoice IDs before joining payment totals and restrict journal calculations to those invoices; text searches still calculate totals before filtering because status and paid amount are searchable. Counts without text search read invoices directly and apply the same ownership, customer-category, date, and warehouse filters. A startup migration creates a partial index on relevant journal reference numbers using `CREATE INDEX CONCURRENTLY`. On a large existing journal table, allow time for this migration before the app begins accepting requests. The short-lived in-process invoice-list cache holds at most 200 filter combinations and shares a pending query among simultaneous requests for the same list. Each app process has its own cache and PostgreSQL connection pool, so account for all app instances when sizing database connections. A local development database with only a few invoices cannot establish peak-load performance; test the expected data volume and concurrent workload in staging.
+
+Benchmark invoice lists, text searches, and CSV/XLSX/PDF ledger exports over a historical date range:
+
+```bash
+PERF_COOKIE='wm_session=your-staging-session-token' PERF_SEARCH_TERMS='["paid","partial","historical customer name"]' npm run perf:suite -- --url=http://localhost:3020 --from=2024-01-01 --to=2026-10-01 --requests=100 --concurrency=10 --warmup=5
+```
+
+Use a staging database with a representative historical copy and an account permitted to view those invoices and ledger entries. Choose actual customer/invoice search terms from that copy. Scenarios run sequentially, each with concurrent requests; run at concurrency 1, 10, and 20 for comparison. By default all workers use `PERF_COOKIE`. For multiple users, set `PERF_COOKIES` to a JSON array of cookie strings from distinct test accounts instead; workers keep their assigned session for the run. The benchmark does not seed records or modify vouchers, but authenticated requests update session activity. Warmup requests are excluded from timing. Redirects and non-2xx responses fail the run. Outputs include p50/p95/p99, request throughput, statuses, transport-error counts, and response bytes; response files are drained without being retained in the benchmark process. Search cache warmth affects results, so compare representative terms and cold/warm runs. Export requests default to a 60-second client deadline in the suite; use `--timeout_ms=120000` (up to 360000 ms) to observe longer queued downloads and busy responses instead of cancelling them at the client. Keep the session active within its seven-day maximum lifetime.
+
+Record invoice, payment, journal-line, and GL-row counts, the tested account's scope, app/database resources, pool waiting logs, and server memory alongside benchmark JSON. A successful run against an empty or narrowly scoped dataset does not establish capacity for a full historical workload.
+
+
+### General Ledger export workers
+
+General Ledger CSV, Excel, and PDF downloads run in separate, bounded Node processes. Workers read 500 rows at a time within a repeatable-read, read-only PostgreSQL transaction, retaining the report's access filters and running balances. CSV and Excel generation streams rows; PDF writes completed pages without buffering the whole document. Files are prepared in private temporary directories before the response begins, then streamed to the browser. Normal completion, cancellation, and worker errors remove the temporary files. The web process remains available while PDFs render. Abruptly terminating the web process can leave temporary `wm-ledger-export-*` directories; include the operating system's temporary-directory cleanup in operations.
+
+| Variable | Default | Behavior |
+| --- | --- | --- |
+| `LEDGER_EXPORT_WORKERS` | `2` | Maximum active ledger downloads per web process, including file transfer (1–32). |
+| `LEDGER_EXPORT_PDF_WORKERS` | `1` | Maximum active PDF downloads, within the total worker limit. |
+| `LEDGER_EXPORT_QUEUE_MAX` | `20` | Maximum waiting downloads (0–1000). |
+| `LEDGER_EXPORT_QUEUE_TIMEOUT_MS` | `60000` | Maximum wait for an export slot (1–3600000 ms). |
+| `LEDGER_EXPORT_JOB_TIMEOUT_MS` | `300000` | Maximum generation and transfer time after receiving a slot (1–3600000 ms). |
+| `LEDGER_EXPORT_HEAP_MB` | `256` | JavaScript heap limit for each worker (64–4096 MB); native memory is additional. |
+
+Restart the app after changing these settings. Workers each open at most one extra PostgreSQL connection, beyond the web process's configured pool; account for every app instance and its workers when sizing database connections. For a reverse proxy, allow the configured queue wait plus generation time before its read timeout; the defaults total 360 seconds (for example, Nginx `proxy_read_timeout 360s;`). A full queue or expired queue wait returns HTTP 429 with `Retry-After: 30`. Generation failures/timeouts return HTTP 503 before download headers are sent. A transfer failure closes the download; retry it. Client disconnects cancel queued/running work. Exports are request-bound downloads, not persisted jobs that survive restarts.
+
+Provide sufficient local temporary disk space for up to the configured active downloads. The production Docker image already includes these worker modules through `COPY src`; rebuild and recreate the app container to deploy code changes. No new dependency or database migration is required. PostgreSQL statement timeouts still apply to worker queries; long cursor snapshots can delay vacuum cleanup, so keep generation deadlines bounded and monitor database activity.
 
 ## Release checks
 

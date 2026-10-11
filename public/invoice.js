@@ -58,6 +58,9 @@ const formatMoney = (value) => money.format(value).replace('UGX', 'Ugx');
 
 let preloadedCustomers = [];
 let itemRequestId = 0;
+let itemController;
+let customerController;
+let invoicerController;
 let customersLoading = false;
 let customerRequestId = 0;
 let editingPaymentIndex = null;
@@ -65,6 +68,7 @@ let editingPaymentIndex = null;
 let itemTimer;
 itemSearch.addEventListener('input', () => {
   clearTimeout(itemTimer);
+  itemController?.abort();
   itemRequestId += 1;
   itemResults.innerHTML = '';
   itemTimer = setTimeout(searchItems, 220);
@@ -97,6 +101,8 @@ warehouseSelect.addEventListener('change', async () => {
     }
   }
 
+  clearTimeout(itemTimer);
+  itemController?.abort();
   activeWarehouse = nextWarehouse;
   syncWarehouseFields();
   items.length = 0;
@@ -108,14 +114,17 @@ let invoicerTimer;
 let invoicerRequestId = 0;
 
 async function searchInvoicers() {
+  invoicerController?.abort();
+  invoicerController = new AbortController();
+  const signal = invoicerController.signal;
   const requestId = ++invoicerRequestId;
   const query = invoicerSearch.value.trim();
   invoicerResults.innerHTML = '<p>Loading employees...</p>';
   try {
-    const response = await fetch(`/api/employees?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`/api/employees?q=${encodeURIComponent(query)}`, { signal });
     if (!response.ok) throw new Error('Employee request failed.');
     const rows = await response.json();
-    if (requestId !== invoicerRequestId || query !== invoicerSearch.value.trim()) return;
+    if (signal.aborted || requestId !== invoicerRequestId || query !== invoicerSearch.value.trim()) return;
     invoicerResults.innerHTML = rows.map((employee) => `
       <button type="button" data-id="${escapeAttr(employee.employee_id)}" data-name="${escapeAttr(employee.employee_name)}">
         <strong>${escapeHtml(employee.employee_name)}</strong>
@@ -127,12 +136,13 @@ async function searchInvoicers() {
       button.addEventListener('click', () => selectInvoicer(button));
     });
   } catch {
-    if (requestId === invoicerRequestId) invoicerResults.innerHTML = '<p>Could not load employees.</p>';
+    if (!signal.aborted && requestId === invoicerRequestId) invoicerResults.innerHTML = '<p>Could not load employees.</p>';
   }
 }
 
 function selectInvoicer(button) {
   clearTimeout(invoicerTimer);
+  invoicerController?.abort();
   invoicerRequestId += 1;
   invoicerId.value = button.dataset.id;
   invoicerSearch.value = button.dataset.name;
@@ -142,12 +152,15 @@ function selectInvoicer(button) {
 }
 
 function clearUnselectedInvoicer() {
+  clearTimeout(invoicerTimer);
+  invoicerController?.abort();
   if (!invoicerId.value) invoicerSearch.value = '';
   invoicerResults.innerHTML = '';
   updateEditActions();
 }
 
 invoicerSearch.addEventListener('input', () => {
+  invoicerController?.abort();
   invoicerId.value = '';
   clearTimeout(invoicerTimer);
   invoicerTimer = setTimeout(searchInvoicers, 220);
@@ -158,6 +171,7 @@ invoicerSearch.addEventListener('blur', () => setTimeout(clearUnselectedInvoicer
 
 customerSearch.addEventListener('input', () => {
   customerResults.dataset.closed = '';
+  customerController?.abort();
   customerRequestId += 1;
   customerId.value = '';
   clearTimeout(customerTimer);
@@ -283,6 +297,11 @@ form.addEventListener('keydown', (event) => {
 form.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     clearTimeout(itemTimer);
+    clearTimeout(customerTimer);
+    clearTimeout(invoicerTimer);
+    customerController?.abort();
+    invoicerController?.abort();
+    itemController?.abort();
     itemRequestId += 1;
     itemResults.innerHTML = '';
     customerResults.innerHTML = '';
@@ -292,6 +311,9 @@ form.addEventListener('keydown', (event) => {
 
 async function searchItems() {
   clearTimeout(itemTimer);
+  itemController?.abort();
+  itemController = new AbortController();
+  const signal = itemController.signal;
   const requestId = ++itemRequestId;
   const q = itemSearch.value.trim();
   const warehouse = warehouseSelect.value;
@@ -300,14 +322,14 @@ async function searchItems() {
     itemResults.innerHTML = '<p>Choose a price list and warehouse before searching items.</p>';
     return;
   }
-  const isCurrentSearch = () => requestId === itemRequestId
+  const isCurrentSearch = () => !signal.aborted && requestId === itemRequestId
     && warehouse === warehouseSelect.value
     && priceList === priceListSelect.value
     && q === itemSearch.value.trim()
     && (document.activeElement === itemSearch || itemResults.contains(document.activeElement));
   itemResults.innerHTML = '<p>Loading items...</p>';
   try {
-    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}&price_list=${encodeURIComponent(priceList)}`);
+    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}&price_list=${encodeURIComponent(priceList)}`, { signal });
     if (!response.ok) {
       throw new Error('Item request failed.');
     }
@@ -458,6 +480,7 @@ async function updateInvoiceItemPrices(force = false) {
   const nextPriceList = priceListSelect.value;
   if (repricing || !force && nextPriceList === activePriceList) return;
   clearTimeout(itemTimer);
+  itemController?.abort();
   itemRequestId += 1;
   itemResults.innerHTML = '';
   if (!items.length) {
@@ -539,8 +562,11 @@ function confirmWithDialog(message) {
 }
 
 async function searchCustomers() {
+  customerController?.abort();
+  customerController = new AbortController();
+  const signal = customerController.signal;
   const requestId = ++customerRequestId;
-  const isCurrent = () => requestId === customerRequestId && customerResults.dataset.closed !== 'true'
+  const isCurrent = () => !signal.aborted && requestId === customerRequestId && customerResults.dataset.closed !== 'true'
     && q === customerSearch.value.trim()
     && (document.activeElement === customerSearch || customerResults.contains(document.activeElement));
   const q = customerSearch.value.trim();
@@ -549,15 +575,15 @@ async function searchCustomers() {
     return;
   }
   try {
-    const rows = await fetchCustomers(q);
+    const rows = await fetchCustomers(q, signal);
     if (isCurrent()) renderCustomerResults(rows);
   } catch {
     if (isCurrent()) customerResults.innerHTML = '<p>Could not load customers.</p>';
   }
 }
 
-async function fetchCustomers(q = '') {
-  const response = await fetch(`/api/customers?q=${encodeURIComponent(q)}`);
+async function fetchCustomers(q = '', signal) {
+  const response = await fetch(`/api/customers?q=${encodeURIComponent(q)}`, { signal });
   if (!response.ok) {
     throw new Error('Customer request failed.');
   }
@@ -1091,8 +1117,8 @@ function enableLookupKeyboard(input, panel, selector) {
       if (document.activeElement !== input) input.focus();
       panel.dataset.closed = 'true';
       // Focus can start a new search; invalidate pending results and close again.
-      if (input === itemSearch) { clearTimeout(itemTimer); itemRequestId += 1; }
-      if (input === customerSearch) { clearTimeout(customerTimer); customerRequestId += 1; }
+      if (input === itemSearch) { clearTimeout(itemTimer); itemController?.abort(); itemRequestId += 1; }
+      if (input === customerSearch) { clearTimeout(customerTimer); customerController?.abort(); customerRequestId += 1; }
       panel.innerHTML = '';
       return;
     }

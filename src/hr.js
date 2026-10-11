@@ -2,6 +2,8 @@
 
 const { getPostgresPool, withPostgresTransaction } = require('./core');
 const { auditActor } = require('./audit');
+const { can } = require('./authorize');
+const { employeeDetailFields } = require('./hr-employee-fields');
 const { postGlEntry, reverseVoucherGlEntries } = require('./domain/posting');
 const { validateCostCenter } = require('./cost-centers');
 const { accountAllowed, assignedMasterRecordAllowed } = require('./access');
@@ -12,11 +14,12 @@ const text = (value, required=false) => { const s=String(value || '').trim(); if
 
 async function employee(client, employeeId, user, active=false) {
   const {rows}=await client.query(`SELECT e.*, p.joining_date::text, p.leaving_date::text,
-    p.manager_id, p.cost_center, p.branch, p.employment_type FROM app_master_employees e
+    p.manager_id, p.cost_center, p.branch, p.employment_type, p.details FROM app_master_employees e
     LEFT JOIN app_hr_profiles p USING(employee_id) WHERE e.employee_id=$1 FOR UPDATE OF e`,[String(employeeId)]);
   const e=rows[0]; if(!e) fail('Employee not found.',404);
   assertEmployee(user,e.employee_id,e.cost_center);
   if(active && (e.disabled || String(e.status).toLowerCase()==='left')) fail('Choose an active employee.');
+  for(const field of employeeDetailFields.filter(f=>!f.master)) e[field.name]=e.details?.[field.name]||'';
   return e;
 }
 async function account(client,id,user,types, bank=false, allowInactive=false) {
@@ -96,8 +99,33 @@ async function employeeProfile(id,user,showPay=false) {
   });
 }
 async function saveProfile(id,payload,user) {
-  return withPostgresTransaction(async client=>{
+  return withPostgresTransaction(client=>saveProfileWithClient(client,id,payload,user));
+}
+async function saveProfileWithClient(client,id,payload,user,creating=false) {
     const e=await employee(client,id,user);
+    const hasStatus=Object.prototype.hasOwnProperty.call(payload,'status');
+    if(hasStatus && (!can(user,creating?'masters.employees.create':'masters.employees.edit') || !assignedMasterRecordAllowed(user,'employees',e.employee_id))) fail('Employee master Write is required to change status.',403);
+    const status=hasStatus ? text(payload.status) : e.status;
+    if(hasStatus && !['','Active','Left'].includes(status)) fail('Choose Active, Left, or no status.');
+    const details={...(e.details||{})};
+    const masterUpdates=[];
+    for(const name of ['employee_name','company']) {
+      if(!Object.prototype.hasOwnProperty.call(payload,name)) continue;
+      if(!can(user,creating?'masters.employees.create':'masters.employees.edit')) fail('Employee master Write is required to change name or company.',403);
+      const value=text(payload[name],name==='employee_name');
+      masterUpdates.push([name,value||null]);
+    }
+    for(const field of employeeDetailFields) {
+      if(!Object.prototype.hasOwnProperty.call(payload,field.name)) continue;
+      if(field.master && (!can(user,creating?'masters.employees.create':'masters.employees.edit') || !assignedMasterRecordAllowed(user,'employees',e.employee_id))) fail('Employee master Write is required to change department, position, telephone, or email.',403);
+      const value=String(payload[field.name]??'').trim();
+      if(value.length>(field.maxlength||2000)) fail(`${field.label} must be at most ${field.maxlength||2000} characters.`);
+      if(field.options && value && !field.options.includes(value)) fail(`Choose a valid ${field.label.toLowerCase()}.`);
+      if(field.type==='date' && value) date(value,field.label);
+      if(field.type==='email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) fail('Enter a valid email address.');
+      if(field.master) masterUpdates.push([field.name,value||null]);
+      else details[field.name]=value;
+    }
     const joining=payload.joining_date ? date(payload.joining_date) : null;
     const leaving=payload.leaving_date ? date(payload.leaving_date) : null;
     if(joining && leaving && leaving<joining) fail('Leaving date cannot precede joining date.');
@@ -109,6 +137,26 @@ async function saveProfile(id,payload,user) {
       VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(employee_id) DO UPDATE SET joining_date=EXCLUDED.joining_date,
       leaving_date=EXCLUDED.leaving_date,manager_id=EXCLUDED.manager_id,cost_center=EXCLUDED.cost_center,
       branch=EXCLUDED.branch,employment_type=EXCLUDED.employment_type`,[e.employee_id,joining,leaving,manager,cc,text(payload.branch),text(payload.employment_type)]);
+    if(hasStatus) await client.query("UPDATE app_master_employees SET status=$2,disabled=COALESCE($2='Left',false),updated_at=now() WHERE employee_id=$1",[e.employee_id,status||null]);
+    await client.query('UPDATE app_hr_profiles SET details=$2::jsonb WHERE employee_id=$1',[e.employee_id,JSON.stringify(details)]);
+    if(masterUpdates.length) await client.query(`UPDATE app_master_employees SET ${masterUpdates.map(([name],i)=>`${name}=$${i+2}`).join(',')},updated_at=now() WHERE employee_id=$1`,[e.employee_id,...masterUpdates.map(([,value])=>value)]);
+}
+async function createEmployee(payload,user) {
+  if(!can(user,'masters.employees.create')) fail('Employee master Create is required.',403);
+  return withPostgresTransaction(async client=>{
+    const name=text(payload.employee_name,true);
+    const id=text(payload.employee_id)||name;
+    if(!assignedMasterRecordAllowed(user,'employees',id)) fail('This employee is outside your permitted records.',403);
+    const core=['employee_name','company','status','department','designation','phone','email'];
+    const profile={};
+    for(const [key,value] of Object.entries(payload)) {
+      if(core.includes(key)) profile[key]=value;
+      else if(can(user,'hr.employees.edit')) profile[key]=value;
+      else if(value && ['joining_date','leaving_date','manager_id','cost_center','branch','employment_type',...employeeDetailFields.filter(f=>!f.master).map(f=>f.name)].includes(key)) fail('HR Employees Write is required to save HR details.',403);
+    }
+    await client.query("INSERT INTO app_master_employees(employee_id,employee_name,docstatus,disabled,legacy_editable) VALUES($1,$2,'submitted',false,false)",[id,name]);
+    await saveProfileWithClient(client,id,profile,user,true);
+    return id;
   });
 }
 async function normalizeComponents(client,input,user) {
@@ -572,6 +620,6 @@ async function cancelPayment(ownerKind,ownerId,paymentId,payload,user) {
   });
 }
 
-module.exports={settings,options,saveSettings,employeeProfile,saveProfile,savePayPlan,attendanceList,attendanceBatch,attendanceAction,
+module.exports={settings,options,saveSettings,employeeProfile,saveProfile,createEmployee,savePayPlan,attendanceList,attendanceBatch,attendanceAction,
   leaveDays,leaveList,allocateLeave,createLeave,leaveAction,moneyList,createMoney,moneyAction,payMoney,moneyPayments,moneyRegisterPayments,
   payrollList,createPayroll,payrollDetails,payslipList,payslipDetails,updateSlip,payrollAction,payPayroll,cancelPayment};

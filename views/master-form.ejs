@@ -13,6 +13,7 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'settings' }) %>
+        <% if (config.key === 'employees' && can('masters.employees.create')) { %><a class="button" href="/settings/employees/new" aria-label="New employee">New</a><% } %>
       </nav>
     </header>
 
@@ -93,10 +94,10 @@
         <% }) %>
       </section>
       <div class="actions<%= mode === 'edit' ? ' price-list-actions' : '' %>">
-        <% if (mode === 'edit') { const isActive = record.active === 1; %>
-          <button type="submit" form="master-active-form" class="price-list-active-button price-list-action-switch" role="switch" aria-checked="<%= isActive %>" aria-label="<%= isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= record[config.idField] %>" <%= (config.key === 'price-lists' ? canPriceListAction(record.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
+        <% if (mode === 'edit') { const isActive = config.key==='employees' ? record.status==='Active' : record.active === 1; %>
+          <button type="submit" form="master-active-form" class="price-list-active-button price-list-action-switch" role="switch" aria-checked="<%= isActive %>" aria-label="<%= config.key==='employees' ? (isActive?'Mark Left':'Mark Active') : isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= record[config.idField] %>" <%= (config.key==='employees' ? can('masters.employees.edit') : config.key === 'price-lists' ? canPriceListAction(record.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
             <span class="price-list-active-track" aria-hidden="true"><span class="price-list-active-thumb"></span></span>
-            <span>Active</span>
+            <span><%= config.key==='employees'?(record.status||'Not specified'):'Active' %></span>
           </button>
         <% } %>
         <a class="button button-light" href="/settings/<%= config.key %>"><%= 'Back to ' + config.title %></a>
@@ -109,7 +110,7 @@
         <% } %>
       </div>
     </form>
-    <% if (mode === 'edit') { const isActive = record.active === 1; %>
+    <% if (mode === 'edit') { const isActive = config.key==='employees' ? record.status==='Active' : record.active === 1; %>
       <form id="master-active-form" method="post" action="/settings/<%= config.key %>/<%= encodeURIComponent(record[config.idField]) %>/active">
         <input type="hidden" name="active" value="<%= isActive ? '0' : '1' %>">
         <input type="hidden" name="return_to" value="edit">

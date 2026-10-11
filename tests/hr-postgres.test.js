@@ -25,6 +25,31 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
     }
     await runWithAuditUser(admin,async()=>{
       await hr.saveProfile('HR-E1',{joining_date:'2026-01-01',cost_center:'HR Shop'},admin);
+      const profile={joining_date:'2026-01-01',cost_center:'HR Shop'};
+      for(const status of ['Left','','Active']) {
+        await hr.saveProfile('HR-E1',{...profile,status},admin);
+        assert.equal((await hr.employeeProfile('HR-E1',admin)).employee.status,status||null);
+        assert.equal((await hr.employeeProfile('HR-E1',admin)).employee.disabled,status==='Left');
+      }
+      await assert.rejects(()=>hr.saveProfile('HR-E1',{...profile,status:'Inactive'},admin),/Choose Active, Left/);
+      await assert.rejects(()=>hr.saveProfile('HR-E1',{...profile,status:'Left'},{role:'finance',permissions:['hr.employees.edit']}),e=>e.status===403);
+      assert.equal((await hr.employeeProfile('HR-E1',admin)).employee.status,'Active');
+      const detailValues={date_of_birth:'1990-04-12',gender:'Female',department:'Operations',designation:'Supervisor',phone:'+256700000001',email:'employee@example.com',nin:'CM12345',address:'Kampala\nUganda',next_of_kin:'Kin Name',next_of_kin_phone:'+256700000002',next_of_kin_relation:'Sister',marital_status:'Married',education:'Education history\n'+ 'A'.repeat(2500),work_experience:'Work history\n'+ 'B'.repeat(2500),references:'Reference One, Entity One, Manager, +256700000003\nReference Two, Entity Two, Supervisor, +256700000006',father:'Father Name',father_phone:'+256700000004',mother:'Mother Name',mother_phone:'+256700000005',nationality:'Ugandan'};
+      await hr.saveProfile('HR-E1',{...profile,...detailValues},admin);
+      let employeeDetails=(await hr.employeeProfile('HR-E1',admin)).employee;
+      for(const [name,value] of Object.entries(detailValues)) assert.equal(employeeDetails[name],value,`${name} persists`);
+      assert.deepEqual((await pool.query('SELECT department,designation,phone,email FROM app_master_employees WHERE employee_id=$1',['HR-E1'])).rows[0],{department:detailValues.department,designation:detailValues.designation,phone:detailValues.phone,email:detailValues.email});
+      await hr.saveProfile('HR-E1',profile,admin);
+      assert.equal((await hr.employeeProfile('HR-E1',admin)).employee.education,detailValues.education,'omitted details are preserved');
+      for(const invalid of [{gender:'Unknown'},{marital_status:'Unknown'},{date_of_birth:'1990-02-30'},{email:'invalid'},{education:'x'.repeat(10001)}]) await assert.rejects(()=>hr.saveProfile('HR-E1',{...profile,...invalid},admin),e=>e.status===400);
+      const hrEditor={role:'finance',permissions:['hr.employees.edit']};
+      await hr.saveProfile('HR-E1',{...profile,nin:'UPDATED-NIN'},hrEditor);
+      await assert.rejects(()=>hr.saveProfile('HR-E1',{...profile,department:'Blocked',nin:'SHOULD-NOT-SAVE'},hrEditor),e=>e.status===403);
+      employeeDetails=(await hr.employeeProfile('HR-E1',admin)).employee;
+      assert.equal(employeeDetails.nin,'UPDATED-NIN');
+      assert.equal(employeeDetails.department,'Operations');
+      await hr.saveProfile('HR-E1',{...profile,next_of_kin_phone:''},admin);
+      assert.equal((await hr.employeeProfile('HR-E1',admin)).employee.next_of_kin_phone,'');
       await hr.saveSettings({action:'accounts',salary_payable_account_id:ids.payable},admin);
       await hr.saveSettings({action:'leave_type',name:'Annual',is_paid:'1'},admin);
       const type=(await pool.query('SELECT id FROM app_hr_leave_types')).rows[0].id;
@@ -109,19 +134,34 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       await hr.moneyAction(id,'submit',admin);
     });
     // Exercise actual route rendering and permission decisions without production sessions.
+    await hr.createEmployee({employee_id:'HR/NEW',employee_name:'New Employee',company:'HR Company',status:'Active',joining_date:'2026-01-01',gender:'Female',education:'New education'},admin);
+    assert.equal((await hr.employeeProfile('HR/NEW',admin)).employee.education,'New education');
+    await store.setMasterRecordActive('employees','HR/NEW',false);
+    assert.equal((await hr.employeeProfile('HR/NEW',admin)).employee.status,'Left');
+    await store.setMasterRecordActive('employees','HR/NEW',true);
+    assert.equal((await hr.employeeProfile('HR/NEW',admin)).employee.status,'Active');
+    await hr.saveProfile('HR/NEW',{employee_name:'Updated employee',company:'Updated company',status:'Left'},admin);
+    assert.equal((await hr.employeeProfile('HR/NEW',admin)).employee.disabled,true);
+    await assert.rejects(()=>hr.createEmployee({employee_id:'FAILED',employee_name:'Invalid employee',date_of_birth:'invalid'},admin),e=>e.status===400);
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM app_master_employees WHERE employee_id='FAILED'")).rows[0].n,0);
+    const creator={role:'finance',permissions:['masters.employees.create']};
+    await hr.createEmployee({employee_name:'Core only',department:'Core department'},creator);
+    await assert.rejects(()=>hr.createEmployee({employee_name:'Forbidden HR',nin:'NO'},creator),e=>e.status===403);
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM app_master_employees WHERE employee_id='Forbidden HR'")).rows[0].n,0);
     const express=require('express');const app=express();
     app.set('view engine','ejs');app.set('views',require('node:path').join(__dirname,'../views'));
     app.locals.assetVersion='test';
     app.locals.dateTimeSettings={date_format:'YYYY-MM-DD',time_format:'24h'};
     app.use(express.urlencoded({extended:true}));
     app.use((req,res,next)=>{
-      const user=req.get('x-test-user')==='scoped'?restrictedUserFor('HR-E2'):req.get('x-test-user')==='ordinary'?{role:'standard',permissions:['masters.employees.view']}:admin;
-      req.currentUser=user;res.locals.currentUser=user;res.locals.can=p=>require('../src/authorize').can(user,p);
+      const user=req.get('x-test-user')==='scoped'?restrictedUserFor('HR-E2'):req.get('x-test-user')==='ordinary'?{role:'standard',permissions:['masters.employees.view']}:req.get('x-test-user')==='profile-reader'?{role:'finance',permissions:['hr.employees.view']}:req.get('x-test-user')==='profile-scoped'?{role:'finance',permissions:['hr.employees.view'],record_access:{employee_id:'HR-E2'}}:admin;
+      user.username=user.username||'Test user';req.currentUser=user;res.locals.currentUser=user;res.locals.can=p=>require('../src/authorize').can(user,p);
       res.locals.availableReports=[];res.locals.formatDate=require('../src/date-time-format').formatDate;
       res.locals.formatTimestamp=v=>String(v||'');
       if(!require('../src/authorize').permissionCheck(req))return res.status(403).send('Denied');
       runWithAuditUser(user,next);
     });
+    app.use(require('../src/web/routes/settings'));
     app.use('/hr',require('../src/web/routes/hr'));
     app.use((err,req,res,next)=>res.status(err.status||500).send(err.message));
     const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
@@ -139,9 +179,46 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       const runId=await runWithAuditUser(admin,()=>hr.createPayroll({company:'HR Company',period:'2026-02',posting_date:'2026-02-28',employee_ids:['HR-E1']},admin));
       const slip=(await hr.payrollDetails(runId,admin)).slips[0];
       for(const url of ['/hr/employees','/hr/employees/HR-E1','/hr/settings','/hr/attendance','/hr/leave','/hr/money','/hr/payroll',`/hr/payroll/${runId}`,`/hr/payroll/${runId}/payslips/${slip.id}`,'/hr/payslips',`/hr/payslips/${slip.id}`]) {
-        const response=await fetch(base+url);const html=await response.text();assert.equal(response.status,200,`${url}: ${html.slice(0,400)}`);assert.match(html,/Human Resources/);
+        const response=await fetch(base+url);const html=await response.text();assert.equal(response.status,200,`${url}: ${html.slice(0,400)}`);assert.match(html,url==='/hr/employees'?/Employees/:/Human Resources/);
       }
       const denied=await fetch(base+'/hr/payroll',{headers:{'x-test-user':'ordinary'}});assert.equal(denied.status,403);
+      const employeeHtml=await (await fetch(base+'/hr/employees/HR-E1')).text();
+      const listRedirect=await fetch(base+'/hr/employees?q=HR-E1&page=1',{redirect:'manual'});
+      assert.equal(listRedirect.headers.get('location'),'/settings/employees?q=HR-E1&page=1');
+      const list=await fetch(base+'/settings/employees',{headers:{'x-test-user':'profile-reader'}});
+      const listHtml=await list.text();
+      assert.equal(list.status,200,listHtml);
+      assert.match(listHtml,/href="\/hr\/employees\/HR-E1"/);
+      const scopedList=await (await fetch(base+'/settings/employees',{headers:{'x-test-user':'profile-scoped'}})).text();
+      assert.ok(scopedList.includes('HR-E2'));
+      assert.ok(!scopedList.includes('HR-E1'));
+      const editRedirect=await fetch(base+'/settings/employees/HR-E1/edit',{redirect:'manual'});
+      assert.equal(editRedirect.headers.get('location'),'/hr/employees/HR-E1');
+      const newForm=await (await fetch(base+'/settings/employees/new')).text();
+      assert.match(newForm,/name="education"/);
+      assert.match(newForm,/Create employee/);
+      assert.ok(!newForm.includes('Download employee details PDF'));
+      const toggle=await fetch(base+'/settings/employees/HR%2FNEW/active',{method:'POST',body:new URLSearchParams({active:'1'}),redirect:'manual'});
+      assert.equal(toggle.status,303);
+      assert.equal((await hr.employeeProfile('HR/NEW',admin)).employee.status,'Active');
+      assert.equal((await fetch(base+'/settings/employees/HR%2FNEW/active',{method:'POST',headers:{'x-test-user':'profile-reader'},body:new URLSearchParams({active:'0'}),redirect:'manual'})).status,403);
+      assert.match(employeeHtml,/Download employee details PDF/);
+      const pdf=await fetch(base+'/hr/employees/HR-E1/pdf');
+      assert.equal(pdf.status,200);
+      assert.equal(pdf.headers.get('content-type'),'application/pdf');
+      assert.match(pdf.headers.get('content-disposition'),/attachment;.*employee-details\.pdf/);
+      assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString(),'%PDF-');
+      assert.equal((await fetch(base+'/hr/employees/HR-E1/pdf',{headers:{'x-test-user':'ordinary'}})).status,403);
+      assert.equal((await fetch(base+'/hr/employees/HR-E1/pdf',{headers:{'x-test-user':'profile-scoped'}})).status,403);
+      assert.equal((await fetch(base+'/hr/employees/HR-E1/pdf',{headers:{'x-test-user':'profile-reader'}})).status,200);
+      assert.equal((await fetch(base+'/hr/employees/MISSING/pdf')).status,404);
+      for(const field of require('../src/hr-employee-fields').employeeDetailFields) assert.ok(employeeHtml.includes(`name="${field.name}"`),`${field.label} appears in the form`);
+      assert.match(employeeHtml,/<textarea name="education" rows="6" maxlength="10000"/);
+      const invalidProfile=await fetch(base+'/hr/employees/HR-E1/profile',{method:'POST',body:new URLSearchParams({date_of_birth:'invalid',nationality:'Retained value'})});
+      assert.equal(invalidProfile.status,400);
+      const invalidHtml=await invalidProfile.text();
+      assert.match(invalidHtml,/Date of Birth must be a valid date/);
+      assert.match(invalidHtml,/value="Retained value"/);
       const scoped=await fetch(base+`/hr/payslips/${slip.id}`,{headers:{'x-test-user':'scoped'}});assert.equal(scoped.status,403);
       const form=new URLSearchParams({'paid_days':'28','input_note':'February pay reviewed','components[0][label]':'Basic salary','components[0][kind]':'earning','components[0][amount]':'999000','components[0][account_id]':String(ids.salary)});
       const review=await fetch(base+`/hr/payroll/${runId}/slips/${slip.id}`,{method:'POST',body:form,redirect:'manual'});assert.equal(review.status,303);

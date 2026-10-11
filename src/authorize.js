@@ -104,6 +104,8 @@ function permissionCheck(req) {
       && (allowedMasterRecordIds(user, list) || []).length > 0) {
       return parts[2] !== 'new' && assignedMasterRecordAllowed(user, list, decodeURIComponent(parts[2]));
     }
+    if (list === 'employees' && parts.length === 2 && method === 'GET' && has('hr.employees.view')) return true;
+    if (list === 'employees' && parts[3] === 'active') return method === 'POST' && has(prefix + 'edit');
     if (parts.length === 2) return has(prefix + (method === 'POST' ? 'create' : 'view'));
     if (parts[2] === 'new') return method === 'GET' && has(prefix + 'create');
     if (parts[3] === 'edit') return method === 'GET' && has(prefix + 'edit');

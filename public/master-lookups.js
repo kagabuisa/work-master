@@ -5,18 +5,22 @@
     const retry = input.parentElement.querySelector('[data-lookup-retry]');
     let timer;
     let requestId = 0;
+    let controller;
     const load = async () => {
       clearTimeout(timer);
+      controller?.abort();
+      controller = new AbortController();
+      const signal = controller.signal;
       const current = ++requestId;
       status.textContent = 'Loading…';
       retry.hidden = true;
       try {
         const url = new URL(input.dataset.masterLookup, window.location.origin);
         url.searchParams.set('q', input.value.trim());
-        const response = await fetch(url);
+        const response = await fetch(url, { signal });
         if (!response.ok) throw new Error('Lookup failed');
         const rows = await response.json();
-        if (current !== requestId) return;
+        if (signal.aborted || current !== requestId) return;
         list.replaceChildren(...rows.map((row) => {
           const option = document.createElement('option');
           option.value = row.value;
@@ -26,13 +30,14 @@
         const selected = rows.find((row) => row.value === input.value.trim());
         status.textContent = selected ? selected.label : rows.length ? 'Choose a matching record.' : 'No active submitted records match. Try a different search.';
       } catch {
-        if (current !== requestId) return;
+        if (signal.aborted || current !== requestId) return;
         list.replaceChildren();
         status.textContent = 'Could not load records. Please retry.';
         retry.hidden = false;
       }
     };
     input.addEventListener('input', () => {
+      controller?.abort();
       requestId += 1;
       clearTimeout(timer);
       list.replaceChildren();

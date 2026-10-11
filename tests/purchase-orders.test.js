@@ -183,3 +183,68 @@ test('purchase order form posts to order routes and detail exposes status action
   assert.match(draftInvoice, /action="\/purchases\/9\/edit"/);
   assert.match(draftInvoice, /Load Order Items/);
 });
+
+test('receivable orders filter permissions in one query before limiting results', async () => {
+  const { listReceivablePurchaseOrders } = require('../src/purchase-orders');
+  let calls = 0;
+  const pool = { async query(sql, params) {
+    calls++;
+    assert.match(sql, /o.created_by_user_id = \$1/);
+    assert.match(sql, /supplier\.supplier_type/);
+    assert.match(sql, /NOT EXISTS.*app_purchase_order_items item/s);
+    assert.match(sql, /ORDER BY o.posting_date DESC, o.id DESC LIMIT 100/);
+    assert.deepEqual(params, ['7', ['local'], ['Main'], ['Blocked']]);
+    return { rows: [{ id: 1 }] };
+  } };
+  assert.deepEqual(await listReceivablePurchaseOrders({ ownerId: '7', allowedTypes: ['local'],
+    allowedWarehouses: ['Main'], deniedWarehouses: ['Blocked'] }, pool), [{ id: 1 }]);
+  assert.equal(calls, 1);
+});
+
+test('receivable order SQL preserves permission semantics and filters before the cap', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  const { getPostgresPool, closeStore } = require('../src/core');
+  const { listReceivablePurchaseOrders } = require('../src/purchase-orders');
+  const client = await getPostgresPool().connect();
+  try {
+    await client.query('BEGIN');
+    // Temporary tables isolate this regression from application data and schema.
+    await client.query(`CREATE TEMP TABLE app_purchase_orders
+      (id bigint, order_no text, supplier_name text, supplier_id text,
+       docstatus text, posting_date date, created_by_user_id text) ON COMMIT DROP`);
+    await client.query(`CREATE TEMP TABLE app_purchase_order_items
+      (id bigint, purchase_order_id bigint, warehouse text, quantity numeric) ON COMMIT DROP`);
+    await client.query(`CREATE TEMP TABLE app_master_suppliers
+      (supplier_id text, supplier_type text) ON COMMIT DROP`);
+    await client.query(`CREATE TEMP TABLE app_purchase_items
+      (purchase_order_item_id bigint, purchase_id bigint, quantity numeric) ON COMMIT DROP`);
+    await client.query(`CREATE TEMP TABLE app_purchases (id bigint, docstatus text) ON COMMIT DROP`);
+    await client.query(`INSERT INTO app_master_suppliers VALUES ('S', ' Local '), ('X', 'Import')`);
+    await client.query(`INSERT INTO app_purchase_orders
+      SELECT id, 'PO-' || id, 'Supplier', 'S', 'submitted', '2026-10-01',
+        CASE WHEN id > 5 THEN 'other' ELSE '7' END FROM generate_series(1, 110) id`);
+    await client.query(`INSERT INTO app_purchase_order_items
+      SELECT id, id, 'Main', 10 FROM generate_series(1, 110) id`);
+    await client.query(`UPDATE app_purchase_orders SET supplier_id='X' WHERE id=2`);
+    await client.query(`UPDATE app_purchase_order_items SET warehouse='Blocked' WHERE id=3`);
+    await client.query(`INSERT INTO app_purchase_order_items VALUES (111, 4, 'Blocked', 1)`);
+    await client.query(`INSERT INTO app_purchases VALUES (1, 'submitted'), (2, 'draft'), (3, 'cancelled')`);
+    await client.query(`INSERT INTO app_purchase_items VALUES (1,1,10), (5,2,10), (5,3,10), (111,1,1)`);
+    const options = { ownerId: '7', allowedTypes: ['local'], allowedWarehouses: ['Main'], deniedWarehouses: [] };
+    const ids = async opts => (await listReceivablePurchaseOrders(opts, client)).map(row => Number(row.id));
+    assert.deepEqual(await ids(options), [5]);
+    assert.deepEqual(await ids({ ...options, allowedTypes: [] }), []);
+    assert.deepEqual(await ids({ ...options, allowedWarehouses: [] }), []);
+    assert.deepEqual(await ids({ ...options, allowedWarehouses: null, deniedWarehouses: ['Blocked'] }), [5]);
+    assert.deepEqual(await ids({ ...options, allowedWarehouses: ['Main', 'Blocked'], deniedWarehouses: ['Blocked'] }), [5]);
+    assert.deepEqual(await ids({ ...options, allowedWarehouses: null }), [5,4,3]);
+    const unrestricted = await ids({});
+    assert.equal(unrestricted.length, 100);
+    assert.equal(unrestricted[0], 110);
+  } finally {
+    await client.query('ROLLBACK');
+    client.release();
+    await closeStore();
+  }
+});

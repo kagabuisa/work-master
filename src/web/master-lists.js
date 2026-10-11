@@ -252,7 +252,14 @@ function masterListConfig(key) {
       fields: [
         { name: 'employee_id', label: 'Employee ID', placeholder: 'Leave blank to use employee name', lockedOnEdit: true },
         { name: 'employee_name', label: 'Employee Name', required: true, placeholder: 'Employee Name' },
-        { name: 'status', label: 'Employment Status', placeholder: 'Active' },
+        {
+          name: 'status', label: 'Status', type: 'select',
+          options: [
+            { value: '', label: 'Select status' },
+            { value: 'Active', label: 'Active' },
+            { value: 'Left', label: 'Left' },
+          ],
+        },
         { name: 'company', label: 'Company', placeholder: 'Company name' },
         { name: 'department', label: 'Department', placeholder: 'Department' },
         { name: 'designation', label: 'Designation', placeholder: 'Role / title' },

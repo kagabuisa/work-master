@@ -12,6 +12,7 @@ async function initHrSchema(client) {
     CHECK (leaving_date IS NULL OR joining_date IS NULL OR leaving_date >= joining_date),
     CHECK (manager_id IS NULL OR manager_id <> employee_id)
   )`);
+  await client.query("ALTER TABLE app_hr_profiles ADD COLUMN IF NOT EXISTS details JSONB NOT NULL DEFAULT '{}'::jsonb");
   await client.query(`CREATE TABLE IF NOT EXISTS app_hr_pay_plans (
     id BIGSERIAL PRIMARY KEY, employee_id TEXT NOT NULL REFERENCES app_master_employees(employee_id),
     effective_from DATE NOT NULL, components JSONB NOT NULL, notes TEXT,

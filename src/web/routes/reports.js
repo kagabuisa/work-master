@@ -23,7 +23,7 @@ const {
 } = require('../../store');
 
 const { sendCustomerStatementPdf } = require('../customer-statement-pdf');
-const { sendGeneralLedgerExport } = require('../general-ledger-export');
+const { sendGeneralLedgerDownload } = require('../ledger-export-jobs');
 const router = express.Router();
 
 router.get('/daily-activity', async (req, res, next) => {
@@ -185,15 +185,15 @@ router.get('/general-ledger', async (req, res, next) => {
     if (format && !['csv', 'xlsx', 'pdf'].includes(format)) {
       const error = new Error('Choose CSV, Excel, or PDF.'); error.status = 400; throw error;
     }
+    const access = { ...hrLedgerAccessOptions(req.currentUser), ownerId: voucherOwnerId(req.currentUser),
+      ownerEmployeeId: voucherEmployeeId(req.currentUser),
+      customerGroups: selectedCategories(req.currentUser, 'customers'),
+      supplierTypes: selectedCategories(req.currentUser, 'suppliers'),
+      ...accountAccessOptions(req.currentUser) };
+    if (format) return await sendGeneralLedgerDownload(req, res, filters, access, format);
     const [report, filterOptions] = await Promise.all([
-      generalLedgerReport(filters, { ...hrLedgerAccessOptions(req.currentUser), exportAll: Boolean(format), ownerId: voucherOwnerId(req.currentUser),
-        ownerEmployeeId: voucherEmployeeId(req.currentUser),
-        customerGroups: selectedCategories(req.currentUser, 'customers'),
-        supplierTypes: selectedCategories(req.currentUser, 'suppliers'),
-        ...accountAccessOptions(req.currentUser) }),
-      generalLedgerFilterOptions(),
+      generalLedgerReport(filters, access), generalLedgerFilterOptions(),
     ]);
-    if (format) return await sendGeneralLedgerExport(res, report, format);
     res.render('general-ledger', { report, filterOptions, query: req.query, money });
   } catch (err) {
     next(err);

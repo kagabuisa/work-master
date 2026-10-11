@@ -1,6 +1,9 @@
 'use strict';
 const router=require('express').Router();
 const hr=require('../../hr');
+const {employeeDetailFields}=require('../../hr-employee-fields');
+const {getCompanyInformation}=require('../../store');
+const {sendEmployeeDetailsPdf}=require('../employee-details-pdf');
 const {can}=require('../../authorize');
 const {todayString}=require('../format');
 const money=value=>`Ugx ${Number(value||0).toLocaleString('en-UG',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -10,7 +13,7 @@ router.use((_req,res,next)=>{res.set('Cache-Control','private, no-store');next()
 const handle=fn=>async(req,res,next)=>{try{await fn(req,res);}catch(e){if(e.code==='23505'){e.status=409;e.message='A record already exists for this employee and date or payroll month. Cancel the previous record before creating a replacement.';}else if(e.code==='23503'){e.status=400;e.message='Choose an existing employee, leave type, cost center, and account.';}next(e);}};
 const render=async(req,res,page,title,data={})=>{
   const opts=await hr.options(req.currentUser);
-  res.render('hr',{page,title,money,today:todayString(),opts,...data});
+  res.render('hr',{page,title,money,today:todayString(),opts,employeeDetailFields,isNewEmployee:false,...data});
 };
 const components=body=>Array.isArray(body.components)?body.components:Object.values(body.components||{});
 const recoveries=body=>Array.isArray(body.recoveries)?body.recoveries:Object.values(body.recoveries||{});
@@ -20,12 +23,27 @@ router.get('/',handle(async(req,res)=>{
   const area=['employees','attendance','leave','payroll','money','settings'].find(a=>can(req.currentUser,`hr.${a}.view`));
   if(!area) fail('HR access is required.',403);redirect(res,area);
 }));
-router.get('/employees',handle(async(req,res)=>render(req,res,'employees','Employees')));
+router.get('/employees',handle(async(req,res)=>res.redirect(303,`/settings/employees${req.originalUrl.includes('?')?req.originalUrl.slice(req.originalUrl.indexOf('?')):''}`)));
+router.get('/employees/:id/pdf',handle(async(req,res)=>{
+  const includePayPlans=can(req.currentUser,'hr.payroll.view');
+  const data=await hr.employeeProfile(req.params.id,req.currentUser,includePayPlans);
+  const opts=await hr.options(req.currentUser);
+  await sendEmployeeDetailsPdf(res,{...data,includePayPlans,accounts:opts.accounts,managerName:opts.employees.find(e=>e.employee_id===data.employee.manager_id)?.employee_name},{company:await getCompanyInformation(),formatDate:res.locals.formatDate});
+}));
 router.get('/employees/:id',handle(async(req,res)=>{
   const data=await hr.employeeProfile(req.params.id,req.currentUser,can(req.currentUser,'hr.payroll.view'));
   return render(req,res,'employee',data.employee.employee_name,data);
 }));
-router.post('/employees/:id/profile',handle(async(req,res)=>{await hr.saveProfile(req.params.id,req.body,req.currentUser);redirect(res,`employees/${encodeURIComponent(req.params.id)}`);}));
+router.post('/employees/:id/profile',handle(async(req,res)=>{
+  try {
+    await hr.saveProfile(req.params.id,req.body,req.currentUser);redirect(res,`employees/${encodeURIComponent(req.params.id)}`);
+  } catch(error) {
+    if(error.status!==400) throw error;
+    const data=await hr.employeeProfile(req.params.id,req.currentUser,can(req.currentUser,'hr.payroll.view'));
+    res.status(400);
+    await render(req,res,'employee',data.employee.employee_name,{...data,employee:{...data.employee,...req.body},profileError:error.message});
+  }
+}));
 router.post('/employees/:id/pay-plan',handle(async(req,res)=>{await hr.savePayPlan(req.params.id,{...req.body,components:components(req.body)},req.currentUser);redirect(res,`employees/${encodeURIComponent(req.params.id)}`);}));
 router.get('/settings',handle(async(req,res)=>render(req,res,'settings','HR Settings',{settings:await hr.settings(req.currentUser)})));
 router.post('/settings',handle(async(req,res)=>{
