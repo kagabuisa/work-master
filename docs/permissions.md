@@ -72,3 +72,5 @@ HR applies existing employee and cost-center assignments/named grants and denial
 Non-admin users cannot approve their own leave or employee-money requests. They cannot post payroll they created or last edited. Admin can approve directly. Submitted transactions are immutable, and cancellations enforce dependent payment/recovery rules. Unknown HR paths and unsupported methods are denied by the central route classifier.
 
 General Ledger and its CSV/Excel/PDF exports additionally enforce Payroll Read for payroll accruals/payments and Employee Money Read for employee-money accruals/payments, plus HR employee/cost-center scope. Without that HR grant, the new HR rows are excluded from the detailed ledger and party suggestions. Financial statements continue to include the accounting totals. Generic journal reference copying excludes HR vouchers to keep settlement within the HR allocation workflows.
+
+Employee suggestions for new user defaults and employee permission rows offer only Active, enabled employees. Existing defaults and employee permissions remain effective when an employee leaves; status filtering in suggestions does not revoke access to historical records.

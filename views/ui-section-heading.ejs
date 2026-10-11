@@ -1,0 +1,9 @@
+<div class="ui-section-heading">
+  <div>
+    <% if (heading.eyebrow) { %><p class="ui-section-eyebrow"><%= heading.eyebrow %></p><% } %>
+    <div class="ui-section-title"><h2><%= heading.title %></h2>
+      <% if (heading.help) { %><%- include('ui-helper', { helpLabel: `Help with ${heading.title.toLowerCase()}`, helpText: heading.help }) %><% } %>
+    </div>
+  </div>
+  <% if (heading.meta) { %><span class="ui-section-meta"><%= heading.meta %></span><% } %>
+</div>

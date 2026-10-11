@@ -9,7 +9,7 @@ async function recordAccessChoices() {
   const [warehouses, costCenters, employees, priceLists] = await Promise.all([
     pool.query('SELECT warehouse FROM app_master_warehouses WHERE is_group = false ORDER BY warehouse'),
     pool.query('SELECT cost_center, cost_center_name FROM app_master_cost_centers WHERE is_group = false ORDER BY cost_center_name, cost_center'),
-    pool.query('SELECT employee_id, employee_name FROM app_master_employees ORDER BY employee_name, employee_id'),
+    pool.query('SELECT employee_id, employee_name, status, disabled FROM app_master_employees ORDER BY employee_name, employee_id'),
     pool.query(`SELECT price_list, pricelist_type FROM app_master_price_lists
       WHERE pricelist_type IN ('Retail', 'Wholesale') AND currency = 'UGX'
         AND price_type IN ('selling', 'both') ORDER BY price_list`),
@@ -19,7 +19,7 @@ async function recordAccessChoices() {
     cost_center: costCenters.rows.map((row) => ({ id: row.cost_center,
       label: row.cost_center_name || row.cost_center })),
     employee_id: employees.rows.map((row) => ({ id: row.employee_id,
-      label: `${row.employee_name} · ${row.employee_id}` })),
+      label: `${row.employee_name} · ${row.employee_id}`, selectable: row.status === 'Active' && !row.disabled })),
     retail_price_list: priceLists.rows.filter((row) => row.pricelist_type === 'Retail')
       .map((row) => ({ id: row.price_list, label: row.price_list })),
     wholesale_price_list: priceLists.rows.filter((row) => row.pricelist_type === 'Wholesale')

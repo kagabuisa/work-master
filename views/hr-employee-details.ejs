@@ -4,8 +4,8 @@
   {number:'04',title:'Education and work history',description:'Qualifications and previous employment.',names:['education','work_experience']},
   {number:'05',title:'References',description:'Professional contacts who can provide a reference.',names:['references']}
 ]; groups.forEach(group=>{ %>
-<fieldset class="hr-profile-section"><legend><span class="hr-section-number"><%= group.number %></span><%= group.title %></legend><p class="hr-section-description"><%= group.description %></p>
-<div class="hr-profile-grid <%= group.number==='03'?'hr-contact-grid':group.number==='04'?'hr-history-grid':'' %>">
+<fieldset class="hr-profile-section ui-form-section"><legend><span class="hr-section-number"><%= group.number %></span><%= group.title %></legend><p class="hr-section-description"><%= group.description %></p>
+<div class="ui-form-grid hr-profile-grid <%= group.number==='03'?'hr-contact-grid':group.number==='04'?'hr-history-grid':'' %>">
 <% group.names.forEach(name=>{const field=employeeDetailFields.find(f=>f.name===name); %>
 <% if(name==='email'){ %><div class="hr-email-address"><% } %>
 <%- include('hr-employee-detail-field',{field}) %>

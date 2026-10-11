@@ -99,7 +99,7 @@ async function availablePermissionLists() {
     getPostgresPool().query('SELECT warehouse FROM app_master_warehouses WHERE is_group = false ORDER BY warehouse'),
     getPostgresPool().query('SELECT id::text AS id, account_code, account_name FROM app_accounts ORDER BY account_code, account_name'),
     getPostgresPool().query('SELECT cost_center, cost_center_name FROM app_master_cost_centers WHERE is_group = false ORDER BY cost_center_name, cost_center'),
-    getPostgresPool().query('SELECT employee_id, employee_name FROM app_master_employees ORDER BY employee_name, employee_id'),
+    getPostgresPool().query('SELECT employee_id, employee_name, status, disabled FROM app_master_employees ORDER BY employee_name, employee_id'),
   ]);
   return { invoicePriceLists, warehouses: warehouses.rows, accounts: accounts.rows,
     costCenters: costCenters.rows, employees: employees.rows };
@@ -142,7 +142,7 @@ function namedListRecordTypes(lists, includeMasterRecords = false) {
         label: `${row.cost_center_name} · ${row.cost_center}`, group: 'Cost Center list', parentKey: 'masters.cost-centers',
         actions: ['view'], permissions: { view: `cost-center.view:${row.cost_center}` } })),
       ...lists.employees.map((row) => ({ key: `employee:${row.employee_id}`,
-        label: `${row.employee_name} · ${row.employee_id}`, group: 'Employee list', parentKey: 'masters.employees',
+        label: `${row.employee_name} · ${row.employee_id}`, group: 'Employee list', parentKey: 'masters.employees', selectable: row.status === 'Active' && !row.disabled,
         actions: ['view'], permissions: { view: `employee.view:${row.employee_id}` } })),
     ] : []),
   ];

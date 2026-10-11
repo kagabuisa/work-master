@@ -230,3 +230,24 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
     }finally{await new Promise(resolve=>server.close(resolve));}
   }finally{await store.closeStore();}
 });
+
+
+test('employee searches return only Active records while historical employee access remains available', {
+  skip:process.env.HR_TEST_POSTGRES!=='1',
+},async()=>{
+  const pool=store.getPostgresPool();
+  try {
+    assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name,/_hr_test$/);
+    await pool.query('DROP SCHEMA public CASCADE');await pool.query('CREATE SCHEMA public');await store.initStore();
+    await pool.query(`INSERT INTO app_master_employees(employee_id,employee_name,status,disabled) VALUES
+      ('ACTIVE','Active employee','Active',false),('LEFT','Former employee','Left',false),
+      ('BLANK','Unspecified employee',NULL,false),('DISABLED','Disabled employee','Active',true)`);
+    assert.deepEqual((await store.masterEmployees({})).map(e=>e.employee_id),['ACTIVE']);
+    assert.deepEqual(await store.masterEmployees({search:'Former'}),[]);
+    assert.deepEqual(await store.masterEmployees({allowedIds:['LEFT','BLANK']}),[]);
+    assert.deepEqual(await store.masterEmployees({deniedIds:['ACTIVE']}),[]);
+    assert.equal((await store.masterEmployees({includeDisabled:true,employmentStatus:'Left'}))[0].employee_id,'LEFT');
+    assert.ok((await hr.options(admin)).employees.some(e=>e.employee_id==='LEFT'),'historical authorization still sees former employees');
+    assert.equal((await hr.employeeProfile('LEFT',admin)).employee.employee_name,'Former employee');
+  } finally {await store.closeStore();}
+});

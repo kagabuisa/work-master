@@ -1,0 +1,159 @@
+/* Shared screen components. See docs/design-guide.md before adding overrides. */
+:root {
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 20px;
+  --ui-radius: 8px;
+  --ui-control-height: 34px;
+  --ui-card-padding: 16px;
+}
+.ui-page .ui-surface {
+  min-width: 0;
+  padding: var(--ui-card-padding);
+  margin-bottom: var(--ui-space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  box-shadow: 0 1px 3px #172b4d05;
+}
+.ui-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  margin-bottom: var(--ui-space-4);
+}
+.ui-section-title { display: flex; align-items: center; gap: var(--ui-space-2); min-width: 0; }
+.ui-section-title h2 { margin: 0; color: var(--heading); font-size: 16px; font-weight: 600; line-height: 1.4; }
+.ui-section-eyebrow { margin: 0 0 var(--ui-space-1); color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.ui-section-meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ui-page .ui-toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  flex-direction: row;
+  gap: var(--ui-space-3);
+  padding: 12px 16px;
+  margin-bottom: var(--ui-space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+}
+.ui-page .ui-toolbar > label { flex: 1 1 160px; min-width: 0; }
+.ui-page .ui-toolbar input:not([type=checkbox]), .ui-page .ui-toolbar select { height: var(--ui-control-height); min-height: var(--ui-control-height); font-size: 12px; }
+.ui-page .ui-toolbar button, .ui-page .ui-toolbar .button { height: var(--ui-control-height); min-height: var(--ui-control-height); display: inline-flex; align-items: center; justify-content: center; }
+.ui-page .ui-toolbar .app-outline-field { margin-bottom: 0; }
+.ui-page .ui-toolbar.employee-list-toolbar { display: grid; }
+.ui-page .ui-toolbar .employee-list-search { margin-top: 8px; }
+.ui-page .ui-toolbar .employee-list-status-filter { height: var(--ui-control-height); }
+.ui-page .ui-table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; }
+.ui-page .ui-table { width: 100%; margin: 0; border-collapse: collapse; }
+.ui-page .ui-table th { background: #f5f7f9; color: #52606d; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.ui-page .ui-table th, .ui-page .ui-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ui-page .ui-table tbody tr:last-child td { border-bottom: 0; }
+.ui-page .ui-table tbody tr:hover { background: #f2f8f7; }
+.ui-page .ui-table .empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+.ui-page .ui-table .daily-activity-amount, .ui-page .ui-table .ui-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ui-page .ui-form-section { padding: 14px; margin-bottom: var(--ui-space-4); border: 1px solid var(--line); border-radius: var(--ui-radius); }
+.ui-page .ui-form-section legend { padding: 0 8px; font-size: 13px; font-weight: 600; color: var(--heading); }
+.ui-page .ui-form-grid { gap: 14px 12px; }
+.ui-page .ui-form-grid input:not([type=checkbox]), .ui-page .ui-form-grid select { height: var(--ui-control-height); min-height: var(--ui-control-height); font-size: 12px; }
+.ui-page .ui-form-footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); }
+.ui-page .ui-form-footer button { min-height: var(--ui-control-height); }
+.ui-page .ui-results { padding: 0; overflow: visible; }
+.ui-results > .ui-section-heading { padding: 14px 16px; margin: 0; border-bottom: 1px solid var(--line); }
+.ui-results > .server-pagination { padding: 12px 16px; }
+.ui-page .ui-report-metrics { gap: 12px; margin-bottom: var(--ui-space-4); }
+.ui-page .ui-report-metrics article { padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surface); }
+.ui-page .ui-report-metrics article strong { color: var(--heading); font-size: 22px; }
+.ui-help { position: relative; flex: 0 0 auto; }
+.ui-help > summary { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--muted); font-size: 12px; line-height: 1; list-style: none; cursor: pointer; }
+.ui-help > summary::-webkit-details-marker { display: none; }
+.ui-help > summary:hover, .ui-help[open] > summary { color: var(--accent); border-color: var(--accent); }
+.ui-help > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-help > p { position: absolute; top: 100%; right: 0; z-index: 30; width: min(280px, calc(100vw - 64px)); margin: 8px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--ui-radius); background: var(--surface); box-shadow: 0 6px 18px #00000012; color: var(--text); font-size: 12px; font-weight: 400; line-height: 1.6; }
+.ui-section-title .ui-help > p { right: auto; left: 0; }
+@media (max-width: 700px) {
+  .ui-page .ui-toolbar > label { flex-basis: calc(50% - 12px); }
+  .ui-page .ui-toolbar.employee-list-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .ui-page .ui-toolbar.employee-list-toolbar .employee-list-status-field { grid-column: 1 / -1; }
+  .ui-page .ui-table th, .ui-page .ui-table td { padding: 8px 10px; }
+  .ui-page .ui-toolbar.daily-activity-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ui-section-title { position: relative; }
+  .ui-section-title .ui-help { position: static; }
+  .ui-section-title .ui-help > p { left: 0; }
+}
+@media (max-width: 420px) { .ui-page .ui-toolbar > label { flex-basis: 100%; } }
+@media print { .ui-help, .ui-form-footer { display: none !important; } .ui-page .ui-surface { box-shadow: none; } }
+
+/* HR uses the shared form and table templates, including nested payroll screens. */
+.ui-page.hr-shell .ui-surface { padding: var(--ui-card-padding); }
+.ui-page.hr-shell .ui-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; align-items: end; }
+.ui-page.hr-shell .ui-form-grid > div:last-child:has(> button:only-child) { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.ui-page.hr-shell .hr-profile-grid { align-items: start; }
+.ui-page.hr-shell .hr-contact-grid, .ui-page.hr-shell .hr-history-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ui-page.hr-shell .hr-attendance-entry > label:first-child { grid-row: span 2; align-self: start; }
+.ui-page.hr-shell .hr-attendance-entry textarea { min-height: 70px; }
+.ui-page.hr-shell .hr-payroll-preparation > label:has(select[multiple]) { grid-column: 1 / -1; }
+.ui-page.hr-shell select[multiple] { height: 140px; padding: 6px; font-size: 12px; }
+.ui-page.hr-shell .hr-stack { gap: 14px; }
+.ui-page.hr-shell .hr-actions, .ui-page.hr-shell .hr-inline { gap: 8px; align-items: end; }
+.ui-page.hr-shell .hr-actions button, .ui-page.hr-shell .hr-inline button { min-height: var(--ui-control-height); }
+.ui-page.hr-shell .hr-leave-fields input, .ui-page.hr-shell .hr-leave-fields select { height: var(--ui-control-height); min-height: var(--ui-control-height); }
+.ui-page.hr-shell .hr-payroll-setup { display: inline-block; margin-bottom: 8px; font-size: 12px; }
+.ui-page.hr-shell .ui-table:has(thead th:nth-child(5)) { min-width: 600px; }
+.ui-page.hr-shell .ui-table tbody td:has(> .badge) { white-space: nowrap; }
+.ui-page.hr-shell .ui-form-grid input[type=hidden] { display: none; }
+.ui-page.hr-shell .ui-form-grid .hr-settings-weekdays { grid-column: 1 / -1; }
+.ui-page.hr-shell .hr-settings-workspace .ui-form-grid { align-items: end; }
+.ui-page.hr-shell .hr-settings-workspace .hr-settings-calendar { grid-template-columns: minmax(0, 1fr); }
+.ui-page.hr-shell .hr-settings-day-options label { display: inline-flex; align-items: center; gap: 6px; }
+.ui-page.hr-shell .hr-settings-day-options input[type=checkbox] { width: 16px; height: 16px; min-height: 0; margin: 0; }
+@media (max-width: 1000px) { .ui-page.hr-shell .ui-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .ui-page.hr-shell .ui-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .ui-page.hr-shell .hr-attendance-entry > label:first-child { grid-row: auto; }
+}
+@media print { .ui-page.hr-shell .hr-payslip { border: 0; padding: 0; } .ui-page.hr-shell .ui-table { min-width: 0; } .ui-page.hr-shell .ui-table-scroll { overflow: visible; } }
+
+.ui-page.hr-shell .hr-money-outstanding { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Shared compact density for master directories. Preserve full cell content. */
+.ui-page.ui-list-compact .ui-toolbar { padding: 8px 12px; gap: 8px; margin-bottom: 12px; }
+.ui-list-compact .ui-results > .ui-section-heading { padding: 9px 12px; }
+.ui-list-compact .ui-section-title h2 { font-size: 14px; }
+.ui-page.ui-list-compact .ui-table th,
+.ui-page.ui-list-compact .ui-table td { padding: 4px 10px; font-size: 12px; line-height: 1.4; }
+.ui-page.ui-list-compact .ui-table th { padding-top: 7px; padding-bottom: 7px; font-size: 11px; }
+.ui-list-compact .ui-results > .server-pagination { padding: 8px 12px; }
+.ui-page.ui-list-compact .ui-toolbar .employee-list-search { margin-top: 6px; }
+.ui-page.ui-list-compact .employee-list-status-filter { border: 0; padding: 0 4px; background: transparent; }
+.ui-page.ui-list-compact .ui-table .empty { padding: 20px 12px; }
+@media (pointer: coarse) {
+  .ui-page.ui-list-compact .ui-table td { padding-top: 5px; padding-bottom: 5px; }
+  .ui-list-compact .master-list-table .master-action-icon { width: 36px; height: 36px; min-height: 36px; }
+  .ui-list-compact .price-list-active-button { min-height: 36px; }
+}
+
+/* Short settings forms keep their submit action alongside the controls. */
+.ui-page.hr-shell .ui-form-grid.ui-inline-form { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 12px; }
+.ui-page.hr-shell .ui-inline-form > div:last-child:has(> button:only-child) { grid-column: auto; justify-content: flex-start; }
+.ui-page.hr-shell .ui-inline-form > label,
+.ui-page.hr-shell .ui-inline-form > fieldset { grid-column: auto; }
+.ui-page.hr-shell .ui-inline-form.hr-settings-leave { grid-template-columns: minmax(0, 1fr) minmax(120px, .5fr) auto; }
+.ui-page.hr-shell .ui-inline-form.hr-settings-holiday { grid-template-columns: 150px minmax(0, 1fr) auto; }
+.ui-page.hr-shell .hr-settings-workspace .ui-surface { padding: 12px; margin-bottom: 12px; }
+.ui-page.hr-shell .hr-settings-workspace .ui-section-heading { margin-bottom: 10px; }
+.ui-page.hr-shell .hr-settings-workspace .ui-section-title h2 { font-size: 14px; }
+.ui-page.hr-shell .hr-settings-workspace .ui-table th,
+.ui-page.hr-shell .hr-settings-workspace .ui-table td { padding: 5px 10px; font-size: 12px; }
+@media (max-width: 600px) {
+  .ui-page.hr-shell .ui-inline-form.hr-settings-leave,
+  .ui-page.hr-shell .ui-inline-form.hr-settings-holiday { grid-template-columns: minmax(0, 1fr) auto; }
+  .ui-page.hr-shell .hr-settings-leave > label:first-of-type,
+  .ui-page.hr-shell .hr-settings-holiday > label { grid-column: 1 / -1; }
+  .ui-page.hr-shell .hr-settings-calendar { grid-template-columns: minmax(0, 1fr); }
+}

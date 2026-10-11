@@ -50,7 +50,7 @@ test('payroll setup errors link to employee pay plans and retain draft inputs', 
   const ejs=require('ejs');
   const html=await ejs.renderFile(require('node:path').join(__dirname,'../views/hr-payroll.ejs'),{
     can:()=>true,today:'2026-10-09',money:String,runs:[],
-    opts:{employees:[{employee_id:'E-1',employee_name:'Employee One',company:'Test Company',disabled:false}]},
+    opts:{employees:[{employee_id:'E-1',employee_name:'Employee One',company:'Test Company',status:'Active',disabled:false}]},
     formData:{company:'Test Company',period:'2026-09',posting_date:'2026-09-30',employee_ids:['E-1']},
     payrollError:'Employee One needs a pay plan effective on or before 2026-09-01.',
     correctionHref:'/hr/employees/E-1#pay-plans',correctionLabel:'Open employee pay plans',
@@ -71,4 +71,29 @@ test('shared employee directory permits HR Read and status switching requires ma
   assert.equal(permissionCheck(request('/settings/employees/E1/active','POST',['masters.employees.edit'])),true);
   assert.equal(permissionCheck(request('/settings/employees/E1/active','POST',['masters.employees.submit','masters.employees.cancel'])),false);
   assert.equal(permissionCheck(request('/settings/employees/E1/active','POST',['hr.employees.edit'])),false);
+});
+
+
+test('employee inputs offer only explicitly active, enabled employees even for payroll', async()=>{
+  const ejs=require('ejs');
+  const employees=[
+    {employee_id:'ACTIVE',employee_name:'Active employee',status:'Active',disabled:false},
+    {employee_id:'LEFT',employee_name:'Former employee',status:'Left',disabled:false},
+    {employee_id:'BLANK',employee_name:'Unspecified employee',status:null,disabled:false},
+    {employee_id:'DISABLED',employee_name:'Disabled employee',status:'Active',disabled:true},
+  ];
+  const html=await ejs.renderFile(require('node:path').join(__dirname,'../views/hr-employee-select.ejs'),{
+    label:'Employees',name:'employee_ids',multiple:true,activeOnly:false,opts:{employees},selectedIds:['ACTIVE','LEFT'],
+  });
+  assert.match(html,/<option value="ACTIVE" selected>/);
+  for(const id of ['LEFT','BLANK','DISABLED']) assert.ok(!html.includes(`value="${id}"`),id);
+  const defaults=await ejs.renderFile(require('node:path').join(__dirname,'../views/user-record-access-fields.ejs'),{
+    prefix:'test',selected:{employee_id:'Former employee · LEFT'},
+    choices:{warehouse:[],cost_center:[],retail_price_list:[],wholesale_price_list:[],employee_id:[
+      {id:'ACTIVE',label:'Active employee · ACTIVE',selectable:true},{id:'LEFT',label:'Former employee · LEFT',selectable:false},
+    ]},
+  });
+  assert.match(defaults,/<option value="Active employee · ACTIVE">/);
+  assert.ok(!defaults.includes('<option value="Former employee · LEFT">'));
+  assert.match(defaults,/value="Former employee · LEFT"/,'saved assignments remain visible');
 });

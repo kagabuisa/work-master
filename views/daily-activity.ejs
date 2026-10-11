@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell daily-activity-page">
+  <main class="shell daily-activity-page ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Reports · ERPNext</p>
@@ -14,12 +14,7 @@
       <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
     </header>
 
-    <div class="daily-activity-heading">
-      <div><h1>Daily Activity Report</h1><p>Daily Activity Report vouchers from ERPNext.</p></div>
-      <span class="daily-activity-period"><%= formatDate(report.filters.from) %><% if (report.filters.to !== report.filters.from) { %> – <%= formatDate(report.filters.to) %><% } %></span>
-    </div>
-
-    <form class="report-filters daily-activity-filters" method="get">
+    <form class="report-filters daily-activity-filters ui-toolbar" method="get">
       <label>From<input type="date" name="from" value="<%= report.filters.from %>" required></label>
       <label>To<input type="date" name="to" value="<%= report.filters.to %>" required></label>
       <label>Shop/Unit<input name="shop" value="<%= report.filters.shop %>" placeholder="Search shop or unit"></label>
@@ -30,17 +25,17 @@
       <div class="report-filter-actions"><button type="submit">Apply</button><a class="button button-light" href="/reports/daily-activity">Reset</a></div>
     </form>
 
-    <section class="metrics daily-activity-metrics" aria-label="Daily activity totals">
+    <section class="metrics daily-activity-metrics ui-report-metrics" aria-label="Daily activity totals">
       <article><span>Vouchers</span><strong><%= report.summary.total.toLocaleString() %></strong></article>
       <article><span>Sales</span><strong><%= money(report.summary.sales) %></strong></article>
       <article><span>Expense</span><strong><%= money(report.summary.expense) %></strong></article>
       <article><span>Balance to be banked</span><strong><%= money(report.summary.banked) %></strong></article>
     </section>
 
-    <section class="invoice-card report-section daily-activity-results">
-      <div class="daily-activity-results-heading"><h2>ERPNext vouchers</h2><span><%= report.pagination.start %>–<%= report.pagination.end %> of <%= report.summary.total %></span></div>
-      <div class="entry-table-scroll" role="region" aria-label="Daily activity vouchers" tabindex="0">
-        <table class="daily-activity-table">
+    <section class="invoice-card report-section daily-activity-results ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'ERPNext vouchers', meta: `${report.pagination.start}–${report.pagination.end} of ${report.summary.total}`, help: 'Daily Activity Report vouchers from ERPNext. Use the date, shop, status, and search filters to narrow the results.' } }) %>
+      <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Daily activity vouchers" tabindex="0">
+        <table class="daily-activity-table ui-table">
           <thead><tr><th>#</th><th>Voucher</th><th>Date</th><th>Shop/Unit</th><th>Sales</th><th>Expense</th><th>Balance to be banked</th><th>Expense Details</th><th>Stock Entry</th><th>Packages</th><th>Delivery differences?</th><th>Market Information</th><th>Status</th></tr></thead>
           <tbody>
             <% if (!report.rows.length) { %><tr><td colspan="13" class="empty">No Daily Activity Report vouchers match these filters.</td></tr><% } %>

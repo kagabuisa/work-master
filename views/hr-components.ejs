@@ -1,4 +1,4 @@
-<div class="table-wrap"><table data-hr-components>
+<div class="table-wrap ui-table-scroll"><table class="ui-table" data-hr-components>
 <thead><tr><th>Component</th><th>Type</th><th>Amount (UGX)</th><th>Prorate by paid days</th><th>Posting account</th><th>Employer payable</th><th></th></tr></thead>
 <tbody>
 <% const inputComponents=(items||[]).filter(c=>!c.money_id); if(!inputComponents.length)inputComponents.push({label:'Basic salary',kind:'earning',amount:0,prorate:true}); %>

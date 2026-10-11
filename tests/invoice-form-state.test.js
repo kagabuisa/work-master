@@ -16,10 +16,12 @@ test('new sales invoices default the employee and permitted retail price list', 
   const parties = require('../src/web/parties');
   const originalCustomer = parties.findDbCustomer;
   const lookups = [];
+  let employeeStatus = 'Active';
+  let employeeDisabled = '0';
   store.findMasterRecord = async (kind, id) => {
     lookups.push([kind, id]);
     if (kind === 'price-lists') return { active: 1, docstatus: 'submitted', currency: 'UGX', price_type: 'selling' };
-    return { employee_id: id, employee_name: 'Isa Kagabu', disabled: '1' };
+    return { employee_id: id, employee_name: 'Isa Kagabu', status: employeeStatus, disabled: employeeDisabled };
   };
   parties.findDbCustomer = async () => ({ customer_id: 'C-1', customer_name: 'Customer' });
   let saved;
@@ -68,6 +70,16 @@ test('new sales invoices default the employee and permitted retail price list', 
     await handler({ currentUser: { record_access: {} } }, res, (error) => errors.push(error));
     assert.equal(rendered.data.invoice.price_list, 'Retail Pricelist');
     assert(lookups.some(([kind, id]) => kind === 'price-lists' && id === 'Retail Selling'));
+
+    for (const [status, disabled] of [['Left', '0'], ['', '0'], ['Active', '1']]) {
+      employeeStatus = status;
+      employeeDisabled = disabled;
+      await handler({ currentUser: { record_access: { employee_id: 'EMP-ISA' } } }, res,
+        (error) => errors.push(error));
+      assert.equal(rendered.data.invoice.invoicer_id, undefined, 'new invoice defaults exclude non-active employees');
+    }
+    employeeStatus = 'Left';
+    employeeDisabled = '1';
 
     const create = router.stack.find((layer) => layer.route?.path === '/invoices'
       && layer.route.methods.post).route.stack[0].handle;

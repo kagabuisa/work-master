@@ -9,7 +9,7 @@
     <input name="<%= field %>" list="<%= prefix %>-<%= field %>-options" value="<%= selected[field] || '' %>"
       autocomplete="off" placeholder="Search and select <%= label.toLowerCase() %>" maxlength="300">
     <datalist id="<%= prefix %>-<%= field %>-options">
-      <% choices[field].forEach((choice) => { %><option value="<%= choice.label %>"></option><% }) %>
+      <% choices[field].filter((choice) => choice.selectable !== false).forEach((choice) => { %><option value="<%= choice.label %>"></option><% }) %>
     </datalist>
   </label>
 <% }) %>

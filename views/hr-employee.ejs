@@ -1,6 +1,6 @@
 <% const newEmployee=typeof isNewEmployee!=='undefined'&&isNewEmployee; const coreEditable=newEmployee?can('masters.employees.create'):can('hr.employees.edit')&&can('masters.employees.edit'); %>
-<section class="invoice-card hr-card hr-employee-card" id="employment">
-<div class="hr-employment-heading"><div><p class="hr-section-eyebrow">Employee details</p><h2>Employment</h2></div><% if(!newEmployee){ %><div class="hr-employment-download hr-no-print">
+<section class="invoice-card hr-card hr-employee-card ui-surface" id="employment">
+<div class="hr-employment-heading ui-section-heading"><div><p class="hr-section-eyebrow">Employee details</p><h2>Employment</h2></div><% if(!newEmployee){ %><div class="hr-employment-download hr-no-print">
 <a class="button secondary hr-pdf-button" href="/hr/employees/<%= encodeURIComponent(employee.employee_id) %>/pdf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>Download employee details PDF</a>
 <details class="hr-download-help"><summary aria-label="Help with employee details PDF" title="PDF download help"><span aria-hidden="true">i</span></summary><p>Includes saved details. Save changes before downloading.</p></details>
 </div><% } %></div>
@@ -10,8 +10,8 @@
 </div><% } %>
 <% if(typeof profileError!=='undefined' && profileError){ %><p class="notice warning" role="alert"><%= profileError %></p><% } %>
 <form action="<%= newEmployee?'/settings/employees':'/hr/employees/'+encodeURIComponent(employee.employee_id)+'/profile' %>" method="post" class="hr-employee-profile" data-static-labels>
-<fieldset class="hr-profile-section"><legend><span class="hr-section-number">01</span>Employment details</legend><p class="hr-section-description">Employment dates, reporting line, and workplace.</p>
-<div class="hr-profile-grid">
+<fieldset class="hr-profile-section ui-form-section"><legend><span class="hr-section-number">01</span>Employment details</legend><p class="hr-section-description">Employment dates, reporting line, and workplace.</p>
+<div class="ui-form-grid hr-profile-grid">
 <label>Employee name<input name="employee_name" value="<%= employee.employee_name||'' %>" required maxlength="2000" <%= coreEditable?'':'disabled' %>></label>
 <label>Employee ID<input name="employee_id" value="<%= employee.employee_id||'' %>" placeholder="Leave blank to use employee name" <%= newEmployee?'':'readonly' %> maxlength="2000"></label>
 <label>Company<input name="company" value="<%= employee.company||'' %>" maxlength="2000" <%= coreEditable?'':'disabled' %>></label>
@@ -20,18 +20,18 @@
 <label>Status<select name="status" <%= coreEditable?'':'disabled' %>><option value="">Select status</option><% ['Active','Left'].forEach(status=>{ %><option value="<%= status %>" <%= employee.status===status?'selected':'' %>><%= status %></option><% }) %></select></label>
 <label>Joining date<input type="date" name="joining_date" value="<%= employee.joining_date||'' %>" <%= can('hr.employees.edit')?'':'disabled' %>></label>
 <label>Leaving date<input type="date" name="leaving_date" value="<%= employee.leaving_date||'' %>" <%= can('hr.employees.edit')?'':'disabled' %>></label>
-<label>Manager<select name="manager_id" <%= can('hr.employees.edit')?'':'disabled' %>><option value="">No manager</option><% if(employee.manager_id&&!opts.employees.some(e=>e.employee_id===employee.manager_id)){ %><option value="<%= employee.manager_id %>" selected>Existing manager assignment</option><% } %><% opts.employees.filter(e=>e.employee_id!==employee.employee_id).forEach(e=>{ %><option value="<%= e.employee_id %>" <%= e.employee_id===employee.manager_id?'selected':'' %>><%= e.employee_name %></option><% }) %></select></label>
+<label>Manager<select name="manager_id" <%= can('hr.employees.edit')?'':'disabled' %>><option value="">No manager</option><% if(employee.manager_id&&!opts.employees.some(e=>e.employee_id===employee.manager_id&&e.status==='Active'&&!e.disabled)){ %><option value="<%= employee.manager_id %>" selected>Existing manager assignment</option><% } %><% opts.employees.filter(e=>e.employee_id!==employee.employee_id&&e.status==='Active'&&!e.disabled).forEach(e=>{ %><option value="<%= e.employee_id %>" <%= e.employee_id===employee.manager_id?'selected':'' %>><%= e.employee_name %></option><% }) %></select></label>
 <label>Shop / cost center<select name="cost_center" <%= can('hr.employees.edit')?'':'disabled' %>><option value="">Unassigned</option><% opts.centers.forEach(c=>{ %><option <%= c.cost_center===employee.cost_center?'selected':'' %>><%= c.cost_center %></option><% }) %></select></label>
 <label>Branch<input name="branch" value="<%= employee.branch||'' %>" <%= can('hr.employees.edit')?'':'disabled' %>></label>
 <label>Employment type<input name="employment_type" value="<%= employee.employment_type||'' %>" placeholder="Permanent, contract, casual" <%= can('hr.employees.edit')?'':'disabled' %>></label>
 </div></fieldset>
 <%- include('hr-employee-details') %>
-<% if(newEmployee?can('masters.employees.create'):can('hr.employees.edit')){ %><div class="hr-profile-save hr-no-print"><span><%= newEmployee?'Employee name is required. Other fields are optional.':'Save changes to this employee record.' %></span><button class="button"><%= newEmployee?'Create employee':'Save employment details' %></button></div><% } %>
+<% if(newEmployee?can('masters.employees.create'):can('hr.employees.edit')){ %><div class="hr-profile-save ui-form-footer hr-no-print"><span><%= newEmployee?'Employee name is required. Other fields are optional.':'Save changes to this employee record.' %></span><button class="button"><%= newEmployee?'Create employee':'Save employment details' %></button></div><% } %>
 </form>
 </section>
 <% if(!newEmployee&&can('hr.payroll.view')){ %>
-<section class="invoice-card hr-card hr-employee-pay-plans" id="pay-plans"><div class="hr-pay-plan-heading"><div><p class="hr-section-eyebrow">Compensation</p><h2>Pay plans</h2></div><span class="hr-plan-count"><%= plans.length %> <%= plans.length===1?'plan':'plans' %></span></div><p class="hr-section-description">Plans take effect on their date. Payroll snapshots the plan effective at the start of its month; later plan changes do not alter existing payroll.</p>
-<% plans.forEach(plan=>{ %><details><summary>Effective <%= formatDate(plan.effective_from) %> · <%= plan.notes||'Pay plan' %></summary><table><thead><tr><th>Component</th><th>Type</th><th>Monthly amount</th><th>Prorated</th></tr></thead><tbody><% plan.components.forEach(c=>{ %><tr><td><%= c.label %></td><td><%= c.kind %></td><td><%= money(c.amount) %></td><td><%= c.prorate?'Yes':'No' %></td></tr><% }) %></tbody></table></details><% }) %>
+<section class="invoice-card hr-card hr-employee-pay-plans ui-surface" id="pay-plans"><div class="hr-pay-plan-heading ui-section-heading"><div><p class="hr-section-eyebrow">Compensation</p><h2>Pay plans</h2></div><span class="hr-plan-count"><%= plans.length %> <%= plans.length===1?'plan':'plans' %></span></div><p class="hr-section-description">Plans take effect on their date. Payroll snapshots the plan effective at the start of its month; later plan changes do not alter existing payroll.</p>
+<% plans.forEach(plan=>{ %><details><summary>Effective <%= formatDate(plan.effective_from) %> · <%= plan.notes||'Pay plan' %></summary><div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Component</th><th>Type</th><th>Monthly amount</th><th>Prorated</th></tr></thead><tbody><% plan.components.forEach(c=>{ %><tr><td><%= c.label %></td><td><%= c.kind %></td><td class="ui-amount"><%= money(c.amount) %></td><td><%= c.prorate?'Yes':'No' %></td></tr><% }) %></tbody></table></div></details><% }) %>
 <% if(!plans.length){ %><p>No pay plan saved.</p><% } %>
 <% if(can('hr.payroll.edit')){ %><details <%= !plans.length?'open':'' %>><summary>Add or replace a dated pay plan</summary><form action="/hr/employees/<%= encodeURIComponent(employee.employee_id) %>/pay-plan" method="post" class="hr-stack"><label>Effective from<input type="date" name="effective_from" value="<%= today.slice(0,7)+'-01' %>" required></label><%- include('hr-components',{items:plans[0]?.components||[]}) %><label>Notes<input name="notes" maxlength="2000"></label><button class="button">Save pay plan</button></form></details><% } %>
 </section><% } %>

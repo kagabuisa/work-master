@@ -77,7 +77,7 @@
               </select></label>
               <label data-static-labels><span class="permission-field-label">Specific record (optional)</span><select data-granular-record disabled>
                 <option value="">Select a type first</option>
-                <% recordTypes.filter((type) => type.parentKey).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => selectedRole.permissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
+                <% recordTypes.filter((type) => type.parentKey && type.selectable !== false).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => selectedRole.permissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
               </select></label>
               <div class="role-add-actions" aria-label="Actions">
                 <% recordActions.forEach((action) => { %><label><input type="checkbox" name="actions" value="<%= action %>"> <%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %></label><% }) %>
@@ -185,7 +185,7 @@
               </select></label>
               <label data-static-labels><span class="permission-field-label">Specific record (optional)</span><select data-granular-record disabled>
                 <option value="">Select a type first</option>
-                <% recordTypes.filter((type) => type.parentKey).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
+                <% recordTypes.filter((type) => type.parentKey && type.selectable !== false).forEach((type) => { %><option value="<%= type.key %>" data-parents="<%= [type.parentKey, ...(type.parentAliases || [])].join(',') %>" data-permissions="<%= JSON.stringify(type.permissions) %>" data-actions="<%= type.actions.join(',') %>" data-granted-actions="<%= type.actions.filter((action) => userPermissions.includes(type.permissions[action])).join(',') %>"><%= type.label %></option><% }) %>
               </select></label>
               <div class="role-add-actions" aria-label="Actions">
                 <% recordActions.forEach((action) => { %><label><input type="checkbox" name="actions" value="<%= action %>"> <%= action === 'view' ? 'Read' : action === 'edit' ? 'Write' : action[0].toUpperCase() + action.slice(1) %></label><% }) %>

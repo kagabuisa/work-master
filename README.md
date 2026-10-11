@@ -171,6 +171,49 @@ runs test files sequentially because several reset the public schema. It checks
 the database name and schema ownership before running any tests. Set the database
 connection URL to that test database too if a URL is configured.
 
+### Local Docker integration tests
+
+When Node.js is unavailable on the host, run the complete suite against a fresh,
+isolated local PostgreSQL container. The following uses disposable database data,
+an internal network with no published ports, and the current source mounted
+read-only. It does not load the application's `.env`. The writable temporary
+`data` directory lets upload tests run under the app image's non-root user.
+Build the app image with `docker compose build invoice-app` first if it is absent.
+
+```bash
+docker network create --internal wm-skipped-tests
+docker run -d --name wm-skipped-postgres --network wm-skipped-tests \
+  --tmpfs /var/lib/postgresql/data \
+  -e POSTGRES_DB=work_master_hr_test -e POSTGRES_USER=test_user \
+  -e POSTGRES_PASSWORD=local_test_only postgres:16-alpine
+```
+
+Wait until `docker exec wm-skipped-postgres pg_isready -U test_user -d work_master_hr_test`
+reports that connections are accepted, then run:
+
+```bash
+docker run --rm --name wm-skipped-runner --network wm-skipped-tests \
+  --entrypoint sh -v "$PWD:/workspace:ro" \
+  --tmpfs /workspace/data:mode=1777 -w /workspace \
+  -e NODE_PATH=/app/node_modules -e POSTGRES_HOST=wm-skipped-postgres \
+  -e POSTGRES_DB=work_master_hr_test -e POSTGRES_USER=test_user \
+  -e POSTGRES_PASSWORD=local_test_only \
+  -e POSTGRES_URL=postgresql://test_user:local_test_only@wm-skipped-postgres:5432/work_master_hr_test \
+  work_master-invoice-app \
+  -c 'npm run test:postgres'
+```
+
+The runner checks the dedicated database name and schema ownership, enables all
+database test flags, and runs files sequentially to avoid conflicting schema
+resets. The dedicated URL is also needed by the pool-timeout test, which creates
+its own connection pool. Check the runner's exit status and test totals. After it exits, clean up
+even if tests failed:
+
+```bash
+docker rm -f wm-skipped-postgres
+docker network rm wm-skipped-tests
+```
+
 If `POSTGRES_URL` or `DATABASE_URL` is configured, it takes precedence over
 `POSTGRES_DB`; set that URL to the dedicated test database instead. Application
 startup applies pending schema migrations under a database lock before accepting

@@ -341,6 +341,7 @@ async function masterEmployees(options = {}) {
   }
   if (!options.includeDisabled) {
     where.push('disabled = false');
+    where.push("status = 'Active'");
   }
   if (['Active', 'Left'].includes(options.employmentStatus)) {
     params.push(options.employmentStatus);

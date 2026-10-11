@@ -44,7 +44,7 @@ router.get('/invoices/new', async (req, res, next) => {
     const defaultWarehouse = req.currentUser.record_access?.warehouse;
     const defaultRetailPriceList = await defaultSalesPriceList(req.currentUser);
     const invoice = {
-      ...(employee ? { invoicer_id: employee.employee_id, invoicer: employee.employee_name } : {}),
+      ...(employee?.status === 'Active' && employee.disabled !== '1' ? { invoicer_id: employee.employee_id, invoicer: employee.employee_name } : {}),
       ...(defaultWarehouse && warehouseAllowed(req.currentUser, defaultWarehouse)
         ? { warehouse: defaultWarehouse } : {}),
       ...(defaultRetailPriceList ? { price_list: defaultRetailPriceList } : {}),

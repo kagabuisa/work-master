@@ -1,4 +1,1 @@
-<details class="hr-helper">
-  <summary aria-label="<%= helpLabel %>" title="<%= helpLabel %>"><span aria-hidden="true">i</span></summary>
-  <p><%= helpText %></p>
-</details>
+<%- include('ui-helper', { helpLabel, helpText, helpClass: 'hr-helper' }) %>

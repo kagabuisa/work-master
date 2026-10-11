@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head><title><%= title %> · HR</title><%- include('partials-head') %><script src="/hr.js?v=<%= assetVersion %>" defer></script></head>
-<body><main class="shell hr-shell">
+<body><main class="shell hr-shell ui-page ui-page-form">
 <header class="topbar hr-no-print"><div><p class="eyebrow">Human Resources</p><%- include('breadcrumbs',{breadcrumbs:[{label:'Home',href:'/'},{label:'HR',href:'/hr'},{label:title}]}) %></div><nav><%- include('module-nav',{activeModule:'hr'}) %><% if(['employees','employee'].includes(page)&&can('masters.employees.create')){ %><a class="button" href="/settings/employees/new" aria-label="New employee">New</a><% } %></nav></header>
 <% const activeWorkspace=page==='employee'?'employees':['run','payslip','payslips'].includes(page)?'payroll':page; %>
 <nav class="hr-tabs hr-no-print" aria-label="HR workspaces">
