@@ -36,9 +36,9 @@ async function revalidateActor(client, actor) {
   return { ...actor, user, scopes: rows[0].scopes };
 }
 
-// Financial routes will supply an operation-specific policy and a client-taking
+// Financial routes supply an operation-specific policy and a client-taking
 // domain mutation. No existing website caller uses this API retry mechanism.
-async function atomicMutation(actor, operation, resourcePath, key, payload, authorize, mutate) {
+async function atomicMutation(actor, operation, resourcePath, key, payload, authorize, mutate, authorizeReplay) {
   if (typeof key !== 'string' || !key.length || key.length > 128) {
     throw apiError(400, 'idempotency_key_required', 'Provide an Idempotency-Key of 1–128 characters.');
   }
@@ -64,6 +64,7 @@ async function atomicMutation(actor, operation, resourcePath, key, payload, auth
           AND operation=$2 AND resource_path=$3 AND key=$4`, params);
         if (rows[0]) {
           if (rows[0].payload_hash !== payloadHash) throw apiError(409, 'idempotency_conflict', 'This key was used with a different payload.');
+          if (authorizeReplay) await authorizeReplay(client, fresh, rows[0]);
           await recordApiAudit(client, fresh, operation, 'replayed', {
             type: rows[0].resource_type, id: rows[0].resource_id });
           return { status: rows[0].status, body: rows[0].response, replayed: true };

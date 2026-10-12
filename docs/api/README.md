@@ -1,6 +1,67 @@
-# Implemented API service (Phases 1–3)
+# Implemented API service (Phases 1–4)
 
-The versioned API is mounted at `/api/v1`. The [implemented OpenAPI contract](openapi.v1.json) covers authentication, self identity, credential administration and authorized business reads. The [Phase 0 draft](openapi.v1.draft.json) also contains future financial mutations; those write endpoints are not available yet.
+The versioned API is mounted at `/api/v1`. The [implemented OpenAPI contract](openapi.v1.json) covers 23 operations: authentication, self identity, credential administration, authorized business reads and the financial operations below. The [Phase 0 draft](openapi.v1.draft.json) is a historical proposal; use the implemented contract for current fields and limits. Real-client staging acceptance and production launch checks remain open.
+
+## Invoice and receipt operations
+
+All three operations require bearer authentication, `Content-Type: application/json` and exactly one `Idempotency-Key` header containing 1–128 visible ASCII characters without spaces. Query parameters are rejected. Integration scopes narrow current account permissions; mobile users use their account permissions directly.
+
+| Endpoint | Scope / action | Behavior |
+| --- | --- | --- |
+| POST `/invoices` | `invoices:create` / `vouchers.sales.create` | Save a draft with authoritative names and server totals; no receipt or stock reservation |
+| POST `/invoices/{id}/submit` | `invoices:submit` / `vouchers.sales.submit` | Submit a saved draft, posting existing stock and accounting effects; send `{}` |
+| POST `/invoices/{id}/payments` | `payments:record` / `payments.sales.record` | Record a receipt for one submitted invoice using an active permitted Cash/Bank account |
+
+Submission and receipts require the same parent-record visibility rules as existing website actions: creator/employee exceptions for Standard users, customer category, every line warehouse and price-list access. They do not implicitly grant invoice Read. Creating a draft checks current permitted customer, warehouse, price list, invoicer and optional cost center. Replaying creation also checks the saved invoice's current visibility, including changes made through the website.
+
+Create example (illustrative identifiers; use your permitted master records):
+
+```http
+POST /api/v1/invoices
+Authorization: Bearer <mobile-access-token-or-integration-token>
+Content-Type: application/json
+Idempotency-Key: order-2026-001-draft
+
+{
+  "customer_id": "C1",
+  "warehouse": "Main",
+  "price_list": "Retail",
+  "invoicer_id": "E1",
+  "invoice_date": "2026-10-01",
+  "items": [{ "item_code": "I1", "quantity": "2", "unit_price": "100" }]
+}
+```
+
+Required draft fields are shown above. Optional fields: `due_date`, `posting_time`, `cost_center`, `notes`, `non_system_invoice`, `tax_amount`, `discount_amount`. Dates are valid `YYYY-MM-DD` in years 0001–9999. Posting time accepts `HH:mm` or `HH:mm:ss`; existing storage normalization retains hours/minutes. If omitted, Kampala time is chosen on first successful creation, not during retry hashing. No due-date ordering rule is added to the website's existing date policy.
+
+Drafts contain 1–200 lines, each accepting only `item_code`, `quantity`, `unit_price`. All lines use the header warehouse. Quantities are positive decimal strings with at most three fractional digits and maximum `99999999999.999`. Money inputs are nonnegative decimal strings with at most two fractional digits and maximum `999999999999`; payment amounts must be positive and remain positive after existing rounding. Leading zeros (except `0`), signs, exponent notation, numeric JSON values and overprecision are rejected. Rates, tax, discounts and receipts retain the existing whole-UGX rounding and totals behavior; there is no new rate-override policy or forced replacement of supplied rates with list rates. Line and aggregate storage bounds are checked transactionally.
+
+Master identifiers are trimmed nonempty strings up to 200 characters. Optional `cost_center` may be empty. Notes allow up to 4000 characters and `non_system_invoice` up to 100; these may be empty. Strings reject NUL and surrounding whitespace. Client-supplied names, totals, method, status, item warehouse/costs, `amount_paid`, embedded `payments` and undocumented fields are rejected. Draft creation returns 201 with `data: {id, invoice_no, docstatus, subtotal, tax_amount, discount_amount, total}`; IDs and decimals are strings. Submission returns 200 with the same shape, showing `submitted`. These are saved operation results; fetch the current permitted invoice after subsequent edits or payments.
+
+Receipt example, using a separate key and a saved submitted invoice:
+
+```http
+POST /api/v1/invoices/42/payments
+Authorization: Bearer <mobile-access-token-or-integration-token>
+Content-Type: application/json
+Idempotency-Key: provider-receipt-001
+
+{
+  "payment_date": "2026-10-01",
+  "amount": "50",
+  "account_id": "1",
+  "external_source": "provider",
+  "external_reference": "receipt-001"
+}
+```
+
+All displayed receipt fields are required; only `notes` is optional. `account_id` is a positive safe-integer string. The receiving account determines cash/bank method through existing posting. `external_source` is a trimmed nonempty string up to 100 characters, and `external_reference` up to 200. They are required for mobile and integration receipts alike. The existing journal number remains the website payment reference; external identity lives in the existing API-owned protection table. Success returns 201 with `data: {id, invoice_id}`, where `id` is the receipt database ID. Use the permitted invoice/payment GET endpoints for current receipt details and balances.
+
+Retry keys are scoped by stable account, operation and resource path and retained for seven days. Retry the identical JSON with the same key after a lost/uncertain response, `409 operation_in_progress` or `503 operation_timed_out`. JSON object field order is irrelevant; changing a decimal's text or adding an optional field changes the validated payload. Identical authorized replays return the original status/body even after later website changes. `409 idempotency_conflict` rejects changed key reuse. After draft-key expiry, reconcile the original invoice rather than blindly recreating it.
+
+The permanent account/source/reference namespace protects receipts across new keys, key expiry and credential rotation. An identical reference/payload returns the original receipt ID; changed payload or invoice returns `409 payment_reference_conflict`. Website cancellation never frees a reference or reactivates a receipt. Reference protection does not deduplicate independent website payments or other API accounts. Current action, parent and receiving-account access are checked before replay; revoked credentials cannot retrieve stored results.
+
+Malformed/undocumented fields, decimal/date formats and key/header errors return 400; missing/revoked credentials 401; forbidden actions/references 403; hidden/missing invoices 404; document state conflicts 409; active-reference, insufficient-stock and receipt/balance business failures 422; throttling 429 with `Retry-After`. Posting, retry-result and audit failures roll back together. A failed submission retains its already committed draft. Draft editing, cancellation, cash-sale shortcuts and multiple-invoice allocation are not API endpoints; corrections use existing website workflows.
 
 ## Authorized business reads
 
@@ -26,7 +87,7 @@ Money/quantity values are decimal strings; database numeric text is preserved wh
 
 Receipt visibility and search are filtered before their permitted count and page slicing. Ordinary receipt IDs are payment database IDs (`source: invoice_payment`); existing standalone journal allocations use `journal-{id}` (`source: journal_allocation`); legacy balance-only history uses `legacy-{invoiceId}` (`source: legacy_balance`). The latter two are read representations, not new payment records or cancellation identifiers. Receipts keep the domain's deterministic receipt-number order followed by journal date/ID order. When account scope is restricted, journal/legacy receipts without an explicit receiving account require permitted linked journal accounts; unidentified legacy accounts are concealed.
 
-Sales selectors return `data.invoicers` or `data.receiving_accounts` according to the required `purpose`, plus the same pagination metadata. Invoicers expose only ID, label and active status. Receiving accounts expose ID, label, code, active status and the existing derived cash/bank method; this is not a general employee or chart-of-accounts API. Public financial write endpoints remain planned.
+Sales selectors return `data.invoicers` or `data.receiving_accounts` according to the required `purpose`, plus the same pagination metadata. Invoicers expose only ID, label and active status. Receiving accounts expose ID, label, code, active status and the existing derived cash/bank method; this is not a general employee or chart-of-accounts API.
 
 Both mobile access tokens and integration tokens use the same read request format:
 
@@ -79,7 +140,7 @@ Authenticate an active Admin through the mobile login flow to manage credentials
 
 Issued credentials expire after 90 days. The secret is displayed only in the issuance response and stored as a SHA-256 hash. Rotate by issuing a replacement, updating the client, then revoking the old ID; overlapping credentials are supported. Retrieve IDs through the metadata endpoint if an issuance response is lost. Never retry account creation blindly; duplicate usernames conflict.
 
-Scopes: `masters:read`, `stock:read`, `invoices:read`, `invoices:create`, `invoices:submit`, `payments:record`. Read/selector scopes enable only implemented endpoints; financial mutation scopes do not enable planned write endpoints. They narrow the account's current permissions; they cannot grant new permissions. Configure the new account's role, user overrides and record assignments using existing administration controls. Standard-role ownership limits remain relevant to later invoice access.
+Scopes: `masters:read`, `stock:read`, `invoices:read`, `invoices:create`, `invoices:submit`, `payments:record`. These enable only the corresponding implemented endpoints and narrow the account's current permissions; they cannot grant new permissions. Configure the new account's role, user overrides and record assignments using existing administration controls. Standard-role ownership limits apply to invoice access.
 
 Integration accounts cannot log in through the website or mobile password login, even if their password is reset. Their account flag defaults false for existing users. Deactivation immediately denies credential use; promotion to Admin also denies integration access. Do not reset service-account passwords as a rotation mechanism: this sets the existing password-change restriction and blocks token use. Revoke compromised credentials and issue replacements instead.
 
@@ -93,7 +154,7 @@ PostgreSQL-backed fixed-window limits coordinate across app instances: login 20 
 
 ## Transaction and audit foundation
 
-Internal sales services reuse the existing draft, submission and payment domain logic through client-taking functions. Website wrappers and their financial behavior remain unchanged. The website uses the extracted validation helpers with the same rules and errors. There are no public financial API routes yet; their strict JSON validation and full contract serializers belong to later phases.
+The financial routes use shared sales services and existing client-taking draft, submission and payment domain functions. Website wrappers and their financial behavior remain unchanged. The website uses the extracted validation helpers with the same rules and errors. Phase 4 adds no schema migration or change to existing payment tables, allocations or posting functions.
 
 Financial authorization and final validation now use the same transaction connection as posting. User/role and credential/session locks stabilize current access until commit; refresh and logout follow the same user-before-session order. User locks allow concurrent audit foreign-key reads. Credential activity timestamps are best-effort under contention and skip pinned rows, while durable request audit remains available. A revocation that races an already authorized operation waits for that commit, then prevents subsequent requests/replays. Current actor identity supplies both record stamps and submission fields, even when the caller's previously resolved actor data is stale.
 
@@ -115,4 +176,4 @@ API audit records link request, actor, session/credential and operation outcome;
 
 `tests/api-transactions.test.js` covers final reference checks, real lock waits, scarce-stock/opposite-order concurrency, timeout/fault rollback, permanent references through cancellation and single-connection execution. `tests/api-reads.test.js` covers scoped resources, public fields, counts/pages, selectors, pricing parity and financial immutability. `tests/api.test.js` exercises real HTTP authentication, existing cookie login, refresh races/revocation, account/scopes, expiry, error envelopes, rate limits, actual website payment posting, transaction-wrapper parity, concurrent retry protection, permanent references, audit attribution and rollback. Run `npm run test:postgres` using README's isolated local database procedure so API integration tests are enabled and no database checks are skipped.
 
-Remaining phases add strict financial HTTP contracts, performance measurements, monitoring/alerts and client pilot acceptance. No multiple-invoice allocation, existing payment schema change, or website pricing change is authorized by this foundation.
+`tests/api-financial.test.js` verifies strict financial input and real HTTP creation/submission/receipts, concurrent retries, scoped denials, scarce-stock contention, overpayment serialization, audit/retry-storage rollback, permanent references after cancellation and website financial parity. Remaining launch work includes performance measurements, monitoring/alerts, recovery drills and real-client staging/pilot acceptance. See the [Phase 4 report](phase-4-report.md). No multiple-invoice allocation, existing payment schema change or website pricing change is introduced.

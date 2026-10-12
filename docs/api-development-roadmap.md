@@ -1,14 +1,45 @@
 # API service development roadmap
 
-Prepared: 12 October 2026. Status: Phase 0 closed with approved defaults; Phases 1–3 implemented. Current endpoints are documented in the [API guide](api/README.md); later business endpoints remain planned.
+Prepared: 12 October 2026. Status: Phase 0 closed with approved defaults; Phases 1–4 implemented. Current endpoints are documented in the [API guide](api/README.md); real-client acceptance and Phase 5 operational launch work remain open.
 
 Phase 0 technical artifacts are available in the [workflow audit, permission matrix, decision log and backlog](api/phase-0-assessment.md) and [OpenAPI draft](api/openapi.v1.draft.json). The product owner accepted the defaults with explicit preservation of website pricing, payment allocations, accounting entries and workflows; future multiple-invoice payment allocation remains deferred.
+
+## Reviewed stage status
+
+Repository review: 12 October 2026. Phase 4 continues the implementation baseline `5130ddc`. Implementation completion is separate from client acceptance and production readiness. The current public contract contains **23 operations**: nine authentication/identity/credential operations, eleven business reads/selectors and three financial POST operations.
+
+| Phase | Established status | Evidence and remaining gate |
+| --- | --- | --- |
+| 0: Scope and audit | Closed | Approved defaults and compatibility requirements in the [Phase 0 assessment](api/phase-0-assessment.md); traffic and performance targets remain launch decisions |
+| 1: Foundation and authentication | Implemented and locally verified | [Phase 1 report](api/phase-1-report.md), bearer router, credential lifecycle, scopes, audit and migration 18; deployed TLS and operational acceptance remain open |
+| 2: Authorized reads | Implemented and locally verified; client acceptance open | [Phase 2 report](api/phase-2-report.md), scoped reads and implemented OpenAPI; real mobile/integration staging walkthrough remains unrecorded |
+| 3: Reliability and audit | Implemented and locally verified | [Phase 3 report](api/phase-3-report.md), transaction-aware services, atomic retry results, permanent payment references and migration 19; public HTTP financial parity belongs to Phase 4 |
+| 4: Financial workflows | Implemented and locally verified; client acceptance open | [Phase 4 report](api/phase-4-report.md), strict draft/submission/one-invoice receipt routes and real HTTP financial parity/retry/rollback tests; both real-client staging walkthroughs remain open |
+| 5: Launch and handover | Not complete | Some documentation, defensive limits and migration tests already exist; capacity targets, monitoring/alerts, recovery drills, rollout and client acceptance remain open |
+
+Do not treat Phases 0–4 as a completed production release: Phase 2's client walkthrough and Phase 4–5 acceptance gates still need evidence. Prior report test totals describe their respective implementation checkpoints; the [roadmap review](api/roadmap-review.md) records the baseline review and the Phase 4 report records financial HTTP verification.
+
+## Phase 4 delivered scope
+
+The three required operations use `src/services/sales.js` and `src/api/transactions.js`:
+
+1. `POST /api/v1/invoices`: strict allowlisted draft JSON, bounded line counts/strings, valid dates and decimal precision; no embedded receipts; authoritative server totals and public result fields.
+2. `POST /api/v1/invoices/{id}/submit`: explicit empty-body contract, current authorization, required retry key, saved-draft state checks and a documented result.
+3. `POST /api/v1/invoices/{id}/payments`: one-invoice receipt contract, permitted receiving account, derived method, required external source/reference and retry key; existing allocation and posting rules preserved.
+
+Real HTTP fixtures cover mobile and integration actors, scoped denials, contract errors, concurrent retries, changed-payload conflicts, revoked replay, financial rollback, stock/balance contention, totals/ledger/allocation parity, creator attribution and website cache visibility. Failed submission retains the previously committed draft. Implemented OpenAPI, client examples, app guide, permissions and operations documentation describe the current endpoints. Both real-client invoice-to-payment staging walkthroughs are still needed to close the Phase 4 acceptance gate.
+
+Draft editing, cancellation endpoints, multiple-invoice payment allocation, webhooks and offline synchronization remain outside this stage. Phase 4 introduces no migration or redesign of existing website payments or accounting.
+
+## Next stage: acceptance and Phase 5 launch work
+
+Complete the outstanding read and financial staging walkthroughs with a restricted mobile user and integration account. Agree on pilot volumes and measure API load/concurrency alongside website traffic before setting capacity targets. Establish request/error/latency monitoring and alerts, verify deployed TLS and credential revocation, test backup restoration and rollout/rollback procedures, then review limited-pilot evidence before production expansion. Local automated fixtures do not replace those operational or client gates.
 
 ## Objective and release scope
 
 Deliver the [saved API objective](api-implementation-plan.md#development-objective): secure, documented, versioned access for mobile users and integration accounts, with permitted master-data and invoice reads, invoice draft creation and submission, payment recording, shared durable idempotency, and end-to-end transaction auditability.
 
-The first production release covers online use. Its required mutations are draft creation, invoice submission, and payment recording. Draft editing, invoice cancellation, and payment cancellation are conditional additions: Phase 0 must decide whether clients need them for launch. Purchasing, inventory mutations, expanded reports, webhooks, offline synchronization, and HR are later releases. Warehouse stock-balance reads support the sales workflow.
+The first production release covers online use. Its required mutations are draft creation, invoice submission, and payment recording. Phase 0 deferred draft editing, invoice cancellation and payment cancellation API endpoints, with corrections handled through the website initially. Purchasing, inventory mutations, expanded reports, webhooks, offline synchronization, and HR are later releases. Warehouse stock-balance reads support the sales workflow.
 
 The existing `/api` browser lookups must continue working. Extend the current Express/PostgreSQL application and extract shared services incrementally rather than creating a second accounting implementation.
 

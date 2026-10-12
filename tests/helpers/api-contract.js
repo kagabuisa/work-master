@@ -43,16 +43,17 @@ function validate(schema, value, location = 'response') {
   if (schema.enum) assert(schema.enum.includes(value), location);
 }
 
-function validateRead(path, status, body) {
+function validateResponse(path, method, status, body) {
   const segments = path.split('?')[0].split('/');
   const resource = Object.keys(contract.paths).find(candidate => {
     const parts = candidate.split('/');
     return parts.length === segments.length && parts.every((part, index) => part === segments[index] || /^\{.+\}$/.test(part));
   });
-  assert(resource && contract.paths[resource].get, path + ' must be documented');
-  let response = contract.paths[resource].get.responses[String(status)];
+  assert(resource && contract.paths[resource][method], path + ' must be documented');
+  let response = contract.paths[resource][method].responses[String(status)];
   assert(response, path + ' status must be documented');
   if (response.$ref) response = contract.components.responses[response.$ref.split('/').pop()];
   validate(response.content['application/json'].schema, body, path);
 }
-module.exports = { validateRead };
+const validateRead = (path, status, body) => validateResponse(path, 'get', status, body);
+module.exports = { validateRead, validateResponse };

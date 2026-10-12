@@ -1,8 +1,8 @@
 # Work Master API implementation plan and report
 
-Prepared: 10 October 2026. Status: proposed implementation; this document does not mean these features are available. Scope: one versioned API serving a mobile app and external business integrations. The existing website continues to use the same application data and business rules.
+Prepared: 10 October 2026. Status reviewed: 12 October 2026. This document is an architecture and expansion plan; use the [roadmap stage status](api-development-roadmap.md#reviewed-stage-status) to establish completed work. Scope: one versioned API serving a mobile app and external business integrations. The existing website continues to use the same application data and business rules.
 
-Phase 0 is closed with approved defaults. The Phase 1 foundation and currently available endpoints are documented in the [implemented API guide](api/README.md); the business endpoints and later features below remain proposed.
+Phase 0 is closed with approved defaults. Phases 1–4 implement authentication, authorized business reads, shared financial reliability and public invoice draft/submission/one-invoice receipt endpoints, documented in the [implemented API guide](api/README.md). Later extensions remain proposed. Real-client acceptance and production launch gates remain open.
 
 ## Development objective
 
@@ -24,7 +24,7 @@ The deliverable is a supported API contract, not merely a set of routes. It incl
 
 ## 2. Current implementation and gaps
 
-The following findings are based on repository inspection, rather than assumptions about a deployed installation.
+The following table records the original pre-implementation assessment from 10 October 2026. Foundation, read, reliability and core financial endpoint gaps have since been addressed in Phases 1–4; see the roadmap review above for current status. It does not establish the state of a deployed installation.
 
 | Area | Current evidence | Implementation implication |
 | --- | --- | --- |
@@ -109,6 +109,8 @@ Use existing real permission keys in endpoint policy mappings. Proposed API scop
 Requests using cookie authentication retain existing origin protections. Bearer authentication must be deliberately distinguished from cookie authentication; do not globally disable origin checks. Native apps do not need browser CORS. If a separate browser frontend is added, configure an explicit origin allowlist. Reject ambiguous mixed credentials.
 
 ## 5. Proposed API contract
+
+This section retains the broader proposal. Core draft creation, separate submission and one-invoice receipts are now implemented with the exact fields and limits in `docs/api/openapi.v1.json`; editing/cancellation and later module endpoints below remain proposed. Examples in this original plan are illustrative rather than the implemented field contract.
 
 All paths below are proposed under `/api/v1`; they are not currently documented as implemented.
 

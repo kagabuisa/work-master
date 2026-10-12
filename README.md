@@ -266,9 +266,9 @@ The verification script checks voucher balance, overall GL balance, balance shee
 - [Accounting development plan](docs/accounting-development-plan.md)
 - [API development roadmap](docs/api-development-roadmap.md)
 
-## API service foundation
+## API service
 
-Phases 1–3 provide `/api/v1` mobile authentication, self identity, Admin-managed integration credentials and scoped master-data, stock, invoice and receipt reads. See the [implemented API guide and contract](docs/api/README.md). Public financial write endpoints remain planned. Website payment workflows, allocation rules, pricing and accounting behavior are preserved.
+Phases 1–4 provide `/api/v1` mobile authentication, self identity, Admin-managed integration credentials, scoped master-data/stock/invoice/receipt reads and three financial POST operations: invoice draft creation, separate submission and one-invoice receipt recording. See the [implemented API guide and contract](docs/api/README.md) and [Phase 4 verification report](docs/api/phase-4-report.md). Website payment workflows, allocation rules, pricing and accounting behavior are preserved. Real-client staging acceptance and production launch checks remain open.
 
 Migration 18 adds API-owned `wm_api_*` credential, session, retry, permanent payment-reference, audit and rate-limit tables, plus an `api_service_account` flag on users (false for existing users). It does not add constraints or change columns on existing payment tables. Dedicated integration accounts cannot use interactive login. Back up before upgrading; rebuild with `docker compose up -d --build invoice-app`. Disabling API routes must retain permanent payment references and financial audit records. Rolling back to older-schema code requires a reviewed migration plan because startup rejects a newer schema.
 
@@ -276,9 +276,11 @@ Production API credential traffic requires HTTPS via the supported TLS proxy wit
 
 Migration 19 adds resource type/ID metadata to API retry records and backfills known resource links without changing stored responses or existing financial rows. Internal financial services now authorize, validate references, post, save retry results and audit on one connection. Refresh and financial requests use consistent lock order. API-only lock/deadline handling and permanent receipt references leave website posting, pricing and cancellation behavior unchanged. No public financial endpoint is enabled by this migration.
 
+Phase 4 exposes those services through strict financial HTTP contracts without a new migration or payment-table change. Every financial request requires JSON and exactly one stable `Idempotency-Key` header (1–128 visible ASCII characters without spaces). Seven-day retry responses commit atomically with effects and audit; retry the same payload/key after contention, timeout or a lost response. Reconcile draft creation after expiry. Receipts additionally require source/reference identity, permanently protected within the API account namespace across key expiry and credential rotation; cancellation does not free it. Never purge permanent references during cleanup or rollback. Invoice results contain saved totals; receipt results identify the original payment. Read current permitted resources to reconcile later website changes. Website cache invalidation remains process-local; the initial deployment is one app instance.
+
 Schedule `docker compose exec invoice-app node scripts/api-cleanup.js` daily to remove expired retry records, rate-limit windows and mobile families. Refresh history remains for the entire family lifetime. Cleanup does not remove financial audit, integration credential metadata or permanent payment references. Include all new tables in PostgreSQL backups and protect database access because retry results contain business data. Monitor table growth and account for database-backed API limits when measuring capacity.
 
-The full isolated Docker procedure above enables API integration tests through `npm run test:postgres`; it exercises website payment regression and transaction/audit rollback as well as credential lifecycles. Do not use the application database for tests.
+The full isolated Docker procedure above enables API integration tests through `npm run test:postgres`; it exercises real HTTP financial workflows, website/payment/ledger parity, stock and overpayment concurrency, retry/audit rollback and credential lifecycles. Run `npm run test:accounting` against the same disposable database after the full suite, using the same runner environment and mounts. Do not run these schema-resetting commands concurrently or use the application database for tests.
 
 ## Important
 

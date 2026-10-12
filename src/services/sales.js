@@ -1,6 +1,6 @@
 'use strict';
 // Transaction-aware adapters preserve the domain posting functions. Public
-// financial endpoints and HTTP payload validation are intentionally deferred.
+// financial requests are validated by the API before entering this service.
 const { createPostgresInvoiceInTransaction, submitPostgresInvoiceInTransaction,
   addPostgresInvoicePaymentInTransaction } = require('../domain/sales');
 const { requireAction, requireInvoiceInTransaction } = require('../api/policy');
@@ -11,6 +11,15 @@ const { apiError } = require('../api/errors');
 const { clearInvoiceCaches } = require('../web/cache');
 const { requireReceiptAccount } = require('./sales-validation');
 const { lockReferences, lockSubmissionItems, lockStock, lockReceivingAccount } = require('./sales-transaction-validation');
+const { decimal } = require('../api/serializers');
+
+async function invoiceResult(client, id) {
+  const row = (await client.query(`SELECT id,invoice_no,docstatus,subtotal,tax_amount,discount_amount,total
+    FROM app_invoices WHERE id=$1`, [id])).rows[0];
+  return { id: String(row.id), invoice_no: row.invoice_no, docstatus: row.docstatus,
+    subtotal: decimal(row.subtotal), tax_amount: decimal(row.tax_amount),
+    discount_amount: decimal(row.discount_amount), total: decimal(row.total) };
+}
 
 async function executeInvoiceOperation(actor, operation, id, key, validatedPayload) {
   const policies = {
@@ -48,23 +57,37 @@ async function executeInvoiceOperation(actor, operation, id, key, validatedPaylo
       if (operation === 'invoice.create') {
         const prepared = await lockReferences(client, fresh, validatedPayload, { creating: true });
         const invoiceId = await createPostgresInvoiceInTransaction(client, prepared);
-        return { status: 201, data: { id: String(invoiceId) }, resource: { type: 'invoice', id: invoiceId } };
+        return { status: 201, data: await invoiceResult(client, invoiceId), resource: { type: 'invoice', id: invoiceId } };
       }
       if (operation === 'invoice.submit') {
         if (lockedInvoice.docstatus !== 'draft') throw apiError(409, 'state_conflict', 'Only draft invoices can be submitted.');
         await lockSubmissionItems(client, lockedInvoice.items);
         await lockStock(client, lockedInvoice.items);
         await submitPostgresInvoiceInTransaction(client, id);
-        return { status: 200, data: { id: String(id) }, resource: { type: 'invoice', id } };
+        return { status: 200, data: await invoiceResult(client, id), resource: { type: 'invoice', id } };
       }
       const receipt = await permanentPayment(client, fresh, id, validatedPayload.external_source,
         validatedPayload.external_reference, validatedPayload, async transaction => {
+          if (lockedInvoice.docstatus !== 'submitted') throw apiError(409, 'state_conflict', 'Submit the invoice before receiving payments.');
           await lockReceivingAccount(transaction, validatedPayload.account_id);
-          await addPostgresInvoicePaymentInTransaction(transaction, id, validatedPayload);
+          try {
+            await addPostgresInvoicePaymentInTransaction(transaction, id, validatedPayload);
+          } catch (error) {
+            // Domain validation retains its website status. Only this API adapter
+            // maps expected business validation failures to the public contract.
+            if (error.status === 400) throw apiError(422, 'validation_failed', error.message);
+            throw error;
+          }
           const { rows } = await transaction.query(`SELECT id FROM app_invoice_payments WHERE invoice_id=$1 ORDER BY payment_no DESC LIMIT 1`, [id]);
           return { id: String(rows[0].id), invoice_id: String(id) };
         });
       return { status: 201, data: receipt, resource: { type: 'payment', id: receipt.id } };
+    }, async (client, fresh, record) => {
+      // A website edit can change the saved draft's visibility after creation.
+      // Check the resulting resource, not only the original request references.
+      if (operation === 'invoice.create') {
+        await requireInvoiceInTransaction(client, fresh, record.resource_id || record.response.data.id, scope, permission);
+      }
     });
   clearInvoiceCaches(); // After commit, including replay following an uncertain response.
   return result;
