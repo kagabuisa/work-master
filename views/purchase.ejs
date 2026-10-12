@@ -6,7 +6,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchase</p>
@@ -15,8 +15,8 @@
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
-    <section class="invoice-card">
-      <div class="section-title">
+    <section class="invoice-card ui-surface">
+      <div class="section-title ui-section-heading">
         <h2>Purchase Invoice</h2>
         <% if (purchase.docstatus === 'draft') { %>
           <div class="actions">
@@ -41,14 +41,14 @@
       <% if (purchase.cost_center) { %><p>Cost Center: <strong><%= purchase.cost_center %></strong></p><% } %>
       <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p>Purchase Order: <a href="/purchase-orders/<%= purchase.purchase_order_id %>">PO-<%= String(purchase.purchase_order_id).padStart(6, '0') %></a></p><% } %>
       <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
-      <table>
-        <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th>Unit Cost</th><th>Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
+      <div class="ui-table-scroll" role="region" aria-label="Purchase table" tabindex="0"><table class="ui-table">
+        <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
         <tbody>
           <% purchase.items.forEach((item, index) => { %>
-            <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
+            <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td class="ui-amount"><%= money(item.unit_price) %></td><td class="ui-amount"><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <dl class="totals">
         <div class="grand"><dt>Total</dt><dd><%= money(purchase.total) %></dd></div>
         <div><dt>Paid</dt><dd><%= money(purchase.amount_paid) %></dd></div>
@@ -56,15 +56,15 @@
       </dl>
       <% if (purchase.remarks) { %><p class="notes"><%= purchase.remarks %></p><% } %>
     </section>
-    <section class="invoice-card report-section">
-      <div class="section-title"><h2>Supplier Payments</h2></div>
-      <table>
-        <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Payment Reference</th><th>Notes</th><th>Amount</th><th>Status</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><th></th></tr></thead>
+    <section class="invoice-card report-section ui-surface">
+      <%- include('ui-section-heading', { heading: { title: 'Supplier Payments' } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Purchase table" tabindex="0"><table class="ui-table">
+        <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Payment Reference</th><th>Notes</th><th class="ui-amount">Amount</th><th>Status</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><th></th></tr></thead>
         <tbody>
           <% if (!purchase.payments.length) { %><tr><td colspan="10" class="empty">No payments recorded.</td></tr><% } %>
           <% purchase.payments.forEach((payment) => { %>
             <tr>
-              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><% if (payment.journal_entry_id && can('vouchers.journals.view')) { %><a href="/journals/<%= payment.journal_entry_id %>"><%= payment.reference %></a><% } else { %><%= payment.reference || '' %><% } %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td>
+              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><% if (payment.journal_entry_id && can('vouchers.journals.view')) { %><a href="/journals/<%= payment.journal_entry_id %>"><%= payment.reference %></a><% } else { %><%= payment.reference || '' %><% } %></td><td><%= payment.notes || '' %></td><td class="ui-amount"><%= money(payment.amount) %></td>
               <td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td>
               <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (lineAuditTime(payment.created_at)) { %> <small><%= lineAuditTime(payment.created_at) %></small><% } %></td>
               <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (lineAuditTime(payment.updated_at)) { %> <small><%= lineAuditTime(payment.updated_at) %></small><% } %></td>
@@ -78,7 +78,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <% if (purchase.docstatus === 'submitted' && purchase.total > purchase.amount_paid && can('payments.purchases.record')) { %>
         <form method="post" action="/purchases/<%= purchase.id %>/payments" class="payment-form">
           <label>Payment Date<input type="date" name="payment_date" value="<%= today %>" required></label>

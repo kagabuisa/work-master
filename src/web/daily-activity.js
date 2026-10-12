@@ -1,6 +1,7 @@
 'use strict';
 
 const { pool } = require('../db');
+const { apiConfigured, apiReport, apiVoucher } = require('./daily-activity-source');
 const { currentPostingDate } = require('../posting-time');
 const { isValidIsoDate } = require('../lib/dates');
 
@@ -45,21 +46,48 @@ function queryParts(filters) {
   return { where: where.join(' AND '), values };
 }
 
+const SOURCE_UNAVAILABLE = 'Daily Activity is unavailable because the ERPNext connection is not configured or cannot be reached. Ask an administrator to check the ERPNext connection, then try again.';
+const SOURCE_ERROR_CODES = new Set(['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EHOSTUNREACH',
+  'ENETUNREACH', 'ECONNRESET', 'PROTOCOL_CONNECTION_LOST', 'ER_ACCESS_DENIED_ERROR',
+  'ER_BAD_DB_ERROR', 'ER_NO_SUCH_TABLE', 'ER_BAD_FIELD_ERROR', 'ER_TABLEACCESS_DENIED_ERROR']);
+
+async function sourceQuery(sql, values) {
+  if (['DB_HOST', 'DB_USER', 'DB_NAME'].some((key) => !process.env[key]?.trim())) {
+    throw Object.assign(new Error(SOURCE_UNAVAILABLE), { status: 503, code: 'DAILY_ACTIVITY_SOURCE_UNAVAILABLE' });
+  }
+  try {
+    return await pool.query(sql, values);
+  } catch (cause) {
+    if (!SOURCE_ERROR_CODES.has(cause.code)) throw cause;
+    throw Object.assign(new Error(SOURCE_UNAVAILABLE, { cause }), {
+      status: 503, code: 'DAILY_ACTIVITY_SOURCE_UNAVAILABLE',
+    });
+  }
+}
+
 async function dailyActivityReport(query = {}) {
   const filters = normalizeFilters(query);
+  if (apiConfigured()) {
+    const { summary, rows } = await apiReport(filters);
+    return reportResult(filters, summary, rows);
+  }
   const { where, values } = queryParts(filters);
-  const [summaryRows] = await pool.query(`SELECT COUNT(*) AS total,
+  const [summaryRows] = await sourceQuery(`SELECT COUNT(*) AS total,
     COALESCE(SUM(sales), 0) AS sales, COALESCE(SUM(expense), 0) AS expense,
     COALESCE(SUM(banked), 0) AS banked
     FROM \`tabDaily Activity Report\` WHERE ${where}`, values);
   const summary = summaryRows[0];
-  const [rows] = await pool.query(`SELECT name, DATE_FORMAT(\`date\`, '%Y-%m-%d') AS date,
+  const [rows] = await sourceQuery(`SELECT name, DATE_FORMAT(\`date\`, '%Y-%m-%d') AS date,
     \`cost center\` AS shop, unit_type, sales, expense, banked,
     \`expense details\` AS expense_details, stock_entry_number, packages_received,
     do_you_have_any_delivery_differences AS delivery_differences, remarks, docstatus
     FROM \`tabDaily Activity Report\` WHERE ${where}
     ORDER BY \`date\` DESC, modified DESC, name DESC LIMIT ? OFFSET ?`,
   [...values, PAGE_SIZE, (filters.page - 1) * PAGE_SIZE]);
+  return reportResult(filters, summary, rows);
+}
+
+function reportResult(filters, summary, rows) {
   const total = Number(summary.total);
   return {
     filters, summary: { total, sales: Number(summary.sales), expense: Number(summary.expense), banked: Number(summary.banked) },
@@ -75,7 +103,11 @@ async function dailyActivityReport(query = {}) {
 
 async function dailyActivityVoucher(name) {
   if (!name || name.length > 140 || name.includes('/')) return null;
-  const [rows] = await pool.query(`SELECT name, DATE_FORMAT(\`date\`, '%Y-%m-%d') AS date,
+  if (apiConfigured()) {
+    const row = await apiVoucher(name);
+    return row ? { ...row, status_label: statusLabel(row.docstatus) } : null;
+  }
+  const [rows] = await sourceQuery(`SELECT name, DATE_FORMAT(\`date\`, '%Y-%m-%d') AS date,
     \`cost center\` AS shop, unit_type, leads, sales, expense, banked,
     \`expense details\` AS expense_details, stock_entry_number, packages_received,
     do_you_have_any_delivery_differences AS delivery_differences,

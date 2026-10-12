@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -16,7 +16,7 @@
         <%- include('stock-new-menu') %>
       </nav>
     </header>
-    <section class="metrics">
+    <section class="metrics ui-report-metrics">
       <article>
         <span>Items In Stock</span>
         <strong><%= summary.item_count %></strong>
@@ -31,7 +31,7 @@
       </article>
     </section>
 
-    <form class="report-filters" method="get">
+    <form class="report-filters ui-toolbar ui-filter-row" method="get">
       <datalist id="stock-report-warehouses"></datalist>
       <label>
         Item
@@ -50,8 +50,8 @@
     </form>
     <script src="/stock-report-filters.js"></script>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface">
+      <div class="ui-table-scroll" role="region" aria-label="Stock table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -72,12 +72,12 @@
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
               <td><%= Number(row.quantity || 0).toLocaleString() %></td>
-              <td><%= money(row.valuation_rate) %></td>
-              <td><strong><%= money(row.stock_value) %></strong></td>
+              <td class="ui-amount"><%= money(row.valuation_rate) %></td>
+              <td class="ui-amount"><strong><%= money(row.stock_value) %></strong></td>
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination, query, basePath: '/stock' }) %>
     </section>
   </main>

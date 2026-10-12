@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-list ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchases</p>
@@ -14,7 +14,7 @@
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <%- include('voucher-report-tabs', { basePath: '/purchases', title: 'Purchase Invoice', activeTab: 'list' }) %>
-    <form class="report-filters invoice-filters" method="get" action="/purchases">
+    <form class="report-filters invoice-filters ui-toolbar ui-filter-row" method="get" action="/purchases">
       <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Number or supplier"></label>
       <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
       <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
@@ -23,9 +23,10 @@
         <a class="button button-light" href="/purchases">Reset</a>
       </div>
     </form>
-    <section class="invoice-card report-section">
-      <table>
-        <thead><tr><th>#</th><th>Purchase</th><th>Date/Time</th><th>Supplier</th><th>Reference</th><th>Total</th><th>Paid</th><th>Balance</th><th>Document</th><th>Payment</th></tr></thead>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: `${result.pagination.total} records` } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Purchases table" tabindex="0"><table class="ui-table">
+        <thead><tr><th>#</th><th>Purchase</th><th>Date/Time</th><th>Supplier</th><th>Reference</th><th class="ui-amount">Total</th><th class="ui-amount">Paid</th><th class="ui-amount">Balance</th><th>Document</th><th>Payment</th></tr></thead>
         <tbody>
           <% if (!result.rows.length) { %><tr><td colspan="10" class="empty">No purchases found.</td></tr><% } %>
           <% result.rows.forEach((purchase, index) => { %>
@@ -35,15 +36,15 @@
               <td><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></td>
               <td><%= purchase.supplier_name %></td>
               <td><%= purchase.supplier_reference || '' %></td>
-              <td><%= money(purchase.total) %></td>
-              <td><%= money(purchase.amount_paid) %></td>
-              <td><%= money(purchase.total - purchase.amount_paid) %></td>
+              <td class="ui-amount"><%= money(purchase.total) %></td>
+              <td class="ui-amount"><%= money(purchase.amount_paid) %></td>
+              <td class="ui-amount"><%= money(purchase.total - purchase.amount_paid) %></td>
               <td><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></td>
               <td><span class="badge <%= purchase.status %>"><%= purchase.status %></span></td>
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: result.pagination, query, basePath: '/purchases' }) %>
     </section>
   </main>

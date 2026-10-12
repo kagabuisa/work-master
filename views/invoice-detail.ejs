@@ -3,7 +3,7 @@
 <% const docstatus = invoice.docstatus || 'submitted'; %>
 <% const payments = Array.isArray(invoice.payments) ? invoice.payments : []; %>
 <% const balanceDue = Math.max(0, Number(invoice.total || 0) - Number(invoice.amount_paid || 0)); %>
-<section class="invoice-card sales-invoice-card">
+<section class="invoice-card ui-surface sales-invoice-card">
   <%- include('invoice-header', { voucherTitle, showVoucherNumber: typeof showVoucherNumber === 'undefined' ? true : showVoucherNumber }) %>
   <div class="invoice-meta sales-invoice-meta">
     <div class="invoice-meta-card invoice-customer-card">
@@ -24,7 +24,7 @@
   </div>
   <%- include('invoice-attributes', { invoice }) %>
 
-  <table class="sales-invoice-items">
+  <div class="ui-table-scroll" role="region" aria-label="Invoice Detail table" tabindex="0"><table class="ui-table sales-invoice-items">
     <thead>
       <tr>
         <th class="row-number">#</th>
@@ -51,7 +51,7 @@
         </tr>
       <% }) %>
     </tbody>
-  </table>
+  </table></div>
 
   <dl class="totals sales-invoice-totals">
     <div><dt>Subtotal</dt><dd><%= money(invoice.subtotal) %></dd></div>

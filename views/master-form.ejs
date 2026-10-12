@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Setup</p>
@@ -21,10 +21,10 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <% if (config.hint) { %><p class="muted-text"><%= config.hint %></p><% } %>
+    <% if (config.hint) { %><%- include('ui-section-heading', { heading: { title: 'Details', help: config.hint } }) %><% } %>
     <% const editingSubmittedPriceList = config.key === 'price-lists' && mode === 'edit' && record.docstatus === 'submitted' && editSubmitted; %>
     <% const submittedPriceListLocked = config.key === 'price-lists' && mode === 'edit' && record.docstatus === 'submitted' && !editingSubmittedPriceList; %>
-    <form method="post" action="<%= mode === 'edit' ? '/settings/' + config.key + '/' + encodeURIComponent(record[config.idField]) : '/settings/' + config.key %>" class="invoice-form<%= config.staticLabels ? ' entry-form pricing-master-form' : '' %>" <% if (config.staticLabels) { %>data-static-labels<% } %> <% if (editingSubmittedPriceList) { %>data-pricelist-change-tracking data-record-id-field="<%= config.idField %>"<% } %>>
+    <form method="post" action="<%= mode === 'edit' ? '/settings/' + config.key + '/' + encodeURIComponent(record[config.idField]) : '/settings/' + config.key %>" class="invoice-form ui-surface<%= config.staticLabels ? ' entry-form pricing-master-form' : '' %>" <% if (config.staticLabels) { %>data-static-labels<% } %> <% if (editingSubmittedPriceList) { %>data-pricelist-change-tracking data-record-id-field="<%= config.idField %>"<% } %>>
       <% if (mode === 'edit') { const navigationSuffix = editSubmitted ? '?editing=1' : ''; %>
         <nav class="price-list-record-navigation" aria-label="Master records">
           <% if (neighbors.previous) { %>
@@ -39,7 +39,7 @@
           <% } %>
         </nav>
       <% } %>
-      <section class="form-grid">
+      <section class="form-grid ui-form-grid">
         <% config.fields.forEach((field) => { if (field.editOnly && mode !== 'edit') return; %>
           <% if (field.section) { %><h3 class="wide"><%= field.section %></h3><% } %>
           <label class="<%= field.className || '' %>">
@@ -93,7 +93,7 @@
           </label>
         <% }) %>
       </section>
-      <div class="actions<%= mode === 'edit' ? ' price-list-actions' : '' %>">
+      <div class="actions ui-form-footer<%= mode === 'edit' ? ' price-list-actions' : '' %>">
         <% if (mode === 'edit') { const isActive = config.key==='employees' ? record.status==='Active' : record.active === 1; %>
           <button type="submit" form="master-active-form" class="price-list-active-button price-list-action-switch" role="switch" aria-checked="<%= isActive %>" aria-label="<%= config.key==='employees' ? (isActive?'Mark Left':'Mark Active') : isActive ? 'Deactivate' : 'Activate' %> <%= config.singular.toLowerCase() %> <%= record[config.idField] %>" <%= (config.key==='employees' ? can('masters.employees.edit') : config.key === 'price-lists' ? canPriceListAction(record.price_list, isActive ? 'cancel' : 'submit') : can(`masters.${config.key}.${isActive ? 'cancel' : 'submit'}`)) ? '' : 'disabled' %>>
             <span class="price-list-active-track" aria-hidden="true"><span class="price-list-active-thumb"></span></span>

@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-list ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -17,7 +17,7 @@
       </nav>
     </header>
 
-    <form class="report-filters accounts-filters" method="get" action="/accounts" data-static-labels>
+    <form class="report-filters accounts-filters ui-toolbar ui-filter-row" method="get" action="/accounts" data-static-labels>
       <label><span>Search</span>
         <input type="search" name="q" value="<%= filters.q %>" placeholder="Account code or name">
       </label>
@@ -58,8 +58,9 @@
     </form>
     <p class="muted">Showing <%= accounts.length %> of <%= totalAccounts %> accounts.</p>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: `${accounts.length} records` } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Accounts table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -89,7 +90,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
     </section>
   </main>
 </body>

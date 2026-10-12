@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchase Orders</p>
@@ -15,11 +15,11 @@
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <% if (purchase.mixedWarehouses) { %><section class="notice warning">This order has items in multiple warehouses. Choose one warehouse before saving the draft.</section><% } %>
-    <form method="post" action="<%= purchase.id ? `/purchase-orders/${purchase.id}` : '/purchase-orders' %>" class="invoice-form entry-form" id="purchase-form" data-static-labels data-voucher-form data-prevent-enter-submit data-single-warehouse>
+    <form method="post" action="<%= purchase.id ? `/purchase-orders/${purchase.id}` : '/purchase-orders' %>" class="invoice-form entry-form ui-surface" id="purchase-form" data-static-labels data-voucher-form data-prevent-enter-submit data-single-warehouse>
       <datalist id="purchase-suppliers"></datalist>
       <datalist id="purchase-items-list"></datalist>
       <datalist id="purchase-warehouses"></datalist>
-      <section class="form-grid">
+      <section class="form-grid ui-form-grid">
         <label>Order Date<input type="date" name="posting_date" value="<%= purchase.posting_date || '' %>" required></label>
         <label>Posting Time<input type="time" name="posting_time" value="<%= purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() %>" required></label>
         <label>Expected Delivery Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
@@ -33,9 +33,9 @@
         <p role="status" data-lookup-message></p>
         <button type="button" class="button-light" data-lookup-retry hidden>Retry lookup</button>
       </div>
-      <div class="entry-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
+      <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
       <table class="editable entry-table" id="purchase-items">
-        <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Qty</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th></th></tr></thead>
         <tbody>
           <% (purchase.items && purchase.items.length ? purchase.items : [{}]).forEach((item, index) => { %>
             <tr>
@@ -52,7 +52,7 @@
       </table>
       </div>
       <label class="purchase-order-remarks">Remarks<textarea name="remarks" rows="3"><%= purchase.remarks || '' %></textarea></label>
-      <div class="actions">
+      <div class="actions ui-form-footer">
         <button type="button" class="button-light" id="add-purchase-row">Add Item</button>
         <div class="live-total"><span>Total</span><strong id="purchase-total">Ugx 0</strong></div>
         <button type="submit" data-voucher-save><%= purchase.id ? 'Save Draft' : 'Create Draft Order' %></button>

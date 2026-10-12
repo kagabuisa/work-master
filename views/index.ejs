@@ -5,10 +5,10 @@
   <%- include('partials-head') %>
 </head>
 <body class="home-page">
-  <main class="shell home-shell">
+  <main class="shell home-shell ui-page ui-page-dashboard">
     <section class="home-directory" aria-labelledby="home-directory-title">
-      <header class="home-directory-header">
-      <div class="home-directory-heading">
+      <header class="ui-dashboard-header">
+      <div class="ui-dashboard-brand">
         <img src="/work-master-logo.svg" width="48" height="48" alt="">
         <h1 id="home-directory-title">Work Master <span>- Work Starts Here</span></h1>
       </div>
@@ -16,27 +16,13 @@
       </header>
 
       <% if (sections.length) { %>
-        <div class="home-card-grid">
-          <% sections.forEach((section, index) => { %>
-            <article class="home-card home-card--<%= section.tone %>">
-              <div class="home-card-top">
-                <span class="home-card-number"><%= String(index + 1).padStart(2, '0') %> / <%= String(sections.length).padStart(2, '0') %></span>
-                <a class="home-card-open" href="<%= section.href %>" aria-label="Open <%= section.name %>"><span aria-hidden="true">↗</span></a>
-              </div>
-              <div class="home-card-body">
-                <h3><a href="<%= section.href %>"><%= section.name %></a></h3>
-                <p><%= section.description %></p>
-              </div>
-              <div class="home-card-links" aria-label="<%= section.name %> links">
-                <% section.links.forEach((link) => { %>
-                  <a href="<%= link.href %>"><span><%= link.label %></span><span aria-hidden="true">→</span></a>
-                <% }) %>
-              </div>
-            </article>
+        <div class="ui-dashboard-grid">
+          <% sections.forEach((section) => { %>
+            <%- include('ui-module-card', { module: section }) %>
           <% }) %>
         </div>
       <% } else { %>
-        <div class="home-empty">No sections are available for your account yet.</div>
+        <div class="ui-surface ui-dashboard-empty">No sections are available for your account yet.</div>
       <% } %>
     </section>
   </main>

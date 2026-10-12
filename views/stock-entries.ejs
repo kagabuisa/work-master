@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-list ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -14,7 +14,7 @@
       <nav><%- include('module-nav', { activeModule: 'stock' }) %><% if (can('vouchers.stock.create') && (currentUser.role === 'admin' || currentUser.scopes?.suppliers?.mode !== 'selected')) { %><a class="button" href="/stock/entries/new">New</a><% } %></nav>
     </header>
 
-    <form class="report-filters invoice-filters stock-entry-filters" method="get" action="/stock/entries">
+    <form class="report-filters invoice-filters stock-entry-filters ui-toolbar ui-filter-row" method="get" action="/stock/entries">
       <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Entry, item, supplier or remarks"></label>
       <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
       <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
@@ -41,8 +41,9 @@
       </div>
     </form>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: `${result.pagination.total} records` } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Stock Entries table" tabindex="0"><table class="ui-table">
         <thead>
           <tr><th>#</th><th>Entry</th><th>Date/Time</th><th>Type</th><th>Warehouse</th><th>Items</th><th>Cost Center</th><th>Status</th><th>Remarks</th></tr>
         </thead>
@@ -63,7 +64,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: result.pagination, query, basePath: '/stock/entries' }) %>
     </section>
   </main>

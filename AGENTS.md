@@ -1,5 +1,9 @@
 # Project instructions
 
+## Git credentials
+
+GitHub credentials are available in the local `.env` under `github_username` and `github_token`. Use them for authorized GitHub operations when needed. Never print, log, commit, or copy the token into documentation, remote URLs, or command arguments. Git author identity is configured locally for this repository; authentication credentials and commit author identity are separate settings.
+
 After every successfully completed change, run `docker compose up -d --build invoice-app` to rebuild and restart the local app before reporting completion. Finish the relevant checks first, then verify that the rebuilt app starts and responds on its configured local port. If checks or the rebuild fail, resolve the failure where possible and clearly report any remaining blocker; do not claim successful completion.
 
 Keep user-facing documentation current as the app develops. In the same change as a voucher, screen, validation, permission, or report change, update the relevant section of `docs/app-guide.md`. Update `docs/permissions.md` for access-rule changes and `README.md` for setup or operational changes. Verify descriptions against the implemented behavior and avoid documenting planned behavior as current behavior.

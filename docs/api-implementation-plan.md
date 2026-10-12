@@ -2,6 +2,16 @@
 
 Prepared: 10 October 2026. Status: proposed implementation; this document does not mean these features are available. Scope: one versioned API serving a mobile app and external business integrations. The existing website continues to use the same application data and business rules.
 
+## Development objective
+
+Updated: 12 October 2026. This objective describes intended development, not currently available functionality.
+
+Deliver a secure, documented, and versioned `/api/v1` service that enables authorized mobile users and integration accounts to access permitted master data and invoices, create and submit sales invoices, and record payments.
+
+The API must enforce existing business permissions, record-access restrictions, and accounting rules, while maintaining end-to-end transaction auditability.
+
+Implement a shared, durable idempotency mechanism across applicable API mutations. It must atomically commit business changes and idempotency results, safely handle concurrent requests and retries, return the original result for repeated requests with identical keys and payloads, and reject conflicting key reuse. Apply operation-specific state checks, concurrency controls, and unique external references where needed to prevent duplicate financial transactions. Document key requirements, retention periods, and retry behavior.
+
 ## 1. Executive recommendation
 
 Extend the existing Node/Express application with `/api/v1`. Keep PostgreSQL as the application system of record and reuse existing domain functions. Introduce shared application services for authorization, validation, and workflow orchestration so website and API requests produce equivalent results.
@@ -265,6 +275,8 @@ Track authentication failures, error rates, p95 latency by endpoint, database po
 Deploy behind a feature flag to internal testers, then one mobile pilot and one integration account. Release database changes, compatible application code, and worker configuration with a tested rollback procedure. If the API is disabled, preserve committed vouchers and pending events; rollback must not restore credentials or reverse financial postings. Back up new tables and signing-secret encryption configuration, and test restoration and queued-delivery recovery.
 
 ## 12. Implementation phases and indicative effort
+
+The [API service development roadmap](api-development-roadmap.md) defines the current core-release sequence, deliverables, dependencies, and acceptance gates for the saved objective. Its 25–41 working-day estimate includes explicit reliability and launch phases and supersedes the sales-MVP estimate below for that scoped release. The broader phases below remain indicative expansion planning; do not add both estimates together.
 
 Estimates are planning ranges for one experienced backend developer with frontend/client and reviewer availability. They exclude building the mobile UI, external-system adapters, procurement, and unknown data cleanup. Re-estimate after Phase 0; they are not delivery commitments.
 

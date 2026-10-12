@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Purchases</p>
@@ -15,19 +15,19 @@
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <% if (!purchase.purchase_order_id && typeof purchaseOrders !== 'undefined' && purchaseOrders.length) { %>
-      <form method="get" action="<%= purchase.id ? `/purchases/${purchase.id}/edit` : '/purchases/new' %>" class="invoice-card report-filters">
+      <form method="get" action="<%= purchase.id ? `/purchases/${purchase.id}/edit` : '/purchases/new' %>" class="invoice-card report-filters ui-toolbar ui-filter-row ui-surface">
         <label>Receive from Purchase Order<select name="purchase_order_id" required><option value="">Choose a submitted order</option><% purchaseOrders.forEach((order) => { %><option value="<%= order.id %>"><%= order.order_no %> · <%= order.supplier_name %></option><% }) %></select></label>
         <button type="submit">Load Order Items</button>
         <% if (purchase.id) { %><p>Loading an order replaces the current draft items and supplier when you save.</p><% } %>
       </form>
     <% } %>
     <% if (purchase.purchase_order_id) { %><p>Receiving from <% if (can('vouchers.purchase-orders.view')) { %><a href="/purchase-orders/<%= purchase.purchase_order_id %>"><%= purchase.purchase_order_no || `PO-${String(purchase.purchase_order_id).padStart(6, '0')}` %></a><% } else { %><%= purchase.purchase_order_no || `PO-${String(purchase.purchase_order_id).padStart(6, '0')}` %><% } %>. Adjust quantities to match what arrived.</p><% } %>
-    <form method="post" action="<%= purchase.id ? `/purchases/${purchase.id}` : '/purchases' %>" class="invoice-form entry-form" id="purchase-form" data-static-labels data-voucher-form data-purchase-order-id="<%= purchase.purchase_order_id || '' %>">
+    <form method="post" action="<%= purchase.id ? `/purchases/${purchase.id}` : '/purchases' %>" class="invoice-form entry-form ui-surface" id="purchase-form" data-static-labels data-voucher-form data-purchase-order-id="<%= purchase.purchase_order_id || '' %>">
       <input type="hidden" name="purchase_order_id" value="<%= purchase.purchase_order_id || '' %>">
       <datalist id="purchase-suppliers"></datalist>
       <datalist id="purchase-items-list"></datalist>
       <datalist id="purchase-warehouses"></datalist>
-      <section class="form-grid">
+      <section class="form-grid ui-form-grid">
         <label>Purchase Date<input type="date" name="posting_date" value="<%= purchase.posting_date || '' %>" required></label>
         <label>Posting Time<input type="time" name="posting_time" value="<%= purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() %>" required></label>
         <label>Due Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
@@ -41,9 +41,9 @@
         <p role="status" data-lookup-message></p>
         <button type="button" class="button-light" data-lookup-retry hidden>Retry lookup</button>
       </div>
-      <div class="entry-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
+      <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
       <table class="editable entry-table" id="purchase-items">
-        <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Warehouse</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Warehouse</th><th>Qty</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th></th></tr></thead>
         <tbody>
           <% (purchase.items && purchase.items.length ? purchase.items : [{}]).forEach((item, index) => { %>
             <tr>
@@ -60,7 +60,7 @@
         </tbody>
       </table>
       </div>
-      <div class="actions">
+      <div class="actions ui-form-footer">
         <button type="button" class="button-light" id="add-purchase-row" <%= purchase.purchase_order_id ? 'hidden' : '' %>>Add Item</button>
         <div class="live-total"><span>Total</span><strong id="purchase-total">Ugx 0</strong></div>
         <button type="submit" data-voucher-save>Save</button>

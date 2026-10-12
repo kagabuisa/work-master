@@ -39,6 +39,7 @@ const PERMISSIONS = [
   { key: 'accounts.view', label: 'View chart of accounts', group: 'Accounts and reports' },
   { key: 'accounts.manage', label: 'Create and edit accounts', group: 'Accounts and reports' },
   ...REPORTS.map((report) => ({ key: report.permission, label: `View ${report.label}`, group: 'Reports' })),
+  { key: 'reports.daily-activity.create', label: 'Create Daily Activity', group: 'Reports' },
   { key: 'sync.run', label: 'Run ERPNext sync', group: 'Administration' },
 ];
 const RECORD_ACTIONS = ['create', 'view', 'edit', 'submit', 'cancel', 'delete'];
@@ -64,14 +65,15 @@ const ROLE_RECORD_TYPES = [
   { key: 'payments.purchases', label: 'Supplier Payment', group: 'Payments', actions: ['create', 'cancel'],
     permissions: { create: 'payments.purchases.record', cancel: 'payments.purchases.cancel' } },
   ...REPORTS.map((report) => ({ key: `reports.${report.slug}`, label: report.label,
-    group: 'Reports', actions: ['view'], permissions: { view: report.permission } })),
+    group: 'Reports', actions: report.slug === 'daily-activity' ? ['view', 'create'] : ['view'],
+    permissions: { view: report.permission, ...(report.slug === 'daily-activity' ? { create: 'reports.daily-activity.create' } : {}) } })),
   { key: 'accounts', label: 'Accounts', group: 'Accounts', actions: ['create'], permissions: { create: 'accounts.manage' } },
   { key: 'chart-of-accounts', label: 'Chart of Accounts', group: 'Accounts', actions: ['view'], permissions: { view: 'accounts.view' } },
 ];
 const RECORD_PERMISSION_KEYS = new Set(ROLE_RECORD_TYPES.flatMap((type) => Object.values(type.permissions)));
 const EXTRA_PERMISSIONS = PERMISSIONS.filter((permission) => !RECORD_PERMISSION_KEYS.has(permission.key));
 const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('hr.') && !item.key.startsWith('masters.')
-  && !item.key.endsWith('.cancel') && !item.key.endsWith('.delete') && item.key !== 'sync.run').map((item) => item.key);
+  && item.key !== 'reports.daily-activity.create' && !item.key.endsWith('.cancel') && !item.key.endsWith('.delete') && item.key !== 'sync.run').map((item) => item.key);
 const PREVIOUS_ROUTINE_PERMISSIONS = [...ROUTINE_PERMISSIONS,
   ...PERMISSIONS.filter((item) => item.key.startsWith('masters.') && item.key.endsWith('.view')).map((item) => item.key)];
 const OLDER_ROUTINE_PERMISSIONS = PREVIOUS_ROUTINE_PERMISSIONS.filter((permission) =>

@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -15,12 +15,12 @@
         <%- include('module-nav', { activeModule: 'report' }) %>
       </nav>
     </header>
-    <section class="metrics">
+    <section class="metrics ui-report-metrics">
       <article><span>Sales</span><strong><%= money(report.summary.sales_amount) %></strong></article>
       <article><span>COGS</span><strong><%= money(report.summary.cost_amount) %></strong></article>
       <article><span>Gross Profit</span><strong><%= money(report.summary.gross_profit) %></strong></article>
     </section>
-    <form class="report-filters" method="get">
+    <form class="report-filters ui-toolbar ui-filter-row" method="get">
       <label>
         Search
         <input name="q" value="<%= report.filters.search %>" placeholder="Search gross profit" autocomplete="off" data-stock-report-item>
@@ -34,8 +34,8 @@
       </div>
     </form>
     <script src="/stock-report-filters.js"></script>
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface">
+      <div class="ui-table-scroll" role="region" aria-label="Gross Profit table" tabindex="0"><table class="ui-table">
         <thead><tr><th class="row-number">#</th><th>Date</th><th>Invoice</th><th>Customer</th><th class="item-code-col">Item Name</th><th class="warehouse-col">Warehouse</th><th>Sales</th><th>COGS</th><th>Gross Profit</th></tr></thead>
         <tbody>
           <% if (!report.rows.length) { %><tr><td colspan="9" class="empty">No gross profit rows found.</td></tr><% } %>
@@ -47,13 +47,13 @@
               <td><%= row.customer_name %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
-              <td><%= money(row.sales_amount) %></td>
-              <td><%= money(row.cost_amount) %></td>
-              <td><strong><%= money(row.gross_profit) %></strong></td>
+              <td class="ui-amount"><%= money(row.sales_amount) %></td>
+              <td class="ui-amount"><%= money(row.cost_amount) %></td>
+              <td class="ui-amount"><strong><%= money(row.gross_profit) %></strong></td>
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/gross-profit' }) %>
     </section>
   </main>

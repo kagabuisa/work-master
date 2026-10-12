@@ -1,11 +1,11 @@
 <% const paymentAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
-<section class="invoice-card payments-card sales-invoice-payments" id="receive-payment">
+<section class="invoice-card ui-surface payments-card sales-invoice-payments" id="receive-payment">
   <div class="section-title invoice-payments-title">
     <h2>Payments</h2>
     <span class="badge <%= invoice.status %>"><%- include('invoice-payment-status', { invoice, money }) -%></span>
   </div>
 
-  <table class="sales-invoice-items sales-payment-table">
+  <div class="ui-table-scroll" role="region" aria-label="Invoice Payments table" tabindex="0"><table class="ui-table sales-invoice-items sales-payment-table">
     <thead>
       <tr>
         <th class="row-number">#</th>
@@ -49,7 +49,7 @@
         </tr>
       <% }) %>
     </tbody>
-  </table>
+  </table></div>
 
   <% if (docstatus === 'submitted' && balanceDue > 0 && can('payments.sales.record')) { %>
     <form method="post" action="/invoices/<%= invoice.id %>/payments" class="payment-form">

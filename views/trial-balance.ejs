@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -16,13 +16,13 @@
       </nav>
     </header>
 
-    <section class="metrics">
+    <section class="metrics ui-report-metrics">
       <article><span>Closing Debit</span><strong><%= money(report.summary.closing_debit) %></strong></article>
       <article><span>Closing Credit</span><strong><%= money(report.summary.closing_credit) %></strong></article>
       <article><span>Status</span><strong><%= report.is_balanced ? 'Balanced' : 'Unbalanced' %></strong></article>
     </section>
 
-    <form class="report-filters" method="get">
+    <form class="report-filters ui-toolbar ui-filter-row" method="get">
       <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
       <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
       <div class="report-filter-actions">
@@ -31,8 +31,8 @@
       </div>
     </form>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface">
+      <div class="ui-table-scroll" role="region" aria-label="Trial Balance table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -75,7 +75,7 @@
             <th><%= money(report.summary.closing_credit) %></th>
           </tr>
         </tfoot>
-      </table>
+      </table></div>
     </section>
   </main>
 </body>

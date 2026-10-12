@@ -6,7 +6,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -17,13 +17,13 @@
       </nav>
     </header>
 
-    <section class="metrics general-ledger-metrics">
+    <section class="metrics general-ledger-metrics ui-report-metrics">
       <article><span>Debits</span><strong><%= money(report.summary.debit) %></strong></article>
       <article><span>Credits</span><strong><%= money(report.summary.credit) %></strong></article>
       <article><span>Net</span><strong><%= money(report.summary.balance) %></strong></article>
     </section>
 
-    <form class="report-filters general-ledger-filters" method="get">
+    <form class="report-filters general-ledger-filters ui-toolbar ui-filter-row" method="get">
       <label class="general-ledger-floating-field">
         <input name="q" value="<%= report.filters.search %>" placeholder=" " autocomplete="off">
         <span class="floating-label">Search</span>
@@ -61,16 +61,16 @@
       </div>
     </form>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface">
+      <div class="ui-table-scroll" role="region" aria-label="General Ledger table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
             <th>Date</th>
             <th>Account</th>
-            <th>Debit</th>
-            <th>Credit</th>
-            <th>Balance</th>
+            <th class="ui-amount">Debit</th>
+            <th class="ui-amount">Credit</th>
+            <th class="ui-amount">Balance</th>
             <th>Voucher Type</th>
             <th>Voucher No.</th>
             <th>Party</th>
@@ -88,7 +88,7 @@
               <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
               <td><%= row.debit ? money(row.debit) : '' %></td>
               <td><%= row.credit ? money(row.credit) : '' %></td>
-              <td><strong><%= money(row.running_balance) %></strong></td>
+              <td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
               <td><%= (row.voucher_type || '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') %></td>
               <td>
                 <% if (row.voucher_exists !== false && row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
@@ -126,7 +126,7 @@
             <th colspan="4"></th>
           </tr>
         </tfoot>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/general-ledger' }) %>
     </section>
   </main>

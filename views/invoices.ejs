@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-list ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Sales</p>
@@ -19,7 +19,7 @@
       </nav>
     </header>
     <%- include('sales-invoice-tabs', { activeInvoiceTab: 'list' }) %>
-    <form class="report-filters invoice-filters" method="get">
+    <form class="report-filters invoice-filters ui-toolbar ui-filter-row" method="get">
       <label>
         Search
         <input name="q" value="<%= search %>" placeholder="Search invoices">
@@ -48,16 +48,17 @@
       </div>
     </form>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: pagination ? `${pagination.total} records` : '' } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Invoices table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
             <th>Invoice</th>
             <th>Posting Date/Time</th>
             <th>Customer</th>
-            <th>Total</th>
-            <th>Paid</th>
+            <th class="ui-amount">Total</th>
+            <th class="ui-amount">Paid</th>
             <th>Document Status</th>
             <th>Payment Status</th>
           </tr>
@@ -75,14 +76,14 @@
               <td><a href="/invoices/<%= invoice.id %>" data-voucher-drawer="/invoices/<%= invoice.id %>/drawer"><%= invoice.invoice_no %></a></td>
               <td><%= formatDateTime(invoice.invoice_date, invoice.posting_time || '00:00') %></td>
               <td><%= invoice.customer_name %></td>
-              <td><%= money(invoice.total) %></td>
-              <td><%= money(invoice.amount_paid) %></td>
+              <td class="ui-amount"><%= money(invoice.total) %></td>
+              <td class="ui-amount"><%= money(invoice.amount_paid) %></td>
               <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
               <td><span class="badge <%= invoice.status %>"><%= paymentStatusLabel %></span></td>
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination, query, basePath: '/invoices' }) %>
     </section>
   </main>

@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell reconciliation-page">
+  <main class="shell reconciliation-page ui-page ui-page-list ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -16,7 +16,7 @@
         <% if (can('vouchers.stock.create') && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/reconciliations/new">New</a><% } %>
       </nav>
     </header>
-    <form class="report-filters invoice-filters stock-reconciliation-filters" method="get" action="/stock/reconciliations">
+    <form class="report-filters invoice-filters stock-reconciliation-filters ui-toolbar ui-filter-row" method="get" action="/stock/reconciliations">
       <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Voucher, item or remarks"></label>
       <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
       <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
@@ -31,8 +31,9 @@
       <label>Warehouse<input name="warehouse" value="<%= query.warehouse || '' %>" placeholder="Any warehouse"></label>
       <div class="report-filter-actions"><button type="submit">Apply</button><a class="button button-light" href="/stock/reconciliations">Reset</a></div>
     </form>
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: `${result.pagination.total} records` } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Stock Reconciliations table" tabindex="0"><table class="ui-table">
         <thead><tr><th>#</th><th>Voucher</th><th>Date/Time</th><th>Warehouse</th><th>Items</th><th>Status</th><th>Remarks</th></tr></thead>
         <tbody>
           <% if (!result.rows.length) { %><tr><td colspan="7" class="empty">No stock reconciliations found.</td></tr><% } %>
@@ -48,7 +49,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: result.pagination, query, basePath: '/stock/reconciliations' }) %>
     </section>
   </main>

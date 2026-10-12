@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Setup</p>
@@ -20,13 +20,12 @@
 
     <section class="grid settings-grid">
       <% if (currentUser.role === 'admin') { %>
-      <div class="settings-company-card">
-        <div class="section-title"><h2>Company Information</h2></div>
-        <p class="muted-text">These details appear on sales invoice previews and printouts.</p>
+      <div class="settings-company-card ui-surface">
+        <%- include('ui-section-heading', { heading: { title: 'Company Information', help: 'These details appear on sales invoice previews and printouts.' } }) %>
         <% if (companySaved) { %><section class="notice sync-notice" role="status">Company information saved.</section><% } %>
         <% if (companyError) { %><section class="notice warning" role="alert"><%= companyError %></section><% } %>
         <form method="post" action="/settings/company-information">
-          <div class="form-grid">
+          <div class="form-grid ui-form-grid">
             <label class="wide">Company Name<input name="name" value="<%= company.name || '' %>" maxlength="200" required autocomplete="organization"></label>
             <label class="wide">Address<textarea name="address" rows="3" maxlength="1000" autocomplete="street-address"><%= company.address || '' %></textarea></label>
             <label>Phone<input name="phone" type="tel" value="<%= company.phone || '' %>" maxlength="100" autocomplete="tel"></label>
@@ -35,18 +34,17 @@
             <label>Tax ID / TIN<input name="tax_id" value="<%= company.tax_id || '' %>" maxlength="100"></label>
             <label>Registration Number<input name="registration_number" value="<%= company.registration_number || '' %>" maxlength="100"></label>
           </div>
-          <div class="actions"><button type="submit">Save Company Information</button></div>
+          <div class="actions ui-form-footer"><button type="submit">Save Company Information</button></div>
           <%- include('record-audit', { record: company }) %>
         </form>
       </div>
 
-      <div class="settings-company-card">
-        <div class="section-title"><h2>Date and Time Format</h2></div>
-        <p class="muted-text">Choose how dates and times appear in vouchers and reports.</p>
+      <div class="settings-company-card ui-surface">
+        <%- include('ui-section-heading', { heading: { title: 'Date and Time Format', help: 'Choose how dates and times appear in vouchers and reports.' } }) %>
         <% if (dateTimeSaved) { %><section class="notice sync-notice" role="status">Date and time format saved.</section><% } %>
         <% if (dateTimeError) { %><section class="notice warning" role="alert"><%= dateTimeError %></section><% } %>
         <form method="post" action="/settings/date-time">
-          <div class="form-grid">
+          <div class="form-grid ui-form-grid">
             <label>Date Format
               <select name="date_format" required>
                 <option value="YYYY-MM-DD" <%= dateTimeSettings.date_format === 'YYYY-MM-DD' ? 'selected' : '' %>>YYYY-MM-DD (2026-09-29)</option>
@@ -62,14 +60,14 @@
               </select>
             </label>
           </div>
-          <div class="actions"><button type="submit">Save Date and Time Format</button></div>
+          <div class="actions ui-form-footer"><button type="submit">Save Date and Time Format</button></div>
         </form>
       </div>
 
       <% } %>
       <% if (can('sync.run')) { %>
-      <div class="settings-sync-card">
-        <div class="section-title">
+      <div class="settings-sync-card ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>ERPNext Sync</h2>
           <form method="post" action="/settings/erpnext-sync/sales-invoices">
             <button type="submit" <%= salesInvoiceSync.running ? 'disabled' : '' %>>
@@ -116,8 +114,8 @@
       </div>
       <% } %>
       <% if (can('masters.items.view')) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Items</h2>
           <% if (can('masters.items.create')) { %><a class="button" href="/settings/items/new">Add</a><% } %>
         </div>
@@ -125,8 +123,8 @@
       </div>
       <% } %>
       <% if (can('masters.price-lists.view') || canManageNamedPriceLists) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Price Lists</h2>
           <% if (can('masters.price-lists.create')) { %><a class="button" href="/settings/price-lists/new">Add</a><% } %>
         </div>
@@ -134,8 +132,8 @@
       </div>
       <% } %>
       <% if (can('masters.item-prices.view') || canCreateItemPrice) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Item Prices</h2>
           <% if (canCreateItemPrice) { %><a class="button" href="/settings/item-prices/new">Add</a><% } %>
         </div>
@@ -143,8 +141,8 @@
       </div>
       <% } %>
       <% if (can('masters.suppliers.view')) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Suppliers</h2>
           <% if (can('masters.suppliers.create')) { %><a class="button" href="/settings/suppliers/new">Add</a><% } %>
         </div>
@@ -152,8 +150,8 @@
       </div>
       <% } %>
       <% if (can('masters.customers.view')) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Customers</h2>
           <% if (can('masters.customers.create')) { %><a class="button" href="/settings/customers/new">Add</a><% } %>
         </div>
@@ -161,8 +159,8 @@
       </div>
       <% } %>
       <% if (can('masters.warehouses.view') || canViewNamedWarehouses) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Warehouses</h2>
           <% if (can('masters.warehouses.create')) { %><a class="button" href="/settings/warehouses/new">Add</a><% } %>
         </div>
@@ -170,8 +168,8 @@
       </div>
       <% } %>
       <% if (can('masters.employees.view') || canViewAssignedEmployees) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Employees</h2>
           <% if (can('masters.employees.create')) { %><a class="button" href="/settings/employees/new">Add</a><% } %>
         </div>
@@ -179,8 +177,8 @@
       </div>
       <% } %>
       <% if (can('masters.cost-centers.view') || canViewAssignedCostCenters) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Cost Centers</h2>
           <% if (can('masters.cost-centers.create')) { %><a class="button" href="/settings/cost-centers/new">Add</a><% } %>
         </div>
@@ -188,8 +186,8 @@
       </div>
       <% } %>
       <% if (can('masters.options.view')) { %>
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Options</h2>
           <% if (can('masters.options.create')) { %><a class="button" href="/settings/options/new">Add</a><% } %>
         </div>

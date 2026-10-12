@@ -8,7 +8,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -27,9 +27,9 @@
       <% if (entry.docstatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/stock/entries/<%= entry.id %>/delete" data-confirm="Delete this cancelled stock entry? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
     <% } %>
 
-    <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form" id="stock-entry-form" <%= stockEntryReadOnly ? '' : 'data-voucher-form' %>>
+    <form method="post" action="<%= entry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form ui-surface" id="stock-entry-form" <%= stockEntryReadOnly ? '' : 'data-voucher-form' %>>
       <datalist id="stock-warehouses"></datalist>
-      <section class="form-grid">
+      <section class="form-grid ui-form-grid">
         <label>
           Type
           <select name="entry_type" id="entry-type" required>
@@ -70,7 +70,7 @@
 
       <p id="stock-reconciliation-hint" class="field-hint" <%= selectedEntryType === 'reconciliation' ? '' : 'hidden' %>>Enter the physical count for each item and warehouse. Submitting adjusts stock from its current balance to the count.</p>
 
-      <table class="editable" id="stock-entry-items">
+      <div class="ui-table-scroll" role="region" aria-label="Stock Entry table" tabindex="0"><table class="editable" id="stock-entry-items">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -116,9 +116,9 @@
             <td><button type="button" class="button-light" data-remove-row>Remove</button></td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
-      <div class="actions">
+      <div class="actions ui-form-footer">
         <button type="button" class="button-light" id="add-stock-row">Add Row</button>
         <% if (!stockEntryReadOnly) { %>
           <input type="file" id="stock-entry-import-file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" hidden>
@@ -157,7 +157,7 @@
         Receipt / Invoice Reference
         <input name="supplier_reference">
       </label>
-      <div class="actions">
+      <div class="actions ui-form-footer">
         <button type="button" class="button-light" data-supplier-cancel>Cancel</button>
         <button type="submit">Save Supplier Info</button>
       </div>

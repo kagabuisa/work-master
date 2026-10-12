@@ -25,7 +25,7 @@ const { purchaseForPayment } = require('./purchases');
 
 const MASTER_KEYS = new Set(['customers', 'suppliers', 'items', 'warehouses', 'employees', 'cost-centers', 'options', 'price-lists', 'item-prices']);
 const UNSCOPED_VOUCHER_REPORTS = new Set([
-  'reports.daily-activity.view', 'reports.debtors.view',
+  'reports.daily-activity.view', 'reports.daily-activity.create', 'reports.debtors.view',
 ]);
 
 function can(user, permission) {
@@ -250,6 +250,11 @@ function permissionCheck(req) {
     return false;
   }
   if (parts[0] === 'reports') {
+    if (parts[1] === 'daily-activity' && (parts.length === 3 && parts[2] === 'new'
+      || parts.length === 2 && method === 'POST')) {
+      return (method === 'GET' && parts[2] === 'new' || method === 'POST' && parts.length === 2)
+        && all('reports.daily-activity.view', 'reports.daily-activity.create');
+    }
     const report = REPORTS.find((item) => item.slug === parts[1]);
     return method === 'GET' && Boolean(report && has(report.permission));
   }

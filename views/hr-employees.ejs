@@ -1,6 +1,6 @@
 <section class="invoice-card hr-card ui-surface hr-employee-directory" data-static-labels>
 <div class="hr-directory-heading"><div><%- include('ui-section-heading', { heading: { title: 'Employee directory' } }) %><p class="hr-section-description">Employment records, workplace assignments, and pay plans.</p></div><span class="hr-plan-count"><%= opts.employees.length %> <%= opts.employees.length===1?'employee':'employees' %></span></div>
-<div class="hr-directory-toolbar"><label>Find employee<input type="search" data-hr-search placeholder="Search name, ID, or company"></label></div>
+<div class="hr-directory-toolbar ui-toolbar ui-filter-row"><label>Find employee<input type="search" data-hr-search placeholder="Search name, ID, or company"></label></div>
 <div class="table-wrap ui-table-scroll"><table class="ui-table" data-hr-filter><thead><tr><th>Employee</th><th>ID</th><th>Company</th><th>Employment status</th><th>Shop / cost center</th><th>Joined</th><th>Leaving</th></tr></thead><tbody>
 <% opts.employees.forEach(e=>{ %><tr><td><a href="/hr/employees/<%= encodeURIComponent(e.employee_id) %>"><%= e.employee_name %></a></td><td><%= e.employee_id %></td><td><%= e.company %></td><td><%= e.status|| (e.disabled?'Inactive':'Active') %></td><td><%= e.cost_center %></td><td><%= formatDate(e.joining_date) %></td><td><%= formatDate(e.leaving_date) %></td></tr><% }) %>
 </tbody></table></div>

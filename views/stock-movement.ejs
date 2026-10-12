@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -16,7 +16,7 @@
         <%- include('stock-new-menu') %>
       </nav>
     </header>
-    <form class="report-filters stock-movement-filters" method="get">
+    <form class="report-filters stock-movement-filters ui-toolbar ui-filter-row" method="get">
       <datalist id="stock-report-warehouses"></datalist>
       <label>
         Item
@@ -35,14 +35,14 @@
       </div>
     </form>
     <script src="/stock-report-filters.js"></script>
-    <section class="metrics">
+    <section class="metrics ui-report-metrics">
       <article><span>Opening Qty</span><strong><%= Number(report.summary.opening_qty || 0).toLocaleString() %></strong></article>
       <article><span>In Qty</span><strong><%= Number(report.summary.in_qty || 0).toLocaleString() %></strong></article>
       <article><span>Out Qty</span><strong><%= Number(report.summary.out_qty || 0).toLocaleString() %></strong></article>
       <article><span>Closing Value</span><strong><%= money(report.summary.closing_value || 0) %></strong></article>
     </section>
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface">
+      <div class="ui-table-scroll" role="region" aria-label="Stock Movement table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -105,15 +105,15 @@
                 <% } %>
               </td>
               <td><%= Number(row.closing_qty || 0).toLocaleString() %></td>
-              <td><%= money(row.opening_value) %></td>
-              <td><%= money(row.value_change) %></td>
-              <td><strong><%= money(row.closing_value) %></strong></td>
+              <td class="ui-amount"><%= money(row.opening_value) %></td>
+              <td class="ui-amount"><%= money(row.value_change) %></td>
+              <td class="ui-amount"><strong><%= money(row.closing_value) %></strong></td>
             </tr>
             <tr class="movement-detail-row" id="<%= inDetailsId %>" hidden><td colspan="10"><div class="movement-detail" data-movement-detail></div></td></tr>
             <tr class="movement-detail-row" id="<%= outDetailsId %>" hidden><td colspan="10"><div class="movement-detail" data-movement-detail></div></td></tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/stock-movement' }) %>
     </section>
   </main>

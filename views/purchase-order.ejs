@@ -4,13 +4,13 @@
 <!doctype html>
 <html lang="en">
 <head><title><%= order.order_no %></title><%- include('partials-head') %></head>
-<body><main class="shell">
+<body><main class="shell ui-page ui-page-form">
   <header class="topbar"><div><p class="eyebrow">Purchase Order</p>
     <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: order.order_no }] }) %>
   </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav></header>
   <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
-  <section class="invoice-card">
-    <div class="section-title"><h2>Purchase Order</h2><div class="actions">
+  <section class="invoice-card ui-surface">
+    <div class="section-title ui-section-heading"><h2>Purchase Order</h2><div class="actions">
       <% if (order.docstatus === 'draft') { %>
         <% if (can('vouchers.purchase-orders.edit')) { %><a class="button button-light" href="/purchase-orders/<%= order.id %>/edit">Edit</a><% } %>
         <% if (can('vouchers.purchase-orders.delete')) { %><form method="post" action="/purchase-orders/<%= order.id %>/delete" class="inline-form" data-confirm="Delete this draft purchase order? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
@@ -34,14 +34,14 @@
     <p>Warehouse: <strong><%= orderWarehouse || 'Multiple warehouses' %></strong></p>
     <% if (order.cost_center) { %><p>Cost Center: <strong><%= order.cost_center %></strong></p><% } %>
     <% if (order.supplier_reference) { %><p>Supplier reference: <strong><%= order.supplier_reference %></strong></p><% } %>
-    <table><thead><tr><th>#</th><th>Item</th><% if (mixedWarehouses) { %><th>Warehouse</th><% } %><th>Qty Ordered</th><th>Qty Received</th><th>Remaining</th><th>Unit Cost</th><th>Total</th></tr></thead>
+    <div class="ui-table-scroll" role="region" aria-label="Purchase Order table" tabindex="0"><table class="ui-table"><thead><tr><th>#</th><th>Item</th><% if (mixedWarehouses) { %><th>Warehouse</th><% } %><th>Qty Ordered</th><th>Qty Received</th><th>Remaining</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th></tr></thead>
       <tbody><% order.items.forEach((item, index) => { %><tr>
         <td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td>
         <% if (mixedWarehouses) { %><td><%= item.warehouse %></td><% } %><td><%= Number(item.quantity).toLocaleString() %></td>
         <td><%= Number(item.received || 0).toLocaleString() %></td><td><%= Math.max(0, Math.round((Number(item.quantity) - Number(item.received || 0)) * 1000) / 1000).toLocaleString() %></td>
-        <td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td>
+        <td class="ui-amount"><%= money(item.unit_price) %></td><td class="ui-amount"><%= money(item.line_total) %></td>
       </tr><% }) %></tbody>
-    </table>
+    </table></div>
     <dl class="totals"><div class="grand"><dt>Total</dt><dd><%= money(order.total) %></dd></div></dl>
     <% if (order.remarks) { %><p class="notes"><%= order.remarks %></p><% } %>
     <% if (order.invoices && order.invoices.length && can('vouchers.purchases.view')) { %><p>Purchase invoices: <% order.invoices.forEach((invoice, index) => { %><% if (index) { %>, <% } %><a href="/purchases/<%= invoice.id %>"><%= invoice.purchase_no %></a> (<%= invoice.docstatus %>)<% }) %></p><% } %>

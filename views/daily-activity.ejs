@@ -8,13 +8,16 @@
   <main class="shell daily-activity-page ui-page ui-page-report">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Reports · ERPNext</p>
+        <p class="eyebrow">Reports · <%= report.source === 'erpnext' ? 'ERPNext reference' : 'Daily Activity' %></p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Reports', href: availableReports[0]?.href || '/reports/daily-activity' }, { label: 'Daily Activity Rpt' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
+      <nav><%- include('module-nav', { activeModule: 'report' }) %>
+        <% if (report.source !== 'erpnext' && can('reports.daily-activity.create')) { %><a class="button" href="/reports/daily-activity/new">New Daily Activity</a><% } %>
+        <a class="button button-light" href="<%= report.source === 'erpnext' ? '/reports/daily-activity' : '/reports/daily-activity/reference' %>"><%= report.source === 'erpnext' ? 'Local reports' : 'ERPNext reference' %></a>
+      </nav>
     </header>
 
-    <form class="report-filters daily-activity-filters ui-toolbar" method="get">
+    <form class="report-filters daily-activity-filters ui-toolbar ui-filter-row" method="get">
       <label>From<input type="date" name="from" value="<%= report.filters.from %>" required></label>
       <label>To<input type="date" name="to" value="<%= report.filters.to %>" required></label>
       <label>Shop/Unit<input name="shop" value="<%= report.filters.shop %>" placeholder="Search shop or unit"></label>
@@ -22,7 +25,7 @@
         <% [['0', 'Draft'], ['1', 'Submitted'], ['2', 'Cancelled']].forEach(([value, label]) => { %><option value="<%= value %>" <%= report.filters.status === value ? 'selected' : '' %>><%= label %></option><% }) %>
       </select></label>
       <label>Search<input name="q" value="<%= report.filters.search %>" placeholder="DAR number or details"></label>
-      <div class="report-filter-actions"><button type="submit">Apply</button><a class="button button-light" href="/reports/daily-activity">Reset</a></div>
+      <div class="report-filter-actions"><button type="submit">Apply</button><a class="button button-light" href="<%= report.basePath || '/reports/daily-activity' %>">Reset</a></div>
     </form>
 
     <section class="metrics daily-activity-metrics ui-report-metrics" aria-label="Daily activity totals">
@@ -33,7 +36,7 @@
     </section>
 
     <section class="invoice-card report-section daily-activity-results ui-surface ui-results">
-      <%- include('ui-section-heading', { heading: { title: 'ERPNext vouchers', meta: `${report.pagination.start}–${report.pagination.end} of ${report.summary.total}`, help: 'Daily Activity Report vouchers from ERPNext. Use the date, shop, status, and search filters to narrow the results.' } }) %>
+      <%- include('ui-section-heading', { heading: { title: report.source === 'erpnext' ? 'ERPNext reference vouchers' : 'Daily Activity vouchers', meta: `${report.pagination.start}–${report.pagination.end} of ${report.summary.total}`, help: report.source === 'erpnext' ? 'Read-only ERPNext reference vouchers. New reports are saved in this app.' : 'Daily Activity drafts saved in this app. Use the date, shop, status, and search filters to narrow the results.' } }) %>
       <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Daily activity vouchers" tabindex="0">
         <table class="daily-activity-table ui-table">
           <thead><tr><th>#</th><th>Voucher</th><th>Date</th><th>Shop/Unit</th><th>Sales</th><th>Expense</th><th>Balance to be banked</th><th>Expense Details</th><th>Stock Entry</th><th>Packages</th><th>Delivery differences?</th><th>Market Information</th><th>Status</th></tr></thead>
@@ -59,7 +62,7 @@
           </tbody>
         </table>
       </div>
-      <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/daily-activity' }) %>
+      <%- include('pagination', { pagination: report.pagination, query, basePath: report.basePath || '/reports/daily-activity' }) %>
     </section>
   </main>
 </body>

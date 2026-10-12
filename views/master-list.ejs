@@ -18,7 +18,7 @@
     </header>
 
     <% if (config.key === 'item-prices') { %>
-      <form class="item-price-filters ui-toolbar" method="get" data-static-labels>
+      <form class="item-price-filters ui-toolbar ui-filter-row" method="get" data-static-labels>
         <label class="app-floating-field app-floating-choice"><span class="app-floating-label">Search Item Prices</span>
           <input name="q" value="<%= search %>" type="search" placeholder="Item code, name, or price list" autocomplete="off" data-item-price-search>
         </label>
@@ -40,7 +40,7 @@
         <span class="field-hint item-price-filter-status" id="item-price-code-status" role="status"></span>
       </form>
     <% } else if (config.key === 'employees') { %>
-      <form class="employee-list-toolbar ui-toolbar" method="get" data-static-labels>
+      <form class="employee-list-toolbar ui-toolbar ui-filter-row" method="get" data-static-labels>
         <label class="employee-list-search">
           <span>Find employee</span>
           <input type="search" name="q" value="<%= search %>" placeholder="Search name, ID, or department" autocomplete="off">
@@ -58,7 +58,7 @@
         </div>
       </form>
     <% } else { %>
-      <form class="search ui-toolbar" method="get">
+      <form class="search ui-toolbar ui-filter-row" method="get">
         <label><input name="q" value="<%= search %>" placeholder="Search <%= config.title.toLowerCase() %>" autocomplete="off">Search <%= config.title %></label>
         <button type="submit">Search</button>
         <% if (search) { %><a class="button button-light" href="/settings/<%= config.key %>">Reset</a><% } %>

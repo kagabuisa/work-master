@@ -6,7 +6,7 @@
   <script src="/project-files.js?v=<%= assetVersion %>" defer></script>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Administration</p>
@@ -35,7 +35,7 @@
     <% if (uploaded) { %><div class="notice files-notice" role="status"><%= uploaded %> <%= uploaded === 1 ? 'file' : 'files' %> uploaded successfully.</div><% } %>
 
     <div class="files-layout">
-      <section class="files-browser" aria-labelledby="files-browser-title">
+      <section class="files-browser ui-surface" aria-labelledby="files-browser-title">
         <div class="files-browser-top">
           <div>
             <p class="files-overline">BROWSE</p>
@@ -53,14 +53,13 @@
           <% }) %>
         </nav>
 
-        <label class="files-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
-          <span class="sr-only">Search this folder</span>
+        <div class="ui-form-grid"><label>
+          <span>Search this folder</span>
           <input type="search" placeholder="Search this folder..." data-files-search>
-        </label>
+        </label></div>
 
-        <div class="files-table-wrap">
-          <table class="files-table">
+        <div class="files-table-wrap ui-table-scroll">
+          <table class="ui-table files-table">
             <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th><span class="sr-only">Action</span></th></tr></thead>
             <tbody>
               <% items.forEach((item) => { %>

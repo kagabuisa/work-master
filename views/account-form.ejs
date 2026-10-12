@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -20,8 +20,8 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <form method="post" action="<%= editing ? `/accounts/${account.id}` : '/accounts' %>" class="invoice-form">
-      <section class="form-grid">
+    <form method="post" action="<%= editing ? `/accounts/${account.id}` : '/accounts' %>" class="invoice-form ui-surface">
+      <section class="form-grid ui-form-grid">
         <label>
           Account Code
           <input name="account_code" value="<%= account.account_code || '' %>" placeholder="5200" required>
@@ -66,7 +66,7 @@
           </label>
         <% } %>
       </section>
-      <div class="actions">
+      <div class="actions ui-form-footer">
         <a class="button button-light" href="/accounts">Cancel</a>
         <button type="submit"><%= editing ? 'Save Changes' : 'Create Account' %></button>
       </div>

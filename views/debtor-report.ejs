@@ -28,7 +28,7 @@
     paymentParams.set('view', 'payment');
     const paymentReturnTo = `/reports/debtors?${paymentParams.toString()}`;
   %>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Reports</p>
@@ -49,7 +49,7 @@
     </nav>
 
     <% if (isListView) { %>
-    <form class="report-filters debtor-filters" method="get">
+    <form class="report-filters debtor-filters ui-toolbar ui-filter-row" method="get">
       <label class="debtor-customer-filter">
         <span>Customer:</span>
         <input name="q" value="<%= report.filters.search %>" placeholder="Search debtors" list="statement-customers">
@@ -73,7 +73,7 @@
       </div>
     </form>
 
-    <section class="metrics debtor-metrics" aria-label="Debtors summary">
+    <section class="metrics debtor-metrics ui-report-metrics ui-metrics-compact" aria-label="Debtors summary">
       <article>
         <span>Debtors</span>
         <strong><%= report.summary.customer_count %></strong>
@@ -99,11 +99,9 @@
       </section>
     <% } %>
 
-    <section class="invoice-card report-section">
-      <div class="section-title">
-        <h2>Debtor Aging</h2>
-      </div>
-      <table>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Debtor Aging' } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Debtor Report table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -115,7 +113,7 @@
             <th>61-90</th>
             <th>Over 90</th>
             <th>Unallocated</th>
-            <th>Balance</th>
+            <th class="ui-amount">Balance</th>
             <th></th>
           </tr>
         </thead>
@@ -130,13 +128,13 @@
                 <a class="debtor-name" href="/reports/debtors?<%= customerParams.toString() %>"><%= debtor.customer_id || debtor.customer_name %></a>
               </td>
               <td><%= debtor.invoice_count %></td>
-              <td><%= money(debtor.current) %></td>
-              <td><%= money(debtor.days_1_30) %></td>
-              <td><%= money(debtor.days_31_60) %></td>
-              <td><%= money(debtor.days_61_90) %></td>
-              <td><%= money(debtor.days_over_90) %></td>
-              <td><%= money(debtor.unallocated || 0) %></td>
-              <td><strong><%= money(debtor.balance_due) %></strong></td>
+              <td class="ui-amount"><%= money(debtor.current) %></td>
+              <td class="ui-amount"><%= money(debtor.days_1_30) %></td>
+              <td class="ui-amount"><%= money(debtor.days_31_60) %></td>
+              <td class="ui-amount"><%= money(debtor.days_61_90) %></td>
+              <td class="ui-amount"><%= money(debtor.days_over_90) %></td>
+              <td class="ui-amount"><%= money(debtor.unallocated || 0) %></td>
+              <td class="ui-amount"><strong><%= money(debtor.balance_due) %></strong></td>
               <td class="actions-cell">
                 <a href="/reports/debtors?<%= customerParams.toString() %>">View</a>
               </td>
@@ -159,15 +157,15 @@
             </tr>
           </tfoot>
         <% } %>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/debtors' }) %>
     </section>
 
     <% } %>
 
     <% if (isFullStatement) { %>
-      <section class="invoice-card report-section debtor-full-statement" data-statement data-export-name="<%= report.selected.customer_name %>-statement.csv">
-        <div class="section-title statement-heading">
+      <section class="invoice-card report-section debtor-full-statement ui-surface" data-statement data-export-name="<%= report.selected.customer_name %>-statement.csv">
+        <div class="section-title statement-heading ui-section-heading">
           <div>
             <p class="eyebrow">Statement</p>
             <h2><%= report.selected.customer_name %></h2>
@@ -190,7 +188,7 @@
     <% } %>
 
     <% if (isPaymentView) { const paymentInvoice = paymentData.invoice; const paymentDocstatus = paymentInvoice.docstatus || 'submitted'; const paymentHistory = Array.isArray(paymentInvoice.payments) ? paymentInvoice.payments : []; const paymentBalance = Math.max(0, Number(paymentInvoice.total || 0) - Number(paymentInvoice.amount_paid || 0)); %>
-      <div class="section-title statement-heading payment-tab-heading">
+      <div class="section-title statement-heading payment-tab-heading ui-section-heading">
         <div>
           <p class="eyebrow">Receive payment</p>
           <h2><%= paymentInvoice.customer_name %> · <a href="/invoices/<%= paymentInvoice.id %>" data-voucher-drawer="/invoices/<%= paymentInvoice.id %>/drawer"><%= paymentInvoice.invoice_no %></a></h2>
@@ -222,7 +220,7 @@
             <strong><%= money(report.statementBalance) %></strong>
             <small><%= report.selected.invoice_count %> invoice<%= Number(report.selected.invoice_count) === 1 ? '' : 's' %></small>
           </div>
-          <form class="statement-date-range" method="get" action="/reports/debtors">
+          <form class="statement-date-range ui-toolbar ui-filter-row" method="get" action="/reports/debtors">
             <input type="hidden" name="customer" value="<%= report.selected.customer_key %>">
             <% if (report.filters.search) { %><input type="hidden" name="q" value="<%= report.filters.search %>"><% } %>
             <label>
@@ -248,7 +246,7 @@
             <a class="button button-light" href="/reports/debtors?<%= statementParams.toString() %>">Open Full Statement</a>
           </div>
           <section class="statement-transactions">
-            <div class="section-title">
+            <div class="section-title ui-section-heading">
               <h3>Transactions</h3>
               <span><%= report.statement.length %> entr<%= report.statement.length === 1 ? 'y' : 'ies' %></span>
             </div>

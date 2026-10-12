@@ -8,7 +8,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell reconciliation-page">
+  <main class="shell reconciliation-page ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory · Physical count</p>
@@ -50,8 +50,8 @@
 
     <form id="reconciliation-form" method="post" action="<%= saved ? `/stock/reconciliations/${entry.id}` : '/stock/reconciliations' %>" data-voucher-form>
       <% if (!isReadOnly) { %>
-      <section class="invoice-card reconciliation-details">
-        <div class="form-grid">
+      <section class="invoice-card reconciliation-details ui-surface">
+        <div class="form-grid ui-form-grid">
           <label>Warehouse
             <input id="reconciliation-warehouse" name="warehouse" list="reconciliation-warehouses" autocomplete="off" value="<%= warehouse || '' %>" <%= saved ? 'readonly' : '' %> required>
             <datalist id="reconciliation-warehouses"></datalist>
@@ -65,7 +65,7 @@
       </section>
       <% } %>
 
-      <section class="metrics reconciliation-metrics" aria-label="Count summary">
+      <section class="metrics reconciliation-metrics ui-report-metrics" aria-label="Count summary">
         <article><div class="reconciliation-metric-row"><span>Lines counted</span><strong id="reconciliation-lines">0</strong></div></article>
         <article class="reconciliation-gain-metric">
           <div class="reconciliation-metric-row"><span>Gained</span><strong><span id="reconciliation-gain">0</span><span class="reconciliation-metric-divider"> / </span><span id="reconciliation-gain-value">Ugx 0</span></strong></div>
@@ -76,7 +76,7 @@
         <article><div class="reconciliation-metric-row"><span>Net value difference</span><strong id="reconciliation-value">Ugx 0</strong></div></article>
       </section>
 
-      <section class="invoice-card reconciliation-count-card">
+      <section class="invoice-card reconciliation-count-card ui-surface">
         <div class="reconciliation-section-heading">
           <div class="reconciliation-section-title"><h2>Count sheet</h2><span class="reconciliation-variance-summary" id="reconciliation-variance-summary" aria-live="polite">No differences yet</span></div>
           <div class="actions reconciliation-sheet-actions">
@@ -89,7 +89,7 @@
         </div>
         <p class="field-hint">Choose a warehouse, download the Excel template, and fill Counted Qty. Blank counts are ignored; enter 0 for zero stock. Upload an .xlsx file up to 5 MB to fill a new or draft voucher, then review and save.</p>
         <p id="reconciliation-sheet-status" role="status" hidden></p>
-        <div class="entry-table-scroll" role="region" aria-label="Reconciliation items" tabindex="0">
+        <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Reconciliation items" tabindex="0">
           <table class="editable entry-table reconciliation-table">
             <thead><tr><th>#</th><th>Item</th><th>Book Qty</th><th>Counted Qty</th><th>Qty difference</th><th>Rate</th><th>Value difference</th><th></th></tr></thead>
             <tbody id="reconciliation-rows"></tbody>

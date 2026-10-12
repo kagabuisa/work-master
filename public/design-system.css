@@ -157,3 +157,164 @@
   .ui-page.hr-shell .hr-settings-holiday > label { grid-column: 1 / -1; }
   .ui-page.hr-shell .hr-settings-calendar { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Shared responsive grids for non-HR forms and report filters. */
+.ui-form-grid > .ui-form-footer { grid-column: 1 / -1; }
+.ui-page:not(.hr-shell) .ui-form-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); min-width: 0; align-items: end; }
+.ui-page .ui-toolbar > label { position: relative; }
+.ui-page .ui-toolbar .report-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ui-page .ui-table td.ui-amount, .ui-page .ui-table th.ui-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ui-page:not(.hr-shell) .ui-section-heading > h1,
+.ui-page:not(.hr-shell) .ui-section-heading > h2 { margin: 0; font-size: 16px; line-height: 1.4; }
+@media (max-width: 600px) {
+  .ui-page:not(.hr-shell) .ui-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .ui-page .ui-toolbar .report-filter-actions { flex-basis: 100%; }
+}
+@media print {
+  .ui-page .ui-table-scroll { overflow: visible; }
+  .ui-page .ui-toolbar, .ui-page .server-pagination { display: none; }
+}
+
+/* Compact report summaries keep full amounts inside each card. */
+.ui-page .ui-report-metrics.ui-metrics-compact {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-3);
+}
+.ui-page .ui-metrics-compact article {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  padding: 8px 10px;
+}
+.ui-page .ui-metrics-compact article span {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.ui-page .ui-metrics-compact article strong {
+  min-width: 0;
+  max-width: 100%;
+  font-size: clamp(10px, .9vw, 12px);
+  line-height: 1.3;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dashboard template: compact module directory with permission-filtered links. */
+.ui-page-dashboard { padding-top: 12px; padding-bottom: 16px; }
+.ui-dashboard-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.ui-dashboard-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ui-dashboard-brand img { flex: 0 0 auto; width: 36px; height: 36px; border-radius: var(--ui-radius); }
+.ui-dashboard-brand h1 { margin: 0; font-size: 20px; line-height: 1.3; color: var(--heading); }
+.ui-dashboard-brand h1 span { color: var(--muted); font-size: 12px; font-weight: 400; }
+.ui-dashboard-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.ui-page .ui-module-card { flex: 1 1 300px; min-width: 0; margin: 0; padding: 12px; border-top: 2px solid var(--card-accent, var(--accent)); }
+.ui-module-card .ui-section-heading { margin-bottom: 8px; gap: 8px; }
+.ui-module-card .ui-section-title h2 { font-size: 14px; }
+.ui-module-card .ui-section-title h2 a { color: var(--heading); font-size: inherit; font-weight: inherit; overflow-wrap: anywhere; }
+.ui-module-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 2px 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.ui-module-links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 28px; padding: 4px 6px; border-radius: 4px; color: var(--text); font-size: 12px; line-height: 1.4; }
+.ui-module-links a span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.ui-module-links a span:last-child { flex: 0 0 auto; color: var(--muted); }
+.ui-module-links a:hover { background: #f2f8f7; color: var(--accent); }
+.ui-module-links a:focus-visible, .ui-module-card h2 a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-page .ui-dashboard-empty { padding: 16px; color: var(--muted); font-size: 12px; }
+@media (max-width: 600px) {
+  .ui-dashboard-header { align-items: start; gap: 8px; }
+  .ui-dashboard-brand h1 { font-size: 18px; }
+  .ui-dashboard-brand h1 span { display: block; }
+  .ui-dashboard-header .home-account-bar { flex: 1 1 100%; }
+  .ui-page .ui-module-card { flex-basis: 100%; }
+}
+@media (pointer: coarse) { .ui-module-links a { min-height: 36px; } }
+
+
+/* All search/filter bars keep controls and actions on one horizontal row. */
+.ui-page .ui-toolbar.ui-filter-row {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-top: 16px;
+  padding-bottom: 12px;
+}
+.ui-page .ui-filter-row.ui-toolbar > label {
+  flex: 1 1 0;
+  min-width: 112px;
+  width: auto;
+  margin: 0;
+  align-self: end;
+}
+.ui-page .ui-filter-row.ui-toolbar > label:has(input[name="q"], input[type="search"]) { min-width: 160px; }
+.ui-page .ui-filter-row.ui-toolbar input:not([type="checkbox"]):not([type="hidden"]),
+.ui-page .ui-filter-row.ui-toolbar select { width: 100%; box-sizing: border-box; }
+.ui-page .ui-filter-row.ui-toolbar > div,
+.ui-page .ui-filter-row.ui-toolbar > button,
+.ui-page .ui-filter-row.ui-toolbar > .button { flex: 0 0 auto; margin: 0; }
+.ui-page .ui-filter-row.ui-toolbar .report-filter-actions,
+.ui-page .ui-filter-row.ui-toolbar .item-price-filter-actions,
+.ui-page .ui-filter-row.ui-toolbar .employee-list-search-actions {
+  display: flex;
+  flex-flow: row nowrap;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin: 0;
+  white-space: nowrap;
+}
+.ui-page .ui-filter-row.ui-toolbar button,
+.ui-page .ui-filter-row.ui-toolbar .button { flex: 0 0 auto; width: auto; white-space: nowrap; }
+.ui-page .ui-filter-row.ui-toolbar .employee-list-status-field { flex: 0 0 auto; }
+.ui-page .ui-filter-row .results[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  max-height: min(280px, 45vh);
+  overflow: auto;
+}
+.ui-page .ui-filter-row .results[popover]:not(:popover-open) { display: none; }
+@media (pointer: coarse) {
+  .ui-page .ui-filter-row.ui-toolbar input:not([type="checkbox"]):not([type="hidden"]),
+  .ui-page .ui-filter-row.ui-toolbar select,
+  .ui-page .ui-filter-row.ui-toolbar button,
+  .ui-page .ui-filter-row.ui-toolbar .button { min-height: 36px; }
+}
+/* Column selection stays a disclosure beside the filter actions. */
+.ui-page .ui-filter-row.ui-toolbar > .invoice-report-columns {
+  flex: 0 0 auto;
+  align-self: end;
+  border: 0;
+  padding: 0;
+}
+.ui-page .ui-filter-row.ui-toolbar > .invoice-report-columns > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--ui-control-height);
+  white-space: nowrap;
+}
+
+.ui-page .ui-filter-row .ui-filter-panel[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 12px;
+  box-sizing: border-box;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 18px #00000012;
+}
+.ui-page .ui-filter-row .ui-filter-panel[popover]:not(:popover-open) { display: none; }

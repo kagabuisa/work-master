@@ -2,6 +2,8 @@
 // /reports routes. Mounted at /reports by server.js.
 const express = require('express');
 const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity');
+const { localDailyActivityReport, localDailyActivityVoucher } = require('../local-daily-activity');
+const { createDailyActivity, dailyActivityFormOptions, UNIT_TYPES, DELIVERY_OPTIONS } = require('../daily-activity-create');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 const { accountAccessOptions, hrLedgerAccessOptions } = require('../helpers');
 const { selectedCategories } = require('../../access');
@@ -26,19 +28,72 @@ const { sendCustomerStatementPdf } = require('../customer-statement-pdf');
 const { sendGeneralLedgerDownload } = require('../ledger-export-jobs');
 const router = express.Router();
 
+function dailyActivityError(err, req, res, next) {
+  if (err.code !== 'DAILY_ACTIVITY_SOURCE_UNAVAILABLE') return next(err);
+  console.error('daily_activity_source_unavailable', {
+    path: req.path, code: err.cause?.code || 'MISSING_CONFIGURATION',
+  });
+  res.status(503).render('error', { status: 503, message: err.message });
+}
+
 router.get('/daily-activity', async (req, res, next) => {
   try {
-    const report = await dailyActivityReport(req.query);
+    const report = await localDailyActivityReport(req.query, req.currentUser);
     res.render('daily-activity', { report, query: req.query, money });
-  } catch (err) { next(err); }
+  } catch (err) { dailyActivityError(err, req, res, next); }
+});
+
+function dailyActivityForm(res, record, options, error = '') {
+  return res.render('daily-activity-form', { record, options, error, unitTypes: UNIT_TYPES,
+    deliveryOptions: DELIVERY_OPTIONS });
+}
+
+router.get('/daily-activity/new', async (req, res, next) => {
+  try {
+    const options = await dailyActivityFormOptions(req.currentUser);
+    dailyActivityForm(res, { date: todayString(), unit_type: 'Shop', sales: '0', expense: '0',
+      packages_received: '0', leads: '0', delivery_differences: 'No' }, options);
+  } catch (err) { dailyActivityError(err, req, res, next); }
+});
+
+router.post('/daily-activity', async (req, res, next) => {
+  try {
+    const voucher = await createDailyActivity(req.body, req.currentUser);
+    res.redirect(303, `/reports/daily-activity/${encodeURIComponent(voucher.name)}`);
+  } catch (err) {
+    if ([400, 403, 503].includes(err.status)) {
+      const options = await dailyActivityFormOptions(req.currentUser).catch(() => ({ shops: [], warehouses: [] }));
+      return dailyActivityForm(res.status(err.status), req.body, options, err.message);
+    }
+    next(err);
+  }
+});
+
+router.get('/daily-activity/reference', async (req, res, next) => {
+  try {
+    const report = await dailyActivityReport(req.query);
+    report.source = 'erpnext';
+    report.basePath = '/reports/daily-activity/reference';
+    report.rows = report.rows.map(row => ({ ...row, href: `${report.basePath}/${encodeURIComponent(row.name)}` }));
+    res.render('daily-activity', { report, query: req.query, money });
+  } catch (err) { dailyActivityError(err, req, res, next); }
+});
+
+router.get('/daily-activity/reference/:name', async (req, res, next) => {
+  try {
+    const voucher = await dailyActivityVoucher(req.params.name);
+    if (!voucher) return res.status(404).render('error', { status: 404, message: 'ERPNext reference voucher not found.' });
+    voucher.source = 'erpnext';
+    res.render('daily-activity-voucher', { voucher, money });
+  } catch (err) { dailyActivityError(err, req, res, next); }
 });
 
 router.get('/daily-activity/:name', async (req, res, next) => {
   try {
-    const voucher = await dailyActivityVoucher(req.params.name);
+    const voucher = await localDailyActivityVoucher(req.params.name, req.currentUser);
     if (!voucher) { const error = new Error('Daily Activity Report voucher not found.'); error.status = 404; throw error; }
     res.render('daily-activity-voucher', { voucher, money });
-  } catch (err) { next(err); }
+  } catch (err) { dailyActivityError(err, req, res, next); }
 });
 
 async function loadInvoice(id) {

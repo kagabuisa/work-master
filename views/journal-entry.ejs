@@ -10,7 +10,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -25,8 +25,8 @@
       <section class="notice warning"><strong><%= error %></strong></section>
     <% } %>
 
-    <form method="post" action="<%= journal.id ? `/journals/${journal.id}` : '/journals' %>" class="invoice-form" id="journal-entry-form" <%= journalReadOnly ? '' : 'data-voucher-form' %>>
-      <section class="form-grid">
+    <form method="post" action="<%= journal.id ? `/journals/${journal.id}` : '/journals' %>" class="invoice-form ui-surface" id="journal-entry-form" <%= journalReadOnly ? '' : 'data-voucher-form' %>>
+      <section class="form-grid ui-form-grid">
         <label>
           Type
           <select name="journal_type" id="journal-type" required <%= journalReadOnly ? 'disabled' : '' %>>
@@ -112,13 +112,13 @@
       <% } %>
       <p class="field-hint">Select References above to add party account rows. Supplier invoices use Accounts Payable debits; customer invoices use Accounts Receivable credits. Adjust amounts for partial payments and add the balancing bank or cash row with no reference.</p>
       <datalist id="journal-purchase-invoices"></datalist>
-      <table class="editable" id="journal-lines">
+      <div class="ui-table-scroll" role="region" aria-label="Journal Entry table" tabindex="0"><table class="editable" id="journal-lines">
         <thead>
           <tr>
             <th class="row-number">#</th>
             <th>Account</th>
-            <th>Debit</th>
-            <th>Credit</th>
+            <th class="ui-amount">Debit</th>
+            <th class="ui-amount">Credit</th>
             <th>Reference</th>
             <th>Line Remarks</th>
             <th>Status</th>
@@ -163,16 +163,16 @@
             <th id="journal-balance-status" colspan="4"></th>
           </tr>
         </tfoot>
-      </table>
+      </table></div>
 
-      <section class="form-grid">
+      <section class="form-grid ui-form-grid">
         <label class="wide">
           Remarks
           <input name="remarks" value="<%= journal.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>>
         </label>
       </section>
 
-      <div class="actions">
+      <div class="actions ui-form-footer">
         <% if (!journalReadOnly) { %>
           <button type="button" class="button-light" id="add-journal-row">Add Row</button>
           <button type="submit" name="action" value="save_draft" data-voucher-save>Save Draft</button>

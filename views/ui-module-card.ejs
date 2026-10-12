@@ -1,0 +1,8 @@
+<article class="ui-surface ui-module-card home-card--<%= module.tone %>">
+  <%- include('ui-section-heading', { heading: { title: module.name, href: module.href, help: module.description } }) %>
+  <nav class="ui-module-links" aria-label="<%= module.name %> links">
+    <% module.links.forEach((link) => { %>
+      <a href="<%= link.href %>"><span><%= link.label %></span><span aria-hidden="true">→</span></a>
+    <% }) %>
+  </nav>
+</article>

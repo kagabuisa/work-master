@@ -1,5 +1,5 @@
 <div class="statement-table-wrap">
-  <table class="statement-table">
+  <div class="ui-table-scroll" role="region" aria-label="Debtor Statement Table table" tabindex="0"><table class="ui-table statement-table">
     <thead>
       <tr>
         <th class="row-number">#</th>
@@ -7,9 +7,9 @@
         <th>Type</th>
         <th>Reference</th>
         <th>Description</th>
-        <th>Debit</th>
-        <th>Credit</th>
-        <th>Balance</th>
+        <th class="ui-amount">Debit</th>
+        <th class="ui-amount">Credit</th>
+        <th class="ui-amount">Balance</th>
       </tr>
     </thead>
     <tbody>
@@ -31,9 +31,9 @@
           <td><%= entry.description %></td>
           <td><%= entry.debit ? money(entry.debit) : '' %></td>
           <td><%= entry.credit ? money(entry.credit) : '' %></td>
-          <td><strong><%= money(entry.balance) %></strong></td>
+          <td class="ui-amount"><strong><%= money(entry.balance) %></strong></td>
         </tr>
       <% }) %>
     </tbody>
-  </table>
+  </table></div>
 </div>

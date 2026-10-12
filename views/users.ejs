@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Administration</p>
@@ -22,11 +22,11 @@
         <p>Give this to the user securely. It will not be shown again; they must change it at login.</p>
       </section>
     <% } %>
-    <section class="invoice-card report-section">
-      <div class="section-title"><h1>Users</h1></div>
+    <section class="invoice-card report-section ui-surface">
+      <div class="section-title ui-section-heading"><h1>Users</h1></div>
       <p>Assign a built-in or custom role to each user. <a href="/settings/roles?tab=roles">Manage roles</a> or <a href="/settings/roles?tab=users">set user permissions</a>.</p>
-      <div class="table-wrap">
-        <table>
+      <div class="table-wrap ui-table-scroll">
+        <table class="ui-table">
           <thead><tr><th>Username</th><th>Role and status</th><th>Save access</th><th>Password</th></tr></thead>
           <tbody>
             <% users.forEach((user) => { %>
@@ -52,14 +52,14 @@
         </table>
       </div>
     </section>
-    <section class="invoice-card report-section">
-      <h2>Create user</h2>
-      <form method="post" action="/settings/users" class="user-create-form user-edit-form">
+    <section class="invoice-card report-section ui-surface">
+      <%- include('ui-section-heading', { heading: { title: 'Create user' } }) %>
+      <form method="post" action="/settings/users" class="user-create-form user-edit-form ui-form-grid">
         <label>Username <input name="username" pattern="[A-Za-z0-9._-]{3,64}" minlength="3" maxlength="64" required autocomplete="off"></label>
         <label>Role <select name="role"><% roles.forEach((role) => { %><option value="<%= role.slug %>" <%= role.slug === 'standard' ? 'selected' : '' %>><%= role.name %></option><% }) %></select></label>
         <p class="user-edit-help">Selected records grant Read access and replace the role's broad Read access for those lists. User permissions can grant more records.</p>
         <%- include('user-record-access-fields', { prefix: 'new-user', choices, selected }) %>
-        <div class="report-filter-actions"><button type="submit">Create user</button></div>
+        <div class="report-filter-actions ui-form-footer"><button type="submit">Create user</button></div>
       </form>
     </section>
   </main>

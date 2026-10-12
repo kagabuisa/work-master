@@ -7,7 +7,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-form">
     <header class="topbar">
       <div>
         <p class="eyebrow">Sales</p>
@@ -52,7 +52,7 @@
       <strong></strong>
     </section>
 
-    <form id="invoice-form" method="post" action="<%= editing ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form entry-form new-invoice-form" data-static-labels data-voucher-form>
+    <form id="invoice-form" method="post" action="<%= editing ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form entry-form new-invoice-form ui-surface" data-static-labels data-voucher-form>
       <section class="invoice-entry-row">
         <div class="form-field app-floating-field app-floating-choice">
           <label class="field-label app-floating-label" for="invoice-date">Posting Date</label>
@@ -111,7 +111,7 @@
       </section>
       <p class="field-hint invoice-price-update-status" id="invoice-price-update-status" role="status" hidden></p>
 
-      <div class="entry-table-scroll" role="region" aria-label="Invoice items" tabindex="0">
+      <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Invoice items" tabindex="0">
       <table id="invoice-items" class="editable entry-table">
         <thead>
           <tr>
@@ -119,8 +119,8 @@
             <th class="item-code-col">Item Name</th>
             <th>Stock</th>
             <th>Qty</th>
-            <th>Unit Price</th>
-            <th>Total</th>
+            <th class="ui-amount">Unit Price</th>
+            <th class="ui-amount">Total</th>
             <th></th>
           </tr>
         </thead>
@@ -130,7 +130,7 @@
       </table>
       </div>
 
-      <section class="form-grid totals-form">
+      <section class="form-grid totals-form ui-form-grid">
         <label class="app-floating-field app-floating-choice">
           <span class="app-floating-label">Discount</span>
           <input type="number" min="0" step="1" name="discount_amount" value="<%= invoice ? invoice.discount_amount : 0 %>">
@@ -162,10 +162,8 @@
       </section>
 
       <section class="payments-entry" hidden>
-        <div class="section-title">
-          <h2>Payments</h2>
-        </div>
-        <table id="invoice-payments" class="editable">
+        <%- include('ui-section-heading', { heading: { title: 'Payments' } }) %>
+        <div class="ui-table-scroll" role="region" aria-label="New Invoice table" tabindex="0"><table id="invoice-payments" class="editable">
           <thead>
             <tr>
               <th class="row-number">#</th>
@@ -173,14 +171,14 @@
               <th>Account</th>
               <th>Payment Reference</th>
               <th>Notes</th>
-              <th>Amount</th>
+              <th class="ui-amount">Amount</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr class="empty-row"><td colspan="7" class="empty">No payments added.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="payment-form invoice-payment-form">
           <label>
             Payment Date

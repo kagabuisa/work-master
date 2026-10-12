@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body data-can-cancel="<%= can('vouchers.stock.cancel') %>">
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
@@ -18,7 +18,7 @@
         <%- include('stock-new-menu') %>
       </nav>
     </header>
-    <form class="report-filters stock-ledger-filters" method="get">
+    <form class="report-filters stock-ledger-filters ui-toolbar ui-filter-row" method="get">
       <datalist id="stock-report-warehouses"></datalist>
       <label>
         Item
@@ -58,11 +58,11 @@
       </div>
     </form>
     <script src="/stock-report-filters.js"></script>
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface">
+      <div class="ui-table-scroll" role="region" aria-label="Stock Ledger table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
-            <th class="row-number">#</th><th>Date</th><th class="item-code-col">Item Name</th><th class="warehouse-col">Warehouse</th><th>Type</th><th>Status</th><th>Voucher</th><th>Reversal Ref</th><th>Qty</th><th>In Rate</th><th>Out Rate</th><th>Value</th><th>Balance Qty</th><th>Balance Value</th>
+            <th class="row-number">#</th><th>Date</th><th class="item-code-col">Item Name</th><th class="warehouse-col">Warehouse</th><th>Type</th><th>Status</th><th>Voucher</th><th>Reversal Ref</th><th>Qty</th><th>In Rate</th><th>Out Rate</th><th class="ui-amount">Value</th><th>Balance Qty</th><th class="ui-amount">Balance Value</th>
           </tr>
         </thead>
         <tbody>
@@ -93,13 +93,13 @@
               <td><%= Number(row.qty_change || 0).toLocaleString() %></td>
               <td><%= row.incoming_rate ? money(row.incoming_rate) : '' %></td>
               <td><%= row.outgoing_rate ? money(row.outgoing_rate) : '' %></td>
-              <td><%= money(row.stock_value_change) %></td>
+              <td class="ui-amount"><%= money(row.stock_value_change) %></td>
               <td><%= Number(row.qty_after_transaction || 0).toLocaleString() %></td>
-              <td><strong><%= money(row.stock_value_after_transaction) %></strong></td>
+              <td class="ui-amount"><strong><%= money(row.stock_value_after_transaction) %></strong></td>
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/stock-ledger' }) %>
     </section>
   </main>

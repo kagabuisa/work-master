@@ -2,7 +2,7 @@
 <html lang="en">
 <head><title><%= config.title %> Report</title><%- include('partials-head') %></head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow"><%= config.module === 'accounts' ? 'Accounting' : 'Purchases' %></p>
@@ -23,7 +23,7 @@
     </header>
     <%- include('voucher-report-tabs', { basePath: config.basePath, title: config.title, activeTab: 'report' }) %>
     <% if (columnsNotice) { %><section class="notice" role="status"><%= columnsNotice %></section><% } %>
-    <form class="report-filters invoice-report-filters" method="get" action="<%= config.basePath %>/report">
+    <form class="report-filters invoice-report-filters ui-toolbar ui-filter-row" method="get" action="<%= config.basePath %>/report">
       <label>Search<input name="q" value="<%= report.filters.search %>" placeholder="<%= config.module === 'accounts' ? 'Journal, party, account or user' : 'Voucher, supplier or item' %>"></label>
       <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
       <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
@@ -54,6 +54,7 @@
       </div>
       <details class="invoice-report-columns" data-first-column="<%= config.firstColumn %>">
         <summary>Columns <span><%= report.selectedColumns.length %> selected</span></summary>
+        <div class="ui-filter-panel">
         <div class="invoice-report-column-options">
           <input type="hidden" name="columns_applied" value="1">
           <% report.columns.forEach((column) => { %>
@@ -67,16 +68,14 @@
           <button type="submit" formmethod="post" formaction="<%= config.basePath %>/report/columns" class="button-light">Save as default</button>
           <% if (report.hasSavedColumns) { %><button type="submit" formmethod="post" formaction="<%= config.basePath %>/report/columns/reset" class="button-light">Restore app default</button><% } %>
         </div>
+        </div>
       </details>
     </form>
-    <section class="invoice-card report-section invoice-report-results">
-      <div class="invoice-report-results-heading">
-        <h1><%= config.title %> details</h1>
-        <span><%= report.pagination.start %>–<%= report.pagination.end %> of <%= report.pagination.total %> rows</span>
-      </div>
-      <div class="entry-table-scroll" role="region" aria-label="<%= config.title %> report" tabindex="0">
+    <section class="invoice-card report-section invoice-report-results ui-surface">
+      <%- include('ui-section-heading', { heading: { title: `${config.title} details`, meta: `${report.pagination.start}–${report.pagination.end} of ${report.pagination.total} rows` } }) %>
+      <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="<%= config.title %> report" tabindex="0">
         <% const shownColumns = report.columns.filter((column) => report.selectedColumns.includes(column.key)); %>
-        <table data-pagination="off">
+        <table data-pagination="off" class="ui-table">
           <thead><tr><% shownColumns.forEach((column) => { %><th class="invoice-report-col-<%= column.key %>"><%= column.label %></th><% }) %></tr></thead>
           <tbody>
             <% if (!report.rows.length) { %><tr><td colspan="<%= shownColumns.length %>" class="empty">No <%= config.title.toLowerCase() %> details match these filters.</td></tr><% } %>

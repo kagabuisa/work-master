@@ -1,7 +1,7 @@
 <div class="ui-section-heading">
   <div>
     <% if (heading.eyebrow) { %><p class="ui-section-eyebrow"><%= heading.eyebrow %></p><% } %>
-    <div class="ui-section-title"><h2><%= heading.title %></h2>
+    <div class="ui-section-title"><h2><% if (heading.href) { %><a href="<%= heading.href %>"><%= heading.title %></a><% } else { %><%= heading.title %><% } %></h2>
       <% if (heading.help) { %><%- include('ui-helper', { helpLabel: `Help with ${heading.title.toLowerCase()}`, helpText: heading.help }) %><% } %>
     </div>
   </div>

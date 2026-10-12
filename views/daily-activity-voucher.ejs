@@ -5,10 +5,10 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell daily-activity-page">
+  <main class="shell daily-activity-page ui-page ui-page-form">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Reports · ERPNext</p>
+        <p class="eyebrow">Reports · <%= voucher.source === 'erpnext' ? 'ERPNext reference' : 'Daily Activity' %></p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Reports', href: availableReports[0]?.href || '/reports/daily-activity' }, { label: 'Daily Activity Rpt', href: '/reports/daily-activity' }, { label: voucher.name }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
@@ -17,7 +17,7 @@
       <div><h1>Daily Activity Report</h1><p><%= voucher.shop || 'Shop/Unit not specified' %> · <%= formatDate(voucher.date) %></p></div>
       <span class="badge <%= voucher.status_label.toLowerCase() %>"><%= voucher.status_label %></span>
     </div>
-    <section class="invoice-card dar-section">
+    <section class="invoice-card dar-section ui-surface">
       <h2>Report details</h2>
       <dl class="dar-fields">
         <div><dt>Shop/Unit</dt><dd><%= voucher.shop || '—' %></dd></div>
@@ -26,15 +26,15 @@
         <% if (voucher.unit_type === 'Field Sales(FiSa)') { %><div><dt>Leads</dt><dd><%= voucher.leads == null ? '—' : voucher.leads %></dd></div><% } %>
       </dl>
     </section>
-    <section class="metrics daily-activity-metrics" aria-label="Sales and expense">
+    <section class="metrics daily-activity-metrics ui-report-metrics" aria-label="Sales and expense">
       <article><span>Sales</span><strong><%= money(voucher.sales) %></strong></article>
       <article><span>Expense</span><strong><%= money(voucher.expense) %></strong></article>
       <article><span>Balance to be banked</span><strong><%= money(voucher.banked) %></strong></article>
     </section>
-    <section class="invoice-card dar-section">
+    <section class="invoice-card dar-section ui-surface">
       <h2>Expense details</h2><p class="dar-text"><%= voucher.expense_details || '—' %></p>
     </section>
-    <section class="invoice-card dar-section">
+    <section class="invoice-card dar-section ui-surface">
       <h2>Stock delivery report</h2>
       <dl class="dar-fields">
         <div><dt>Stock Entry Number</dt><dd><%= voucher.stock_entry_number || '—' %></dd></div>
@@ -44,7 +44,7 @@
       </dl>
       <% if (voucher.item_differences) { %><h3>Items not received or excess items received</h3><p class="dar-text"><%= voucher.item_differences %></p><% } %>
     </section>
-    <section class="invoice-card dar-section">
+    <section class="invoice-card dar-section ui-surface">
       <h2>Other information report</h2>
       <dl class="dar-fields">
         <div><dt>Market Information</dt><dd class="dar-text"><%= voucher.remarks || '—' %></dd></div>
@@ -52,7 +52,7 @@
       </dl>
     </section>
     <% if (voucher.cash_banked || voucher.bank_used || voucher.banked_on || voucher.sales_invoiced || voucher.expenses_posted) { %>
-      <section class="invoice-card dar-section">
+      <section class="invoice-card dar-section ui-surface">
         <h2>Daily shop review</h2>
         <dl class="dar-fields">
           <div><dt>Sales Invoiced</dt><dd><%= money(voucher.sales_invoiced) %></dd></div>
@@ -63,8 +63,9 @@
         </dl>
       </section>
     <% } %>
-    <% if (voucher.amended_from) { %><p>Amended from <a href="/reports/daily-activity/<%= encodeURIComponent(voucher.amended_from) %>"><%= voucher.amended_from %></a></p><% } %>
-    <div class="actions"><a class="button button-light" href="/reports/daily-activity?from=<%= voucher.date %>&to=<%= voucher.date %>">Back to daily reports</a></div>
+    <% if (voucher.source === 'erpnext' && voucher.amended_from) { %><p>Amended from <a href="/reports/daily-activity/reference/<%= encodeURIComponent(voucher.amended_from) %>"><%= voucher.amended_from %></a></p><% } %>
+    <% if (voucher.source === 'local') { %><%- include('record-audit', { record: voucher }) %><% } %>
+    <div class="actions"><a class="button button-light" href="<%= voucher.source === 'erpnext' ? '/reports/daily-activity/reference' : '/reports/daily-activity' %>?from=<%= voucher.date %>&to=<%= voucher.date %>">Back to daily reports</a></div>
   </main>
 </body>
 </html>

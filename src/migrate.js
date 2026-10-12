@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -142,6 +142,12 @@ const MIGRATIONS = [
       WHEN lower(status)='active' THEN 'Active' WHEN lower(status)='left' THEN 'Left'
       WHEN disabled AND NULLIF(trim(status),'') IS NULL THEN 'Left' ELSE status END`);
     await client.query("UPDATE app_master_employees SET disabled=COALESCE(status='Left',false)");
+  } },
+  { version: 17, name: 'local_daily_activity_reports', transactional: false, up: async () => {
+    const { withPostgresTransaction } = require('./core');
+    const { initDailyActivitySchema } = require('./daily-activity-schema');
+    await withPostgresTransaction(initDailyActivitySchema);
+    await require('./audit').initRecordAudit(getPostgresPool(), ['app_daily_activity_reports']);
   } },
 ];
 

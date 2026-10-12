@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-list ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -18,7 +18,7 @@
     </header>
     <%- include('voucher-report-tabs', { basePath: '/journals', title: 'Journal', activeTab: 'list' }) %>
 
-    <form class="report-filters journal-filters" method="get">
+    <form class="report-filters journal-filters ui-toolbar ui-filter-row" method="get">
       <label>
         Search
         <input name="q" value="<%= search %>" placeholder="Search journals">
@@ -48,8 +48,9 @@
       </div>
     </form>
 
-    <section class="invoice-card report-section">
-      <table>
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: pagination ? `${pagination.total} records` : '' } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Journals table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
@@ -58,8 +59,8 @@
             <th>Type</th>
             <th>Party</th>
             <th>Reference</th>
-            <th>Debit</th>
-            <th>Credit</th>
+            <th class="ui-amount">Debit</th>
+            <th class="ui-amount">Credit</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -76,13 +77,13 @@
               <td><%= journalTypeLabel(journal.journal_type) %></td>
               <td><%= journal.party_name || journal.party_id || '' %></td>
               <td><%= journal.reference_no || '' %></td>
-              <td><%= money(journal.total_debit) %></td>
-              <td><%= money(journal.total_credit) %></td>
+              <td class="ui-amount"><%= money(journal.total_debit) %></td>
+              <td class="ui-amount"><%= money(journal.total_credit) %></td>
               <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       <%- include('pagination', { pagination, query, basePath: '/journals' }) %>
     </section>
   </main>

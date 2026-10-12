@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head><title>New Daily Activity Report</title><%- include('partials-head') %></head>
+<body>
+  <main class="shell ui-page ui-page-form">
+    <header class="topbar">
+      <div><p class="eyebrow">Reports · Daily Activity</p><%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Daily Activity Rpt', href: '/reports/daily-activity' }, { label: 'New' }] }) %></div>
+      <nav><%- include('module-nav', { activeModule: 'report' }) %></nav>
+    </header>
+    <% if (error) { %><section class="notice warning" role="alert"><%= error %></section><% } %>
+    <form method="post" action="/reports/daily-activity" class="invoice-form ui-surface">
+      <%- include('ui-section-heading', { heading: { title: 'New Daily Activity Report', help: 'Save creates a Daily Activity draft in this app. ERPNext is used only for reference. Balance to be banked is calculated as sales minus expense.' } }) %>
+      <fieldset class="ui-form-section">
+        <legend>Report details</legend>
+        <div class="form-grid ui-form-grid">
+          <label>Date<input type="date" name="date" value="<%= record.date || '' %>" required></label>
+          <label>Shop/Unit<input name="shop" list="daily-activity-shops" value="<%= record.shop || '' %>" maxlength="140" required></label>
+          <label>Warehouse<input name="warehouse" list="daily-activity-warehouses" value="<%= record.warehouse || '' %>" maxlength="140" required></label>
+          <label>Unit type<select name="unit_type" required><% unitTypes.forEach(value => { %><option value="<%= value %>" <%= record.unit_type === value ? 'selected' : '' %>><%= value %></option><% }) %></select></label>
+          <label>Leads (Field Sales)<input type="number" name="leads" min="0" step="any" value="<%= record.leads ?? '0' %>"></label>
+        </div>
+      </fieldset>
+      <fieldset class="ui-form-section">
+        <legend>Sales and expenses</legend>
+        <div class="form-grid ui-form-grid">
+          <label>Sales<input type="number" name="sales" min="0" step="0.01" value="<%= record.sales ?? '' %>" required></label>
+          <label>Expense<input type="number" name="expense" min="0" step="0.01" value="<%= record.expense ?? '' %>" required></label>
+          <label class="wide">Expense details<textarea name="expense_details" rows="3" maxlength="4000" required><%= record.expense_details || '' %></textarea></label>
+        </div>
+      </fieldset>
+      <fieldset class="ui-form-section">
+        <legend>Stock delivery</legend>
+        <div class="form-grid ui-form-grid">
+          <label>Stock entry number<input name="stock_entry_number" value="<%= record.stock_entry_number || '' %>" maxlength="140"></label>
+          <label>Packages received<input type="number" name="packages_received" min="0" step="1" value="<%= record.packages_received ?? '' %>" required></label>
+          <label>Delivery differences?<select name="delivery_differences" required><% deliveryOptions.forEach(value => { %><option value="<%= value %>" <%= record.delivery_differences === value ? 'selected' : '' %>><%= value %></option><% }) %></select></label>
+          <label class="wide">Items not received or excess items received<textarea name="item_differences" rows="3" maxlength="4000"><%= record.item_differences || '' %></textarea></label>
+        </div>
+      </fieldset>
+      <fieldset class="ui-form-section">
+        <legend>Other information</legend>
+        <div class="form-grid ui-form-grid">
+          <label class="wide">Market information<textarea name="remarks" rows="3" maxlength="4000"><%= record.remarks || '' %></textarea></label>
+          <label class="wide">Comments or remarks<textarea name="comments_or_remarks" rows="3" maxlength="4000"><%= record.comments_or_remarks || '' %></textarea></label>
+        </div>
+      </fieldset>
+      <datalist id="daily-activity-shops"><% options.shops.forEach(name => { %><option value="<%= name %>"></option><% }) %></datalist>
+      <datalist id="daily-activity-warehouses"><% options.warehouses.forEach(name => { %><option value="<%= name %>"></option><% }) %></datalist>
+      <div class="actions ui-form-footer"><button type="submit">Save draft</button><a class="button button-light" href="/reports/daily-activity">Cancel</a></div>
+    </form>
+  </main>
+</body>
+</html>

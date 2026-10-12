@@ -5,7 +5,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell ui-page ui-page-report">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -16,13 +16,13 @@
       </nav>
     </header>
 
-    <section class="metrics">
+    <section class="metrics ui-report-metrics">
       <article><span>Assets</span><strong><%= money(report.summary.total_assets) %></strong></article>
       <article><span>Liabilities + Equity</span><strong><%= money(report.summary.liabilities_plus_equity) %></strong></article>
       <article><span>Status</span><strong><%= report.summary.is_balanced ? 'Balanced' : `Off by ${money(report.summary.difference)}` %></strong></article>
     </section>
 
-    <form class="report-filters" method="get">
+    <form class="report-filters ui-toolbar ui-filter-row" method="get">
       <label>As Of<input type="date" name="as_of" value="<%= report.filters.as_of %>"></label>
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
@@ -31,13 +31,13 @@
     </form>
 
     <section class="grid">
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Assets</h2>
           <strong><%= money(report.summary.total_assets) %></strong>
         </div>
-        <table>
-          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
+        <div class="ui-table-scroll" role="region" aria-label="Balance Sheet table" tabindex="0"><table class="ui-table">
+          <thead><tr><th class="row-number">#</th><th>Account</th><th class="ui-amount">Amount</th></tr></thead>
           <tbody>
             <% if (!report.assets.length) { %>
               <tr><td colspan="3" class="empty">No asset balances found.</td></tr>
@@ -49,21 +49,21 @@
                   <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
                   <small><%= row.account_name %></small>
                 </td>
-                <td><%= money(row.amount) %></td>
+                <td class="ui-amount"><%= money(row.amount) %></td>
               </tr>
             <% }) %>
           </tbody>
           <tfoot><tr><th colspan="2">Total Assets</th><th><%= money(report.summary.total_assets) %></th></tr></tfoot>
-        </table>
+        </table></div>
       </div>
 
-      <div>
-        <div class="section-title">
+      <div class="ui-surface">
+        <div class="section-title ui-section-heading">
           <h2>Liabilities</h2>
           <strong><%= money(report.summary.total_liabilities) %></strong>
         </div>
-        <table>
-          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
+        <div class="ui-table-scroll" role="region" aria-label="Balance Sheet table" tabindex="0"><table class="ui-table">
+          <thead><tr><th class="row-number">#</th><th>Account</th><th class="ui-amount">Amount</th></tr></thead>
           <tbody>
             <% if (!report.liabilities.length) { %>
               <tr><td colspan="3" class="empty">No liability balances found.</td></tr>
@@ -75,19 +75,19 @@
                   <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
                   <small><%= row.account_name %></small>
                 </td>
-                <td><%= money(row.amount) %></td>
+                <td class="ui-amount"><%= money(row.amount) %></td>
               </tr>
             <% }) %>
           </tbody>
           <tfoot><tr><th colspan="2">Total Liabilities</th><th><%= money(report.summary.total_liabilities) %></th></tr></tfoot>
-        </table>
+        </table></div>
 
-        <div class="section-title report-section">
+        <div class="section-title report-section ui-section-heading">
           <h2>Equity</h2>
           <strong><%= money(report.summary.total_equity) %></strong>
         </div>
-        <table>
-          <thead><tr><th class="row-number">#</th><th>Account</th><th>Amount</th></tr></thead>
+        <div class="ui-table-scroll" role="region" aria-label="Balance Sheet table" tabindex="0"><table class="ui-table">
+          <thead><tr><th class="row-number">#</th><th>Account</th><th class="ui-amount">Amount</th></tr></thead>
           <tbody>
             <% if (!report.equity.length) { %>
               <tr><td colspan="3" class="empty">No equity balances found.</td></tr>
@@ -99,7 +99,7 @@
                   <% if (row.account_code) { %><strong><%= row.account_code %></strong><% } %>
                   <small><%= row.account_name %></small>
                 </td>
-                <td><%= money(row.amount) %></td>
+                <td class="ui-amount"><%= money(row.amount) %></td>
               </tr>
             <% }) %>
           </tbody>
@@ -107,7 +107,7 @@
             <tr><th colspan="2">Total Equity</th><th><%= money(report.summary.total_equity) %></th></tr>
             <tr><th colspan="2">Liabilities + Equity</th><th><%= money(report.summary.liabilities_plus_equity) %></th></tr>
           </tfoot>
-        </table>
+        </table></div>
       </div>
     </section>
   </main>
