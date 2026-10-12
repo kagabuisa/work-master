@@ -13,8 +13,15 @@ async function currentUser(client, id, lock = false) {
   const { rows } = await client.query(`SELECT u.id,u.username,u.active,u.must_change_password,
     u.api_service_account,u.password_hash,u.role,u.permission_grants,u.permission_denials,u.record_access,
     r.permissions,r.scopes FROM app_users u LEFT JOIN app_roles r ON r.slug=u.role
-    WHERE u.id=$1 ${lock ? 'FOR UPDATE OF u' : ''}`, [id]);
+    WHERE u.id=$1 ${lock ? 'FOR NO KEY UPDATE OF u' : ''}`, [id]);
   const user = rows[0];
+  if (user && lock) {
+    // Lock user before role so account/permission updates cannot race a commit.
+    // Re-read after waiting on the user lock, rather than using a stale join.
+    const role = (await client.query('SELECT permissions,scopes FROM app_roles WHERE slug=$1 FOR SHARE', [user.role])).rows[0];
+    user.permissions = role?.permissions;
+    user.scopes = role?.scopes;
+  }
   if (!user?.active || !user.permissions) return null;
   user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
   return user;
@@ -47,6 +54,11 @@ async function login(username, password, requestId) {
 
 async function refresh(token, requestId) {
   const result = await withPostgresTransaction(async client => {
+    const hint = (await client.query(`SELECT s.user_id FROM wm_api_sessions s
+      JOIN wm_api_refresh_tokens r ON r.session_id=s.id WHERE r.token_hash=$1`, [hash(token)])).rows[0];
+    if (!hint) return null;
+    // Same order as financial requests/password changes: user, role, family.
+    const user = await currentUser(client, hint.user_id, true);
     const { rows } = await client.query(`SELECT s.* FROM wm_api_sessions s
       JOIN wm_api_refresh_tokens r ON r.session_id=s.id WHERE r.token_hash=$1 FOR UPDATE OF s`, [hash(token)]);
     const session = rows[0];
@@ -54,7 +66,6 @@ async function refresh(token, requestId) {
     // Re-read after acquiring the family lock: a concurrent refresh may have
     // consumed the token while this transaction was waiting.
     const used = (await client.query('SELECT used_at FROM wm_api_refresh_tokens WHERE token_hash=$1', [hash(token)])).rows[0];
-    const user = await currentUser(client, session.user_id, true);
     const actor = { requestId, user, sessionId: session.id };
     if (used.used_at) {
       await client.query('UPDATE wm_api_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1', [session.id]);
@@ -88,13 +99,18 @@ async function resolveBearer(token, requestId, client = getPostgresPool()) {
   if (!credentials[0]) return null;
   const credential = credentials[0], user = await currentUser(client, credential.user_id);
   if (!user || !user.api_service_account || user.role === 'admin' || user.must_change_password) return null;
-  await client.query('UPDATE wm_api_credentials SET last_used_at=now() WHERE id=$1', [credential.id]);
+  // Activity metadata must not queue reads behind a financial credential pin.
+  // Revocation/expiry is rechecked again by the mutation transaction itself.
+  await client.query(`UPDATE wm_api_credentials SET last_used_at=clock_timestamp() WHERE id IN (
+    SELECT id FROM wm_api_credentials WHERE id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()
+    FOR UPDATE SKIP LOCKED)`, [credential.id]);
   return { user, requestId, credentialId: credential.id, scopes: credential.scopes, kind: 'integration' };
 }
 
 async function logout(actor) {
   if (actor.kind !== 'mobile') throw apiError(403, 'forbidden', 'Integration credentials use administrator revocation.');
   await withPostgresTransaction(async client => {
+    await client.query('SELECT id FROM app_users WHERE id=$1 FOR NO KEY UPDATE', [actor.user.id]);
     await client.query('UPDATE wm_api_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1', [actor.sessionId]);
     await recordApiAudit(client, actor, 'auth.logout', 'committed');
   });

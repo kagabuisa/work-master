@@ -34,4 +34,25 @@ async function requireInvoice(actor, id, scope, permission) {
   }
   return invoice;
 }
-module.exports = { requireAction, requireInvoice, requireLookup };
+
+async function requireInvoiceInTransaction(client, actor, id, scope, permission) {
+  requireAction(actor, scope, permission);
+  if (!/^[1-9][0-9]*$/.test(String(id)) || !Number.isSafeInteger(Number(id))) throw apiError(404, 'not_found', 'Invoice not found.');
+  const invoice = (await client.query('SELECT * FROM app_invoices WHERE id=$1 FOR UPDATE', [id])).rows[0];
+  const hidden = () => apiError(404, 'not_found', 'Invoice not found.');
+  if (!invoice) throw hidden();
+  const access = require('../access');
+  const { voucherOwnerId, voucherEmployeeId } = require('../voucher-ownership');
+  const owner = voucherOwnerId(actor.user), employee = voucherEmployeeId(actor.user);
+  if (owner !== null && String(invoice.created_by_user_id || '') !== owner
+    && !(employee && invoice.invoicer_id === employee)) throw hidden();
+  if (access.scopeRestricted(actor.user, 'customers')) {
+    const customer = (await client.query('SELECT customer_group FROM app_master_customers WHERE customer_id=$1 FOR SHARE', [invoice.customer_id])).rows[0];
+    if (!customer || !access.categoryAllowed(actor.user, 'customers', customer.customer_group)) throw hidden();
+  }
+  const { rows: items } = await client.query('SELECT * FROM app_invoice_items WHERE invoice_pk=$1 ORDER BY line_no FOR SHARE', [id]);
+  if (items.some(item => item.warehouse && !access.warehouseAllowed(actor.user, item.warehouse))
+    || !access.invoicePriceListAllowed(actor.user, invoice.price_list)) throw hidden();
+  return { ...invoice, items };
+}
+module.exports = { requireAction, requireInvoice, requireLookup, requireInvoiceInTransaction };

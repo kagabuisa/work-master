@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -150,6 +150,14 @@ const MIGRATIONS = [
     await require('./audit').initRecordAudit(getPostgresPool(), ['app_daily_activity_reports']);
   } },
   { version: 18, name: 'api_foundation', up: require('./api/schema').initApiSchema },
+  { version: 19, name: 'api_retry_resource_audit', up: async client => {
+    await client.query(`ALTER TABLE wm_api_idempotency ADD COLUMN IF NOT EXISTS resource_type text;
+      ALTER TABLE wm_api_idempotency ADD COLUMN IF NOT EXISTS resource_id text;
+      UPDATE wm_api_idempotency SET resource_type=CASE WHEN operation='payment.record' THEN 'payment' ELSE 'invoice' END,
+        resource_id=response->'data'->>'id'
+      WHERE operation IN ('invoice.create','invoice.submit','payment.record')
+        AND resource_type IS NULL AND (response->'data'->>'id') ~ '^[1-9][0-9]*$'`);
+  } },
 ];
 
 async function ensureSchema(pool) {
