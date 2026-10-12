@@ -4,9 +4,9 @@ This guide describes the current app behavior. Update the relevant section whene
 
 ## API authentication and integration access
 
-The `/api/v1` foundation supports mobile login, rotating sessions, password change, logout, self identity and Admin-managed integration credentials. Use the [API guide](api/README.md) for endpoints and client behavior. Temporary-password mobile users must change their password before protected access. Dedicated integration accounts cannot sign in interactively; administrators manage their role/record restrictions through existing controls and issue/revoke API credentials through the protected API administration endpoints.
+The `/api/v1` service supports mobile login, rotating sessions, password change, logout, self identity, Admin-managed integration credentials and permitted master-data, stock, invoice and receipt reads. Use the [API guide](api/README.md) for endpoints and client behavior. Temporary-password mobile users must change their password before protected access. Dedicated integration accounts cannot sign in interactively; administrators manage their role/record restrictions through existing controls and issue/revoke API credentials through the protected API administration endpoints.
 
-Public API master-data reads, invoice submission and payments are not available yet. The website's invoice/payment inputs, allocations, journal generation, pricing rules and workflows are unchanged. Shared validation and transaction functions retain existing behavior. Future API receipts initially target one invoice; multiple-invoice allocation is deferred.
+Public API invoice submission and payment recording remain planned. Read endpoints enforce customer/supplier categories, all invoice line warehouses, price-list restrictions and Standard ownership/employee exceptions before list counts and pagination. Narrow sales selectors expose permitted invoicers or receiving accounts without general employee/account access. Individual receipt reads apply account restrictions while invoice header totals keep their existing meaning. The website's invoice/payment inputs, allocations, journal generation, pricing rules and workflows are unchanged. Shared validation and transaction functions retain existing behavior. Future API receipts initially target one invoice; multiple-invoice allocation is deferred.
 
 ## Screen layout
 

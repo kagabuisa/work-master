@@ -95,5 +95,6 @@ router.post('/integration-credentials/:id/revoke', wrap(async (req, res) => {
   if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(req.params.id)) throw apiError(404, 'not_found', 'Credential not found.');
   await auth.revokeCredential(req.apiActor, req.params.id); res.json({ data: { success: true } });
 }));
+router.use(require('./reads'));
 router.use((req, res, next) => next(apiError(404, 'not_found', 'API endpoint or method not found.')));
 module.exports = router;

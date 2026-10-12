@@ -1,6 +1,6 @@
 # Permissions and voucher visibility
 
-## Versioned API foundation
+## Versioned API access
 
 Mobile API requests resolve the user's current role, overrides and restrictions independently of browser sessions. Temporary-password sessions can only change their own password or log out. Integration credentials belong to dedicated non-admin accounts, expire after 90 days, and narrow account permissions through allowlisted scopes. Deactivated accounts, revoked/expired tokens and service accounts promoted to Admin are denied. Dedicated service accounts cannot use website/mobile password login, including after a password reset.
 

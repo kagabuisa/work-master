@@ -399,6 +399,7 @@ async function paginatedPostgresInvoices(options = {}) {
   const to = String(options.to || '').trim();
   const warehouse = String(options.warehouse || '').trim();
   const pagination = paginationOptions(options, 50, 200);
+  const order = options.order === 'asc' ? 'ASC' : 'DESC';
   const params = [];
   const where = [];
   addVoucherOwnerFilter(where, params, 'invoice', options.ownerId, options.ownerEmployeeId);
@@ -409,6 +410,32 @@ async function paginatedPostgresInvoices(options = {}) {
       WHERE customer.customer_id = invoice.customer_id
         AND LOWER(TRIM(COALESCE(customer.customer_group, ''))) = ANY($${params.length}::text[])
     )`);
+  }
+  // Optional API read filters. Website callers omit these options, preserving
+  // their existing behavior. Restrict before both count and page selection.
+  if (Array.isArray(options.allowedWarehouses)) {
+    params.push(options.allowedWarehouses);
+    where.push(`NOT EXISTS (SELECT 1 FROM app_invoice_items scoped_item WHERE scoped_item.invoice_pk=invoice.id
+      AND COALESCE(scoped_item.warehouse,'')<>'' AND scoped_item.warehouse<>ALL($${params.length}::text[]))`);
+  }
+  if (Array.isArray(options.deniedWarehouses) && options.deniedWarehouses.length) {
+    params.push(options.deniedWarehouses);
+    where.push(`NOT EXISTS (SELECT 1 FROM app_invoice_items scoped_item WHERE scoped_item.invoice_pk=invoice.id
+      AND scoped_item.warehouse=ANY($${params.length}::text[]))`);
+  }
+  if (Array.isArray(options.allowedPriceLists)) {
+    params.push(options.allowedPriceLists);
+    where.push(`COALESCE(invoice.price_list,'')=ANY($${params.length}::text[])`);
+  }
+  if (Array.isArray(options.deniedPriceLists) && options.deniedPriceLists.length) {
+    params.push(options.deniedPriceLists);
+    where.push(`COALESCE(invoice.price_list,'')<>ALL($${params.length}::text[])`);
+  }
+  if (options.customerId) {
+    params.push(options.customerId); where.push(`invoice.customer_id=$${params.length}`);
+  }
+  if (options.docstatus) {
+    params.push(options.docstatus); where.push(`invoice.docstatus=$${params.length}`);
   }
   if (search) {
     params.push(sqlLikePattern(search));
@@ -512,7 +539,7 @@ async function paginatedPostgresInvoices(options = {}) {
   // Text search still needs the computed status and amount for filtering.
   const selectedInvoicesSql = search ? '' : `WITH selected_invoices AS MATERIALIZED (
     SELECT invoice.* FROM app_invoices invoice ${whereSql}
-    ORDER BY invoice.id DESC
+    ORDER BY invoice.id ${order}
     LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
   )`;
   const [countResult, pageResult] = await Promise.all([
@@ -545,7 +572,7 @@ async function paginatedPostgresInvoices(options = {}) {
       updated_at
     ${invoiceListSql(search ? 'app_invoices' : 'selected_invoices')}
     ${search ? whereSql : ''}
-    ORDER BY id DESC
+    ORDER BY id ${order}
     ${search ? `LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}` : ''}
     `,
       pageParams,

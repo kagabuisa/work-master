@@ -268,7 +268,7 @@ The verification script checks voucher balance, overall GL balance, balance shee
 
 ## API service foundation
 
-Phase 1 provides `/api/v1` mobile authentication, self identity and Admin-managed integration credentials. See the [implemented API guide and contract](docs/api/README.md). Master-data/invoice reads and public financial write endpoints remain planned. Website payment workflows, allocation rules, pricing and accounting behavior are preserved.
+Phases 1–2 provide `/api/v1` mobile authentication, self identity, Admin-managed integration credentials and scoped master-data, stock, invoice and receipt reads. See the [implemented API guide and contract](docs/api/README.md). Public financial write endpoints remain planned. Website payment workflows, allocation rules, pricing and accounting behavior are preserved.
 
 Migration 18 adds API-owned `wm_api_*` credential, session, retry, permanent payment-reference, audit and rate-limit tables, plus an `api_service_account` flag on users (false for existing users). It does not add constraints or change columns on existing payment tables. Dedicated integration accounts cannot use interactive login. Back up before upgrading; rebuild with `docker compose up -d --build invoice-app`. Disabling API routes must retain permanent payment references and financial audit records. Rolling back to schema-17 code requires a reviewed migration plan because startup rejects a newer schema.
 

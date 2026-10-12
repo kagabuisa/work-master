@@ -1,6 +1,6 @@
 # API service development roadmap
 
-Prepared: 12 October 2026. Status: Phase 0 closed with approved defaults; Phase 1 foundation implemented. Current endpoints are documented in the [API guide](api/README.md); later business endpoints remain planned.
+Prepared: 12 October 2026. Status: Phase 0 closed with approved defaults; Phases 1–2 implemented. Current endpoints are documented in the [API guide](api/README.md); later business endpoints remain planned.
 
 Phase 0 technical artifacts are available in the [workflow audit, permission matrix, decision log and backlog](api/phase-0-assessment.md) and [OpenAPI draft](api/openapi.v1.draft.json). The product owner accepted the defaults with explicit preservation of website pricing, payment allocations, accounting entries and workflows; future multiple-invoice payment allocation remains deferred.
 

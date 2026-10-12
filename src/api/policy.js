@@ -1,5 +1,5 @@
 'use strict';
-const { can } = require('../authorize');
+const { can, permissionCheck } = require('../authorize');
 const { invoiceAllowed, voucherWarehousesAllowed, invoicePriceListAllowed } = require('../access');
 const { voucherOwnedByUser } = require('../voucher-ownership');
 const { apiError } = require('./errors');
@@ -7,6 +7,13 @@ const { apiError } = require('./errors');
 function requireAction(actor, scope, permission) {
   if (!can(actor.user, permission) || actor.kind === 'integration' && !actor.scopes.includes(scope)) {
     throw apiError(403, 'forbidden', 'This account or credential cannot perform this action.');
+  }
+}
+
+function requireLookup(actor, scope, lookup) {
+  if (actor.kind === 'integration' && !actor.scopes.includes(scope)
+    || !permissionCheck({ currentUser: actor.user, path: `/api/${lookup}`, method: 'GET', body: {} })) {
+    throw apiError(403, 'forbidden', 'This account or credential cannot read this resource.');
   }
 }
 
@@ -27,4 +34,4 @@ async function requireInvoice(actor, id, scope, permission) {
   }
   return invoice;
 }
-module.exports = { requireAction, requireInvoice };
+module.exports = { requireAction, requireInvoice, requireLookup };

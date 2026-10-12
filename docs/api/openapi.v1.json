@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Work Master API foundation",
+    "title": "Work Master API",
     "version": "1.0.0",
-    "description": "Implemented Phase 1 authentication and credential administration. Financial and master-data endpoints are not yet available. Production requires HTTPS. See docs/api/README.md for scope and lifecycle rules."
+    "description": "Implemented Phase 1 authentication and Phase 2 authorized reads. Public invoice and payment mutations remain planned. Production requires HTTPS; see docs/api/README.md."
   },
   "servers": [
     {
@@ -641,6 +641,1099 @@
           }
         ]
       }
+    },
+    "/customers": {
+      "get": {
+        "operationId": "listCustomers",
+        "summary": "listCustomers",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Customer"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          }
+        ]
+      }
+    },
+    "/suppliers": {
+      "get": {
+        "operationId": "listSuppliers",
+        "summary": "listSuppliers",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Supplier"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          }
+        ]
+      }
+    },
+    "/items": {
+      "get": {
+        "operationId": "listItems",
+        "summary": "listItems",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Item"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          },
+          {
+            "name": "price_list",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Optional permitted active UGX selling list; adds unit_price/has_list_price/currency using existing pricing fallback."
+          }
+        ]
+      }
+    },
+    "/warehouses": {
+      "get": {
+        "operationId": "listWarehouses",
+        "summary": "listWarehouses",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Warehouse"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          }
+        ]
+      }
+    },
+    "/price-lists": {
+      "get": {
+        "operationId": "listPriceLists",
+        "summary": "listPriceLists",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PriceList"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          }
+        ]
+      }
+    },
+    "/cost-centers": {
+      "get": {
+        "operationId": "listCostCenters",
+        "summary": "listCostCenters",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CostCenter"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          }
+        ]
+      }
+    },
+    "/stock-balances": {
+      "get": {
+        "operationId": "listStockBalances",
+        "summary": "listStockBalances",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StockBalance"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          },
+          {
+            "name": "warehouse",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "item_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ]
+      }
+    },
+    "/invoices": {
+      "get": {
+        "operationId": "listInvoices",
+        "summary": "listInvoices",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InvoiceSummary"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "warehouse",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "customer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "docstatus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "submitted",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "id_asc",
+                "id_desc"
+              ],
+              "default": "id_desc"
+            }
+          }
+        ]
+      }
+    },
+    "/invoices/{id}": {
+      "get": {
+        "operationId": "getInvoice",
+        "summary": "getInvoice",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceDetail"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        ]
+      }
+    },
+    "/invoices/{id}/payments": {
+      "get": {
+        "operationId": "listInvoicePayments",
+        "summary": "listInvoicePayments",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InvoicePayment"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        ]
+      }
+    },
+    "/sales-options": {
+      "get": {
+        "operationId": "getSalesOptions",
+        "summary": "getSalesOptions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Implemented read. Unknown, repeated or nonscalar query parameters are rejected. Effective permissions and credential scopes apply before pagination and permitted counts. invoicing requires invoices:create plus sales Create; payments requires payments:record plus sales payment Record. Only the selected collection is returned.",
+        "responses": {
+          "200": {
+            "description": "Authorized data. No-store response; X-Request-ID identifies the server request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SalesOptionsData"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "description": "Search public fields only; matching follows the existing resource lookup behavior."
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "invoicing",
+                "payments"
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -983,6 +2076,721 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {}
+      },
+      "Customer": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "customer_group": {
+            "type": "string"
+          },
+          "territory": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "tin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "customer_group",
+          "territory",
+          "phone",
+          "tin"
+        ]
+      },
+      "Supplier": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "supplier_type": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "supplier_type",
+          "phone"
+        ]
+      },
+      "Item": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "stock_uom": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit_price": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "has_list_price": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "UGX"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "stock_uom",
+          "category",
+          "description"
+        ]
+      },
+      "Warehouse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "warehouse_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "warehouse_type"
+        ]
+      },
+      "PriceList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "UGX"
+            ]
+          },
+          "price_type": {
+            "type": "string",
+            "enum": [
+              "selling",
+              "both"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "currency",
+          "price_type"
+        ]
+      },
+      "CostCenter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "parent_cost_center": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "cost_center_type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "parent_cost_center",
+          "company",
+          "cost_center_type"
+        ]
+      },
+      "Invoicer": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active"
+        ]
+      },
+      "ReceivingAccount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "account_code": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "bank"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "active",
+          "account_code",
+          "method"
+        ]
+      },
+      "StockBalance": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "item_code": {
+            "type": "string"
+          },
+          "item_name": {
+            "type": "string"
+          },
+          "warehouse": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "valuation_rate": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "stock_value": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          }
+        },
+        "required": [
+          "item_code",
+          "item_name",
+          "warehouse",
+          "quantity",
+          "valuation_rate",
+          "stock_value"
+        ]
+      },
+      "InvoiceSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "invoice_no": {
+            "type": "string"
+          },
+          "non_system_invoice": {
+            "type": "string",
+            "nullable": true
+          },
+          "docstatus": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "cancelled"
+            ]
+          },
+          "invoice_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "posting_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "due_date": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "customer_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer_name": {
+            "type": "string"
+          },
+          "price_list": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "UGX"
+            ]
+          },
+          "subtotal": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "tax_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "discount_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "amount_paid": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "balance_due": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "unpaid",
+              "partial",
+              "paid"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "invoice_no",
+          "non_system_invoice",
+          "docstatus",
+          "invoice_date",
+          "posting_time",
+          "due_date",
+          "customer_id",
+          "customer_name",
+          "price_list",
+          "currency",
+          "subtotal",
+          "tax_amount",
+          "discount_amount",
+          "total",
+          "amount_paid",
+          "balance_due",
+          "payment_status",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "InvoiceItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "item_code": {
+            "type": "string"
+          },
+          "item_name": {
+            "type": "string"
+          },
+          "warehouse": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "unit_price": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "line_total": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          }
+        },
+        "required": [
+          "item_code",
+          "item_name",
+          "warehouse",
+          "quantity",
+          "unit_price",
+          "line_total"
+        ]
+      },
+      "InvoiceDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "invoice_no": {
+            "type": "string"
+          },
+          "non_system_invoice": {
+            "type": "string",
+            "nullable": true
+          },
+          "docstatus": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "cancelled"
+            ]
+          },
+          "invoice_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "posting_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "due_date": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "customer_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer_name": {
+            "type": "string"
+          },
+          "price_list": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "UGX"
+            ]
+          },
+          "subtotal": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "tax_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "discount_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "total": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "amount_paid": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "balance_due": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "payment_status": {
+            "type": "string",
+            "enum": [
+              "unpaid",
+              "partial",
+              "paid"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "cost_center": {
+            "type": "string",
+            "nullable": true
+          },
+          "invoicer_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "invoicer": {
+            "type": "string",
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceItem"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "invoice_no",
+          "non_system_invoice",
+          "docstatus",
+          "invoice_date",
+          "posting_time",
+          "due_date",
+          "customer_id",
+          "customer_name",
+          "price_list",
+          "currency",
+          "subtotal",
+          "tax_amount",
+          "discount_amount",
+          "total",
+          "amount_paid",
+          "balance_due",
+          "payment_status",
+          "created_at",
+          "updated_at",
+          "notes",
+          "cost_center",
+          "invoicer_id",
+          "invoicer",
+          "items"
+        ]
+      },
+      "InvoicePayment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "invoice_payment",
+              "journal_allocation",
+              "legacy_balance"
+            ]
+          },
+          "invoice_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "payment_no": {
+            "type": "integer",
+            "nullable": true
+          },
+          "payment_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "account_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "method": {
+            "type": "string"
+          },
+          "docstatus": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "cancelled"
+            ]
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "journal_id": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "invoice_id",
+          "payment_no",
+          "payment_date",
+          "amount",
+          "account_id",
+          "method",
+          "docstatus",
+          "reference",
+          "journal_id"
+        ]
+      },
+      "PageMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "page",
+          "page_size",
+          "total"
+        ]
+      },
+      "SalesOptionsData": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "invoicers": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Invoicer"
+                }
+              }
+            },
+            "required": [
+              "invoicers"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "receiving_accounts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReceivingAccount"
+                }
+              }
+            },
+            "required": [
+              "receiving_accounts"
+            ]
+          }
+        ]
       }
     },
     "responses": {

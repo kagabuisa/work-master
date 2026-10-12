@@ -72,7 +72,7 @@ async function masterItems(options = {}) {
   const search = String(options.search || '').trim().toLowerCase();
   if (search) {
     params.push(sqlLikePattern(search));
-    where.push(`(
+    where.push(options.searchPublicOnly ? `(LOWER(item_code) LIKE $${params.length} OR LOWER(item_name) LIKE $${params.length} OR LOWER(COALESCE(stock_uom,'')) LIKE $${params.length} OR LOWER(COALESCE(category,'')) LIKE $${params.length} OR LOWER(COALESCE(description,'')) LIKE $${params.length})` : `(
       LOWER(item_code) LIKE $${params.length}
       OR LOWER(item_name) LIKE $${params.length}
       OR LOWER(COALESCE(stock_uom, '')) LIKE $${params.length}
@@ -350,7 +350,7 @@ async function masterEmployees(options = {}) {
   const search = String(options.search || '').trim().toLowerCase();
   if (search) {
     params.push(sqlLikePattern(search));
-    where.push(`(
+    where.push(options.searchPublicOnly ? `(LOWER(employee_id) LIKE $${params.length} OR LOWER(employee_name) LIKE $${params.length})` : `(
       LOWER(employee_id) LIKE $${params.length}
       OR LOWER(employee_name) LIKE $${params.length}
       OR LOWER(COALESCE(status, '')) LIKE $${params.length}

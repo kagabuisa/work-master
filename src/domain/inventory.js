@@ -49,6 +49,10 @@ async function stockBalances(filters = {}) {
     params.push(warehouse);
     where.push(`warehouse = $${params.length}`);
   }
+  if (filters.itemCode) {
+    params.push(filters.itemCode);
+    where.push(`item_code = $${params.length}`);
+  }
   const whereSql = where.join(' AND ');
   const countResult = await getPostgresPool().query(
     `
@@ -61,7 +65,8 @@ async function stockBalances(filters = {}) {
   params.push(pagination.limit, pagination.offset);
   const { rows } = await getPostgresPool().query(
     `
-    SELECT item_code, item_name, warehouse, quantity::float, stock_value::float, valuation_rate::float
+    SELECT item_code, item_name, warehouse, quantity::${filters.textNumerics ? 'text' : 'float'},
+      stock_value::${filters.textNumerics ? 'text' : 'float'}, valuation_rate::${filters.textNumerics ? 'text' : 'float'}
     FROM app_stock_balances
     WHERE ${whereSql}
     ORDER BY item_name, warehouse, item_code
