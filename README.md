@@ -264,6 +264,19 @@ The verification script checks voucher balance, overall GL balance, balance shee
 ## Development Plans
 
 - [Accounting development plan](docs/accounting-development-plan.md)
+- [API development roadmap](docs/api-development-roadmap.md)
+
+## API service foundation
+
+Phase 1 provides `/api/v1` mobile authentication, self identity and Admin-managed integration credentials. See the [implemented API guide and contract](docs/api/README.md). Master-data/invoice reads and public financial write endpoints remain planned. Website payment workflows, allocation rules, pricing and accounting behavior are preserved.
+
+Migration 18 adds API-owned `wm_api_*` credential, session, retry, permanent payment-reference, audit and rate-limit tables, plus an `api_service_account` flag on users (false for existing users). It does not add constraints or change columns on existing payment tables. Dedicated integration accounts cannot use interactive login. Back up before upgrading; rebuild with `docker compose up -d --build invoice-app`. Disabling API routes must retain permanent payment references and financial audit records. Rolling back to schema-17 code requires a reviewed migration plan because startup rejects a newer schema.
+
+Production API credential traffic requires HTTPS via the supported TLS proxy with `TRUST_PROXY=true`; the website's private HTTP cookie exception does not permit insecure API credentials. Native clients use bearer tokens; browser-origin API access is not enabled. The local HTTP website remains available on its configured port, while API authentication requires TLS in production mode. Never transmit production tokens over HTTP or store them in URL/query strings.
+
+Schedule `docker compose exec invoice-app node scripts/api-cleanup.js` daily to remove expired retry records, rate-limit windows and mobile families. Refresh history remains for the entire family lifetime. Cleanup does not remove financial audit, integration credential metadata or permanent payment references. Include all new tables in PostgreSQL backups and protect database access because retry results contain business data. Monitor table growth and account for database-backed API limits when measuring capacity.
+
+The full isolated Docker procedure above enables API integration tests through `npm run test:postgres`; it exercises website payment regression and transaction/audit rollback as well as credential lifecycles. Do not use the application database for tests.
 
 ## Important
 

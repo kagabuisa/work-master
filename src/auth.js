@@ -250,6 +250,7 @@ async function initAuth() {
       id BIGSERIAL PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      api_service_account BOOLEAN NOT NULL DEFAULT false,
       active BOOLEAN NOT NULL DEFAULT true,
       must_change_password BOOLEAN NOT NULL DEFAULT false,
       role TEXT NOT NULL DEFAULT 'standard',
@@ -258,6 +259,7 @@ async function initAuth() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  await pool.query('ALTER TABLE app_users ADD COLUMN IF NOT EXISTS api_service_account BOOLEAN NOT NULL DEFAULT false');
   await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_grants JSONB NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permission_denials JSONB NOT NULL DEFAULT '[]'::jsonb");
   const roleColumn = await pool.query(`
@@ -558,7 +560,7 @@ function validatePassword(password) {
   }
 }
 
-async function createUser(usernameValue, password, options = {}) {
+async function createUser(usernameValue, password, options = {}, client = getPostgresPool()) {
   const username = cleanUsername(usernameValue);
   validatePassword(password);
   const hash = await passwordHash(password);
@@ -566,7 +568,7 @@ async function createUser(usernameValue, password, options = {}) {
   const role = options.role ? await validateRole(options.role) : await userCount() === 0 ? 'admin' : 'standard';
   const recordAccess = options.record_access || {};
   const grants = defaultRecordPermissions(recordAccess);
-  const { rows } = await getPostgresPool().query(
+  const { rows } = await client.query(
     `INSERT INTO app_users (username, password_hash, must_change_password, role, record_access, permission_grants)
       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb) RETURNING id, username, role`,
     [username, hash, mustChange, role, JSON.stringify(recordAccess), JSON.stringify(grants)],
@@ -576,7 +578,7 @@ async function createUser(usernameValue, password, options = {}) {
 
 async function findUser(username) {
   const { rows } = await getPostgresPool().query(
-    'SELECT id, username, password_hash, active, must_change_password, role FROM app_users WHERE username = $1',
+    'SELECT id, username, password_hash, active, must_change_password, role, api_service_account FROM app_users WHERE username = $1',
     [username],
   );
   return rows[0] || null;
@@ -585,7 +587,7 @@ async function findUser(username) {
 async function authenticate(usernameValue, password) {
   const username = String(usernameValue || '').trim().toLowerCase();
   const user = await findUser(username);
-  if (!user || !user.active) {
+  if (!user || !user.active || user.api_service_account) {
     await scrypt(String(password || ''), 'work-master-missing-user', 64);
     return null;
   }
@@ -625,7 +627,7 @@ async function sessionUser(token) {
     FROM active_session s
     JOIN app_users u ON u.id = s.user_id
     LEFT JOIN app_roles r ON r.slug = u.role
-    WHERE u.active = true
+    WHERE u.active = true AND u.api_service_account = false
   `, [hash, SESSION_IDLE_MINUTES]);
   const user = rows[0];
   if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
@@ -776,6 +778,9 @@ module.exports = {
   userCount,
   createUser,
   authenticate,
+  verifyPassword,
+  passwordHash,
+  validatePassword,
   createSession,
   sessionUser,
   deleteSession,

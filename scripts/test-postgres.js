@@ -23,7 +23,7 @@ async function main() {
   }
 
   const env = { ...process.env };
-  for (const area of ['ACCOUNTING', 'AUDIT', 'DEBTOR', 'GL_EXPORT', 'GOLDEN', 'HR',
+  for (const area of ['API', 'ACCOUNTING', 'AUDIT', 'DEBTOR', 'GL_EXPORT', 'GOLDEN', 'HR',
     'ITEM_DETAILS', 'JOURNAL', 'PRICING', 'RECONCILIATION', 'SCHEMA']) {
     env[`${area}_TEST_POSTGRES`] = '1';
   }

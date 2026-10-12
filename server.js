@@ -174,6 +174,7 @@ app.use('/shared', express.static(path.join(__dirname, 'src', 'shared'), {
     res.setHeader('Cache-Control', `public, max-age=${STATIC_MAX_AGE}`);
   },
 }));
+app.use('/api/v1', require('./src/api/errors').apiContext);
 app.use(express.urlencoded({ extended: true, limit: '3mb', parameterLimit: 35000 }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
@@ -181,7 +182,7 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
     if (elapsedMs >= SLOW_REQUEST_MS) {
-      console.warn(`slow_request method=${req.method} path=${req.originalUrl} status=${res.statusCode} duration_ms=${elapsedMs.toFixed(1)}`);
+      console.warn(`slow_request method=${req.method} path=${req.apiV1 ? req.path : req.originalUrl} status=${res.statusCode} duration_ms=${elapsedMs.toFixed(1)}`);
     }
   });
   next();
@@ -227,6 +228,8 @@ app.use(async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// The bearer router terminates every v1 request before browser-cookie gates.
+app.use('/api/v1', require('./src/api/router'));
 installAuth(app);
 
 app.use(async (req, res, next) => {
@@ -353,6 +356,8 @@ function orderedWildcardMatch(text, pattern) {
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+app.use(require('./src/api/errors').apiErrors);
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;

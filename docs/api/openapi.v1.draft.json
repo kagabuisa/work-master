@@ -1820,8 +1820,7 @@
               "$ref": "#/components/schemas/Master"
             }
           }
-        },
-        "required": []
+        }
       },
       "Acknowledgement": {
         "type": "object",

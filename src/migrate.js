@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 18;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -149,6 +149,7 @@ const MIGRATIONS = [
     await withPostgresTransaction(initDailyActivitySchema);
     await require('./audit').initRecordAudit(getPostgresPool(), ['app_daily_activity_reports']);
   } },
+  { version: 18, name: 'api_foundation', up: require('./api/schema').initApiSchema },
 ];
 
 async function ensureSchema(pool) {

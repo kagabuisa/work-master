@@ -599,31 +599,33 @@ async function findPostgresInvoice(id) {
 
 async function createPostgresInvoice(payload) {
   const invoiceData = buildInvoiceData(payload);
-  return withPostgresTransaction(async (client) => {
-    const { rows } = await client.query(
-      `
-      INSERT INTO app_invoices (
-        docstatus, invoice_date, due_date, customer_id, customer_name, customer_phone,
-        notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale, posting_time, non_system_invoice, cost_center, invoicer, invoicer_id
-      )
-      VALUES (
-        'draft', $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11, $12, $13, $16, $14, $15, $17, $18, $19
-      )
-      RETURNING id
-      `,
-      [...invoiceParams(invoiceData), payload.is_cash_sale === true, invoiceData.cost_center, invoiceData.invoicer, invoiceData.invoicer_id],
-    );
-    const id = Number(rows[0].id);
-    const invoiceNo = `INV-${String(id).padStart(6, '0')}`;
-    await client.query(
-      'UPDATE app_invoices SET invoice_no = $1 WHERE id = $2',
-      [invoiceNo, id],
-    );
-    await insertPostgresItems(client, id, invoiceNo, invoiceData.items);
-    await insertPostgresPayments(client, id, invoiceData.payments);
-    return id;
-  });
+  return withPostgresTransaction(client => createPostgresInvoiceInTransaction(client, payload, invoiceData));
+}
+
+async function createPostgresInvoiceInTransaction(client, payload, invoiceData = buildInvoiceData(payload)) {
+  const { rows } = await client.query(
+    `
+    INSERT INTO app_invoices (
+      docstatus, invoice_date, due_date, customer_id, customer_name, customer_phone,
+      notes, subtotal, tax_amount, discount_amount, total, amount_paid, status, price_list, is_cash_sale, posting_time, non_system_invoice, cost_center, invoicer, invoicer_id
+    )
+    VALUES (
+      'draft', $1, $2, $3, $4, $5,
+      $6, $7, $8, $9, $10, $11, $12, $13, $16, $14, $15, $17, $18, $19
+    )
+    RETURNING id
+    `,
+    [...invoiceParams(invoiceData), payload.is_cash_sale === true, invoiceData.cost_center, invoiceData.invoicer, invoiceData.invoicer_id],
+  );
+  const id = Number(rows[0].id);
+  const invoiceNo = `INV-${String(id).padStart(6, '0')}`;
+  await client.query(
+    'UPDATE app_invoices SET invoice_no = $1 WHERE id = $2',
+    [invoiceNo, id],
+  );
+  await insertPostgresItems(client, id, invoiceNo, invoiceData.items);
+  await insertPostgresPayments(client, id, invoiceData.payments);
+  return id;
 }
 
 async function createCashSaleInvoice(payload, payment) {
@@ -781,82 +783,85 @@ async function updatePostgresInvoice(id, payload) {
 }
 
 async function submitPostgresInvoice(id) {
-  await withPostgresTransaction(async (client) => {
-    const { rows: invoiceRows } = await client.query(
-      'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
-      [Number(id)],
-    );
-    const invoice = invoiceRows[0];
-    if (!invoice) {
-      const err = new Error('Invoice not found.');
-      err.status = 404;
-      throw err;
-    }
-    if ((invoice.docstatus || 'submitted') !== 'draft') {
-      const err = new Error('Only draft invoices can be submitted.');
-      err.status = 400;
-      throw err;
-    }
+  await withPostgresTransaction(client => submitPostgresInvoiceInTransaction(client, id));
+  return Number(id);
+}
 
-    const { rows: itemRows } = await client.query(
-      `
-      SELECT *
-      FROM app_invoice_items
-      WHERE invoice_pk = $1
-      ORDER BY line_no
-      `,
-      [Number(id)],
-    );
+async function submitPostgresInvoiceInTransaction(client, id) {
+  const { rows: invoiceRows } = await client.query(
+    'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
+    [Number(id)],
+  );
+  const invoice = invoiceRows[0];
+  if (!invoice) {
+    const err = new Error('Invoice not found.');
+    err.status = 404;
+    throw err;
+  }
+  if ((invoice.docstatus || 'submitted') !== 'draft') {
+    const err = new Error('Only draft invoices can be submitted.');
+    err.status = 400;
+    throw err;
+  }
 
-    let totalCost = 0;
-    for (const item of itemRows) {
-      const movement = await applyPostgresStockMovement(client, {
-        posting_date: dateOnly(invoice.invoice_date),
-        item_code: item.item_code,
-        item_name: item.item_name,
-        warehouse: item.warehouse,
-        voucher_type: 'invoice',
-        voucher_id: Number(id),
-        voucher_no: invoice.invoice_no,
-        qty_change: -Math.abs(Number(item.quantity || 0)),
-      });
-      const costRate = movement.outgoing_rate;
-      const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
-      totalCost += costAmount;
-      const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
-      await client.query(
-        `
-        UPDATE app_invoice_items
-        SET cost_rate = $1,
-          cost_amount = $2,
-          gross_profit = $3,
-          stock_at_sale = $4
-        WHERE id = $5
-        `,
-        [costRate, costAmount, grossProfit, movement.previous_quantity, Number(item.id)],
-      );
-    }
+  const { rows: itemRows } = await client.query(
+    `
+    SELECT *
+    FROM app_invoice_items
+    WHERE invoice_pk = $1
+    ORDER BY line_no
+    `,
+    [Number(id)],
+  );
 
-    await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
-    await syncPostgresInvoicePaymentTotals(client, Number(id));
-    await postSalesInvoiceGlEntry(client, {
-      ...invoice,
-      id: Number(id),
-      total_cost: roundMoney(totalCost),
+  let totalCost = 0;
+  for (const item of itemRows) {
+    const movement = await applyPostgresStockMovement(client, {
+      posting_date: dateOnly(invoice.invoice_date),
+      item_code: item.item_code,
+      item_name: item.item_name,
+      warehouse: item.warehouse,
+      voucher_type: 'invoice',
+      voucher_id: Number(id),
+      voucher_no: invoice.invoice_no,
+      qty_change: -Math.abs(Number(item.quantity || 0)),
     });
-    const { rows: paymentRows } = await client.query(
+    const costRate = movement.outgoing_rate;
+    const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
+    totalCost += costAmount;
+    const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
+    await client.query(
       `
-      SELECT id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
-      FROM app_invoice_payments
-      WHERE invoice_id = $1
-      ORDER BY payment_no
+      UPDATE app_invoice_items
+      SET cost_rate = $1,
+        cost_amount = $2,
+        gross_profit = $3,
+        stock_at_sale = $4
+      WHERE id = $5
       `,
-      [Number(id)],
+      [costRate, costAmount, grossProfit, movement.previous_quantity, Number(item.id)],
     );
-    for (const payment of paymentRows) {
-      await createOrUpdatePaymentJournalEntry(client, invoice, payment);
-    }
+  }
+
+  await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
+  await syncPostgresInvoicePaymentTotals(client, Number(id));
+  await postSalesInvoiceGlEntry(client, {
+    ...invoice,
+    id: Number(id),
+    total_cost: roundMoney(totalCost),
   });
+  const { rows: paymentRows } = await client.query(
+    `
+    SELECT id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
+    FROM app_invoice_payments
+    WHERE invoice_id = $1
+    ORDER BY payment_no
+    `,
+    [Number(id)],
+  );
+  for (const payment of paymentRows) {
+    await createOrUpdatePaymentJournalEntry(client, invoice, payment);
+  }
   return Number(id);
 }
 
@@ -1024,92 +1029,95 @@ async function cancelPostgresInvoice(id) {
 }
 
 async function addPostgresInvoicePayment(id, payload) {
-  await withPostgresTransaction(async (client) => {
-    const { rows: invoiceRows } = await client.query(
-      `
-      SELECT id, invoice_no, customer_id, customer_name, docstatus, total
-      FROM app_invoices
-      WHERE id = $1
-      FOR UPDATE
-      `,
-      [Number(id)],
-    );
-    const invoice = invoiceRows[0];
-    if (!invoice) {
-      const err = new Error('Invoice not found.');
-      err.status = 404;
-      throw err;
-    }
-    if ((invoice.docstatus || 'submitted') !== 'submitted') {
-      const err = new Error('Submit the invoice before receiving payments.');
-      err.status = 400;
-      throw err;
-    }
+  await withPostgresTransaction(client => addPostgresInvoicePaymentInTransaction(client, id, payload));
+  return Number(id);
+}
 
-    const { rows: totalsRows } = await client.query(
-      `
-      SELECT
-        COALESCE(MAX(payment_no), 0)::int AS max_payment_no,
-        COALESCE(SUM(amount) FILTER (WHERE docstatus = 'submitted'), 0)::float AS amount_paid
-      FROM app_invoice_payments
-      WHERE invoice_id = $1
-      `,
-      [Number(id)],
-    );
-    const totals = totalsRows[0] || {};
-    const nextPaymentNo = Number(totals.max_payment_no || 0) + 1;
-    const payment = buildPaymentData(payload, [], nextPaymentNo);
-    const destination = payment.account_id ? await validateReceivingAccount(client, payment.account_id) : null;
-    const { rows: journalTotals } = await client.query(
-      `
-      SELECT COALESCE(SUM(journal_payment.amount), 0)::float AS amount_paid
-      FROM (
-        SELECT journal.id, SUM(line.credit - line.debit) AS amount
-        FROM app_journal_entries journal
-        JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
-        JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
-          AND setting.account_id = line.account_id
-        WHERE COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) = $1 AND journal.docstatus = 'submitted'
-          AND journal.party_type = 'customer'
-          AND (NULLIF(journal.party_id, '') = NULLIF($2, '') OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = $3))
-          AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
-          AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
-        GROUP BY journal.id
-        HAVING SUM(line.credit - line.debit) > 0
-      ) journal_payment
-      `,
-      [invoice.invoice_no, invoice.customer_id, invoice.customer_name],
-    );
-    const balanceDue = roundMoney(Number(invoice.total || 0) - Number(totals.amount_paid || 0) - Number(journalTotals[0].amount_paid || 0));
-    if (payment.amount > balanceDue) {
-      const err = new Error('Payment amount cannot exceed the invoice balance.');
-      err.status = 400;
-      throw err;
-    }
+async function addPostgresInvoicePaymentInTransaction(client, id, payload) {
+  const { rows: invoiceRows } = await client.query(
+    `
+    SELECT id, invoice_no, customer_id, customer_name, docstatus, total
+    FROM app_invoices
+    WHERE id = $1
+    FOR UPDATE
+    `,
+    [Number(id)],
+  );
+  const invoice = invoiceRows[0];
+  if (!invoice) {
+    const err = new Error('Invoice not found.');
+    err.status = 404;
+    throw err;
+  }
+  if ((invoice.docstatus || 'submitted') !== 'submitted') {
+    const err = new Error('Submit the invoice before receiving payments.');
+    err.status = 400;
+    throw err;
+  }
 
-    const { rows: paymentRows } = await client.query(
-      `
-      INSERT INTO app_invoice_payments (
-        invoice_id, payment_no, payment_date, amount, method, account_id, reference, notes, created_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
-      `,
-      [
-        Number(id),
-        payment.id,
-        payment.payment_date,
-        payment.amount,
-        destination?.method || payment.method,
-        destination?.id || null,
-        payment.reference,
-        payment.notes,
-        payment.created_at,
-      ],
-    );
-    await syncPostgresInvoicePaymentTotals(client, Number(id));
-    await createOrUpdatePaymentJournalEntry(client, invoice, paymentRows[0]);
-  });
+  const { rows: totalsRows } = await client.query(
+    `
+    SELECT
+      COALESCE(MAX(payment_no), 0)::int AS max_payment_no,
+      COALESCE(SUM(amount) FILTER (WHERE docstatus = 'submitted'), 0)::float AS amount_paid
+    FROM app_invoice_payments
+    WHERE invoice_id = $1
+    `,
+    [Number(id)],
+  );
+  const totals = totalsRows[0] || {};
+  const nextPaymentNo = Number(totals.max_payment_no || 0) + 1;
+  const payment = buildPaymentData(payload, [], nextPaymentNo);
+  const destination = payment.account_id ? await validateReceivingAccount(client, payment.account_id) : null;
+  const { rows: journalTotals } = await client.query(
+    `
+    SELECT COALESCE(SUM(journal_payment.amount), 0)::float AS amount_paid
+    FROM (
+      SELECT journal.id, SUM(line.credit - line.debit) AS amount
+      FROM app_journal_entries journal
+      JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = line.account_id
+      WHERE COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) = $1 AND journal.docstatus = 'submitted'
+        AND journal.party_type = 'customer'
+        AND (NULLIF(journal.party_id, '') = NULLIF($2, '') OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = $3))
+        AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+        AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
+      GROUP BY journal.id
+      HAVING SUM(line.credit - line.debit) > 0
+    ) journal_payment
+    `,
+    [invoice.invoice_no, invoice.customer_id, invoice.customer_name],
+  );
+  const balanceDue = roundMoney(Number(invoice.total || 0) - Number(totals.amount_paid || 0) - Number(journalTotals[0].amount_paid || 0));
+  if (payment.amount > balanceDue) {
+    const err = new Error('Payment amount cannot exceed the invoice balance.');
+    err.status = 400;
+    throw err;
+  }
+
+  const { rows: paymentRows } = await client.query(
+    `
+    INSERT INTO app_invoice_payments (
+      invoice_id, payment_no, payment_date, amount, method, account_id, reference, notes, created_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
+    `,
+    [
+      Number(id),
+      payment.id,
+      payment.payment_date,
+      payment.amount,
+      destination?.method || payment.method,
+      destination?.id || null,
+      payment.reference,
+      payment.notes,
+      payment.created_at,
+    ],
+  );
+  await syncPostgresInvoicePaymentTotals(client, Number(id));
+  await createOrUpdatePaymentJournalEntry(client, invoice, paymentRows[0]);
   return Number(id);
 }
 
@@ -1510,6 +1518,9 @@ async function insertPostgresPayments(client, invoiceId, payments) {
   }
 }
 module.exports = {
+  createPostgresInvoiceInTransaction,
+  submitPostgresInvoiceInTransaction,
+  addPostgresInvoicePaymentInTransaction,
   allInvoices,
   paginatedInvoices,
   invoiceWarehouses,

@@ -2,6 +2,8 @@
 
 Prepared: 10 October 2026. Status: proposed implementation; this document does not mean these features are available. Scope: one versioned API serving a mobile app and external business integrations. The existing website continues to use the same application data and business rules.
 
+Phase 0 is closed with approved defaults. The Phase 1 foundation and currently available endpoints are documented in the [implemented API guide](api/README.md); the business endpoints and later features below remain proposed.
+
 ## Development objective
 
 Updated: 12 October 2026. This objective describes intended development, not currently available functionality.

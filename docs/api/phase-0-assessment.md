@@ -1,6 +1,6 @@
 # Phase 0: API contract and workflow audit
 
-Prepared: 12 October 2026. Status: Phase 0 closed. Defaults approved by the product owner on 12 October 2026, with payment compatibility requirements below. No `/api/v1` endpoint is implemented by this change. See the [objective](../api-implementation-plan.md#development-objective), [roadmap](../api-development-roadmap.md), and [OpenAPI draft](openapi.v1.draft.json).
+Prepared: 12 October 2026. Status: Phase 0 closed. Defaults approved by the product owner on 12 October 2026, with payment compatibility requirements below. This Phase 0 document is a planning record; current Phase 1 endpoints are listed in the [implemented API guide](README.md). See the [objective](../api-implementation-plan.md#development-objective), [roadmap](../api-development-roadmap.md), and [OpenAPI draft](openapi.v1.draft.json).
 
 ## Readiness and scope
 
@@ -34,7 +34,7 @@ All paths below are relative to `/api/v1`. Scopes are proposed credential restri
 | POST `/invoices/{id}/submit` | `invoices:submit` | `vouchers.sales.submit`; parent visibility, draft state and current stock |
 | POST `/invoices/{id}/payments` | `payments:record` | `payments.sales.record`; parent visibility, permitted receiving account, submitted state and balance |
 
-The selector fills an actual workflow dependency: website invoice creation requires an invoicer, and payments require a permitted cash/bank account. Do not expose a general HR employee or unrestricted chart-of-accounts endpoint for this purpose. Exact selector permission composition is pending review. Reuse the existing lookup predicates rather than simplifying them into unconditional master Read permissions. `/api/v1` needs explicit method/path branches; existing website path-based scope checks do not automatically cover it.
+The selector fills an actual workflow dependency: website invoice creation requires an invoicer, and payments require a permitted cash/bank account. Do not expose a general HR employee or unrestricted chart-of-accounts endpoint for this purpose. Selector permission composition will be checked against existing website behavior during Phase 2 implementation. Reuse the existing lookup predicates rather than simplifying them into unconditional master Read permissions. `/api/v1` needs explicit method/path branches; existing website path-based scope checks do not automatically cover it.
 
 Standard-role invoice visibility includes creator ownership OR the assigned employee/invoicer exception (`src/voucher-ownership.js`). Service-account role choice must preserve intended reconciliation visibility. Detail lookup via `findInvoice` is not authorization by itself.
 
@@ -69,14 +69,14 @@ The product owner approved the proposed defaults, subject to preserving existing
 
 | Decision | Recommended starting point | Owner / gate |
 | --- | --- | --- |
-| Core lifecycle | Online drafts, separate submission and receipts; website handles corrections initially | Product owner; before write contract freeze |
-| Mobile client | Native bearer client; browser cookie origin protection retained | Product owner; before auth implementation |
-| Mobile sessions | 15-minute access, rotating refresh, 30-day maximum; password resets revoke families | Product owner; before auth implementation |
-| Integration role | Dedicated non-admin account, narrow scopes, explicit ownership visibility | Product + implementation owner; before credential pilot |
+| Core lifecycle | Online drafts, separate submission and receipts; website handles corrections initially | Product owner; approved; no website payment changes |
+| Mobile client | Native bearer client; browser cookie origin protection retained | Product owner; approved; lifecycle tests required |
+| Mobile sessions | 15-minute access, rotating refresh, 30-day maximum; password resets revoke families | Product owner; approved; lifecycle tests required |
+| Integration role | Dedicated non-admin account, narrow scopes, explicit ownership visibility | Product + implementation owner; approved; visibility tests required |
 | Price/rate policy | Preserve existing website pricing and validation; no new override policy | Approved; parity tests required |
-| Payments | One invoice per payment; account derives method; integration provider/reference required | Product/accounting owner; before payment contract freeze |
-| Retention/reference namespace | Seven-day keys; durable account/provider/reference uniqueness | Product + implementation owner; before migrations |
-| Credentials administration | Minimal protected issuance/revocation with secret displayed once | Product owner; before credential lifecycle implementation |
+| Payments | One invoice per payment; account derives method; integration provider/reference required | Product/accounting owner; approved; financial parity tests required |
+| Retention/reference namespace | Seven-day keys; durable account/provider/reference uniqueness | Product + implementation owner; approved; API-owned protection only |
+| Credentials administration | Minimal protected issuance/revocation with secret displayed once | Product owner; approved; protected administration required |
 | Traffic/deployment | Single app instance initially; bounded lists and configurable limits | Product/operations owner; before load targets and pilot |
 | Performance targets | Measure website baseline and agreed API workload; set thresholds from evidence | Implementation/operations owner; before launch |
 

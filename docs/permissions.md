@@ -1,5 +1,13 @@
 # Permissions and voucher visibility
 
+## Versioned API foundation
+
+Mobile API requests resolve the user's current role, overrides and restrictions independently of browser sessions. Temporary-password sessions can only change their own password or log out. Integration credentials belong to dedicated non-admin accounts, expire after 90 days, and narrow account permissions through allowlisted scopes. Deactivated accounts, revoked/expired tokens and service accounts promoted to Admin are denied. Dedicated service accounts cannot use website/mobile password login, including after a password reset.
+
+Credential creation, metadata listing, replacement issuance and revocation require a mobile Admin session; integration tokens cannot administer credentials. Standard ownership and employee exceptions remain unchanged. Shared sales policies check action permissions, credential scopes, customer/warehouse/price-list visibility and receiving-account access, including before saved retry responses are replayed. Future HTTP business routes are not enabled by these scope names.
+
+See [API authentication and credential administration](api/README.md). No new payment allocation permissions, rate override policy or existing payment-table constraints were introduced.
+
 ## How access is decided
 
 1. Each user has one role. Roles grant actions on voucher types, master lists, payments, accounts, and reports. The built-in roles are Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management. Retail, Wholesale, Finance, Logistics, and Management start with the same permission set as Standard; an admin can edit role permissions in **Settings → Roles**.
