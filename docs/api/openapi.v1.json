@@ -3,7 +3,7 @@
   "info": {
     "title": "Work Master API",
     "version": "1.0.0",
-    "description": "Implemented Phase 1 authentication and Phase 2 authorized reads. Public invoice and payment mutations remain planned. Production requires HTTPS; see docs/api/README.md. Phase 4 adds draft creation, separate submission and one-invoice receipts with required idempotency keys. Existing website pricing and posting rules remain unchanged."
+    "description": "Implemented Phase 1 authentication and Phase 2 authorized reads. Public invoice and payment mutations remain planned. Production requires HTTPS; see docs/api/README.md. Phase 4 adds draft creation, separate submission and one-invoice receipts with required idempotency keys. Existing website pricing and posting rules remain unchanged. Operators may temporarily disable all API traffic: HTTP 503 api_disabled preserves committed records and credential state."
   },
   "servers": [
     {
@@ -3274,7 +3274,7 @@
     },
     "responses": {
       "ApiError": {
-        "description": "Error envelope; status determines category. Retry-After required for throttling; never expose SQL errors or stack traces.",
+        "description": "Error envelope; status determines category. Retry-After required for throttling; never expose SQL errors or stack traces. HTTP 503 also covers API containment (api_disabled); clients retain keys/references and reconcile after service resumes.",
         "content": {
           "application/json": {
             "schema": {

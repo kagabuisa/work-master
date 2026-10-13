@@ -4,6 +4,8 @@ Prepared: 10 October 2026. Status reviewed: 12 October 2026. This document is an
 
 Phase 0 is closed with approved defaults. Phases 1–4 implement authentication, authorized business reads, shared financial reliability and public invoice draft/submission/one-invoice receipt endpoints, documented in the [implemented API guide](api/README.md). Later extensions remain proposed. Real-client acceptance and production launch gates remain open.
 
+Phase 5 local operational hardening is implemented as of 13 October 2026: redacted telemetry, API containment, an isolated database restore drill, read-load tooling and operational runbooks. Staging/client work is deferred by the product owner. See the [Phase 5 report](api/phase-5-report.md); deployed monitoring/alerts, representative capacity/recovery and rollout acceptance remain open.
+
 ## Development objective
 
 Updated: 12 October 2026. This objective describes intended development, not currently available functionality.

@@ -2,6 +2,8 @@
 
 Prepared: 12 October 2026. Status: Phase 0 closed with approved defaults; Phases 1–4 implemented. Current endpoints are documented in the [API guide](api/README.md); real-client acceptance and Phase 5 operational launch work remain open.
 
+Updated: 13 October 2026. Phase 5 local operational hardening is implemented and verified; the product owner deferred staging/client work. See the [Phase 5 report](api/phase-5-report.md) and [operations runbook](api/operations.md). The production launch gate is not closed.
+
 Phase 0 technical artifacts are available in the [workflow audit, permission matrix, decision log and backlog](api/phase-0-assessment.md) and [OpenAPI draft](api/openapi.v1.draft.json). The product owner accepted the defaults with explicit preservation of website pricing, payment allocations, accounting entries and workflows; future multiple-invoice payment allocation remains deferred.
 
 ## Reviewed stage status
@@ -15,7 +17,7 @@ Repository review: 12 October 2026. Phase 4 continues the implementation baselin
 | 2: Authorized reads | Implemented and locally verified; client acceptance open | [Phase 2 report](api/phase-2-report.md), scoped reads and implemented OpenAPI; real mobile/integration staging walkthrough remains unrecorded |
 | 3: Reliability and audit | Implemented and locally verified | [Phase 3 report](api/phase-3-report.md), transaction-aware services, atomic retry results, permanent payment references and migration 19; public HTTP financial parity belongs to Phase 4 |
 | 4: Financial workflows | Implemented and locally verified; client acceptance open | [Phase 4 report](api/phase-4-report.md), strict draft/submission/one-invoice receipt routes and real HTTP financial parity/retry/rollback tests; both real-client staging walkthroughs remain open |
-| 5: Launch and handover | Not complete | Some documentation, defensive limits and migration tests already exist; capacity targets, monitoring/alerts, recovery drills, rollout and client acceptance remain open |
+| 5: Launch and handover | Local hardening implemented; launch gate open | [Phase 5 report](api/phase-5-report.md): redacted request/latency metrics, API containment, local dump/restore drill, read-load tool and runbooks; deployed alerting/ownership, capacity targets, representative recovery, TLS, rollout and real-client acceptance remain pending |
 
 Do not treat Phases 0–4 as a completed production release: Phase 2's client walkthrough and Phase 4–5 acceptance gates still need evidence. Prior report test totals describe their respective implementation checkpoints; the [roadmap review](api/roadmap-review.md) records the baseline review and the Phase 4 report records financial HTTP verification.
 
@@ -33,7 +35,7 @@ Draft editing, cancellation endpoints, multiple-invoice payment allocation, webh
 
 ## Next stage: acceptance and Phase 5 launch work
 
-Complete the outstanding read and financial staging walkthroughs with a restricted mobile user and integration account. Agree on pilot volumes and measure API load/concurrency alongside website traffic before setting capacity targets. Establish request/error/latency monitoring and alerts, verify deployed TLS and credential revocation, test backup restoration and rollout/rollback procedures, then review limited-pilot evidence before production expansion. Local automated fixtures do not replace those operational or client gates.
+Staging is deferred at the product owner's request. Local telemetry, containment, restore verification and read-load tooling are ready. When staging resumes, complete the outstanding read/financial walkthroughs with the real restricted mobile and integration clients, agree on pilot volumes and measure API load/concurrency alongside website traffic. Connect log collection/alerts and name responders, verify deployed TLS/revocation and representative backup/file/config recovery, and exercise compatible rollout/rollback before production expansion. Local automated fixtures and the synthetic database drill do not replace those deployment or client gates.
 
 ## Objective and release scope
 

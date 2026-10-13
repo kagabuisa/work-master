@@ -12,6 +12,7 @@ function operation(name, parse) {
     const key = idempotencyKey(req);
     const payload = parse(req.body);
     const result = await executeInvoiceOperation(req.apiActor, name, req.params.id || null, key, payload);
+    req.apiMutationOutcome = result.replayed ? 'replayed' : result.referenceReplayed ? 'reference_replayed' : 'committed';
     res.status(result.status).json(result.body);
   }).catch(next);
 }

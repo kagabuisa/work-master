@@ -1,5 +1,6 @@
 'use strict';
 const crypto = require('node:crypto');
+const { monitor, configuration } = require('./monitoring');
 
 function apiError(status, code, message) {
   const error = new Error(message); error.status = status; error.code = code; return error;
@@ -10,6 +11,8 @@ function apiContext(req, res, next) {
   req.requestId = crypto.randomUUID();
   res.set('X-Request-ID', req.requestId);
   res.set('Cache-Control', 'no-store');
+  monitor.observe(req, res);
+  if (!configuration().enabled) return next(apiError(503, 'api_disabled', 'The API is temporarily unavailable.'));
   next();
 }
 
@@ -23,6 +26,7 @@ async function apiErrors(error, req, res, next) {
     422: 'validation_failed', 429: 'rate_limited', 503: 'unavailable' };
   // Database errors have codes too; only expose our allowlisted symbolic codes.
   const code = /^[a-z][a-z_]+$/.test(error.code || '') ? error.code : codes[status] || 'internal_error';
+  req.apiErrorCode = code;
   if (status >= 500) console.error('api_request_error', { request_id: req.requestId, status });
   if (status < 500 && req.requestId) {
     try {

@@ -381,6 +381,17 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       assert.deepEqual((await snapshot()).gl, before.gl);
       assert.equal((await pool.query('SELECT docstatus FROM app_invoice_payments WHERE id=$1', [first.body.data.id])).rows[0].docstatus, 'cancelled');
     });
+
+    await t.test('financial HTTP metrics distinguish committed effects, retry replay and permanent-reference replay', () => {
+      const metrics = require('../src/api/monitoring').monitor.snapshot();
+      for (const outcome of ['committed', 'replayed', 'reference_replayed']) {
+        const row = metrics.series.find(row => row.route === '/invoices/:id/payments' && row.mutation_outcome === outcome && row.status_class === '2xx');
+        assert(row && row.requests > 0, outcome);
+        assert.equal(row.latency_buckets.at(-1), row.requests);
+      }
+      assert(metrics.series.some(row => row.status_class === '5xx' && row.route === '/invoices/:id/payments'));
+      assert(!JSON.stringify(metrics.series).includes('main-receipt'));
+    });
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     clearInvoiceCaches();

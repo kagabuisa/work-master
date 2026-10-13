@@ -2,6 +2,8 @@
 
 The versioned API is mounted at `/api/v1`. The [implemented OpenAPI contract](openapi.v1.json) covers 23 operations: authentication, self identity, credential administration, authorized business reads and the financial operations below. The [Phase 0 draft](openapi.v1.draft.json) is a historical proposal; use the implemented contract for current fields and limits. Real-client staging acceptance and production launch checks remain open.
 
+Phase 5 operational tooling now includes redacted request/aggregate metrics, API containment, a disposable backup/restore drill and a bearer read-load tool. See the [operations runbook](operations.md) and [Phase 5 report](phase-5-report.md). These local capabilities do not establish real-client or staging acceptance.
+
 ## Invoice and receipt operations
 
 All three operations require bearer authentication, `Content-Type: application/json` and exactly one `Idempotency-Key` header containing 1–128 visible ASCII characters without spaces. Query parameters are rejected. Integration scopes narrow current account permissions; mobile users use their account permissions directly.
@@ -150,6 +152,8 @@ Production API requests require HTTPS, including when the website uses the priva
 
 JSON writes require `Content-Type: application/json`, use the existing 1 MB body cap, reject unknown fields, and bound credentials/password strings. Error responses use `error.code`, `error.message`, and `error.request_id`; malformed JSON uses the same envelope. Every API response includes a server-generated `X-Request-ID`. Internal and database errors are hidden.
 
+When operators set `API_V1_ENABLED=false`, all new `/api/v1` requests return 503 `api_disabled`, including authentication, while the website remains available. Clients must retain financial keys/references and reconcile uncertain results when service returns. Containment does not revoke credentials or reverse earlier commits. HTTP 503 messages remain generic; clients use the stable error code. Deployment environment changes require app recreation.
+
 PostgreSQL-backed fixed-window limits coordinate across app instances: login 20 requests/IP and 10 requests/username per 15 minutes; refresh 60/IP/minute; protected requests 300/IP/minute and 120/account/minute. Limits count attempts, not just failures. Throttling returns 429 and `Retry-After`. These are initial defensive limits, not measured capacity targets. Proxies must supply client addresses correctly under the existing trusted-proxy setting.
 
 ## Transaction and audit foundation
@@ -177,3 +181,5 @@ API audit records link request, actor, session/credential and operation outcome;
 `tests/api-transactions.test.js` covers final reference checks, real lock waits, scarce-stock/opposite-order concurrency, timeout/fault rollback, permanent references through cancellation and single-connection execution. `tests/api-reads.test.js` covers scoped resources, public fields, counts/pages, selectors, pricing parity and financial immutability. `tests/api.test.js` exercises real HTTP authentication, existing cookie login, refresh races/revocation, account/scopes, expiry, error envelopes, rate limits, actual website payment posting, transaction-wrapper parity, concurrent retry protection, permanent references, audit attribution and rollback. Run `npm run test:postgres` using README's isolated local database procedure so API integration tests are enabled and no database checks are skipped.
 
 `tests/api-financial.test.js` verifies strict financial input and real HTTP creation/submission/receipts, concurrent retries, scoped denials, scarce-stock contention, overpayment serialization, audit/retry-storage rollback, permanent references after cancellation and website financial parity. Remaining launch work includes performance measurements, monitoring/alerts, recovery drills and real-client staging/pilot acceptance. See the [Phase 4 report](phase-4-report.md). No multiple-invoice allocation, existing payment schema change or website pricing change is introduced.
+
+`tests/api-operations.test.js` verifies telemetry redaction and bounded labels, completion/disconnection accounting, configuration, API containment and bearer load-tool restrictions/status reporting. The financial HTTP suite checks distinct commit/key-replay/reference-replay metrics. Local PostgreSQL restoration is verified separately through the disposable drill; production log collection/alerts, representative recovery and staging capacity/client acceptance remain open.

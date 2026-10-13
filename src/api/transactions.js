@@ -94,7 +94,7 @@ async function atomicMutation(actor, operation, resourcePath, key, payload, auth
 
 // Permanent API-only protection is independent of expiring retry keys. It
 // neither changes app_invoice_payments nor enforces new rules on website inputs.
-async function permanentPayment(client, actor, invoiceId, source, reference, payload, mutate) {
+async function permanentPayment(client, actor, invoiceId, source, reference, payload, mutate, onReplay) {
   if (!/^[1-9][0-9]*$/.test(String(invoiceId)) || !Number.isSafeInteger(Number(invoiceId))) {
     throw apiError(400, 'invalid_request', 'Choose a valid invoice ID.');
   }
@@ -109,6 +109,7 @@ async function permanentPayment(client, actor, invoiceId, source, reference, pay
     WHERE actor_id=$1 AND source=$2 AND reference=$3`, params);
   if (rows[0]) {
     if (rows[0].payload_hash !== payloadHash) throw apiError(409, 'payment_reference_conflict', 'This external payment reference was used for a different payment.');
+    if (onReplay) onReplay();
     return rows[0].response;
   }
   const result = await mutate(client);

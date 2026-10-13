@@ -178,6 +178,7 @@ app.use('/api/v1', require('./src/api/errors').apiContext);
 app.use(express.urlencoded({ extended: true, limit: '3mb', parameterLimit: 35000 }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
+  if (req.apiV1) return next(); // API telemetry uses bounded templates, never raw paths.
   const start = process.hrtime.bigint();
   res.on('finish', () => {
     const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;

@@ -16,6 +16,8 @@ Mobile users need the account permission and record checks without integration s
 
 See [API authentication and credential administration](api/README.md). No new payment allocation permissions, rate override policy or existing payment-table constraints were introduced.
 
+Operational telemetry and recovery tools add no public metrics or audit-edit endpoint and grant no new account permissions. Operators need restricted deployment/log/database access. `API_V1_ENABLED=false` makes the API unavailable to every credential with JSON 503; it does not grant/bypass permissions, revoke credentials or affect website access. Re-enable only after reconciling any preceding operations. Existing permission and replay checks remain in force.
+
 ## How access is decided
 
 1. Each user has one role. Roles grant actions on voucher types, master lists, payments, accounts, and reports. The built-in roles are Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management. Retail, Wholesale, Finance, Logistics, and Management start with the same permission set as Standard; an admin can edit role permissions in **Settings → Roles**.

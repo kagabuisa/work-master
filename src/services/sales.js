@@ -30,6 +30,7 @@ async function executeInvoiceOperation(actor, operation, id, key, validatedPaylo
   if (!policies[operation]) throw apiError(400, 'invalid_operation', 'Unknown sales operation.');
   const [scope, permission] = policies[operation];
   let lockedInvoice;
+  let referenceReplayed = false;
   const path = operation === 'invoice.create' ? '/invoices' : `/invoices/${id}/${operation === 'invoice.submit' ? 'submit' : 'payments'}`;
   const result = await atomicMutation(actor, operation, path, key, validatedPayload,
     async (client, fresh) => {
@@ -80,7 +81,7 @@ async function executeInvoiceOperation(actor, operation, id, key, validatedPaylo
           }
           const { rows } = await transaction.query(`SELECT id FROM app_invoice_payments WHERE invoice_id=$1 ORDER BY payment_no DESC LIMIT 1`, [id]);
           return { id: String(rows[0].id), invoice_id: String(id) };
-        });
+        }, () => { referenceReplayed = true; });
       return { status: 201, data: receipt, resource: { type: 'payment', id: receipt.id } };
     }, async (client, fresh, record) => {
       // A website edit can change the saved draft's visibility after creation.
@@ -90,6 +91,6 @@ async function executeInvoiceOperation(actor, operation, id, key, validatedPaylo
       }
     });
   clearInvoiceCaches(); // After commit, including replay following an uncertain response.
-  return result;
+  return { ...result, referenceReplayed };
 }
 module.exports = { executeInvoiceOperation };
