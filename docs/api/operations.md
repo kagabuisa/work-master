@@ -2,6 +2,8 @@
 
 Updated: 13 October 2026. Applies to the current single-instance `/api/v1` service. Local telemetry, containment, restore verification and read-load tooling are implemented. Staging/client acceptance, deployed TLS, capacity targets, production alert ownership and limited-pilot evidence remain pending by product-owner decision.
 
+Local staging follow-up: [the production-mode localhost HTTPS environment](local-staging.md) is now running with synthetic records and scripted scoped sales/website checks. Its local TLS/proxy/revocation evidence does not certify a reachable public deployment or actual mobile/business clients; those gates and representative capacity/recovery remain open.
+
 ## Telemetry and access
 
 Every API request produces one JSON `api_request` event at response completion or disconnection. It includes generated request ID, timestamp, process ID, bounded route template, method, status, duration, abort flag, authenticated actor/credential/session IDs when available, error code and financial outcome. Headers, cookies, tokens, passwords, request bodies, query values, resource IDs, names and raw URLs are excluded. Unknown paths use `unmatched`. Request metadata and durable audit still require restricted operational log/database access.

@@ -4,6 +4,8 @@ Prepared: 12 October 2026. Status: Phase 0 closed with approved defaults; Phases
 
 Updated: 13 October 2026. Phase 5 local operational hardening is implemented and verified; the product owner deferred staging/client work. See the [Phase 5 report](api/phase-5-report.md) and [operations runbook](api/operations.md). The production launch gate is not closed.
 
+Follow-up: isolated [local HTTPS staging](api/local-staging.md) is now deployed and its scripted restricted-mobile/integration financial and website checks pass. Actual native mobile/external business clients and representative deployment/capacity/pilot evidence remain pending.
+
 Phase 0 technical artifacts are available in the [workflow audit, permission matrix, decision log and backlog](api/phase-0-assessment.md) and [OpenAPI draft](api/openapi.v1.draft.json). The product owner accepted the defaults with explicit preservation of website pricing, payment allocations, accounting entries and workflows; future multiple-invoice payment allocation remains deferred.
 
 ## Reviewed stage status
@@ -35,7 +37,7 @@ Draft editing, cancellation endpoints, multiple-invoice payment allocation, webh
 
 ## Next stage: acceptance and Phase 5 launch work
 
-Staging is deferred at the product owner's request. Local telemetry, containment, restore verification and read-load tooling are ready. When staging resumes, complete the outstanding read/financial walkthroughs with the real restricted mobile and integration clients, agree on pilot volumes and measure API load/concurrency alongside website traffic. Connect log collection/alerts and name responders, verify deployed TLS/revocation and representative backup/file/config recovery, and exercise compatible rollout/rollback before production expansion. Local automated fixtures and the synthetic database drill do not replace those deployment or client gates.
+Local telemetry, containment, restore verification, read-load tooling and an isolated HTTPS staging deployment are ready. Scripted staging flows verify proxy/TLS, scoped reads, financial retries/reconciliation, secure website cookies and revocation. Complete the outstanding walkthroughs with actual native mobile/external integration clients, agree on pilot volumes and measure representative API load/concurrency alongside website traffic. Connect log collection/alerts and name responders, verify the chosen reachable deployment's TLS and representative backup/file/config recovery, and exercise compatible rollout/rollback before production expansion. Local staging scripts do not replace actual client or production pilot sign-off.
 
 ## Objective and release scope
 

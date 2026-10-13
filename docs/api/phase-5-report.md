@@ -2,6 +2,8 @@
 
 Prepared: 13 October 2026. Baseline: `c08f9da`. Local operational hardening is implemented. Staging and real-client work are deferred at the product owner's request; Phase 5 production launch is not complete.
 
+Follow-up: the product owner authorized staging setup. An [isolated local HTTPS deployment](local-staging.md) now passes scripted restricted-mobile/integration sales flows, proxy/TLS checks and website reconciliation. The original checkpoint below remains local-hardening evidence; actual native/external clients, representative capacity/recovery and pilot gates remain open.
+
 ## Delivered locally
 
 - Redacted per-request JSON and scheduled cumulative request/error/latency histograms, with fixed route/method/status/outcome labels and no actor/resource metric labels. Unknown paths are grouped; raw URLs, queries, bodies, headers, secrets and voucher IDs are excluded from request events. Completion/disconnection is counted once. API generic slow-path logging is replaced by the safe telemetry path.

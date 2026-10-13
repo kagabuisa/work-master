@@ -292,6 +292,12 @@ Run `bash scripts/api-recovery-drill.sh` on the local Docker host to seed synthe
 
 The bearer-only read-load tool is `npm run perf:api -- --url=https://staging.example/api/v1 --resource=invoices --requests=30 --concurrency=1 --interval_ms=1000`. Supply opaque tokens through `API_BENCHMARK_TOKEN` or `API_BENCHMARK_TOKENS` in a secure process environment; never use token command arguments or checked-in credentials. It issues GETs only, rejects redirects/non-2xx/non-JSON responses and reports status/error counts, latency percentiles and throughput without token/query/business-data output. See the runbook for allowed resources, bounds, pacing and loopback-only local HTTP. Representative staging load, real clients, deployed TLS, production alert ownership, recovery timing and pilot acceptance remain pending.
 
+### Isolated local staging
+
+Run `bash scripts/api-staging.sh up` to start the separate staging project, then `bash scripts/api-staging.sh check` to verify actual production-mode HTTP/TLS deployment and synthetic sales flows through HTTPS. The local URL is `https://localhost:3443`; trust `data/api-staging/tls/ca.crt` explicitly (for curl, `--cacert`). App/database ports are private; only the TLS proxy publishes a loopback port. The database, volumes, random credentials and environment are separate from the working app, with no application `.env` or ERPNext data/credentials used.
+
+Generated private credentials and redacted acceptance evidence are in ignored `data/api-staging/`; do not remove this state while retaining staging database volumes. `status` lists staging services; `down` stops them without deleting data. Checks create synthetic financial records and rotate/revoke staging integration credentials. The [local staging guide](docs/api/local-staging.md) documents trust, credentials, isolation and retained artifacts. Real native/external clients, a reachable public staging domain, representative capacity, external alerts and pilot acceptance remain pending.
+
 ## Important
 
 The current MySQL user is still used only for reading ERPNext tables. Stock and accounting entries created by this app are local to the app's Postgres database and are not written back to ERPNext.

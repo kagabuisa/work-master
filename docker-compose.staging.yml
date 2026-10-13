@@ -1,0 +1,94 @@
+services:
+  staging-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: work_master_api_staging
+      POSTGRES_USER: staging_user
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:?Run scripts/api-staging.sh first}
+    volumes:
+      - staging-postgres:/var/lib/postgresql/data
+    networks: [staging]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U staging_user -d work_master_api_staging"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  staging-app:
+    image: work_master-api-staging-app
+    build: .
+    environment: &app-environment
+      NODE_ENV: production
+      PORT: '3020'
+      TRUST_PROXY: 'true'
+      API_STAGING: '1'
+      POSTGRES_HOST: staging-db
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: work_master_api_staging
+      POSTGRES_USER: staging_user
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:?Run scripts/api-staging.sh first}
+      API_METRICS_INTERVAL_MS: '10000'
+    volumes: [staging-files:/app/data]
+    networks: [staging]
+    depends_on:
+      staging-db: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "require('http').get('http://127.0.0.1:3020/login',r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  staging-proxy:
+    image: work_master-api-staging-app
+    command: [node, scripts/staging/tls-proxy.js]
+    user: '${STAGING_UID:?}:${STAGING_GID:?}'
+    environment:
+      STAGING_HTTPS_PORT: ${STAGING_HTTPS_PORT:-3443}
+    volumes:
+      - ./data/api-staging/tls/server.key:/staging-tls/server.key:ro
+      - ./data/api-staging/tls/server.crt:/staging-tls/server.crt:ro
+      - ./data/api-staging/tls/ca.crt:/staging-tls/ca.crt:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    ports:
+      - '127.0.0.1:${STAGING_HTTPS_PORT:-3443}:8443'
+    networks: [staging, staging-edge]
+    depends_on:
+      staging-app: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "require('https').get('https://localhost:8443/login',{ca:require('fs').readFileSync('/staging-tls/ca.crt'),headers:{Host:'staging-proxy:8443'}},r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  staging-seed:
+    image: work_master-api-staging-app
+    profiles: [tools]
+    command: [node, scripts/staging/seed.js]
+    user: '${STAGING_UID:?}:${STAGING_GID:?}'
+    environment: *app-environment
+    volumes: [./data/api-staging:/staging-state]
+    networks: [staging]
+
+  staging-check:
+    image: work_master-api-staging-app
+    profiles: [tools]
+    command: [node, scripts/staging/check.js]
+    user: '${STAGING_UID:?}:${STAGING_GID:?}'
+    environment:
+      <<: *app-environment
+      NODE_EXTRA_CA_CERTS: /staging-state/tls/ca.crt
+    volumes: [./data/api-staging:/staging-state]
+    networks: [staging]
+
+networks:
+  staging:
+    internal: true
+  staging-edge:
+volumes:
+  staging-postgres:
+  staging-files:

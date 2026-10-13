@@ -4,6 +4,8 @@ The versioned API is mounted at `/api/v1`. The [implemented OpenAPI contract](op
 
 Phase 5 operational tooling now includes redacted request/aggregate metrics, API containment, a disposable backup/restore drill and a bearer read-load tool. See the [operations runbook](operations.md) and [Phase 5 report](phase-5-report.md). These local capabilities do not establish real-client or staging acceptance.
 
+An [isolated local HTTPS staging deployment](local-staging.md) now verifies production-mode proxy/TLS behavior, restricted mobile/integration API flows and website reconciliation using synthetic records. Generated credentials and redacted results remain private under `data/api-staging/`. Scripted staging checks are separate from actual native mobile/business-client acceptance; those launch gates remain open.
+
 ## Invoice and receipt operations
 
 All three operations require bearer authentication, `Content-Type: application/json` and exactly one `Idempotency-Key` header containing 1–128 visible ASCII characters without spaces. Query parameters are rejected. Integration scopes narrow current account permissions; mobile users use their account permissions directly.
