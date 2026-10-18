@@ -37,12 +37,26 @@ function canAny(user, permissions) {
   return permissions.some((permission) => can(user, permission));
 }
 
+function sharedStockWriteRequest(req) {
+  return Boolean(req.stockEntrySharedWrite && (
+    req.method === 'GET' && /^\/stock\/entries\/[1-9][0-9]*\/edit$/.test(req.path)
+    || req.method === 'POST' && (/^\/stock\/entries\/[1-9][0-9]*\/delivery$/.test(req.path)
+      || /^\/stock\/entries\/[1-9][0-9]*$/.test(req.path) && req.body?.action === 'save_draft')
+  ));
+}
+
 function permissionCheck(req) {
   const user = req.currentUser;
   const parts = req.path.split('/').filter(Boolean);
+  // Reconciliation sub-tabs retain the same explicit count/correction permissions.
+  if (parts[0] === 'stock' && parts[1] === 'reconciliations' && ['counts', 'corrections'].includes(parts[2])) parts.splice(1, 1);
   const method = req.method;
   const has = (key) => can(user, key);
   const all = (...keys) => keys.every(has);
+  if (sharedStockWriteRequest(req)) return true;
+
+  if (method === 'GET' && req.stockEntrySharedRead
+      && /^\/stock\/entries\/[1-9][0-9]*(?:\/drawer)?$/.test(req.path)) return true;
 
   if (!parts.length) return true;
   if (parts[0] === 'hr') {
@@ -52,6 +66,11 @@ function permissionCheck(req) {
       : Boolean(permission && has(permission));
   }
   if (parts[0] === 'settings') {
+    if (parts[1] === 'maintenance') return user.role === 'admin' && (
+      parts.length === 2 && method === 'GET'
+      || parts.length === 3 && ['backup','reset'].includes(parts[2]) && method === 'POST'
+      || parts.length === 4 && parts[2] === 'backups' && ['GET','HEAD'].includes(method)
+    );
     if (parts[1] === 'company-information') return user.role === 'admin';
     if (parts[1] === 'date-time') return parts.length === 2 && user.role === 'admin' && method === 'POST';
     if (parts[1] === 'erpnext-sync') return has('sync.run');
@@ -179,8 +198,19 @@ function permissionCheck(req) {
     if (parts[2] === 'delete') return method === 'POST' && has(prefix + 'delete');
     return has(prefix + (method === 'POST' ? 'edit' : 'view'));
   }
+  if (parts[0] === 'stock' && ['counts','corrections'].includes(parts[1])) {
+    const kind=parts[1]==='counts'?'count':'correction';
+    if (kind==='count' && parts[3]==='attachments' && parts.length>=4 && parts.length<=6) return method==='GET'?has('inventory.count.view'):method==='POST'&&has('inventory.count.save')&&(parts.length===4 || parts.length===6&&parts[5]==='delete');
+    if (kind==='count' && parts.length===4 && parts[3]==='found-item') return method==='POST'&&has('inventory.count.save');
+    if (kind==='count' && parts.length===4 && ['sheet','items'].includes(parts[3])) return method==='GET'?has('inventory.count.view'):method==='POST'&&parts[3]==='sheet'&&has('inventory.count.save');
+    if (method==='GET') return has(`inventory.${kind}.view`) && (parts.length===2 || parts.length===3 && /^\d+$/.test(parts[2]));
+    if (method==='POST' && parts.length===2) return has(`inventory.${kind}.${kind==='count'?'start':'create'}`);
+    return method==='POST' && parts.length===4 && /^\d+$/.test(parts[2])
+      && (kind==='count'?['save','review','approve','reject','submit','abandon']:['approve','submit','abandon']).includes(parts[3]) && has(`inventory.${kind}.${parts[3]}`);
+  }
   if (parts[0] === 'stock') {
     const prefix = 'vouchers.stock.';
+    if (parts[1] === 'shared') return parts.length === 2 && method === 'GET';
     if (parts.length === 1) return has(prefix + 'view');
     if (parts[1] === 'export') return parts.length === 2 && method === 'GET' && has(prefix + 'view');
     if (parts[1] === 'reconciliations') {
@@ -190,10 +220,12 @@ function permissionCheck(req) {
         [prefix + 'create', prefix + 'edit']);
       if (parts[2] === 'warehouse-stock') return parts.length === 3 && method === 'GET' && canAny(user,
         [prefix + 'create', prefix + 'edit']);
-      if (parts[2] === 'new') return parts.length === 3 && method === 'GET' && has(prefix + 'create');
+      if (parts[2] === 'new') return parts.length === 3 && method === 'GET' && (has(prefix + 'create') || has('inventory.count.start'));
       if (parts.length === 2) return method === 'GET' ? has(prefix + 'view')
         : method === 'POST' && all(prefix + 'create',
           ...(req.body.action === 'save_draft' ? [] : [prefix + 'submit']));
+      if (parts[3] === 'photo-count') return parts.length === 4 && (method === 'GET'
+        ? canAny(user, [prefix + 'view', prefix + 'edit']) : method === 'POST' && has(prefix + 'edit'));
       if (parts[3] === 'attachments') {
         if (parts.length === 4) return method === 'GET' ? canAny(user, [prefix + 'view', prefix + 'edit'])
           : method === 'POST' && has(prefix + 'edit');
@@ -209,6 +241,10 @@ function permissionCheck(req) {
       return parts.length === 3 && method === 'GET' && has(prefix + 'view');
     }
     if (parts[1] !== 'entries') return false;
+    if (['share', 'delivery'].includes(parts[3])) return parts.length === 4 && method === 'POST' && has(prefix + 'view');
+    if (parts[3] === 'duplicate') return parts.length === 4 && method === 'GET'
+      && all(prefix + 'view', prefix + 'create');
+    if (parts[3] === 'submit') return parts.length === 4 && method === 'POST' && has(prefix + 'submit');
     if (parts[2] === 'new') return has(prefix + 'create');
     if (parts.length === 2 && method === 'POST') {
       return all(prefix + 'create', ...(req.body.action === 'save_draft' ? [] : [prefix + 'submit']),
@@ -260,6 +296,8 @@ function permissionCheck(req) {
   }
   if (parts[0] === 'api') {
     const name = parts[1];
+    if (name === 'invoice-stock-balances') return method === 'POST' && parts.length === 2 && canAny(user,
+      ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create', 'vouchers.stock.edit']);
     if (name === 'invoice-item-prices') return method === 'POST' && canAny(user,
       ['vouchers.sales.create', 'vouchers.sales.edit']);
     if (name === 'item-price-codes') return method === 'GET' && has('masters.item-prices.view');
@@ -274,7 +312,7 @@ function permissionCheck(req) {
       ['masters.items.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create', 'vouchers.stock.edit']);
     if (name === 'report-items' || name === 'report-warehouses') return canAny(user,
       ['vouchers.stock.view', 'reports.stock-ledger.view', 'reports.stock-movement.view', 'reports.gross-profit.view']);
-    if (name === 'warehouses' || name === 'stock-balance') return canAny(user,
+    if (name === 'warehouses' || name === 'stock-balance' || name === 'inventory-controls') return canAny(user,
       ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create', 'vouchers.stock.edit']);
     if (name === 'cost-centers') return (allowedMasterRecordIds(user, 'cost-centers') || []).length > 0
       || canAny(user, ['masters.cost-centers.view', 'masters.cost-centers.create', 'masters.cost-centers.edit',
@@ -299,7 +337,12 @@ async function scopeCheck(req) {
   const user = req.currentUser;
   const body = req.body || {};
   const parts = req.path.split('/').filter(Boolean);
+  // Reconciliation sub-tabs retain the same explicit count/correction permissions.
+  if (parts[0] === 'stock' && parts[1] === 'reconciliations' && ['counts', 'corrections'].includes(parts[2])) parts.splice(1, 1);
   const method = req.method;
+  if (sharedStockWriteRequest(req)) return true;
+  if (method === 'GET' && (req.path === '/stock/shared' || req.stockEntrySharedRead
+      && /^\/stock\/entries\/[1-9][0-9]*(?:\/drawer)?$/.test(req.path))) return true;
   if (user.role === 'admin') return true;
   const scopedStandardLedger = user.role === 'standard'
     && (parts[0] === 'reports' && parts[1] === 'general-ledger' && parts.length === 2
@@ -313,7 +356,7 @@ async function scopeCheck(req) {
     return false;
   }
   if (scopeRestricted(user, 'suppliers') && parts[0] === 'stock'
-      && ['entries', 'reconciliations'].includes(parts[1])) return false;
+      && ['entries', 'reconciliations','counts','corrections'].includes(parts[1])) return false;
   if (scopeRestricted(user, 'suppliers') && parts[0] === 'api'
       && ['stock-entry-cancel-template', 'stock-entries'].includes(parts[1])) return false;
 

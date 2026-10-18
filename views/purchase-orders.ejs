@@ -24,8 +24,8 @@
         <td><a href="/purchase-orders/<%= order.id %>"><%= order.order_no %></a></td>
         <td><%= formatDateTime(order.posting_date, order.posting_time || '00:00') %></td>
         <td><%= order.due_date ? formatDate(order.due_date) : '' %></td>
-        <td><%= order.supplier_name %></td><td><%= order.supplier_reference || '' %></td>
-        <td class="ui-amount"><%= money(order.total) %></td><td><span class="badge <%= order.docstatus %>"><%= order.docstatus %></span></td>
+        <td><%= order.supplier_id %></td><td><%= order.supplier_reference || '' %></td>
+        <td class="ui-amount"><%= money(order.total) %></td><td><span class="badge <%= order.status_class || order.docstatus %>"><%= order.status_label || order.docstatus %></span></td>
       </tr><% }) %>
     </tbody>
   </table></div><%- include('pagination', { pagination: result.pagination, query, basePath: '/purchase-orders' }) %></section>

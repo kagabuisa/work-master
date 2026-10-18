@@ -1,7 +1,8 @@
+const { requireReceiptAccount } = require('../../services/sales-validation');
 'use strict';
 // /purchase-orders and /purchases routes. Mounted at the app root.
 const express = require('express');
-const { purchaseMoney, todayString } = require('../format');
+const { purchaseMoney } = require('../format');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { arrayField } = require('../parsers');
 const { selectedCategories, purchaseOrderAllowed, voucherWarehousesAllowed,
@@ -182,6 +183,7 @@ router.post('/purchases', async (req, res) => {
     res.status(duplicateReference ? 400 : err.status || 500).render('purchase-form', {
       purchase,
       error: duplicateReference ? 'This supplier reference is already used on another purchase.' : err.message,
+      draftPurchase: err.draftPurchase || null,
     });
   }
 });
@@ -198,14 +200,14 @@ router.get('/purchases/payments/:id/drawer', async (req, res, next) => {
     const purchaseId = await purchaseForPayment(req.params.id);
     const purchase = await loadPurchase(purchaseId);
     res.set('Cache-Control', 'private, max-age=10');
-    res.render('purchase-drawer', { purchase, today: todayString(), money: purchaseMoney, error: req.query.error || null });
+    res.render('purchase-drawer', { purchase, today: currentPostingDate(), money: purchaseMoney, error: req.query.error || null });
   } catch (err) { next(err); }
 });
 
 router.get('/purchases/:id', async (req, res, next) => {
   try {
     const purchase = await loadPurchase(req.params.id);
-    res.render('purchase', { purchase, today: todayString(), money: purchaseMoney, error: req.query.error || null });
+    res.render('purchase', { purchase, today: currentPostingDate(), money: purchaseMoney, error: req.query.error || null });
   } catch (err) { next(err); }
 });
 
@@ -228,7 +230,7 @@ router.get('/purchases/:id/drawer', async (req, res, next) => {
   try {
     const purchase = await loadPurchase(req.params.id);
     res.set('Cache-Control', 'private, max-age=10');
-    res.render('purchase-drawer', { purchase, today: todayString(), money: purchaseMoney, error: req.query.error || null });
+    res.render('purchase-drawer', { purchase, today: currentPostingDate(), money: purchaseMoney, error: req.query.error || null });
   } catch (err) { next(err); }
 });
 
@@ -261,6 +263,7 @@ router.post('/purchases/:id', async (req, res) => {
     res.status(duplicateReference ? 400 : err.status || 500).render('purchase-form', {
       purchase,
       error: duplicateReference ? 'This supplier reference is already used on another purchase.' : err.message,
+      draftPurchase: err.draftPurchase || null,
     });
   }
 });
@@ -285,6 +288,7 @@ router.post('/purchases/:id/cancel', async (req, res) => {
 
 router.post('/purchases/:id/payments', async (req, res) => {
   try {
+    requireReceiptAccount(req.currentUser, req.body.account_id);
     await addPurchasePayment(req.params.id, req.body);
     res.redirect(`/purchases/${req.params.id}`);
   } catch (err) {

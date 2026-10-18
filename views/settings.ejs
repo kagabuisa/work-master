@@ -20,6 +20,10 @@
 
     <section class="grid settings-grid">
       <% if (currentUser.role === 'admin') { %>
+      <div class="ui-surface settings-company-card">
+        <%- include('ui-section-heading',{heading:{title:'Maintenance',help:'Prepare a verified backup and reset selected transactions while keeping master records and app settings.'}}) %>
+        <a class="button button-light" href="/settings/maintenance">Reset transactions</a>
+      </div>
       <div class="settings-company-card ui-surface">
         <%- include('ui-section-heading', { heading: { title: 'Company Information', help: 'These details appear on sales invoice previews and printouts.' } }) %>
         <% if (companySaved) { %><section class="notice sync-notice" role="status">Company information saved.</section><% } %>

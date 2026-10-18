@@ -6,6 +6,30 @@ const { permissionCheck } = require('../src/authorize');
 const { normalizePurchase, validatePurchaseOrder } = require('../src/purchases');
 const { normalizePurchaseOrder } = require('../src/purchase-orders');
 
+test('new purchase invoices use PURINV- and editing preserves existing voucher numbers', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  const store = require('../src/store');
+  const { createPurchase, loadPurchase, updatePurchase } = require('../src/purchases');
+  try {
+    await require('./helpers/golden-seed').resetGoldenSchema();
+    const pool = store.getPostgresPool();
+    await pool.query(`
+      INSERT INTO app_master_suppliers(supplier_id,supplier_name) VALUES ('PREFIX-SUP','Supplier');
+      INSERT INTO app_master_items(item_code,item_name,is_purchase_item) VALUES ('PREFIX-ITEM','Item',true);
+      INSERT INTO app_master_warehouses(warehouse) VALUES ('PREFIX-WH');
+      INSERT INTO app_master_price_lists(price_list,currency,price_type,active) VALUES ('PREFIX-PL','UGX','buying',1);
+    `);
+    const payload = { posting_date: '2026-10-14', supplier_id: 'PREFIX-SUP', price_list: 'PREFIX-PL',
+      items: [{ item_code: 'PREFIX-ITEM', warehouse: 'PREFIX-WH', quantity: 1, unit_price: 100 }] };
+    const id = await createPurchase(payload);
+    assert.equal((await loadPurchase(id)).purchase_no, `PURINV-${String(id).padStart(6, '0')}`);
+    await pool.query('UPDATE app_purchases SET purchase_no=$1 WHERE id=$2', ['PUR-000001', id]);
+    await updatePurchase(id, payload);
+    assert.equal((await loadPurchase(id)).purchase_no, 'PUR-000001');
+  } finally { await store.closeStore(); }
+});
+
 test('purchase order actions require their own permissions', () => {
   const request = (route, method, permissions) => ({
     path: route, method, body: {}, currentUser: { role: 'standard', permissions },
@@ -108,9 +132,13 @@ test('a purchase order permits only one draft invoice and allows editing that dr
     if (sql.includes('FROM app_purchase_order_items') || sql.includes('FROM app_purchase_items pi')) return { rows: [] };
     throw new Error(`Unexpected query: ${sql}`);
   } };
-  await assert.rejects(validatePurchaseOrder(client, purchase), /draft purchase invoice: PUR-000009/);
+  await assert.rejects(validatePurchaseOrder(client, purchase), (error) => {
+    assert.match(error.message, /draft purchase invoice: PUR-000009/);
+    assert.deepEqual(error.draftPurchase, { id: 9, purchase_no: 'PUR-000009' });
+    return true;
+  });
   draft.purchase_no = null;
-  await assert.rejects(validatePurchaseOrder(client, purchase), /draft purchase invoice: PUR-000009/);
+  await assert.rejects(validatePurchaseOrder(client, purchase), /draft purchase invoice: PURINV-000009/);
   await validatePurchaseOrder(client, purchase, 9);
   await assert.rejects(validatePurchaseOrder(client, purchase, 10), /already has a draft purchase invoice/);
   for (const docstatus of ['submitted', 'cancelled']) {
@@ -151,7 +179,7 @@ test('purchase order form posts to order routes and detail exposes status action
   });
   assert.match(submitted, /\/purchases\/new\?purchase_order_id=1/);
   assert.match(submitted, /Remaining/);
-  assert.match(submitted, /Warehouse: <strong>Main<\/strong>/);
+  assert.match(submitted, /<span>Warehouse<\/span><strong>Main<\/strong>/);
   assert.doesNotMatch(submitted, /<th>Warehouse<\/th>/);
   const mixed = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 2, order_no: 'PO-000002', docstatus: 'draft', posting_date: '2026-10-02',
@@ -160,7 +188,7 @@ test('purchase order form posts to order routes and detail exposes status action
         { item_code: 'ITEM-2', item_name: 'Second', warehouse: 'Branch', quantity: 1, unit_price: 200, line_total: 200 }] },
     error: null,
   });
-  assert.match(mixed, /Warehouse: <strong>Multiple warehouses<\/strong>/);
+  assert.match(mixed, /<span>Warehouse<\/span><strong>Multiple warehouses<\/strong>/);
   assert.match(mixed, /<th>Warehouse<\/th>/);
   const cancelled = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'), {
     ...base, order: { id: 1, order_no: 'PO-000001', docstatus: 'cancelled', posting_date: '2026-10-02',
@@ -247,4 +275,77 @@ test('receivable order SQL preserves permission semantics and filters before the
     client.release();
     await closeStore();
   }
+});
+
+test('order detail and list receipt statuses track submitted quantities on every line and receipt cancellation', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  const store = require('../src/store');
+  const { loadPurchaseOrder, listPurchaseOrders } = require('../src/purchase-orders');
+  try {
+    await require('./helpers/golden-seed').resetGoldenSchema();
+    const pool = store.getPostgresPool();
+    const orderId = Number((await pool.query(`INSERT INTO app_purchase_orders
+      (order_no, docstatus, posting_date, supplier_id, supplier_name, price_list)
+      VALUES ('PO-RECEIPTS', 'submitted', '2026-10-01', 'SUP', 'Supplier', 'Buying') RETURNING id`)).rows[0].id);
+    const items = (await pool.query(`INSERT INTO app_purchase_order_items
+      (purchase_order_id, line_no, item_code, item_name, warehouse, quantity, unit_price, line_total)
+      VALUES ($1, 1, 'A', 'Item A', 'Main', 5, 100, 500),
+        ($1, 2, 'B', 'Item B', 'Main', 2.5, 100, 250) RETURNING id`, [orderId])).rows;
+    const check = async (label) => {
+      const detail = await loadPurchaseOrder(orderId);
+      const listed = (await listPurchaseOrders({ q: 'PO-RECEIPTS' })).rows[0];
+      assert.equal(detail.status_label, label);
+      assert.equal(listed.status_label, label);
+      assert.equal(listed.status_class, detail.status_class);
+      const locals = { assetVersion: 'test', currentUser: { role: 'admin' }, can: () => true,
+        availableReports: [], money: String, error: null };
+      const detailHtml = await renderView(path.join(__dirname, '..', 'views', 'purchase-order.ejs'),
+        { ...locals, order: detail });
+      const listHtml = await renderView(path.join(__dirname, '..', 'views', 'purchase-orders.ejs'),
+        { ...locals, query: {}, result: { rows: [listed], pagination: {
+          offset: 0, total: 1, page: 1, limit: 25, total_pages: 1, start: 1, end: 1 } } });
+      for (const html of [detailHtml, listHtml]) assert.ok(html.includes(`>${label}</span>`));
+
+    };
+    await check('Submitted');
+    const receipt = async (no, line, quantities, docstatus) => {
+      const id = Number((await pool.query(`INSERT INTO app_purchases
+        (purchase_no, purchase_order_id, posting_date, supplier_id, supplier_name, docstatus)
+        VALUES ($1,$2,'2026-10-02','SUP','Supplier',$3) RETURNING id`, [no, orderId, docstatus])).rows[0].id);
+      for (const [index, quantity] of quantities.entries()) await pool.query(`INSERT INTO app_purchase_items
+        (purchase_id, purchase_order_item_id, line_no, item_code, item_name, warehouse, quantity, unit_price, line_total)
+        VALUES ($1,$2,$3,'ITEM','Item','Main',$4::numeric,100,$4::numeric*100)`, [id, items[line].id, index + 1, quantity]);
+      return id;
+    };
+    const first = await receipt('RECEIPT-A', 0, [5], 'draft');
+    await check('Submitted');
+    await pool.query("UPDATE app_purchases SET docstatus='submitted' WHERE id=$1", [first]);
+    await check('Partially Received');
+    const second = await receipt('RECEIPT-B', 1, [1, 1.5], 'draft');
+    await check('Partially Received');
+    await pool.query("UPDATE app_purchases SET docstatus='submitted' WHERE id=$1", [second]);
+    await check('Completed');
+    await pool.query("UPDATE app_purchases SET docstatus='cancelled' WHERE id=$1", [second]);
+    await check('Partially Received');
+    await pool.query("UPDATE app_purchases SET docstatus='cancelled' WHERE id=$1", [first]);
+    await check('Submitted');
+    await pool.query("UPDATE app_purchase_orders SET docstatus='cancelled' WHERE id=$1", [orderId]);
+    await check('Cancelled');
+    await pool.query("UPDATE app_purchase_orders SET docstatus='draft' WHERE id=$1", [orderId]);
+    await check('Draft');
+  } finally { await store.closeStore(); }
+});
+
+
+test('duplicate draft notice links to the existing invoice and escapes its number', async () => {
+  const locals = { assetVersion: 'test', currentUser: { role: 'admin' }, availableReports: [],
+    money: String, purchase: { items: [], posting_date: '2026-10-17', posting_time: '12:00' }, error: 'Duplicate draft',
+    draftPurchase: { id: 13, purchase_no: 'PUR-000013<script>' } };
+  const file = path.join(__dirname, '..', 'views', 'purchase-form.ejs');
+  const linked = await renderView(file, { ...locals, can: () => true });
+  assert.match(linked, /href="\/purchases\/13">PUR-000013&lt;script&gt;<\/a>/);
+  const restricted = await renderView(file, { ...locals, can: () => false });
+  assert.doesNotMatch(restricted, /href="\/purchases\/13"/);
+  assert.match(restricted, /Duplicate draft/);
 });

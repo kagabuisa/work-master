@@ -35,7 +35,7 @@ function accountId(value) {
 
 function invoiceCreate(body) {
   bodyFields(body, ['customer_id', 'warehouse', 'price_list', 'invoicer_id', 'invoice_date', 'items'],
-    ['due_date', 'posting_time', 'cost_center', 'notes', 'non_system_invoice', 'tax_amount', 'discount_amount']);
+    ['due_date', 'posting_time', 'cost_center', 'notes', 'non_system_invoice', 'tax_amount', 'discount_amount', 'check_stock']);
   const payload = {};
   for (const field of ['customer_id', 'warehouse', 'price_list', 'invoicer_id']) payload[field] = text(body[field], field, 200);
   payload.invoice_date = date(body.invoice_date, 'invoice_date');
@@ -55,9 +55,11 @@ function invoiceCreate(body) {
   if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 200) {
     throw apiError(400, 'invalid_request', 'Provide between 1 and 200 invoice lines.');
   }
+  if(body.check_stock !== undefined){if(typeof body.check_stock !== 'boolean')throw apiError(400,'invalid_request','check_stock must be a boolean.');payload.check_stock=body.check_stock;}
   payload.items = body.items.map(item => {
-    bodyFields(item, ['item_code', 'quantity', 'unit_price']);
+    bodyFields(item, ['item_code', 'quantity', 'unit_price'], ['warehouse']);
     return { item_code: text(item.item_code, 'item_code', 200),
+      ...(item.warehouse === undefined ? {} : { warehouse: text(item.warehouse, 'warehouse', 200) }),
       quantity: decimal(item.quantity, 'quantity', 3, 99999999999.999, { positive: true }),
       unit_price: decimal(item.unit_price, 'unit_price', 2, 999999999999) };
   });

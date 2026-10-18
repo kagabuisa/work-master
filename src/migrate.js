@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 40;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -158,6 +158,52 @@ const MIGRATIONS = [
       WHERE operation IN ('invoice.create','invoice.submit','payment.record')
         AND resource_type IS NULL AND (response->'data'->>'id') ~ '^[1-9][0-9]*$'`);
   } },
+  { version: 20, name: 'unique_master_display_names', up: require('./master-display').ensureUniqueMasterNames },
+  { version: 21, name: 'transaction_reset_maintenance', up: require('./maintenance-schema').initMaintenanceSchema },
+  { version: 22, name: 'reconciliation_photo_counts', up: require('./photo-count').initPhotoCountSchema },
+  { version: 23, name: 'voucher_search_indexes', transactional: false, up: async () => {
+    await require('./domain/search-sql').createSearchIndexes(getPostgresPool(), true);
+  } },
+  { version: 24, name: 'transactional_ledger_daily_balances', up: require('./gl-daily').initGlDaily },
+  { version: 25, name: 'invoice_payment_journal_lookup', transactional:false,
+    up: () => require('./domain/search-sql').createPaymentJournalIndex(getPostgresPool()) },
+  { version: 26, name: 'interactive_search_statistics', up: require('./query-statistics').tuneQueryStatistics },
+  { version: 27, name: 'invoice_journal_line_reference_lookup', transactional:false,
+    up: () => require('./domain/search-sql').createJournalLineReferenceIndex(getPostgresPool()) },
+  { version: 28, name: 'invoice_ownership_lookup', transactional:false,
+    up: () => require('./domain/search-sql').createInvoiceOwnershipIndexes(getPostgresPool()) },
+  { version:29, name:'invoice_detail_payment_lookup', transactional:false,
+    up:()=>require('./domain/search-sql').createInvoiceDetailReferenceIndex(getPostgresPool()) },
+  { version:30, name:'invoice_warehouse_choice_lookup', transactional:false,
+    up:()=>require('./domain/search-sql').createInvoiceWarehouseIndex(getPostgresPool()) },
+  { version:31, name:'purchase_payment_journals', up: require('./purchase-payment-posting').backfillPurchasePaymentJournals },
+  { version:32, name:'purchase_payment_accounts', up: async client => {
+    await client.query('ALTER TABLE app_purchase_payments ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES app_accounts(id)');
+    await client.query(`UPDATE app_purchase_payments payment SET account_id=line.account_id
+      FROM app_journal_entry_lines line WHERE line.journal_entry_id=payment.journal_entry_id
+        AND line.line_no=2 AND payment.method <> 'journal' AND payment.account_id IS NULL`);
+  } },
+  { version:33, name:'controlled_warehouse_counts', up: async client => {
+    // Entire installation is transactional; preserve a completed installation when upgrade fixtures replay older migrations.
+    if ((await client.query("SELECT to_regclass('wm_inventory_policy') IS NOT NULL AS installed")).rows[0].installed) return;
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-control.sql'),'utf8'));
+  } },
+  { version:34, name:'excel_count_revisions', up: async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-count-import.sql'),'utf8'));
+  } },
+  { version:35, name:'administrator_reconciliation_authority', up: async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-count-admin.sql'),'utf8'));
+  } },
+  { version:36, name:'posting_date_policy', up: async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/posting-date-policy.sql'),'utf8'));
+  } },
+  { version:37, name:'inventory_document_history_rules', up: async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-document-rules.sql'),'utf8'));
+  } },
+  { version:38, name:'inventory_posting_event_lookup', transactional:false,
+    up:()=>require('./inventory-indexes').createStockPostingEventIndex(getPostgresPool()) },
+  { version:39, name:'stock_entry_delivery_and_sharing', up: require('./stock-entry-workflow').initStockEntryWorkflow },
+  { version:40, name:'stock_entry_read_write_sharing', up: require('./stock-entry-workflow').initStockEntrySharePermissions },
 ];
 
 async function ensureSchema(pool) {

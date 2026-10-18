@@ -1,10 +1,13 @@
 'use strict';
 // Posting engine: GL entries, stock movements, voucher journals and hydration
 // helpers. Extracted from store.js; the sales/inventory/ledger domains depend on it.
+const { inventoryMovement, inventoryGlDate, beginInventoryPosting } = require('../services/inventory-posting');
+const { postingStage } = require('../workload-control');
+const { transferStockAvailability } = require('../stock-transfer-availability');
 const { getPostgresPool } = require('../core');
-const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
+const { PAYMENT_METHODS, DEFAULT_ACCOUNTS, STOCK_TRANSFER_TYPES } = require('../constants');
 const { auditActor, recordAuditFields } = require('../audit');
-const { currentPostingTime, storedPostingTime } = require('../posting-time');
+const { assertPostingDate, currentPostingTime, storedPostingTime } = require('../posting-time');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
 const { optionalValue, requiredValue } = require('../lib/values');
@@ -327,14 +330,14 @@ async function postStockEntryGlEntry(client, entry) {
   const costCenter = entry.costCenter !== undefined ? entry.costCenter
     : (await client.query('SELECT cost_center FROM app_stock_entries WHERE id = $1', [Number(entry.id)])).rows[0]?.cost_center;
   const entryType = String(entry.entryType || '').replace(/^stock_/, '');
-  if (entryType === 'transfer') {
+  if (STOCK_TRANSFER_TYPES.includes(entryType)) {
     await client.query(
       `
       DELETE FROM app_gl_entries
-      WHERE voucher_type IN ('stock_transfer', 'stock_transfer_reversal')
+      WHERE voucher_type = ANY($2::text[])
         AND voucher_id = $1
       `,
-      [Number(entry.id)],
+      [Number(entry.id), [stockVoucherType(entryType, false), stockVoucherType(entryType, true)]],
     );
     return;
   }
@@ -462,6 +465,8 @@ function paymentAccountKey(method) {
 }
 
 async function postGlEntry(client, entry) {
+  assertPostingDate(entry.posting_date);
+  entry = await inventoryGlDate(client, entry);
   const lines = (entry.lines || [])
     .map((line) => ({
       ...line,
@@ -492,37 +497,22 @@ async function postGlEntry(client, entry) {
   );
 
   const accountIds = await resolveAccountingAccounts(client, lines);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    await client.query(
-      `
-      INSERT INTO app_gl_entries (
-        posting_date, account_id, party_type, party_id, party_name, voucher_type,
-        voucher_id, voucher_no, line_no, debit, credit, remarks, is_reversal,
-        reversal_of_voucher_type, reversal_of_voucher_id, cost_center
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-      `,
-      [
-        entry.posting_date,
-        accountIds[index],
-        line.party_type || entry.party_type || null,
-        line.party_id || entry.party_id || null,
-        line.party_name || entry.party_name || null,
-        entry.voucher_type,
-        Number(entry.voucher_id),
-        entry.voucher_no || null,
-        index + 1,
-        line.debit,
-        line.credit,
-        line.remarks || entry.remarks || null,
-        Boolean(entry.is_reversal),
-        entry.reversal_of_voucher_type || null,
-        entry.reversal_of_voucher_id || null,
-        line.cost_center || entry.cost_center || null,
-      ],
-    );
-  }
+  const values = lines.map((line,index) => ({
+    account_id: accountIds[index], party_type: line.party_type || entry.party_type || null,
+    party_id: line.party_id || entry.party_id || null, party_name: line.party_name || entry.party_name || null,
+    line_no:index+1, debit:line.debit,credit:line.credit, remarks:line.remarks || entry.remarks || null,
+    cost_center:line.cost_center || entry.cost_center || null,
+  }));
+  if (values.length) await client.query(`INSERT INTO app_gl_entries (
+    posting_date,account_id,party_type,party_id,party_name,voucher_type,voucher_id,voucher_no,
+    line_no,debit,credit,remarks,is_reversal,reversal_of_voucher_type,reversal_of_voucher_id,cost_center)
+    SELECT $1, line.account_id,line.party_type,line.party_id,line.party_name,$2,$3,$4,
+      line.line_no,line.debit,line.credit,line.remarks,$5,$6,$7,line.cost_center
+    FROM jsonb_to_recordset($8::jsonb) AS line(account_id bigint,party_type text,party_id text,
+      party_name text,line_no integer,debit numeric,credit numeric,remarks text,cost_center text)
+    ORDER BY line.line_no`, [entry.posting_date,entry.voucher_type,Number(entry.voucher_id),entry.voucher_no || null,
+      Boolean(entry.is_reversal),entry.reversal_of_voucher_type || null,entry.reversal_of_voucher_id || null,JSON.stringify(values)]);
+
 }
 
 async function reverseVoucherGlEntries(client, voucherType, voucherId, postingDate) {
@@ -672,8 +662,10 @@ function normalizeStockEntryItems(rows, entryType) {
     } else if (signedQuantity === 0) {
       return items;
     }
-    if (entryType === 'transfer' && !targetWarehouse) {
-      return items;
+    if (STOCK_TRANSFER_TYPES.includes(entryType) && (!targetWarehouse || targetWarehouse === warehouse)) {
+      const error = new Error('Choose a target warehouse different from the source warehouse.');
+      error.status = 400;
+      throw error;
     }
     items.push({
       id: Number(row.id || 0),
@@ -780,25 +772,29 @@ async function syncStockEntryItems(client, stockEntryId, items) {
   await insertStockEntryItems(client, stockEntryId, newItems);
 }
 
-async function postStockEntryMovements(client, { id, entryNo, entryType, postingDate, items }) {
+async function postStockEntryMovements(client, { id, entryNo, entryType, postingDate, postingTime, items }) {
+  await beginInventoryPosting(client, `stock_${entryType}`, id, items.flatMap(item => STOCK_TRANSFER_TYPES.includes(entryType) ? [item.warehouse,item.target_warehouse] : [item.warehouse]));
   for (const item of items) {
-    if (entryType === 'transfer') {
+    if (STOCK_TRANSFER_TYPES.includes(entryType)) {
       const outgoing = await applyPostgresStockMovement(client, {
         posting_date: postingDate,
+        posting_time: postingTime,
+        enforce_transfer_history: true,
         item_code: item.item_code,
         item_name: item.item_name,
         warehouse: item.warehouse,
-        voucher_type: 'stock_transfer',
+        voucher_type: `stock_${entryType}`,
         voucher_id: id,
         voucher_no: entryNo,
         qty_change: -Math.abs(item.quantity),
       });
       await applyPostgresStockMovement(client, {
         posting_date: postingDate,
+        posting_time: postingTime,
         item_code: item.item_code,
         item_name: item.item_name,
         warehouse: item.target_warehouse,
-        voucher_type: 'stock_transfer',
+        voucher_type: `stock_${entryType}`,
         voucher_id: id,
         voucher_no: entryNo,
         qty_change: Math.abs(item.quantity),
@@ -807,6 +803,7 @@ async function postStockEntryMovements(client, { id, entryNo, entryType, posting
     } else if (entryType === 'reconciliation') {
       const movement = await applyPostgresStockMovement(client, {
         posting_date: postingDate,
+        posting_time: postingTime,
         item_code: item.item_code,
         item_name: item.item_name,
         warehouse: item.warehouse,
@@ -827,6 +824,7 @@ async function postStockEntryMovements(client, { id, entryNo, entryType, posting
           : Math.abs(item.quantity);
       await applyPostgresStockMovement(client, {
         posting_date: postingDate,
+        posting_time: postingTime,
         item_code: item.item_code,
         item_name: item.item_name,
         warehouse: item.warehouse,
@@ -841,6 +839,9 @@ async function postStockEntryMovements(client, { id, entryNo, entryType, posting
 }
 
 async function applyPostgresStockMovement(client, movement) {
+  assertPostingDate(movement.posting_date);
+  const controlled = await inventoryMovement(client, movement);
+  if (controlled) return controlled;
   const itemCode = String(movement.item_code || '').trim();
   const itemName = String(movement.item_name || itemCode).trim();
   const warehouse = String(movement.warehouse || '').trim();
@@ -852,30 +853,36 @@ async function applyPostgresStockMovement(client, movement) {
     throw err;
   }
 
-  await client.query(
-    `
+  // UPSERT acquires the row lock; RETURNING reads the locked current balance.
+  const { rows } = await postingStage('stock_lock', () => client.query(`
     INSERT INTO app_stock_balances (item_code, warehouse, item_name)
     VALUES ($1, $2, $3)
-    ON CONFLICT (item_code, warehouse)
-    DO UPDATE SET item_name = EXCLUDED.item_name
-    `,
-    [itemCode, warehouse, itemName],
-  );
-  const { rows } = await client.query(
-    `
-    SELECT *
-    FROM app_stock_balances
-    WHERE item_code = $1
-      AND warehouse = $2
-    FOR UPDATE
-    `,
-    [itemCode, warehouse],
-  );
+    ON CONFLICT (item_code, warehouse) DO UPDATE SET item_name = EXCLUDED.item_name
+    RETURNING *`, [itemCode, warehouse, itemName]));
   const balance = rows[0];
   const previousQuantity = Number(balance.quantity || 0);
   const previousValue = Number(balance.stock_value || 0);
   const previousRate = Number(balance.valuation_rate || 0);
   if (hasTarget) qtyChange = Number((Number(movement.target_quantity) - previousQuantity).toFixed(3));
+  if (qtyChange < 0) {
+    const postingTime = movement.is_reversal
+      ? (await client.query("SELECT date_trunc('minute',now() AT TIME ZONE 'Africa/Kampala')::time::text AS time")).rows[0].time
+      : movement.posting_time || '00:00:00';
+    // The balance lock above serializes this check with other stock postings.
+    const available = await transferStockAvailability(client, itemCode, warehouse,
+      movement.posting_date, postingTime);
+    if (available.available_quantity + qtyChange < -0.0005) {
+      const atTime = available.quantity + qtyChange < -0.0005;
+      const error = new Error(atTime
+        ? `Insufficient stock for ${itemName} in ${warehouse} at ${movement.posting_date} ${postingTime}. Available: ${available.quantity}; requested: ${Math.abs(qtyChange)}.`
+        : `This ${movement.voucher_type === 'invoice' ? 'sale' : movement.enforce_transfer_history ? 'transfer' : 'stock movement'} would leave negative stock for ${itemName} in ${warehouse} during later transactions. Available: ${available.available_quantity}.`);
+      error.status = 400;
+      error.code = 'INSUFFICIENT_STOCK';
+      error.stockWarning = { item_name: itemName, item_code: itemCode, warehouse,
+        requested: Math.abs(qtyChange), available: available.available_quantity };
+      throw error;
+    }
+  }
   if (hasTarget && qtyChange > 0 && Number(movement.rate || previousRate || 0) <= 0) {
     const err = new Error(`Enter a valuation rate for ${itemName} in ${warehouse}.`);
     err.status = 400;
@@ -997,6 +1004,7 @@ function addReportFilters(where, params, filters = {}) {
     where.push(`(
       (l.voucher_type LIKE 'stock_%' AND COALESCE(se.entry_type, replace(l.voucher_type, 'stock_', '')) = $${params.length})
       OR (l.voucher_type = 'purchase' AND $${params.length} = 'purchase')
+      OR (l.voucher_type = 'inventory_correction' AND $${params.length} = 'adjustment')
     )`);
   }
   if (status === 'posted') {

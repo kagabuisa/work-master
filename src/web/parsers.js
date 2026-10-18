@@ -26,6 +26,7 @@ function parseStockEntryPayload(body) {
     posting_time: body.posting_time,
     cost_center: body.cost_center,
     remarks: body.remarks,
+    delivery_status: body.delivery_status,
     supplier_name: body.supplier_name,
     supplier_contact: body.supplier_contact,
     supplier_phone: body.supplier_phone,

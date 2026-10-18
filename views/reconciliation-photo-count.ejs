@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head><title><%= entry.entry_no %> · Photo Count Rpt</title><%- include('partials-head') %></head>
+<body><main class="shell ui-page ui-page-report">
+  <header class="topbar"><div><%- include('breadcrumbs', { breadcrumbs: [{label:'Home',href:'/'},{label:'Stocks',href:'/stock/entries'},{label:'Stock Reconciliation',href:'/stock/reconciliations'},{label:entry.entry_no,href:'/stock/reconciliations/'+entry.id},{label:'Photo Count Rpt'}] }) %></div><nav><%- include('module-nav', {activeModule:'stock'}) %></nav></header>
+  <%- include('reconciliation-tabs', {entry, photoTab:true}) %>
+  <% if(error) { %><p class="notice warning" role="alert"><%= error %></p><% } %>
+  <section class="ui-surface ui-results">
+    <%- include('ui-section-heading', {heading:{title:'Photo Count Rpt',meta:warehouse+' · '+rows.length+' Photo IDs',help:'Inventory Qty is the current warehouse stock balance summed across items sharing a Photo ID. Saved auditor and verified quantities and attached photos are supporting evidence; they do not post stock changes.'}}) %>
+    <div class="ui-table-scroll" role="region" aria-label="Photo counts" tabindex="0"><table class="ui-table">
+      <thead><tr><th>Photo ID</th><th class="ui-amount">Inventory Qty</th><th class="ui-amount">Auditor Qty</th><th class="ui-amount">Verified Qty</th><th>Item photos</th><th></th></tr></thead>
+      <tbody><% rows.forEach((row,index)=>{ const formId='photo-count-'+index; %>
+        <tr><td><%= row.photo_id %></td><td class="ui-amount"><%= row.inventory_qty %></td>
+        <td><% if(can('vouchers.stock.edit')) { %><input form="<%= formId %>" aria-label="Auditor Qty for <%= row.photo_id %>" name="auditor_qty" type="number" min="0" step="0.001" value="<%= row.auditor_qty ?? '' %>"><% } else { %><%= row.auditor_qty ?? '—' %><% } %></td>
+        <td><% if(can('vouchers.stock.edit')) { %><input form="<%= formId %>" aria-label="Verified Qty for <%= row.photo_id %>" name="verified_qty" type="number" min="0" step="0.001" value="<%= row.verified_qty ?? '' %>"><% } else { %><%= row.verified_qty ?? '—' %><% } %></td>
+        <td><% photos.filter(p=>p.photo_id===row.photo_id).forEach(photo=>{ %><p><a href="/stock/reconciliations/<%= entry.id %>/attachments/<%= photo.id %>"><%= photo.file_name %></a></p><% }) %>
+        <% if(can('vouchers.stock.edit')) { %><label>Attach photos<input form="<%= formId %>" type="file" name="photos" accept=".jpg,.jpeg,.png" multiple></label><% } %></td>
+        <td><% if(can('vouchers.stock.edit')) { %><form id="<%= formId %>" method="post" action="/stock/reconciliations/<%= entry.id %>/photo-count" enctype="multipart/form-data"><input type="hidden" name="photo_id" value="<%= row.photo_id %>"><button type="submit">Save row</button></form><% } %></td></tr>
+      <% }) %></tbody>
+    </table></div>
+    <% if(!rows.length) { %><p class="empty">No items with a Photo ID are stocked or counted in this warehouse.</p><% } %>
+    <% if(can('vouchers.stock.edit')) { %><p class="field-hint">Save each row to retain its counts and photos. Up to three JPG or PNG photos per save, maximum 10 MB each. Blank quantities remain uncounted; enter 0 for zero stock. Available on draft, submitted, and cancelled reconciliations.</p><% } %>
+  </section>
+</main></body></html>

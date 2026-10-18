@@ -2,6 +2,10 @@
 // Ledger domain: chart of accounts, journal entries, general ledger, trial
 // balance, profit & loss, balance sheet and accounting backfill.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
+const { canSummarizeGl } = require('../gl-daily');
+const { runHeavyReport, runExpensiveRead } = require('../workload-control');
+const { shareRead, readSnapshot } = require('../read-cache');
+const { journalSearchSql, textOnlyPattern } = require('./search-sql');
 const { JOURNAL_TYPES, DEFAULT_ACCOUNTS } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
@@ -9,7 +13,7 @@ const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity')
 const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
-const { paginationOptions, paginationResult } = require('../lib/pagination');
+const { paginationOptions, paginationResult, paginationWindow } = require('../lib/pagination');
 const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, postStockEntryGlEntry, postGlEntry, reverseVoucherGlEntries, syncGeneratedJournalEntryLines, resolveAccountingAccounts, setVoucherDocstatus, nonZeroAccountingLines, actorAuditValues, addReportFilters, reportFilterValues } = require('./posting');
 const { normalizeJournalEntryPayload, validateJournalAccountSides, normalizeAccountingAccountPayload, journalTypeLabel, formatTrialBalanceRow } = require('./normalization');
 const { validateCostCenter } = require('../cost-centers');
@@ -119,6 +123,7 @@ async function updateAccountingAccount(id, payload) {
 }
 
 async function journalEntries(options = {}) {
+  const includeTotal = options.includeTotal !== false;
   const pool = options.pool || getPostgresPool();
   const pagination = paginationOptions(typeof options === 'number' ? { limit: options } : options, 50, 200);
   const limit = pagination.limit;
@@ -160,11 +165,21 @@ async function journalEntries(options = {}) {
       OR LOWER(COALESCE(party_id, '')) LIKE $${params.length}
       OR LOWER(COALESCE(party_name, '')) LIKE $${params.length}
       OR LOWER(COALESCE(reference_no, '')) LIKE $${params.length}
+      OR EXISTS (SELECT 1 FROM app_journal_entry_lines reference_line
+        WHERE reference_line.journal_entry_id=app_journal_entries.id
+          AND LOWER(reference_line.reference_no) LIKE $${params.length})
       OR LOWER(COALESCE(remarks, '')) LIKE $${params.length}
       OR LOWER(COALESCE(docstatus, 'submitted')) LIKE $${params.length}
       OR total_debit::text LIKE $${params.length}
       OR total_credit::text LIKE $${params.length}
     )`);
+  }
+  if (search && textOnlyPattern(sqlLikePattern(search))) {
+    params.push(`%${sqlLikePattern(search)}%`);
+    where.push(`(${journalSearchSql('app_journal_entries')} LIKE $${params.length}
+      OR EXISTS (SELECT 1 FROM app_journal_entry_lines reference_line
+        WHERE reference_line.journal_entry_id=app_journal_entries.id
+          AND LOWER(reference_line.reference_no) LIKE $${params.length - 1}))`);
   }
   if (journalType) {
     params.push(journalType);
@@ -175,11 +190,12 @@ async function journalEntries(options = {}) {
     where.push(`COALESCE(docstatus, 'submitted') = $${params.length}`);
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const countResult = await pool.query(
+  return shareRead(pool, ['journals', whereSql, [...params], pagination.limit, pagination.offset, includeTotal], () => runExpensiveRead(async () => {
+  const countResult = includeTotal ? await pool.query(
     `SELECT COUNT(*)::int AS total FROM app_journal_entries ${whereSql}`,
     params,
-  );
-  params.push(Number(limit), pagination.offset);
+  ) : null;
+  params.push(Number(limit) + (includeTotal ? 0 : 1), pagination.offset);
   const { rows } = await pool.query(
     `
     SELECT
@@ -189,19 +205,30 @@ async function journalEntries(options = {}) {
       created_at
     FROM app_journal_entries
     ${whereSql}
-    ORDER BY posting_date DESC, id DESC
+    ORDER BY app_journal_entries.posting_date DESC, id DESC
     LIMIT $${params.length - 1} OFFSET $${params.length}
     `,
     params,
   );
-  const journals = rows.map((row) => ({
+  const journals = rows.slice(0, pagination.limit).map((row) => ({
     ...row,
     id: Number(row.id),
     posting_time: storedPostingTime(row.posting_time),
     created_at: toIsoString(row.created_at),
   }));
-  journals.pagination = paginationResult(Number(countResult.rows[0].total || 0), pagination);
+  const missingReferences = journals.filter((journal) => !String(journal.reference_no || '').trim());
+  if (missingReferences.length) {
+    const references = await pool.query(`SELECT journal_entry_id,
+      string_agg(DISTINCT BTRIM(reference_no), ', ' ORDER BY BTRIM(reference_no)) AS source_references
+      FROM app_journal_entry_lines WHERE journal_entry_id=ANY($1::bigint[])
+        AND NULLIF(BTRIM(reference_no), '') IS NOT NULL GROUP BY journal_entry_id`,
+    [missingReferences.map((journal) => journal.id)]);
+    const byId = new Map(references.rows.map((row) => [Number(row.journal_entry_id), row.source_references]));
+    for (const journal of missingReferences) journal.source_references = byId.get(journal.id) || '';
+  }
+  journals.pagination = includeTotal ? paginationResult(Number(countResult.rows[0].total || 0), pagination) : paginationWindow(rows.length, pagination);
   return journals;
+  }), {scope:'journals'});
 }
 
 async function findJournalEntry(id) {
@@ -214,12 +241,13 @@ async function findJournalEntry(id) {
     SELECT
       id, journal_no, COALESCE(docstatus, 'submitted') AS docstatus,
       journal_type, posting_date::text, posting_time::text, party_type, party_id,
-      party_name, reference_no, remarks, total_debit::float, total_credit::float,
+      party_name, reference_no, cost_center, remarks, total_debit::float, total_credit::float,
       created_at, created_by, created_by_user_id, updated_by, updated_by_user_id, updated_at,
       submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at,
-      EXISTS (SELECT 1 FROM app_invoice_payments payment
-        WHERE payment.journal_entry_id = journal.id) AS linked_payment
+      (EXISTS (SELECT 1 FROM app_invoice_payments payment
+        WHERE payment.journal_entry_id = journal.id) OR EXISTS (SELECT 1 FROM app_purchase_payments payment
+        WHERE payment.journal_entry_id = journal.id AND payment.method <> 'journal')) AS linked_payment
     FROM app_journal_entries journal
     WHERE journal.id = $1
     `,
@@ -355,6 +383,13 @@ async function syncJournalEntryLines(client, journalId, lines) {
   );
   const existingIds = new Set(existingResult.rows.map((row) => Number(row.id)));
   const seenIds = new Set();
+
+  // Free the positive line numbers before assigning the new order, so swapping
+  // existing rows cannot collide with the journal's unique line-number key.
+  await client.query(
+    'UPDATE app_journal_entry_lines SET line_no = -line_no WHERE journal_entry_id = $1',
+    [journalId],
+  );
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -544,6 +579,13 @@ async function cancelJournalEntry(id) {
       err.status = 400;
       throw err;
     }
+    const generatedPurchasePayment = await client.query(
+      "SELECT 1 FROM app_purchase_payments WHERE journal_entry_id=$1 AND method <> 'journal' LIMIT 1", [journalId]);
+    if (generatedPurchasePayment.rowCount) {
+      const error = new Error('Cancel this supplier payment from its purchase invoice.');
+      error.status = 400;
+      throw error;
+    }
     const linkedPayment = await client.query(
       'SELECT 1 FROM app_invoice_payments WHERE journal_entry_id = $1 LIMIT 1',
       [journalId],
@@ -579,7 +621,7 @@ function isManualJournalType(type, linkedPayment = false) {
     || (journalType === 'payment_journal' && !linkedPayment);
 }
 
-function addGeneralLedgerAccessFilter(where, params, access = {}) {
+function addGeneralLedgerAccessFilter(where, params, access = {}, sourcePlan) {
   let hrRule='';
   if(access.hrAccess) {
     const hr=access.hrAccess;const rules=[];
@@ -591,7 +633,7 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
     const restrictions=[];
     for(const [values,column,denial] of [[hr.employees,'gl.party_id',false],[hr.deniedEmployees,'gl.party_id',true],
       [hr.costCenters,'gl.cost_center',false],[hr.deniedCostCenters,'gl.cost_center',true]]) {
-      if(Array.isArray(values)&&(!denial||values.length)) {
+      if(rules.length&&Array.isArray(values)&&(!denial||values.length)) {
         params.push(values);
         restrictions.push(column==='gl.cost_center'
           ? `(${column} IS NULL OR ${column} ${denial?'<> ALL':'= ANY'}($${params.length}::text[]))`
@@ -640,6 +682,47 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
     WHERE line.journal_entry_id = journal.id
       AND NOT (${accountRules.map((rule) => rule('line.account_id')).join(' AND ')})
   )` : '';
+  if (sourcePlan) {
+    // Distinct typed keys preserve the OR between purchase-payment journals and
+    // directly owned journals without duplicating their ledger entries.
+    const typed = (types, sql) => `SELECT kind.voucher_type, source.id FROM (${sql}) source
+      CROSS JOIN (VALUES ${types.map(type => `('${type}')`).join(',')}) kind(voucher_type)`;
+    const sources = [
+      typed(['sales_invoice','sales_invoice_cancellation'], `SELECT i.id FROM app_invoices i WHERE ${invoiceOwner} ${customerRule}`),
+      typed(['customer_payment','customer_payment_cancellation'], `SELECT payment.id FROM app_invoice_payments payment
+        JOIN app_invoices i ON i.id=payment.invoice_id WHERE ${invoiceOwner} ${customerRule}`),
+      typed(['inventory_correction'], `SELECT correction.id FROM wm_inventory_corrections correction WHERE correction.prepared_by::text=${owner}`),
+      typed(['purchase','purchase_cancellation'], `SELECT purchase.id FROM app_purchases purchase WHERE purchase.created_by_user_id=${owner} ${supplierRule}`),
+      typed(['purchase_payment','purchase_payment_cancellation'], `SELECT payment.id FROM app_purchase_payments payment
+        JOIN app_purchases purchase ON purchase.id=payment.purchase_id WHERE purchase.created_by_user_id=${owner} ${supplierRule}`),
+      typed(['payment_journal','payment_journal_cancellation'], `SELECT payment.journal_entry_id AS id FROM app_purchase_payments payment
+        JOIN app_purchases purchase ON purchase.id=payment.purchase_id WHERE payment.method<>'journal'
+        AND payment.journal_entry_id IS NOT NULL AND purchase.created_by_user_id=${owner} ${supplierRule}`),
+    ];
+    if (!partyScopeRestricted) {
+      sources.push(typed(['cash_receipt','payment_journal','journal_entry','cash_receipt_cancellation','payment_journal_cancellation','journal_entry_cancellation'],
+        `SELECT journal.id FROM app_journal_entries journal WHERE journal.created_by_user_id=${owner} ${journalAccounts}`));
+      // Daily metadata retains every posted stock type, including legacy types.
+      sources.push(`SELECT kind.voucher_type, stock.id FROM app_stock_entries stock CROSS JOIN
+        (SELECT DISTINCT voucher_type FROM wm_gl_daily WHERE voucher_type LIKE 'stock_%') kind
+        WHERE stock.created_by_user_id=${owner}`);
+    }
+    sourcePlan.ctes = `visible_vouchers AS MATERIALIZED (
+      ${sources.join('\nUNION\n')}
+    ), scoped_gl AS NOT MATERIALIZED (
+      SELECT gl.* FROM visible_vouchers visible CROSS JOIN LATERAL (
+        SELECT gl.* FROM app_gl_entries gl WHERE gl.voucher_type=visible.voucher_type
+          AND gl.voucher_id=visible.id AND gl.reversal_of_voucher_id IS NULL OFFSET 0
+      ) gl
+      UNION ALL
+      SELECT gl.* FROM app_gl_entries gl JOIN visible_vouchers visible
+        ON visible.voucher_type=gl.voucher_type AND visible.id=CASE
+          WHEN gl.voucher_type='inventory_correction' THEN gl.voucher_id ELSE gl.reversal_of_voucher_id END
+        WHERE gl.reversal_of_voucher_id IS NOT NULL
+      ${hrRule && hrRule !== 'false' ? `UNION ALL SELECT gl.* FROM app_gl_entries gl WHERE ${hrRule}` : ''}
+    )`;
+    return;
+  }
   where.push(`(
     (gl.voucher_type IN ('sales_invoice', 'sales_invoice_cancellation') AND EXISTS (
       SELECT 1 FROM app_invoices i WHERE i.id = ${sourceId} AND ${invoiceOwner} ${customerRule}))
@@ -647,6 +730,7 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
       SELECT 1 FROM app_invoice_payments payment
       JOIN app_invoices i ON i.id = payment.invoice_id
       WHERE payment.id = ${sourceId} AND ${invoiceOwner} ${customerRule}))
+    OR (gl.voucher_type='inventory_correction' AND EXISTS(SELECT 1 FROM wm_inventory_corrections correction WHERE correction.id=gl.voucher_id AND correction.prepared_by::text=${owner}))
     OR (gl.voucher_type IN ('purchase', 'purchase_cancellation') AND EXISTS (
       SELECT 1 FROM app_purchases purchase
       WHERE purchase.id = ${sourceId} AND purchase.created_by_user_id = ${owner} ${supplierRule}))
@@ -654,6 +738,11 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
       SELECT 1 FROM app_purchase_payments payment
       JOIN app_purchases purchase ON purchase.id = payment.purchase_id
       WHERE payment.id = ${sourceId} AND purchase.created_by_user_id = ${owner} ${supplierRule}))
+    OR (gl.voucher_type IN ('payment_journal', 'payment_journal_cancellation') AND EXISTS (
+      SELECT 1 FROM app_purchase_payments payment
+      JOIN app_purchases purchase ON purchase.id = payment.purchase_id
+      WHERE payment.journal_entry_id = ${sourceId} AND payment.method <> 'journal'
+        AND purchase.created_by_user_id = ${owner} ${supplierRule}))
     ${partyScopeRestricted ? '' : `OR (gl.voucher_type IN ('cash_receipt', 'payment_journal', 'journal_entry',
         'cash_receipt_cancellation', 'payment_journal_cancellation', 'journal_entry_cancellation')
       AND EXISTS (SELECT 1 FROM app_journal_entries journal
@@ -665,17 +754,21 @@ function addGeneralLedgerAccessFilter(where, params, access = {}) {
   )`);
 }
 
-function generalLedgerQuery(filters = {}, access = {}) {
+function generalLedgerQuery(filters = {}, access = {}, voucherFirst = false) {
   const params = [];
   const where = [];
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
+  validateReportDates(from, to);
   const account = String(filters.account || '').trim().toLowerCase();
   const party = String(filters.party || '').trim().toLowerCase();
   const voucherType = String(filters.voucher_type || '').trim();
   const search = String(filters.search || '').trim().toLowerCase();
+  const voucherId = String(filters.voucher_id || '').trim();
+  if (voucherId && (!/^[1-9]\d*$/.test(voucherId) || !Number.isSafeInteger(Number(voucherId)) || !voucherType)) { const error=new Error('Choose a valid voucher.'); error.status=400; throw error; }
 
-  addGeneralLedgerAccessFilter(where, params, access);
+  const sourcePlan = voucherFirst && !voucherId ? {} : null;
+  addGeneralLedgerAccessFilter(where, params, access, sourcePlan);
 
   if (from) {
     params.push(from);
@@ -695,12 +788,25 @@ function generalLedgerQuery(filters = {}, access = {}) {
   }
   if (party) {
     params.push(sqlLikePattern(party));
-    where.push(`(LOWER(COALESCE(gl.party_id, '')) LIKE $${params.length} OR LOWER(COALESCE(gl.party_name, '')) LIKE $${params.length})`);
+    const position = params.length;
+    if (filters.party_scope === 'related') {
+      const accessible = [];
+      addGeneralLedgerAccessFilter(accessible, params, access);
+      where.push(`EXISTS (SELECT 1 FROM app_gl_entries matched
+        WHERE matched.voucher_type=gl.voucher_type AND matched.voucher_id=gl.voucher_id
+        AND (LOWER(COALESCE(matched.party_id,'')) LIKE $${position}
+          OR LOWER(COALESCE(matched.party_name,'')) LIKE $${position})
+        ${accessible.length ? 'AND ' + accessible.join(' AND ').replace(/\bgl\./g,'matched.') : ''})`);
+    } else {
+      where.push(`(LOWER(COALESCE(gl.party_id,'')) LIKE $${position}
+        OR LOWER(COALESCE(gl.party_name,'')) LIKE $${position})`);
+    }
   }
   if (voucherType) {
     params.push(voucherType);
     where.push(`gl.voucher_type = $${params.length}`);
   }
+  if (voucherId) { params.push(voucherId); where.push(`gl.voucher_id = $${params.length}::bigint`); }
   if (search) {
     params.push(sqlLikePattern(search));
     where.push(`(
@@ -721,55 +827,196 @@ function generalLedgerQuery(filters = {}, access = {}) {
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  return { params, whereSql, filters: {
+  const extraFilters = {};
+  if (['related','lines'].includes(filters.party_scope)) extraFilters.party_scope = filters.party_scope;
+  if (filters.group_by === 'account') extraFilters.group_by = 'account';
+  if (voucherId) extraFilters.voucher_id = voucherId;
+  return { params, whereSql, ownerCtes: sourcePlan?.ctes, filters: {
+    ...extraFilters,
     search: String(filters.search || '').trim(), account: String(filters.account || '').trim(),
     party: String(filters.party || '').trim(), voucher_type: voucherType, from, to,
   } };
 }
 
-async function generalLedgerReport(filters = {}, access = {}) {
-  const pagination = paginationOptions(filters, 50, 200);
-  const query = generalLedgerQuery(filters, access);
-  const { params, whereSql } = query;
-  const countResult = await getPostgresPool().query(
-    `
-    SELECT COUNT(*)::int AS total
-    FROM app_gl_entries gl
-    INNER JOIN app_accounts account ON account.id = gl.account_id
-    ${whereSql}
-    `,
-    params,
-  );
-  const summaryResult = await getPostgresPool().query(
-    `
-    SELECT COALESCE(SUM(gl.debit), 0)::float AS debit, COALESCE(SUM(gl.credit), 0)::float AS credit
-    FROM app_gl_entries gl
-    INNER JOIN app_accounts account ON account.id = gl.account_id
-    ${whereSql}
-    `,
-    params,
-  );
-  if (!access.exportAll) params.push(pagination.limit, pagination.offset);
-  const { rows } = await getPostgresPool().query(
-    `${generalLedgerRowsSql(whereSql)}
-      ${access.exportAll ? '' : `LIMIT $${params.length - 1} OFFSET $${params.length}`}`,
-    params,
-  );
-  const summary = summaryResult.rows[0] || { debit: 0, credit: 0 };
+function validateReportDates(from, to) {
+  if ((from && !isValidIsoDate(from)) || (to && !isValidIsoDate(to)) || (from && to && from > to)) {
+    const error = new Error('Choose valid report dates with From on or before To.');
+    error.status = 400;
+    throw error;
+  }
+}
+
+// Keep pre-period history in balances while limiting displayed transactions.
+function generalLedgerHistory(whereSql) {
+  const from = whereSql.match(/gl\.posting_date >= (\$\d+)/);
+  return { from: from?.[1], whereSql: from ? whereSql.replace(from[0], 'true') : whereSql };
+}
+
+// One grouped scan calculates opening history and period totals. Keep sums numeric
+// inside PostgreSQL until the final projection, including totals across accounts.
+async function generalLedgerOverview(client, query, useDaily) {
+  const history = generalLedgerHistory(query.whereSql);
+  const before = history.from ? `gl.posting_date < ${history.from}::date` : 'false';
+  const period = history.from ? `gl.posting_date >= ${history.from}::date` : 'true';
+  const { rows } = await client.query(`WITH ${query.ownerCtes ? query.ownerCtes + ',' : ''} account_totals AS (
+    SELECT account.id, account.account_code, account.account_name,
+      COALESCE(SUM(gl.debit-gl.credit) FILTER (WHERE ${before}),0) AS opening,
+      COALESCE(SUM(${useDaily ? 'gl.entry_count' : '1'}) FILTER (WHERE ${period}),0) AS period_count,
+      COALESCE(SUM(gl.debit) FILTER (WHERE ${period}),0) AS period_debit,
+      COALESCE(SUM(gl.credit) FILTER (WHERE ${period}),0) AS period_credit
+    FROM ${query.ownerCtes ? 'scoped_gl' : useDaily ? '(SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily)' : 'app_gl_entries'} gl
+    JOIN app_accounts account ON account.id=gl.account_id ${history.whereSql}
+    GROUP BY account.id,account.account_code,account.account_name
+  ) SELECT account_code,account_name,opening::float AS running_balance,
+    SUM(period_count) OVER ()::int AS total,
+    SUM(period_debit) OVER ()::float AS debit,
+    SUM(period_credit) OVER ()::float AS credit
+    FROM account_totals ORDER BY account_code,id`, query.params);
   return {
-    filters: query.filters,
-    rows,
-    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
-    summary: {
-      debit: roundMoney(summary.debit),
-      credit: roundMoney(summary.credit),
-      balance: roundMoney(summary.debit - summary.credit),
-    },
+    totals: rows.length ? { total: rows[0].total, debit: rows[0].debit, credit: rows[0].credit }
+      : { total: 0, debit: 0, credit: 0 },
+    openingRows: rows.map(({ account_code, account_name, running_balance }) =>
+      ({ account_code, account_name, running_balance })),
   };
 }
 
-function generalLedgerRowsSql(whereSql) {
-  return `
+async function generalLedgerReviewDetails(client, filters, access, query) {
+  const details = {};
+  if (filters.group_by === 'account') {
+    const history = generalLedgerHistory(query.whereSql);
+    const before = history.from ? `gl.posting_date < ${history.from}::date` : 'false';
+    const period = history.from ? `gl.posting_date >= ${history.from}::date` : 'true';
+    const source = query.ownerCtes ? 'scoped_gl' : canSummarizeGl(filters,access) ? '(SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily)' : 'app_gl_entries';
+    details.account_summaries = (await client.query(`${query.ownerCtes ? 'WITH ' + query.ownerCtes : ''} SELECT account.account_code,account.account_name,
+      COALESCE(SUM(gl.debit-gl.credit) FILTER (WHERE ${before}),0)::float opening_balance,
+      COALESCE(SUM(gl.debit) FILTER (WHERE ${period}),0)::float debit,
+      COALESCE(SUM(gl.credit) FILTER (WHERE ${period}),0)::float credit,
+      SUM(gl.debit-gl.credit)::float closing_balance
+      FROM ${source} gl JOIN app_accounts account ON account.id=gl.account_id ${history.whereSql}
+      GROUP BY account.id,account.account_code,account.account_name ORDER BY account.account_code,account.id`,query.params)).rows;
+  }
+  if (String(filters.party || '').trim()) {
+    const partyQuery=generalLedgerQuery({party:filters.party,to:filters.to},access);
+    const balances=(await client.query(`SELECT gl.party_type,gl.party_id,MAX(gl.party_name) party_name,
+      SUM(CASE WHEN gl.party_type='supplier' THEN gl.credit-gl.debit ELSE gl.debit-gl.credit END)::float balance
+      FROM app_gl_entries gl JOIN app_accounts account ON account.id=gl.account_id
+      ${partyQuery.whereSql} AND (
+        (gl.party_type='customer' AND (LOWER(account.account_detail_type)='receivable' OR LOWER(account.account_name)='accounts receivable'))
+        OR (gl.party_type='supplier' AND (LOWER(account.account_detail_type)='payable' OR LOWER(account.account_name)='accounts payable')))
+      GROUP BY gl.party_type,gl.party_id ORDER BY gl.party_type,gl.party_id`,partyQuery.params)).rows;
+    const forParty=(type)=>balances.filter(row=>row.party_type===type)
+      .map(({party_id,party_name,balance})=>({party_id,party_name,balance}));
+    details.customer_balances=forParty('customer');
+    details.supplier_balances=forParty('supplier');
+  }
+  if (filters.voucher_id && ['cash_receipt','payment_journal','journal_entry'].includes(String(filters.voucher_type||'').replace(/_cancellation$/,''))) {
+    // Only source lines already visible through the ledger are eligible.
+    details.allocations=(await client.query(`${query.ownerCtes ? 'WITH ' + query.ownerCtes : ''} SELECT account.account_code,account.account_name,
+      COALESCE(NULLIF(line.reference_no,''),journal.reference_no) reference_no,
+      line.debit::float debit,line.credit::float credit
+      FROM ${query.ownerCtes ? 'scoped_gl' : 'app_gl_entries'} gl JOIN app_accounts account ON account.id=gl.account_id
+      JOIN app_journal_entries journal ON journal.id=COALESCE(gl.reversal_of_voucher_id,gl.voucher_id)
+      JOIN app_journal_entry_lines line ON line.journal_entry_id=journal.id AND line.line_no=gl.line_no
+      ${query.whereSql} AND (LOWER(account.account_detail_type) IN ('receivable','payable')
+        OR LOWER(account.account_name) IN ('accounts receivable','accounts payable'))
+      AND COALESCE(NULLIF(line.reference_no,''),NULLIF(journal.reference_no,'')) IS NOT NULL
+      ORDER BY line.line_no`,query.params)).rows;
+  }
+  return details;
+}
+
+function generalLedgerSummary(totals, openingRows) {
+  const opening = openingRows.reduce((sum, row) => sum + Number(row.running_balance || 0), 0);
+  return { debit: roundMoney(totals.debit), credit: roundMoney(totals.credit),
+    balance: roundMoney(opening + Number(totals.debit) - Number(totals.credit)) };
+}
+
+async function generalLedgerReport(filters = {}, access = {}) {
+  const pagination = paginationOptions(filters, 50, 200);
+  // An explicit account already narrows the account/date index efficiently;
+  // building all permitted voucher keys would add work to that selective path.
+  const voucherFirst = !access.exportAll && !String(filters.account || '').trim();
+  const query = generalLedgerQuery(filters, access, voucherFirst);
+  const { params, whereSql } = query;
+  const pool = getPostgresPool();
+  const load = () => runHeavyReport(() => readSnapshot(pool, async client => {
+    const { totals: summary, openingRows } = await generalLedgerOverview(client, query, canSummarizeGl(filters, access));
+    const pageParams = [...params, pagination.limit, pagination.offset];
+    const { rows } = await client.query(access.exportAll ? generalLedgerRowsSql(whereSql, false, filters.group_by === 'account')
+      : generalLedgerPageSql(whereSql, pageParams.length - 1, pageParams.length, canSummarizeGl(filters, access), filters.group_by === 'account', query.ownerCtes),
+    access.exportAll ? params : pageParams);
+    return {
+      filters: query.filters, rows,
+      ...await generalLedgerReviewDetails(client, filters, access, query),
+      opening_rows: openingRows,
+      pagination: paginationResult(Number(summary.total), pagination),
+      summary: generalLedgerSummary(summary, openingRows),
+    };
+  }));
+  // The SQL and every bound access/filter value form the sharing key. Export
+  // readers retain their own snapshot and do not retain large arrays here.
+  return access.exportAll ? load() : shareRead(pool,
+    ['ledger', whereSql, params, query.filters, pagination.limit, pagination.offset, query.ownerCtes], load);
+}
+
+function generalLedgerPageSql(whereSql, limit, offset, useDaily = false, grouped = false, ownerCtes = '') {
+  const source = ownerCtes ? 'page_history' : 'app_gl_entries';
+  const historyWhere = generalLedgerHistory(whereSql).whereSql;
+  const priorWhere = historyWhere ? historyWhere.replace(/\bgl\./g, 'prior.') + ' AND' : 'WHERE';
+  // Reuse only matching permitted history for the page and its earlier balances.
+  // Retain pre-From entries, but push To/account/party/access filters into the
+  // indexed source before materializing; later reversals need not be gathered.
+  const scopedHistory = ownerCtes ? `${ownerCtes}, page_history AS MATERIALIZED (
+    SELECT gl.* FROM scoped_gl gl JOIN app_accounts account ON account.id=gl.account_id
+    ${historyWhere}
+  ),` : '';
+  // Disjoint ranges retain all filters and access. OFFSET 0 keeps the same-day
+  // date/id range inside its subquery: otherwise the planner can prefer the
+  // account/date index and fetch every later same-day entry before filtering IDs.
+  const priorBalanceSql = (boundary, source = 'app_gl_entries') => `SELECT SUM(prior.debit-prior.credit) AS balance
+    FROM ${source} prior JOIN app_accounts account ON account.id=prior.account_id
+    ${priorWhere} prior.account_id=b.balance_account_id AND ${boundary}`;
+  return `WITH ${scopedHistory} page AS MATERIALIZED (
+    ${generalLedgerRowsSql(whereSql, true, grouped, false, source, Boolean(ownerCtes))} LIMIT $${limit} OFFSET $${offset}
+  ), bounds AS (
+    SELECT DISTINCT ON (balance_account_id) balance_account_id, balance_posting_date, id
+    FROM page ORDER BY balance_account_id, balance_posting_date, id
+  ), opening AS MATERIALIZED (
+    SELECT b.balance_account_id, COALESCE((
+      SELECT SUM(parts.balance) FROM (
+        ${priorBalanceSql('prior.posting_date<b.balance_posting_date', useDaily
+          ? '(SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily)' : source)}
+        UNION ALL
+        ${priorBalanceSql('true', `(SELECT * FROM ${source}
+          WHERE posting_date=b.balance_posting_date AND id<b.id OFFSET 0)`)}
+      ) parts
+    ),0) AS balance FROM bounds b
+  )
+  SELECT page.id, page.posting_date, page.account_code, page.account_name, page.account_type,
+    page.party_type, page.party_id, page.party_name, page.voucher_type, page.voucher_id,
+    page.voucher_no, page.voucher_exists, page.debit, page.credit, page.remarks,
+    (opening.balance + SUM(page.balance_delta) OVER (
+      PARTITION BY page.balance_account_id ORDER BY page.balance_posting_date, page.id
+    ))::float AS running_balance
+  FROM page JOIN opening ON opening.balance_account_id=page.balance_account_id
+  ORDER BY ${grouped ? 'page.account_code, ' : ''}page.balance_posting_date, page.id`;
+}
+
+function generalLedgerRowsSql(whereSql, page = false, grouped = false, useDaily = false, source = 'app_gl_entries', sourceExists = source === 'scoped_gl') {
+  const history = generalLedgerHistory(whereSql);
+  const dailyOpening = !page && history.from && useDaily;
+  const wrapPeriod = !page && history.from && !dailyOpening;
+  const rowWhere = page || dailyOpening ? whereSql : history.whereSql;
+  // Seed the period window with exact numeric daily totals. Both sides retain
+  // identical account, voucher and HR restrictions in the export's snapshot.
+  const openingSql = dailyOpening ? `WITH opening AS MATERIALIZED (
+    SELECT gl.account_id, SUM(gl.debit-gl.credit) AS balance
+    FROM (SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily) gl
+    INNER JOIN app_accounts account ON account.id = gl.account_id
+    ${history.whereSql} AND gl.posting_date < ${history.from}::date
+    GROUP BY gl.account_id
+  )` : '';
+  const sql = `${openingSql}
     SELECT
       gl.id,
       gl.posting_date::text,
@@ -783,6 +1030,7 @@ function generalLedgerRowsSql(whereSql) {
       gl.voucher_id,
       gl.voucher_no,
       CASE
+        ${sourceExists ? 'WHEN gl.reversal_of_voucher_id IS NULL THEN true' : ''}
         WHEN gl.voucher_type = 'sales_invoice' THEN EXISTS (SELECT 1 FROM app_invoices i WHERE i.id = gl.voucher_id)
         WHEN gl.voucher_type = 'purchase' THEN EXISTS (SELECT 1 FROM app_purchases p WHERE p.id = gl.voucher_id)
         WHEN gl.voucher_type = 'purchase_payment' THEN EXISTS (SELECT 1 FROM app_purchase_payments pp WHERE pp.id = gl.voucher_id)
@@ -794,34 +1042,42 @@ function generalLedgerRowsSql(whereSql) {
       gl.debit::float,
       gl.credit::float,
       gl.remarks,
-      SUM(gl.debit - gl.credit) OVER (
-        PARTITION BY gl.account_id
-        ORDER BY gl.posting_date, gl.id
-      )::float AS running_balance
-    FROM app_gl_entries gl
+      ${page ? `gl.account_id AS balance_account_id, gl.posting_date AS balance_posting_date,
+        gl.debit-gl.credit AS balance_delta` : `${dailyOpening ? '(COALESCE(opening.balance,0) + ' : ''}SUM(gl.debit - gl.credit) OVER (
+        PARTITION BY gl.account_id ORDER BY gl.posting_date, gl.id
+      )${dailyOpening ? ')' : ''}::float AS running_balance`}
+    FROM ${source} gl
     INNER JOIN app_accounts account ON account.id = gl.account_id
-    ${whereSql}
-    ORDER BY gl.posting_date ASC, gl.id ASC
+    ${dailyOpening ? 'LEFT JOIN opening ON opening.account_id = gl.account_id' : ''}
+    ${rowWhere}
+    ${wrapPeriod ? '' : `ORDER BY ${grouped ? 'account.account_code, ' : ''}gl.posting_date ASC, gl.id ASC`}
 `;
+  return wrapPeriod
+    ? `SELECT * FROM (${sql}) ledger_period WHERE posting_date >= ${history.from}::text ORDER BY ${grouped ? 'account_code, ' : ''}posting_date,id`
+    : sql;
 }
 
 // One snapshot keeps totals and running balances consistent while pages are read.
-async function withGeneralLedgerExport(filters, access, consume, { signal, batchSize = 500 } = {}) {
+async function withGeneralLedgerExport(filters, access, consume, options = {}) {
+  return runHeavyReport(() => executeGeneralLedgerExport(filters, access, consume, options), options);
+}
+async function executeGeneralLedgerExport(filters, access, consume, { signal, batchSize = 500 } = {}) {
   if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 5000) throw new Error('Invalid export batch size.');
-  const query = generalLedgerQuery(filters, access);
+  const query = generalLedgerQuery(filters, access, true);
   const client = await getPostgresPool().connect();
   let failed;
   const check = () => { if (signal?.aborted) throw signal.reason || new Error('Export cancelled.'); };
   try {
     check();
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-    const { rows } = await client.query(`SELECT COUNT(*)::int AS total,
-      COALESCE(SUM(gl.debit), 0)::float AS debit, COALESCE(SUM(gl.credit), 0)::float AS credit
-      FROM app_gl_entries gl INNER JOIN app_accounts account ON account.id = gl.account_id
-      ${query.whereSql}`, query.params);
-    const summary = rows[0];
+    // These indexed voucher lookups benefit from execution rather than JIT
+    // compilation, matching the existing interactive-report snapshot policy.
+    if (query.ownerCtes) await client.query('SET LOCAL jit=off');
+    const useDaily = canSummarizeGl(filters, access);
+    const { totals: summary, openingRows } = await generalLedgerOverview(client, query, useDaily);
     await client.query(`DECLARE ledger_export_cursor NO SCROLL CURSOR FOR
-      ${generalLedgerRowsSql(query.whereSql)}`, query.params);
+      ${query.ownerCtes ? 'WITH ' + query.ownerCtes : ''}
+      ${generalLedgerRowsSql(query.whereSql, false, filters.group_by === 'account', useDaily, query.ownerCtes ? 'scoped_gl' : 'app_gl_entries')}`, query.params);
     async function* entries() {
       while (true) {
         check();
@@ -830,9 +1086,10 @@ async function withGeneralLedgerExport(filters, access, consume, { signal, batch
         for (const row of batch.rows) { check(); yield row; }
       }
     }
-    await consume({ filters: query.filters, rows: entries(), pagination: { total: summary.total },
-      summary: { debit: roundMoney(summary.debit), credit: roundMoney(summary.credit),
-        balance: roundMoney(summary.debit - summary.credit) } });
+    await consume({ filters: query.filters, rows: entries(),
+      ...await generalLedgerReviewDetails(client, filters, access, query),
+      opening_rows: openingRows, pagination: { total: summary.total },
+      summary: generalLedgerSummary(summary, openingRows) });
     await client.query('COMMIT');
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (rollbackError) { failed = rollbackError; }
@@ -841,21 +1098,14 @@ async function withGeneralLedgerExport(filters, access, consume, { signal, batch
 }
 
 async function generalLedgerFilterOptions() {
-  const voucherResult = await getPostgresPool().query(`
-      SELECT DISTINCT voucher_type
-      FROM app_gl_entries
-      WHERE voucher_type IS NOT NULL
-      ORDER BY voucher_type
-    `);
-
-  return {
-    accounts: [],
-    parties: [],
-    voucher_types: voucherResult.rows.map((row) => ({
-      value: row.voucher_type,
-      label: journalTypeLabel(row.voucher_type),
-    })),
-  };
+  const pool = getPostgresPool();
+  return shareRead(pool, 'ledger-voucher-types', async () => {
+    const { rows } = await pool.query(`SELECT DISTINCT voucher_type FROM wm_gl_daily
+      WHERE entry_count>0 ORDER BY voucher_type`);
+    return { accounts: [], parties: [], voucher_types: rows.map(row => ({
+      value: row.voucher_type, label: journalTypeLabel(row.voucher_type),
+    })) };
+  }, { metadata: true });
 }
 
 async function generalLedgerAccountOptions(search = '', options = {}) {
@@ -1126,31 +1376,27 @@ async function trialBalanceReport(filters = {}) {
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
   const params = [from || null, to || null];
-  const { rows } = await getPostgresPool().query(
-    `
-    SELECT
-      account.account_code,
-      account.account_name,
-      account.account_type,
-      account.normal_balance,
-      COALESCE(SUM(CASE WHEN $1::date IS NOT NULL AND gl.posting_date < $1::date THEN gl.debit - gl.credit ELSE 0 END), 0)::float AS opening_balance,
-      COALESCE(SUM(CASE WHEN ($1::date IS NULL OR gl.posting_date >= $1::date) AND ($2::date IS NULL OR gl.posting_date <= $2::date) THEN gl.debit ELSE 0 END), 0)::float AS period_debit,
-      COALESCE(SUM(CASE WHEN ($1::date IS NULL OR gl.posting_date >= $1::date) AND ($2::date IS NULL OR gl.posting_date <= $2::date) THEN gl.credit ELSE 0 END), 0)::float AS period_credit,
-      COALESCE(SUM(CASE WHEN $2::date IS NULL OR gl.posting_date <= $2::date THEN gl.debit - gl.credit ELSE 0 END), 0)::float AS closing_balance
-    FROM app_accounts account
-    LEFT JOIN app_gl_entries gl ON gl.account_id = account.id
-    WHERE account.is_group = false
-      AND account.is_active = true
-    GROUP BY account.id, account.account_code, account.account_name, account.account_type, account.normal_balance
-    HAVING
-      COALESCE(SUM(CASE WHEN $1::date IS NOT NULL AND gl.posting_date < $1::date THEN gl.debit - gl.credit ELSE 0 END), 0) <> 0
-      OR COALESCE(SUM(CASE WHEN ($1::date IS NULL OR gl.posting_date >= $1::date) AND ($2::date IS NULL OR gl.posting_date <= $2::date) THEN gl.debit ELSE 0 END), 0) <> 0
-      OR COALESCE(SUM(CASE WHEN ($1::date IS NULL OR gl.posting_date >= $1::date) AND ($2::date IS NULL OR gl.posting_date <= $2::date) THEN gl.credit ELSE 0 END), 0) <> 0
-      OR COALESCE(SUM(CASE WHEN $2::date IS NULL OR gl.posting_date <= $2::date THEN gl.debit - gl.credit ELSE 0 END), 0) <> 0
-    ORDER BY account.account_code, account.account_name
-    `,
-    params,
-  );
+  validateReportDates(from, to);
+  const pool = getPostgresPool();
+  return shareRead(pool, ['trial-balance', params], () => runHeavyReport(async () => {
+  const { rows } = await pool.query(`WITH balances AS (
+    SELECT account_id,
+      SUM(CASE WHEN $1::date IS NOT NULL AND posting_date < $1::date THEN debit-credit ELSE 0 END) AS opening_balance,
+      SUM(CASE WHEN $1::date IS NULL OR posting_date >= $1::date THEN debit ELSE 0 END) AS period_debit,
+      SUM(CASE WHEN $1::date IS NULL OR posting_date >= $1::date THEN credit ELSE 0 END) AS period_credit,
+      SUM(debit-credit) AS closing_balance
+    FROM wm_gl_daily WHERE $2::date IS NULL OR posting_date <= $2::date GROUP BY account_id
+  )
+  SELECT account.account_code, account.account_name, account.account_type, account.normal_balance,
+    COALESCE(b.opening_balance,0)::float AS opening_balance,
+    COALESCE(b.period_debit,0)::float AS period_debit,
+    COALESCE(b.period_credit,0)::float AS period_credit,
+    COALESCE(b.closing_balance,0)::float AS closing_balance
+  FROM app_accounts account LEFT JOIN balances b ON b.account_id=account.id
+  WHERE NOT account.is_group AND account.is_active
+    AND (COALESCE(b.opening_balance,0)<>0 OR COALESCE(b.period_debit,0)<>0
+      OR COALESCE(b.period_credit,0)<>0 OR COALESCE(b.closing_balance,0)<>0)
+  ORDER BY account.account_code, account.account_name`, params);
   const normalizedRows = rows.map((row) => formatTrialBalanceRow(row));
   const summary = normalizedRows.reduce((total, row) => {
     total.opening_debit += row.opening_debit;
@@ -1175,6 +1421,7 @@ async function trialBalanceReport(filters = {}) {
     summary: Object.fromEntries(Object.entries(summary).map(([key, value]) => [key, roundMoney(value)])),
     is_balanced: roundMoney(summary.closing_debit) === roundMoney(summary.closing_credit),
   };
+  }));
 }
 
 async function profitAndLossReport(filters = {}) {

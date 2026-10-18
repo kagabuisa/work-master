@@ -1,0 +1,9 @@
+<nav class="settings-tabs" aria-label="Stock Reconciliation">
+<% const reconciliationTabs = [
+ ['vouchers','Reconciliation vouchers','/stock/reconciliations',can('vouchers.stock.view')],
+ ['counts','Counts and warehouse closure','/stock/reconciliations/counts',can('inventory.count.view')],
+ ['corrections','Current-period corrections','/stock/reconciliations/corrections',can('inventory.correction.view')]
+]; reconciliationTabs.forEach(([key,label,href,allowed])=>{if(allowed){ %>
+<a href="<%= href %>" <%- activeReconciliationTab===key?'class="active" aria-current="page"':'' %>><%= label %></a>
+<% }}); %>
+</nav>

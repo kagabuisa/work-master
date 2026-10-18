@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'cost-center-field.js'), 'utf8');
 
-async function form({ choices, preferred = '', existing = '' }) {
+async function form({ choices, preferred = '', existing = '', existingId = '', nameMode = false }) {
   const listeners = new Map();
   const input = {
     value: existing,
@@ -14,17 +14,19 @@ async function form({ choices, preferred = '', existing = '' }) {
     readOnly: false,
     disabled: false,
     getAttribute: () => 'voucher-cost-centers',
+    setCustomValidity: (message) => { input.validationMessage = message; },
     addEventListener: (name, listener) => listeners.set(name, listener),
     dispatchEvent: () => {},
   };
   const options = [];
+  const idInput = { value: existingId };
   const list = {
     replaceChildren: () => { options.length = 0; },
     appendChild: (option) => options.push(option),
   };
   vm.runInNewContext(script, {
     document: {
-      querySelector: () => input,
+      querySelector: (selector) => selector === '[data-cost-center-id]' ? nameMode ? idInput : null : input,
       getElementById: () => list,
       createElement: () => ({}),
     },
@@ -35,8 +37,27 @@ async function form({ choices, preferred = '', existing = '' }) {
     encodeURIComponent,
   });
   await new Promise(setImmediate);
-  return { input, options, listeners };
+  return { input, idInput, options, listeners };
 }
+
+test('cost center names are shown while saved selections and permissions keep their IDs', async () => {
+  const choices = [{ cost_center: 'CC-MAIN-ID', cost_center_name: 'Main Shop' }];
+  const selected = await form({ choices, nameMode: true });
+  assert.equal(selected.input.value, 'Main Shop');
+  assert.equal(selected.idInput.value, 'CC-MAIN-ID');
+  assert.equal(selected.options[0].value, 'Main Shop');
+  selected.input.value = 'Unknown';
+  selected.listeners.get('input')();
+  assert.equal(selected.idInput.value, '');
+  assert.match(selected.input.validationMessage, /Select a cost center/);
+  selected.input.value = 'main shop';
+  selected.listeners.get('change')();
+  assert.equal(selected.idInput.value, 'CC-MAIN-ID');
+  assert.equal(selected.input.validationMessage, '');
+  const saved = await form({ choices, nameMode: true, existing: 'Main Shop', existingId: 'CC-MAIN-ID' });
+  assert.equal(saved.idInput.value, 'CC-MAIN-ID');
+  assert.equal(saved.input.value, 'Main Shop');
+});
 
 test('voucher cost center defaults to the assigned permitted choice', async () => {
   const page = await form({ preferred: 'Warehouse', choices: [

@@ -13,30 +13,20 @@ function loadCacheWithInvoiceList(list) {
   return { cache, restore: () => { store.paginatedInvoices = original; delete require.cache[path]; } };
 }
 
-test('simultaneous invoice-list misses share a query and invalidation cannot restore stale data', async () => {
-  const pending = [];
-  const { cache, restore } = loadCacheWithInvoiceList(() => new Promise((resolve) => pending.push(resolve)));
+test('website list facade retains no completed financial rows and forwards access/count options', async () => {
+  let rows=['before'];const seen=[];
+  const {cache,restore}=loadCacheWithInvoiceList(async options=>{seen.push(options);return {rows:[...rows]};});
   try {
-    const first = cache.cachedInvoiceList({ q: 'same' });
-    const duplicate = cache.cachedInvoiceList({ q: 'same' });
-    assert.equal(pending.length, 1);
-
-    cache.clearInvoiceListCache();
-    const fresh = cache.cachedInvoiceList({ q: 'same' });
-    assert.equal(pending.length, 2);
-    pending[0]({ rows: ['old'] });
-    pending[1]({ rows: ['new'] });
-    assert.deepEqual(await first, { rows: ['old'] });
-    assert.deepEqual(await duplicate, { rows: ['old'] });
-    assert.deepEqual(await fresh, { rows: ['new'] });
-    assert.deepEqual(await cache.cachedInvoiceList({ q: 'same' }), { rows: ['new'] });
-    assert.equal(pending.length, 2);
-  } finally {
-    restore();
-  }
+    assert.deepEqual((await cache.cachedInvoiceList({q:'same',ownerId:'7',allowedGroups:['retail']})).rows,['before']);
+    rows=['after'];
+    assert.deepEqual((await cache.cachedInvoiceList({q:'same',ownerId:'7',allowedGroups:['retail']})).rows,['after']);
+    assert.equal(seen[0].includeTotal,false);assert.equal(seen[0].ownerId,'7');
+    assert.deepEqual(seen[0].allowedGroups,['retail']);
+    await cache.cachedInvoiceList({exact_total:'1'});assert.equal(seen[2].includeTotal,true);
+  } finally {restore();}
 });
 
-test('invoice-list cache evicts old filter combinations at its entry limit', async () => {
+test('completed invoice filter combinations are not retained', async () => {
   let calls = 0;
   const { cache, restore } = loadCacheWithInvoiceList(async () => ({ rows: [++calls] }));
   try {
@@ -53,10 +43,12 @@ test('invoice counts omit payment joins without search and preserve scoped filte
   const original = core.getPostgresPool;
   const modulePath = require.resolve('../src/domain/sales');
   const queries = [];
-  core.getPostgresPool = () => ({ query: async (sql, params) => {
+  const fake = { query: async (sql, params) => {
     queries.push({ sql, params });
     return { rows: sql.includes('COUNT(*)::int AS total') ? [{ total: 0 }] : [] };
-  } });
+  }, release() {} };
+  fake.connect = async () => fake;
+  core.getPostgresPool = () => fake;
   delete require.cache[modulePath];
   try {
     const { paginatedPostgresInvoices } = require('../src/domain/sales');

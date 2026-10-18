@@ -49,7 +49,7 @@
     </form>
 
     <section class="invoice-card report-section ui-surface ui-results">
-      <%- include('ui-section-heading', { heading: { title: 'Results', meta: pagination ? `${pagination.total} records` : '' } }) %>
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: pagination ? (pagination.total == null ? (pagination.end ? `${pagination.start}–${pagination.end} shown` : '0 records') : `${pagination.total} records`) : '' } }) %>
       <div class="ui-table-scroll" role="region" aria-label="Journals table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
@@ -75,8 +75,8 @@
               <td><a href="/journals/<%= journal.id %>" data-voucher-drawer="/journals/<%= journal.id %>/drawer"><%= journal.journal_no %></a></td>
               <td><%= formatDate(journal.posting_date) %></td>
               <td><%= journalTypeLabel(journal.journal_type) %></td>
-              <td><%= journal.party_name || journal.party_id || '' %></td>
-              <td><%= journal.reference_no || '' %></td>
+              <td><%= journal.party_type === 'employee' ? journal.party_name || journal.party_id || '' : journal.party_id || '' %></td>
+              <td><%= journal.reference_no || journal.source_references || '' %></td>
               <td class="ui-amount"><%= money(journal.total_debit) %></td>
               <td class="ui-amount"><%= money(journal.total_credit) %></td>
               <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>

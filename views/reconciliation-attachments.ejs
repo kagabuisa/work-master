@@ -1,23 +1,24 @@
-<section class="invoice-card reconciliation-attachments" aria-labelledby="reconciliation-attachments-title" data-reconciliation-attachments <%= saved ? `data-voucher-id=${entry.id}` : '' %> data-can-manage="<%= can('vouchers.stock.edit') %>">
-  <div class="section-title"><h2 id="reconciliation-attachments-title">Scanned stock sheets</h2></div>
+<% const compactScans=typeof compactUploads!=='undefined'&&compactUploads; const manageScans=typeof canManage!=='undefined'?canManage:can('vouchers.stock.edit'); const scanEndpoint=typeof attachmentEndpoint!=='undefined'?attachmentEndpoint:`/stock/reconciliations/${entry?.id}/attachments`; %>
+<section class="invoice-card reconciliation-attachments ui-surface ui-results <%= compactScans ? 'ui-upload-card' : '' %>" aria-labelledby="reconciliation-attachments-title" data-reconciliation-attachments <%= saved ? `data-voucher-id=${entry.id}` : '' %> data-attachment-endpoint="<%= scanEndpoint %>" data-can-manage="<%= manageScans %>">
+  <div id="reconciliation-attachments-title"><%- include('ui-section-heading',{heading:{title:'Scanned stock sheets',eyebrow:compactScans?'Supporting evidence':null,help:'Attach original physical count evidence as PDF, JPG, PNG, CSV or Excel (.xls/.xlsx). Supporting documents do not change counts or ledger entries.'}}) %></div>
   <% if (!saved) { %>
     <p class="field-hint">Save the reconciliation as a draft first, then attach the scanned physical stock sheets.</p>
   <% } else { %>
-    <p class="field-hint">Attach the original physical count as PDF, JPG, PNG, CSV, or Excel (.xls/.xlsx). Attachments are supporting documents and do not change counts or ledger entries.</p>
+    <p class="<%= compactScans?'ui-upload-intro':'field-hint' %>"><%= compactScans ? 'Keep original count records together. Attachments do not change quantities.' : 'Attach the original physical count as PDF, JPG, PNG, CSV, or Excel (.xls/.xlsx). Attachments are supporting documents and do not change counts or ledger entries.' %></p>
     <div class="table-wrap">
       <table data-scan-table hidden>
         <thead><tr><th>File</th><th>Size</th><th>Uploaded by</th><th>Uploaded</th><th></th></tr></thead>
         <tbody data-scan-rows></tbody>
       </table>
     </div>
-    <p class="empty" data-scan-empty>No scanned sheets attached.</p>
-    <% if (can('vouchers.stock.edit')) { %>
-      <form method="post" action="/stock/reconciliations/<%= entry.id %>/attachments" enctype="multipart/form-data" data-scan-upload>
-        <label>Scanned physical count sheets
-          <input type="file" name="scans" accept=".pdf,.jpg,.jpeg,.png,.csv,.xls,.xlsx" multiple required>
+    <p class="<%= compactScans?'ui-upload-summary':'empty' %>" data-scan-empty><% if(compactScans){ %><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><% } %><span>No scanned sheets attached.</span></p>
+    <% if (manageScans) { %>
+      <form method="post" action="<%= scanEndpoint %>" enctype="multipart/form-data" data-scan-upload class="ui-upload-form">
+        <label class="<%= compactScans?'ui-upload-field':'' %>">Scanned physical count sheets
+          <input aria-describedby="scan-upload-help" type="file" name="scans" accept=".pdf,.jpg,.jpeg,.png,.csv,.xls,.xlsx" multiple required>
         </label>
-        <p class="field-hint">Up to three files per upload, maximum 10 MB each.</p>
-        <button type="submit" class="button-light">Attach scanned sheets</button>
+        <p class="field-hint" id="scan-upload-help"><% if(compactScans){ %>PDF, JPG, PNG, CSV, XLS or XLSX · Up to 3 files · 10 MB each<% } else { %>Up to three files per upload, maximum 10 MB each.<% } %></p>
+        <div class="ui-form-footer"><button type="submit" class="<%= compactScans?'':'button-light' %>">Attach scanned sheets</button></div>
       </form>
     <% } %>
     <p data-scan-status role="status" hidden></p>

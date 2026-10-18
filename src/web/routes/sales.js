@@ -1,7 +1,8 @@
 'use strict';
+const { measurePosting, postingStage } = require('../../workload-control');
 // /invoices routes and their helpers. Mounted at the app root (full paths).
 const express = require('express');
-const { money, todayString, paymentReturnPath } = require('../format');
+const { money, paymentReturnPath } = require('../format');
 const invoiceMath = require('../../shared/invoice-math');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { invoiceFormState, duplicateInvoiceFormState } = require('../../invoice-form-state');
@@ -49,21 +50,19 @@ router.get('/invoices/new', async (req, res, next) => {
   }
 });
 
-router.post('/invoices', async (req, res, next) => {
+router.post('/invoices', async (req, res, next) => measurePosting('invoice_request', async () => {
   let id;
   try {
-    const payload = await buildInvoicePayload(req.body, req.currentUser);
+    const payload = await postingStage('payload_validation', () => buildInvoicePayload(req.body, req.currentUser));
     if (req.body.action === 'cash_sale') {
       requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
       const payment = cashSalePayment(payload, req.body);
-      await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
       id = await createCashSaleInvoice(payload, payment);
     } else if (req.body.action === 'submit_invoice') {
-      await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
-      id = await createInvoice({ ...payload, payments: [], amount_paid: 0 });
-      await submitInvoice(id);
+      id = await postingStage('create_call', () => createInvoice({ ...payload, payments: [], amount_paid: 0 }));
+      await postingStage('submit_call', () => submitInvoice(id));
     } else {
-      id = await createInvoice({ ...payload, payments: [], amount_paid: 0 });
+      id = await postingStage('create_call', () => createInvoice({ ...payload, payments: [], amount_paid: 0 }));
     }
     clearInvoiceCaches();
     res.redirect(`/invoices/${id}`);
@@ -74,9 +73,9 @@ router.post('/invoices', async (req, res, next) => {
       res.redirect(`/invoices/${id}?error=${encodeURIComponent('Invoice saved, but submission failed. Review it before submitting again.')}`);
       return;
     }
-    renderInvoiceFormError(res, req.body, null, err);
+    await renderInvoiceFormError(res, req.body, null, err);
   }
-});
+}));
 
 router.get('/invoices', async (req, res, next) => {
   try {
@@ -265,12 +264,9 @@ router.post('/invoices/:id/non-system-invoice', async (req, res, next) => {
 
 router.post('/invoices/:id', async (req, res, next) => {
   try {
-    const payload = await buildInvoicePayload(req.body, req.currentUser);
     const action = String(req.body.action || '').trim();
+    const payload = await buildInvoicePayload(req.body, req.currentUser);
     if (action === 'cash_sale') requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
-    if (action === 'cash_sale' || action === 'submit_invoice') {
-      await validateDbItems(payload.items, payload.warehouse, { checkStock: true });
-    }
     const id = await updateInvoice(req.params.id, { ...payload, payments: [], amount_paid: 0 });
     if (action === 'cash_sale') {
       const payment = cashSalePayment(payload, req.body);
@@ -288,11 +284,11 @@ router.post('/invoices/:id', async (req, res, next) => {
         next(err);
         return;
       }
-      renderInvoiceFormError(res, req.body, savedInvoice, err);
+      await renderInvoiceFormError(res, req.body, savedInvoice, err);
     } catch (loadErr) {
       // The store may still be unavailable; keep the user's edits without
       // requiring another successful read just to display the form.
-      renderInvoiceFormError(res, req.body, { id: req.params.id, invoice_no: req.params.id }, err);
+      await renderInvoiceFormError(res, req.body, { id: req.params.id, invoice_no: req.params.id }, err);
     }
   }
 });
@@ -349,7 +345,7 @@ router.post('/invoices/:id/submit-cash-sale', async (req, res, next) => {
       throw err;
     }
     const id = await submitCashSaleInvoice(req.params.id, {
-      payment_date: req.body.payment_date || invoice.invoice_date || todayString(),
+      payment_date: req.body.payment_date || invoice.invoice_date || currentPostingDate(),
       amount,
       account_id: req.body.cash_sale_account_id,
       reference: req.body.cash_sale_reference || '',
@@ -419,7 +415,7 @@ router.get('/invoices/payments/:id/drawer', async (req, res, next) => {
 router.get('/invoices/:id', async (req, res, next) => {
   try {
     const data = await loadInvoice(req.params.id);
-    res.render('invoice', { ...data, today: todayString(), money, error: req.query.error || null });
+    res.render('invoice', { ...data, today: currentPostingDate(), money, error: req.query.error || null });
   } catch (err) {
     next(err);
   }
@@ -439,7 +435,7 @@ router.get('/invoices/:id/drawer', async (req, res, next) => {
     res.set('Cache-Control', 'private, max-age=10');
     res.render('invoice-drawer', {
       ...data,
-      today: todayString(),
+      today: currentPostingDate(),
       money,
       error: req.query.error || null,
       returnTo,
@@ -512,7 +508,11 @@ async function loadInvoice(id) {
   return { invoice, items: invoice.items || [], company: await getCompanyInformation() };
 }
 
-function renderInvoiceFormError(res, body, savedInvoice, err) {
+async function renderInvoiceFormError(res, body, savedInvoice, err) {
+  if (res.locals?.loadReceiptAccounts) {
+    try { await res.locals.loadReceiptAccounts(); }
+    catch { res.locals.receiptAccounts = []; } // Preserve entered data during an outage.
+  }
   const status = err instanceof SyntaxError ? 400 : err.status || 500;
   res.status(status).render('new-invoice', {
     ...invoiceFormState(body, savedInvoice),
@@ -541,7 +541,7 @@ function cashSalePayment(payload, body = {}) {
     throw err;
   }
   return {
-    payment_date: body.payment_date || payload.invoice_date || todayString(),
+    payment_date: body.payment_date || payload.invoice_date || currentPostingDate(),
     amount,
     account_id: body.cash_sale_account_id,
     reference: body.cash_sale_reference || '',

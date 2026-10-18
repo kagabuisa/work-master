@@ -49,7 +49,7 @@
     </form>
 
     <section class="invoice-card report-section ui-surface ui-results">
-      <%- include('ui-section-heading', { heading: { title: 'Results', meta: pagination ? `${pagination.total} records` : '' } }) %>
+      <%- include('ui-section-heading', { heading: { title: 'Results', meta: pagination ? (pagination.total == null ? (pagination.end ? `${pagination.start}–${pagination.end} shown` : '0 records') : `${pagination.total} records`) : '' } }) %>
       <div class="ui-table-scroll" role="region" aria-label="Invoices table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
@@ -75,7 +75,7 @@
               <td class="row-number"><%= (pagination ? pagination.offset : 0) + index + 1 %></td>
               <td><a href="/invoices/<%= invoice.id %>" data-voucher-drawer="/invoices/<%= invoice.id %>/drawer"><%= invoice.invoice_no %></a></td>
               <td><%= formatDateTime(invoice.invoice_date, invoice.posting_time || '00:00') %></td>
-              <td><%= invoice.customer_name %></td>
+              <td><%= invoice.customer_id %></td>
               <td class="ui-amount"><%= money(invoice.total) %></td>
               <td class="ui-amount"><%= money(invoice.amount_paid) %></td>
               <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>

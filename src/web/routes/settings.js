@@ -378,6 +378,7 @@ router.post('/settings/:list/:id', async (req, res, next) => {
     res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
     if (err.status === 403) return next(err);
+    require('../../master-display').masterNameConflict(err);
     res.status(err.status || 500);
     const persisted = await config.finder(id);
     await renderMasterForm(res, {
@@ -399,7 +400,9 @@ router.post('/settings/:list', async (req, res, next) => {
     if(config.key==='employees') return res.redirect(303,res.locals.can('hr.employees.view')?`/hr/employees/${encodeURIComponent(id)}`:'/settings/employees');
     res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
-    if (err.code === '23505') {
+    if (require('../../master-display').masterNameConflict(err)) {
+      // Display the duplicate name error below.
+    } else if (err.code === '23505') {
       err.message = `${config.singular} already exists.`;
       err.status = 400;
     }

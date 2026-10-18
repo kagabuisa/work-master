@@ -6,6 +6,29 @@ const { journalAccountMatches } = require('../public/journal-account-match');
 const { scriptJson } = require('../src/web/script-json');
 const { normalizeJournalEntryPayload, validateJournalAccountSides } = require('../src/domain/normalization');
 
+test('saved journal details and drawer show cost center and distinct line references without a header reference', async () => {
+  const locals = {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], journal: { id: 1, journal_no: 'JRN-000001', journal_type: 'payment_journal',
+      cost_center: 'JOURNAL-CC', lines: [{ account_id: 5, reference_no: 'PUR-A' },
+        { account_id: 5, reference_no: 'PUR-B' }, { account_id: 5, reference_no: 'PUR-A' }] },
+    accounts: [], error: null, readOnly: true, today: '2026-10-02', money: String,
+    currentPostingTime: () => '12:00', scriptJson,
+  };
+  const html = await renderView(path.join(__dirname, '..', 'views', 'journal-entry.ejs'), locals);
+  assert.match(html, /value="JOURNAL-CC"/);
+  assert.match(html, /value="PUR-A, PUR-B" readonly aria-label="References"/);
+  const drawer = await renderView(path.join(__dirname, '..', 'views', 'journal-drawer.ejs'),
+    { ...locals, journalTypeLabel: () => 'Payment Journal' });
+  assert.match(drawer, /<span>Cost Center<\/span><strong>JOURNAL-CC<\/strong>/);
+  assert.match(drawer, /<span>References<\/span><strong>PUR-A, PUR-B<\/strong>/);
+  const editable = await renderView(path.join(__dirname, '..', 'views', 'journal-entry.ejs'),
+    { ...locals, readOnly: false, accounts: [{ id: 5, account_code: '2101', account_name: 'Payable' }] });
+  assert.match(editable, /value="JOURNAL-CC"/);
+  assert.match(editable, /name="line_reference_no" value="PUR-A"/);
+  assert.match(editable, /name="line_reference_no" value="PUR-B"/);
+});
+
 test('journal cannot debit and credit the same account', () => {
   const payload = { journal_type: 'journal_entry', posting_date: '2026-10-07', posting_time: '12:00',
     lines: [{ account_id: 5, debit: 100 }, { account_id: 5, credit: 100 }] };
@@ -46,7 +69,7 @@ test('editable journal lines render account search with a separate account id', 
   assert.match(html, /name="line_reference_no"/);
   assert.match(html, /list="journal-purchase-invoices"/);
   assert.match(html, /name="account_id" value="5"/);
-  assert.match(html, /value="1102 - Main Bank Account"/);
+  assert.match(html, /value="Main Bank Account"/);
   assert.match(html, /journal-account-match\.js/);
   assert.match(html, /journal-entry\.js\?v=test/);
   const accountData = html.match(/<script id="journal-account-data" type="application\/json">([^<]*)<\/script>/);

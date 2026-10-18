@@ -137,12 +137,20 @@ let storeInitPromise = null;
 
 
 app.set('view engine', 'ejs');
+// Cache compiled templates, never rendered pages or request/permission data.
+app.set('view cache', process.env.VIEW_CACHE !== '0');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 app.disable('x-powered-by');
 app.locals.assetVersion = Date.now();
 app.locals.currentPostingTime = currentPostingTime;
+app.locals.currentPostingDate = currentPostingDate;
 app.locals.scriptJson = scriptJson;
+const { STOCK_ENTRY_CHOICES, STOCK_ENTRY_TYPE_LABELS, STOCK_TRANSFER_TYPES } = require('./src/constants');
+app.locals.stockEntryChoices = STOCK_ENTRY_CHOICES;
+app.locals.stockEntryTypeLabels = STOCK_ENTRY_TYPE_LABELS;
+app.locals.stockTransferTypes = STOCK_TRANSFER_TYPES;
+app.locals.deliveryStatuses = require('./src/stock-entry-workflow').DELIVERY_STATUSES;
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -217,6 +225,9 @@ function ensureStoreInitialized() {
   return storeInitPromise;
 }
 
+app.use(require('./src/workload-control').requestReadBudget);
+app.use(require('./src/maintenance-lock').captureResetEpoch);
+
 app.use(async (_req, res, next) => {
   try {
     const settings = await getDateTimeSettings();
@@ -232,6 +243,18 @@ app.use(async (_req, res, next) => {
 // The bearer router terminates every v1 request before browser-cookie gates.
 app.use('/api/v1', require('./src/api/router'));
 installAuth(app);
+
+app.use(async (req, res, next) => {
+  res.locals.costCenterName = id => id || '';
+  if (!/^\/(?:invoices|journals|purchases|purchase-orders|stock|hr)(?:\/|$)/.test(req.path)) return next();
+  try {
+    const pool = getPostgresPool();
+    const rows = await require('./src/read-cache').shareRead(pool, 'cost-center-labels',
+      async () => (await pool.query('SELECT cost_center, cost_center_name FROM app_master_cost_centers')).rows, { metadata:true });
+    res.locals.costCenterName = require('./src/master-display').costCenterLabels(rows);
+    next();
+  } catch (error) { next(error); }
+});
 
 app.use(async (req, res, next) => {
   res.locals.defaultCostCenter = '';
@@ -253,9 +276,16 @@ app.get('/', (req, res) => {
 });
 
 app.use(async (req, res, next) => {
-  if (!req.path.startsWith('/invoices') && req.path !== '/reports/debtors') return next();
+  if (!req.path.startsWith('/invoices') && !/^\/purchases\/\d+(?:\/|$)/.test(req.path) && req.path !== '/reports/debtors') return next();
   try {
-    res.locals.receiptAccounts = await receivingAccounts(accountAccessOptions(req.currentUser));
+    let pendingAccounts;
+    res.locals.loadReceiptAccounts = () => {
+      if (!pendingAccounts) pendingAccounts = receivingAccounts(accountAccessOptions(req.currentUser))
+        .then(accounts => { res.locals.receiptAccounts = accounts; return accounts; });
+      return pendingAccounts;
+    };
+    // Successful mutations redirect; load dropdown choices only when rendering.
+    if (req.method === 'GET') await res.locals.loadReceiptAccounts();
     next();
   } catch (error) { next(error); }
 });
@@ -264,6 +294,7 @@ app.use('/reports', reportsRouter);
 
 app.use(purchasingRouter);
 
+app.use(require('./src/web/routes/maintenance'));
 app.use(settingsRouter);
 
 app.use('/stock', stockRouter);
@@ -362,7 +393,9 @@ app.use(require('./src/api/errors').apiErrors);
 
 app.use((err, _req, res, _next) => {
   const status = err.status || 500;
-  const exposeMessage = status < 500 && status !== 503;
+  const reportBusy = status === 503 && ['REPORT_BUSY','READ_BUSY'].includes(err.code);
+  if (reportBusy) res.set('Retry-After', '5');
+  const exposeMessage = (status < 500 && status !== 503) || reportBusy;
   const message = exposeMessage
     ? err.message || 'Server error'
     : 'Something went wrong. Please try again or contact support.';

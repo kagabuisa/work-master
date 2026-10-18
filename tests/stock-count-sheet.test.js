@@ -132,3 +132,14 @@ test('count sheet filenames include reconciliation number and safe warehouse nam
   assert.equal(countSheetFilename('', 'Main Store'), 'new-reconciliation-Main-Store-count-sheet.xlsx');
   assert.equal(countSheetFilename('../REC/1', 'Main\r\nStore/West'), 'REC-1-Main-Store-West-count-sheet.xlsx');
 });
+
+test('controlled sheets bind to the frozen count revision and reject another session or revision',async()=>{
+ const session={id:7,revision:2,cutoff:'2026-10-17T10:00:00.000Z'};
+ const buffer=await createCountSheet('Main',[{item_code:'A',item_name:'Item A',quantity:10}],session);
+ const workbook=new (require('exceljs').Workbook)();await workbook.xlsx.load(buffer);
+ workbook.getWorksheet('Count Sheet').getRow(2).getCell(5).value=8;
+ const counted=Buffer.from(await workbook.xlsx.writeBuffer());
+ assert.equal((await readCountSheet(counted,'Main',session))[0].quantity,8);
+ await assert.rejects(readCountSheet(counted,'Main',{...session,revision:3}),/stale revision/);
+ await assert.rejects(readCountSheet(counted,'Main',{...session,id:8}),/different count/);
+});

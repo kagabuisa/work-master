@@ -34,7 +34,11 @@ const masters = {
 for (const [kind, config] of Object.entries(masters)) {
   router.get(`/${kind}`, wrap(async (req, res) => {
     requireLookup(req.apiActor, 'masters:read', config.lookup);
-    const query = readQuery(req.query, kind === 'items' ? ['price_list'] : []);
+    const query = readQuery(req.query, kind === 'items' ? ['price_list', 'warehouse'] : []);
+    if (query.warehouse !== undefined) {
+      requireLookup(req.apiActor, 'stock:read', 'stock-balance');
+      if (!query.warehouse.trim() || !access.warehouseAllowed(req.currentUser, query.warehouse)) throw apiError(403, 'forbidden', 'Warehouse is not permitted.');
+    }
     if (query.price_list !== undefined) {
       if (!query.price_list.trim()) throw apiError(400, 'invalid_query', 'price_list must not be empty.');
       requireLookup(req.apiActor, 'masters:read', 'price-lists');
@@ -68,13 +72,14 @@ router.get('/stock-balances', wrap(async (req, res) => {
 
 router.get('/invoices', wrap(async (req, res) => {
   requireAction(req.apiActor, 'invoices:read', 'vouchers.sales.view');
-  const query = readQuery(req.query, ['from', 'to', 'warehouse', 'customer_id', 'docstatus', 'sort']);
+  const query = readQuery(req.query, ['from', 'to', 'warehouse', 'customer_id', 'docstatus', 'payment_status', 'sort']);
   dates(query);
   if (query.docstatus !== undefined && !['draft', 'submitted', 'cancelled'].includes(query.docstatus)) throw apiError(400, 'invalid_query', 'Choose draft, submitted or cancelled.');
+  if (query.payment_status !== undefined && !['paid', 'partial', 'unpaid'].includes(query.payment_status)) throw apiError(400, 'invalid_query', 'Choose paid, partial or unpaid.');
   if (query.sort !== undefined && !['id_asc', 'id_desc'].includes(query.sort)) throw apiError(400, 'invalid_query', 'sort must be id_asc or id_desc.');
   if (query.warehouse !== undefined && (!query.warehouse.trim() || !access.warehouseAllowed(req.currentUser, query.warehouse))) throw apiError(403, 'forbidden', 'Warehouse is not permitted.');
   if (query.customer_id !== undefined && !query.customer_id.trim()) throw apiError(400, 'invalid_query', 'customer_id must not be empty.');
-  const result = await store.paginatedInvoices({ ...query, customerId: query.customer_id,
+  const result = await store.paginatedInvoices({ ...query, customerId: query.customer_id, paymentStatus: query.payment_status,
     order: query.sort === 'id_asc' ? 'asc' : 'desc',
     ownerId: voucherOwnerId(req.currentUser), ownerEmployeeId: voucherEmployeeId(req.currentUser),
     allowedGroups: access.selectedCategories(req.currentUser, 'customers'),
@@ -86,7 +91,15 @@ router.get('/invoices', wrap(async (req, res) => {
 router.get('/invoices/:id', wrap(async (req, res) => {
   readQuery(req.query, [], { paged: false });
   const invoice = await requireInvoice(req.apiActor, req.params.id, 'invoices:read', 'vouchers.sales.view');
-  await reply(req, res, 'invoice.read', { data: serialize.invoice(invoice, true) }, { type: 'invoice', id: invoice.id });
+  const data = serialize.invoice(invoice, true);
+  if ((await store.getPostgresPool().query('SELECT wm_inventory_enabled() AS enabled')).rows[0]?.enabled) {
+    const event=(await store.getPostgresPool().query("SELECT movement_at FROM wm_inventory_events WHERE voucher_type='invoice' AND voucher_id=$1 AND NOT is_reversal",[invoice.id])).rows[0];
+    data.inventory_timestamp_policy='server_submission';data.inventory_posted_at=event?.movement_at?.toISOString()||null;
+  }
+  data.company = serialize.company(await store.getCompanyInformation());
+  const displaySettings = await store.getDateTimeSettings();
+  data.display_settings = { date_format: displaySettings.date_format, time_format: displaySettings.time_format };
+  await reply(req, res, 'invoice.read', { data }, { type: 'invoice', id: invoice.id });
 }));
 
 router.get('/invoices/:id/payments', wrap(async (req, res) => {
@@ -112,9 +125,9 @@ router.get('/invoices/:id/payments', wrap(async (req, res) => {
 
 router.get('/sales-options', wrap(async (req, res) => {
   const query = readQuery(req.query, ['purpose']);
-  if (!['invoicing', 'payments'].includes(query.purpose)) throw apiError(400, 'invalid_query', 'purpose must be invoicing or payments.');
-  if (query.purpose === 'invoicing') {
-    requireAction(req.apiActor, 'invoices:create', 'vouchers.sales.create');
+  if (!['invoicing', 'invoice-edit', 'payments'].includes(query.purpose)) throw apiError(400, 'invalid_query', 'purpose must be invoicing, invoice-edit or payments.');
+  if (['invoicing','invoice-edit'].includes(query.purpose)) {
+    requireAction(req.apiActor, 'invoices:create', query.purpose === 'invoice-edit' ? 'vouchers.sales.edit' : 'vouchers.sales.create');
     const rows = await store.masterEmployees({ ...query, paginate: true, searchPublicOnly: true,
       allowedIds: access.allowedMasterRecordIds(req.currentUser, 'employees'), deniedIds: access.deniedMasterRecordIds(req.currentUser, 'employees') });
     const result = envelope(rows.map(row => serialize.master('employees', row)), rows.pagination);

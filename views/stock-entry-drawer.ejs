@@ -1,50 +1,12 @@
-<% const entryStatus = entry.docstatus || 'submitted'; %>
-<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <div class="invoice-drawer-content" data-voucher-title="<%= entry.entry_no %>" data-voucher-eyebrow="<%= entry.entry_type === 'reconciliation' ? 'Stock Reconciliation' : 'Stock Entry' %>">
   <div class="invoice-drawer-heading">
     <div>
       <p class="eyebrow"><%= entry.entry_type === 'reconciliation' ? 'Stock Reconciliation' : 'Stock Entry' %></p>
-      <h2><%= entry.entry_no %></h2>
-      <small><%= entry.entry_type %></small>
+      <small><%= stockEntryTypeLabels[entry.entry_type] || entry.entry_type %></small>
     </div>
   </div>
   <div class="invoice-drawer-actions">
-    <% if (entry.entry_type === 'reconciliation') { %><a class="button button-light" href="/stock/reconciliations/<%= entry.id %>">Open voucher</a><% } %>
-    <% if (entryStatus === 'draft' && can('vouchers.stock.edit')) { %><a class="button button-light" href="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/edit` : `/stock/entries/${entry.id}/edit` %>">Edit</a><% } %>
-    <% if (entryStatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/delete` : `/stock/entries/${entry.id}/delete` %>" class="inline-form" data-confirm="Delete this cancelled stock voucher? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
+    <%- include('stock-entry-actions', { entry }) %>
   </div>
-  <section class="invoice-card">
-    <div class="invoice-meta">
-      <div><span>Type</span><strong><%= entry.entry_type %></strong></div>
-      <div><span>Posting Date/Time</span><strong><%= formatDateTime(entry.posting_date, entry.posting_time || '00:00') %></strong></div>
-      <div><span>Status</span><strong><span class="badge <%= entryStatus %>"><%= entryStatus === 'draft' ? 'Draft' : entryStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
-      <% if (entry.cost_center) { %><div><span>Cost Center</span><strong><%= entry.cost_center %></strong></div><% } %>
-    </div>
-    <% if (entry.entry_type === 'purchase' && (entry.supplier_name || entry.supplier_reference)) { %>
-      <div class="invoice-meta">
-        <div><span>Supplier</span><strong><%= entry.supplier_name || '' %></strong><% if (entry.supplier_phone) { %><p><%= entry.supplier_phone %></p><% } %></div>
-        <div><span>Reference</span><strong><%= entry.supplier_reference || '' %></strong></div>
-      </div>
-    <% } %>
-    <table>
-      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th class="warehouse-col">Target</th><th><%= entry.entry_type === 'reconciliation' ? 'Counted Qty' : 'Qty' %></th><% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><th>Change</th><% } %><th>Rate</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
-      <tbody>
-        <% (items || []).forEach((item, index) => { %>
-          <tr>
-            <td><%= index + 1 %></td>
-            <td class="item-code-col"><strong><%= item.item_code %></strong> · <%= item.item_name %></td>
-            <td class="warehouse-col"><%= item.warehouse || '' %></td>
-            <td class="warehouse-col"><%= item.target_warehouse || '' %></td>
-            <td><%= Number(item.quantity || 0).toLocaleString() %></td>
-            <% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><td><%= Number(item.quantity_change || 0).toLocaleString() %></td><% } %>
-            <td><%= money(item.valuation_rate || 0) %></td>
-            <td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td>
-            <td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
-    <% if (entry.remarks) { %><p class="notes"><%= entry.remarks %></p><% } %>
-  </section>
-  <% if (true) { %><%- include('record-audit', { record: entry }) %><% } %>
+  <%- include('stock-entry-detail', { entry, items, money }) %>
 </div>

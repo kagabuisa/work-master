@@ -1,0 +1,41 @@
+{
+  "observed_at": "2026-10-18T00:35:34+03:00",
+  "evidence": "audits/erpnext-feasibility-2026-10-18/profile.jsonl",
+  "history_start": "2016-06-01",
+  "recent_start": "2021-10-18",
+  "history_end": "2026-10-17",
+  "counts": {
+    "invoices": 237260, "invoice_lines": 2214223,
+    "journals": 207213, "journal_lines": 426614,
+    "purchases": 15977, "purchase_lines": 61917,
+    "stock": 25094, "stock_lines": 254815,
+    "orders": 2808, "order_lines": 14948,
+    "customers": 2827, "suppliers": 537, "items": 2178,
+    "warehouses": 51, "accounts": 261, "users": 77, "enabled_users": 55,
+    "bins": 31916, "gl_rows": 1920721, "stock_ledger_rows": 2844773
+  },
+  "statuses": {
+    "invoices": {"draft":7,"submitted":234454,"cancelled":2799},
+    "journals": {"draft":9,"submitted":197316,"cancelled":9888},
+    "purchases": {"draft":0,"submitted":15519,"cancelled":458},
+    "stock": {"draft":3,"submitted":24425,"cancelled":666},
+    "orders": {"draft":6,"submitted":2687,"cancelled":115}
+  },
+  "recent_counts": {"invoices":76234,"journals":84483,"purchases":5011,"stock":14018},
+  "pos_flagged": 232187,
+  "submitted_positive_outstanding": 52,
+  "submitted_negative_outstanding": 14,
+  "journal_categories": {"Journal Entry":184711,"Expense Entry":9152,"Purchase Entry":5342,"Bank Entry":6026,"Cash Entry":1762,"Credit Card Entry":36,"Debit Note":19,"Credit Note":17,"Contra Entry":85,"Excise Entry":5,"Write Off Entry":8,"Opening Entry":16,"Fixed Asset Entry":34},
+  "assumptions": [
+    "Synthetic records match observed counts and status/date proportions; this is not a copy of ERPNext business records or a performance test of ERPNext.",
+    "Historical child counts use adjacent integer line lengths around the observed mean. Real line-count tails and party/item/warehouse concentration are unknown; 1/5/10/20/50-line classes are separate stress scenarios.",
+    "All source Journal Entry categories are balanced manual journal analogues, labeled by category. Payment allocation cannot be inferred from these categories.",
+    "Submitted sales have one synthetic full receipt except the observed positive-outstanding count. This reproduces settlement state, not the unknown number or timing of source receipts.",
+    "The 14 negative-outstanding source invoices are represented as settled, because the app rejects overpayments. Source returns/manufacturing/subcontracting are not reproduced as equivalent business workflows.",
+    "The all-status POS flag proportion is applied independently of document status; it does not establish the submitted-only source POS split.",
+    "Stock documents use valid app transfers. Stock openings add one voucher per used warehouse and the configured number of item/warehouse pairs, at 10000 units and rate 9000.",
+    "Prices, costs, quantities, tax/discount policy, account use, ownership and user roles are synthetic. Five enabled accounts are admins; normal workload accounts otherwise use Standard ownership rules.",
+    "Generated journal, GL and stock-ledger counts follow the application's lifecycle, are compared with source counts and are never padded with unrelated ledger rows.",
+    "Historical cancellation reversal dates follow current app behavior. Future source posting dates are excluded. Purchase-order dates use the sales recent/old proportion because their source dates were not profiled."
+  ]
+}

@@ -34,18 +34,18 @@ function validateScans(files) {
 
 async function listAttachments(client, voucherId) {
   return (await client.query(`SELECT id, file_name, content_type, byte_size, uploaded_by, uploaded_at
-    FROM app_stock_reconciliation_attachments WHERE stock_entry_id=$1 ORDER BY uploaded_at, id`, [voucherId])).rows;
+    FROM app_stock_reconciliation_attachments WHERE stock_entry_id=$1 AND photo_id IS NULL ORDER BY uploaded_at, id`, [voucherId])).rows;
 }
 
-async function saveAttachments(client, voucherId, files, user) {
+async function saveAttachments(client, voucherId, files, user, photoId = null) {
   const scans = validateScans(files);
   const { rows } = await client.query('SELECT id, entry_type FROM app_stock_entries WHERE id=$1 FOR UPDATE', [voucherId]);
   if (!rows[0] || rows[0].entry_type !== 'reconciliation') throw attachmentError('Stock reconciliation not found.', 404);
   for (const scan of scans) {
     await client.query(`INSERT INTO app_stock_reconciliation_attachments
-      (stock_entry_id, file_name, content_type, byte_size, content, uploaded_by, uploaded_by_user_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [voucherId, scan.name, scan.type, scan.buffer.length, scan.buffer, user.username || null, user.id || null]);
+      (stock_entry_id, file_name, content_type, byte_size, content, uploaded_by, uploaded_by_user_id, photo_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [voucherId, scan.name, scan.type, scan.buffer.length, scan.buffer, user.username || null, user.id || null, photoId]);
   }
   return scans.length;
 }

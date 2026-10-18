@@ -1,7 +1,10 @@
 <!doctype html>
+<% const isSharedList = typeof sharedList !== 'undefined' && sharedList; %>
+<% const listPath = isSharedList ? '/stock/shared' : '/stock/entries'; %>
+<% const listTitle = isSharedList ? 'Shared stock entries' : 'Stock Entries'; %>
 <html lang="en">
 <head>
-  <title>Stock Entries</title>
+  <title><%= listTitle %></title>
   <%- include('partials-head') %>
 </head>
 <body>
@@ -9,19 +12,20 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">Inventory</p>
-        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Entries' }] }) %>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: listTitle }] }) %>
       </div>
       <nav><%- include('module-nav', { activeModule: 'stock' }) %><% if (can('vouchers.stock.create') && (currentUser.role === 'admin' || currentUser.scopes?.suppliers?.mode !== 'selected')) { %><a class="button" href="/stock/entries/new">New</a><% } %></nav>
     </header>
 
-    <form class="report-filters invoice-filters stock-entry-filters ui-toolbar ui-filter-row" method="get" action="/stock/entries">
+    <% if (isSharedList) { %><p class="field-hint">Entries shared with you. Read-only allows viewing; Read &amp; write also allows draft edits and delivery updates. Only the owner or an admin can manage sharing.</p><% } %>
+    <form class="report-filters invoice-filters stock-entry-filters ui-toolbar ui-filter-row" method="get" action="<%= listPath %>">
       <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Entry, item, supplier or remarks"></label>
       <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>
       <label>To<input type="date" name="to" value="<%= query.to || '' %>"></label>
       <label>Type
         <select name="entry_type">
           <option value="">All Types</option>
-          <% [['opening', 'Opening Stock'], ['purchase', 'Purchase Receipt'], ['transfer', 'Transfer'], ['adjustment', 'Adjustment'], ['cancel', 'Cancel Entry']].forEach(([value, label]) => { %>
+          <% stockEntryChoices.forEach((value) => { const label = stockEntryTypeLabels[value]; %>
             <option value="<%= value %>" <%= query.entry_type === value ? 'selected' : '' %>><%= label %></option>
           <% }) %>
         </select>
@@ -34,10 +38,14 @@
           <% }) %>
         </select>
       </label>
+      <label>Delivery status<select name="delivery_status">
+        <option value="">All delivery statuses</option>
+        <% (typeof deliveryStatuses !== 'undefined' ? deliveryStatuses : []).forEach(status => { %><option value="<%= status %>" <%= query.delivery_status === status ? 'selected' : '' %>><%= status %></option><% }) %>
+      </select></label>
       <label>Warehouse<input name="warehouse" value="<%= query.warehouse || '' %>" placeholder="Any warehouse"></label>
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
-        <a class="button button-light" href="/stock/entries">Reset</a>
+        <a class="button button-light" href="<%= listPath %>">Reset</a>
       </div>
     </form>
 
@@ -45,11 +53,11 @@
       <%- include('ui-section-heading', { heading: { title: 'Results', meta: `${result.pagination.total} records` } }) %>
       <div class="ui-table-scroll" role="region" aria-label="Stock Entries table" tabindex="0"><table class="ui-table">
         <thead>
-          <tr><th>#</th><th>Entry</th><th>Date/Time</th><th>Type</th><th>Warehouse</th><th>Items</th><th>Cost Center</th><th>Status</th><th>Remarks</th></tr>
+          <tr><th>#</th><th>Entry</th><th>Date/Time</th><th>Type</th><th>Warehouse</th><th>Items</th><th>Cost Center</th><th>Status</th><th>Delivery status</th><th class="invoice-number-cell">Item value (UGX)</th><% if (isSharedList) { %><th>Access</th><% } %><th>Remarks</th></tr>
         </thead>
         <tbody>
-          <% if (!result.rows.length) { %><tr><td colspan="9" class="empty">No stock entries found.</td></tr><% } %>
-          <% const typeLabels = { opening: 'Opening Stock', purchase: 'Purchase Receipt', transfer: 'Transfer', adjustment: 'Adjustment', cancel: 'Cancel Entry' }; %>
+          <% if (!result.rows.length) { %><tr><td colspan="<%= isSharedList ? 12 : 11 %>" class="empty">No stock entries found.</td></tr><% } %>
+          <% const typeLabels = stockEntryTypeLabels; %>
           <% result.rows.forEach((entry, index) => { %>
             <tr>
               <td class="row-number"><%= result.pagination.offset + index + 1 %></td>
@@ -60,12 +68,15 @@
               <td><%= entry.item_count %></td>
               <td><%= entry.cost_center || '' %></td>
               <td><span class="badge <%= entry.docstatus %>"><%= entry.docstatus === 'draft' ? 'Draft' : entry.docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
+              <td><%= entry.delivery_status || 'Not set' %></td>
+              <td class="invoice-number-cell"><%= money(entry.total_value || 0) %></td>
+              <% if (isSharedList) { %><td><%= entry.share_permission === 'write' ? 'Read & write' : 'Read-only' %></td><% } %>
               <td><%= entry.remarks || '' %></td>
             </tr>
           <% }) %>
         </tbody>
       </table></div>
-      <%- include('pagination', { pagination: result.pagination, query, basePath: '/stock/entries' }) %>
+      <%- include('pagination', { pagination: result.pagination, query, basePath: listPath }) %>
     </section>
   </main>
 </body>

@@ -1,7 +1,15 @@
 'use strict';
 // Shared domain constants.
 
-const STOCK_ENTRY_TYPES = ['opening', 'purchase', 'transfer', 'adjustment', 'reconciliation', 'cancel'];
+const STOCK_TRANSFER_TYPES = ['transfer', 'order', 'taff_kla_order', 'ddr_shortage', 'ddr_excess'];
+const STOCK_ENTRY_TYPE_LABELS = {
+  opening: 'Opening Stock', transfer: 'Transfer', order: 'Order', taff_kla_order: 'Taff Kla Order',
+  ddr_shortage: 'DDR Shortage', ddr_excess: 'DDR Excess',
+  purchase: 'Purchase Receipt', adjustment: 'Adjustment', cancel: 'Cancel Entry', reconciliation: 'Stock Reconciliation',
+};
+const STOCK_ENTRY_CHOICES = ['opening', ...STOCK_TRANSFER_TYPES];
+// Retain legacy types so historical vouchers remain readable and editable.
+const STOCK_ENTRY_TYPES = [...STOCK_ENTRY_CHOICES, 'purchase', 'adjustment', 'reconciliation', 'cancel'];
 const JOURNAL_TYPES = ['cash_receipt', 'payment_journal', 'journal_entry', 'sales_invoice'];
 const PAYMENT_METHODS = new Set(['cash', 'bank', 'mobile_money', 'card', 'other']);
 
@@ -21,4 +29,5 @@ const DEFAULT_ACCOUNTS = [
   { code: '4100', name: 'Stock Adjustment Gain', type: 'income', normal: 'credit', key: 'stock_adjustment_gain', detailType: 'Stock Adjustment' },
 ];
 
-module.exports = { STOCK_ENTRY_TYPES, JOURNAL_TYPES, PAYMENT_METHODS, DEFAULT_ACCOUNTS };
+module.exports = { STOCK_ENTRY_TYPES, STOCK_TRANSFER_TYPES, STOCK_ENTRY_TYPE_LABELS, STOCK_ENTRY_CHOICES,
+  JOURNAL_TYPES, PAYMENT_METHODS, DEFAULT_ACCOUNTS };

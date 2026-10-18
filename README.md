@@ -89,11 +89,31 @@ The Docker image includes the operational scripts, tests, and app documentation.
 
 Docker stores application records in the `postgres-data` volume and uploaded project files in the `invoice-data` volume. Both survive image rebuilds and container restarts.
 
+Schema migration 39 adds indexed Stock Entry delivery metadata and per-user read-only shares. Existing entries start with no delivery status or shares. Operational delivery metadata is stored separately so it can change after inventory closure without rewriting posted documents or ledger history. Owner-mode startup applies it automatically. With controlled-inventory runtime credentials, run `npm run db:migrate` with owner credentials before restarting; migration 39 grants the existing database-specific runtime role access to the two new tables. Transaction resets remove these dependent records with their stock entries.
+
+Schema migration 40 adds Read-only / Read & write sharing levels; all existing Stock Entry shares remain Read-only. On controlled-inventory deployments, run the owner migration before restarting the runtime. No ledger records are rewritten.
+
 ## Performance operations
+
+Invoice stock previews use `POST /api/invoice-stock-balances` with up to 200 raw
+item/warehouse pairs and an optional posting date/time. Each batch runs one
+read-only quantity query, deduplicates pairs, checks every warehouse and disables
+response caching. The read-only POST shares the interactive read connection
+budget, preserving posting capacity. Current previews read maintained balances; historical previews
+retain ledger time ordering and later minimum-balance protection. Large invoices
+use sequential bounded batches. No additional migration or index is required.
+See [the batching comparison](audits/stock-preview-batching-2026-10-18/report.md)
+for the local fixture, measurements and reproduction procedure.
 
 See the [export follow-up and repeat benchmark](audits/performance-2026-10-11/export-follow-up.md) for the implemented worker protections and remaining PDF capacity limits. See the [11 October 2026 performance review](audits/performance-2026-10-11/review.md) for measured search/export behavior, the concurrent Excel export failure, and the limitations of that synthetic historical-data test.
 
+See the [14 October 2026 twenty-user resilience test](audits/resilience-2026-10-14/review.md) for concurrent browsing, journal posting, report export and recovery results on an isolated copy of the current local data.
+
 The server logs requests slower than `SLOW_REQUEST_MS` (default 300 ms). Measure response-time percentiles and database load under realistic data and concurrent users before changing capacity. PostgreSQL's `pg_stat_statements` extension can identify queries with the highest total execution time; it needs to be loaded in `shared_preload_libraries` and enabled by a database administrator. Use `EXPLAIN (ANALYZE, BUFFERS)` on slow read queries in a staging database with production-sized data. Keep autovacuum enabled and check that it keeps up with invoice, ledger, and session table activity. Display-format settings are cached for 30 seconds per app process, and simultaneous cache refreshes share one database read.
+
+Migration 23 adds GIN trigram candidate indexes for invoice and journal text searches and indexes for generated sales-journal references and submitted/cancelled customer-payment journal lookups. It uses `CREATE INDEX CONCURRENTLY` and retries invalid indexes left by interrupted builds. PostgreSQL must provide `pg_trgm`; the migration role needs permission to create that extension if it is absent and to create indexes. On a large database the first startup can take longer while these indexes build. Keep this migration outside an explicit transaction. Startup records the migration only after all four indexes are valid.
+
+General Ledger pages read totals and rows in one repeatable-read, read-only transaction and disable JIT only for that transaction. Count and debit/credit totals use one aggregate. Identical simultaneous ledger, trial-balance, and journal-list reads share work using their complete SQL/filter/access keys. Completed financial results are not cached; committed app transactions start a new sharing generation. Dropdown metadata is cached for 30 seconds per process, and transaction resets clear it. These changes do not increase the database pool or change global PostgreSQL JIT settings.
 
 Database pool settings apply to each app process and to operational scripts:
 
@@ -115,7 +135,7 @@ PERF_COOKIE='wm_session=your-staging-session-token' npm run perf:http -- --url=h
 
 The command reports response status counts, failures, requests per second, and 50th/95th/99th percentile latency. It issues only GET requests and stops after the requested count. A redirect to login counts as a failure; set `PERF_COOKIE` in the shell without putting a real session token in source control. Run the same scenario with production-sized staging data at several concurrency levels, and compare the latency and error rate. Results include the app's short-lived caches, so compare a cold run and a warm run when diagnosing database load.
 
-The invoice list limits each page to at most 200 rows. Pages without text search select their invoice IDs before joining payment totals and restrict journal calculations to those invoices; text searches still calculate totals before filtering because status and paid amount are searchable. Counts without text search read invoices directly and apply the same ownership, customer-category, date, and warehouse filters. A startup migration creates a partial index on relevant journal reference numbers using `CREATE INDEX CONCURRENTLY`. On a large existing journal table, allow time for this migration before the app begins accepting requests. The short-lived in-process invoice-list cache holds at most 200 filter combinations and shares a pending query among simultaneous requests for the same list. Each app process has its own cache and PostgreSQL connection pool, so account for all app instances when sizing database connections. A local development database with only a few invoices cannot establish peak-load performance; test the expected data volume and concurrent workload in staging.
+The invoice list limits each page to at most 200 rows. Normal lists and conservative text searches select their invoice IDs before computing payment totals; numeric and payment-state searches retain computed filtering. Normal pages fetch one extra row for Next navigation; exact totals are available on demand. Creator and assigned-employee access use separate indexed candidate routes before deduplication and pagination. Payment journals are narrowed by header and line references, preserving customer matching, cancellation history and linked-payment exclusion. Identical in-flight requests share only matching filter/access scopes; completed financial results are not retained. Each app process and export worker has its own PostgreSQL pool: budget all instances within the database connection limit. Test the expected data volume and mixed concurrency in staging.
 
 Benchmark invoice lists, text searches, and CSV/XLSX/PDF ledger exports over a historical date range:
 
@@ -146,6 +166,100 @@ Restart the app after changing these settings. Workers each open at most one ext
 Provide sufficient local temporary disk space for up to the configured active downloads. The production Docker image already includes these worker modules through `COPY src`; rebuild and recreate the app container to deploy code changes. No new dependency or database migration is required. PostgreSQL statement timeouts still apply to worker queries; long cursor snapshots can delay vacuum cleanup, so keep generation deadlines bounded and monitor database activity.
 
 ## Release checks
+
+### ERPNext-sized background benchmark
+
+The synthetic benchmark runs locally in detached Docker containers, with a
+dedicated database, internal network, frozen app image and no published ports.
+It makes no AI API calls and receives no application `.env` or ERPNext connection.
+The machine must remain running. The source profile records the aggregate reads
+from 18 October 2026 and its explicit payment, line-size and ownership assumptions;
+this tests this app, rather than measuring ERPNext performance.
+
+Prepare and validate a small pilot first:
+
+```bash
+python3 scripts/erpnext-benchmark/control.py start --pilot
+python3 scripts/erpnext-benchmark/control.py status --pilot
+```
+
+After the pilot finishes successfully on the same source snapshot, start the full
+1× profile and inspect its progress without an active AI session:
+
+```bash
+python3 scripts/erpnext-benchmark/control.py start
+python3 scripts/erpnext-benchmark/control.py status
+```
+
+The full target includes 237,260 sales invoices / 2,214,223 sales lines, 207,213
+legacy journal analogues, 15,977 purchases, 25,094 stock transfers and 2,808 purchase
+orders, with observed document statuses and historical date proportions. Opening
+stock and generated accounting records add app-specific documents. Source payment
+allocation is unknown: the fixture uses one synthetic receipt for each settled
+sale, preserves the observed positive-outstanding count and represents source
+overpayments as settled. Historical line lengths cluster around the observed
+means; separate 1/5/10/20/50-line workload scenarios explore tails that were not
+measured in ERPNext. Current app lifecycle functions create every voucher/posting.
+
+The full job runs distinct authenticated users at concurrency 10, 20 and 50, each
+with a warmup, sustained mixed work with 0.5–1.5 second think time, and a burst
+against shared items. Sustained phases last 15, 15 and 25 minutes; warmups last
+one minute and bursts three minutes. It exercises lists/search/detail, invoice
+drafts/cash sales/credit receipts, journal postings, purchases/orders, transfers and
+reports. It also checks denied ownership/report reads and generates full-history
+CSV plus daily Excel/PDF ledger exports. This is HTTP workload testing, without
+browser rendering or production network latency. Pilot phases are deliberately
+short and validate the harness; they do not establish full-data capacity.
+
+Run data, private credentials, progress, resource samples, integrity results and
+`summary.md`/`summary.json` are retained under a new
+`/mnt/HC_Volume_107155360/wm-erp-<mode>-<run-id>/` directory. The status command prints
+the actual path. Local pointers live in ignored `data/erp-benchmark/`. Never paste
+the private `config.env` or `output/credentials.json` into logs or source control.
+
+By user instruction, retain the benchmark setup and resources for future tests
+until the user explicitly requests removal. This includes seeded databases, run
+directories, private configuration, frozen images, containers/networks, local
+pointers, scripts, profiles and results. Exclude these resources from routine
+cleanup and Docker pruning. Completed containers may stop to release CPU and
+memory; their data and configuration remain available. Preserve existing fixtures
+and results when preparing another test. Disposable integration-test resources
+remain subject to the cleanup procedure below. This policy is also recorded in
+`AGENTS.md` for future work.
+
+The job and database have 900 MiB/850 MiB memory limits and 0.8/1.0 CPU limits.
+Full startup requires 15 GiB free on the attached volume, a passing pilot from the
+same source snapshot whose measured storage projection fits with a 6 GiB reserve,
+and 1200 MiB available host memory. Execution stops if free attached-volume storage
+falls below 6 GiB. Storage estimates remain provisional until the full run finishes.
+The pilot checks recovery after an interrupted committed draft, replay of completed
+seed keys, and detection of deliberately missing cancellation GL rows inside a
+rolled-back transaction. Its `integrity-intentional-fault.json` is expected to fail;
+`pilot-checks.json` and the normal before/after integrity reports must pass.
+The concurrency mix keeps 10% Admin and 90% Standard accounts at each level and
+reports operation latency separately by role. A passing HTTP/integrity result
+does not assert a response-time SLO; review the measured latency and overload data.
+
+```bash
+python3 scripts/erpnext-benchmark/control.py stop --run <run-id>
+python3 scripts/erpnext-benchmark/control.py resume --run <run-id>
+```
+
+`stop` affects only the selected benchmark deployment. `resume` retains the database
+and durable seed checkpoints, and refuses replay after HTTP traffic has started.
+If a seed failure needs a code fix, first run a fresh passing pilot with the fixed
+source, then use `resume --run <run-id> --use-pilot-image`. This adopts that pilot's
+immutable image only when the full profile fingerprint still matches the retained
+checkpoint and no benchmark job is running. It preserves the failed status,
+checkpoint and previous image identity in the run output. The database is retained;
+ordinary resume continues to require the retained pinned image.
+No reset/prune/delete command is provided. A monitor records Docker resource use
+and stops only the benchmark database when its job exits. Inspect `status.json`,
+the job exit/OOM state and `summary.json` before claiming success; failures are
+retained and never automatically treated as passing. Start a new run after fixing
+a traffic failure. Existing fixtures and the working app are preserved.
+
+### Application release gate
 
 Run `npm run release:check` before deploying. It runs the unit suite, upgrades a
 version-1 test schema, compares accounting reports with the golden snapshot, and
@@ -203,6 +317,8 @@ docker run --rm --name wm-skipped-runner --network wm-skipped-tests \
   -c 'npm run test:postgres'
 ```
 
+The API cleanup script also respects an explicitly configured `*_hr_test` database and skips the application `.env` in that environment.
+
 The runner checks the dedicated database name and schema ownership, enables all
 database test flags, and runs files sequentially to avoid conflicting schema
 resets. The dedicated URL is also needed by the pool-timeout test, which creates
@@ -246,6 +362,18 @@ The tables are created automatically at app startup in Postgres mode. Import pri
 Import ERPNext Item Prices for the locally active price lists with `npm run import:mysql-item-prices`. Use `npm run import:mysql-item-prices -- --dry-run` to see counts first. The import adds source item-price details to the local table and edit form, including cost history, packaging, promotion fields, and ERPNext source metadata. It also adds source items that those prices need and that are absent locally. Every source price is retained; when ERPNext has several prices for one item and list, the most recently modified is active and earlier prices remain inactive. A rerun skips imported ERPNext IDs and preserves local edits.
 
 ## Accounting Utilities
+
+### Transaction reset and recovery
+
+Administrators can reset transactional data from **Settings → Maintenance** after creating a verified full database/file backup and confirming their password and `RESET TRANSACTIONS`. Migration 21 adds backup metadata and reset history. The financial scope preserves HR transactions and their ledger entries; the all-transactions scope clears HR too. Master records, app configuration, users/permissions, employee profiles, pay plans, holidays, leave types, project files, and audit/reset history remain. Document sequences continue to prevent old IDs/numbers from identifying new vouchers. All sessions end and integration credentials are revoked on success.
+
+The Docker image includes PostgreSQL 16 backup tools and GNU tar. Non-Docker installations need matching PostgreSQL `pg_dump`/`pg_restore` tools and GNU tar on PATH. Backup tool credentials are supplied through process environment, never command arguments. The database user must be able to read all schema/data; insufficient permissions or storage fail before any removal. PostgreSQL sessions from this app and its CLI tasks use a shared maintenance lock; backups/resets hold the exclusive lock, temporarily returning 503 for other database operations. In-flight checkouts finish before maintenance acquires its lock. Website/API POST requests capture the reset generation, and later database checkouts reject a request that predates a committed reset so delayed requests cannot recreate cleared transactions.
+
+Private backup bundles are stored in `data/transaction-reset-backups` with a directory mode of 0700 and archive mode of 0600. A bundle contains `database.dump`, `files.tar.gz`, and `manifest.json`. The database dump uses an exported consistent snapshot. Verification reads the complete dump/archive and checks SHA-256 hashes; a changing file tree prevents backup completion. Reset eligibility lasts 15 minutes and requires unchanged business data/files, an unused backup, and the same administrator/scope. Backups remain downloadable by their owner after reset or expiry; download and keep an independent copy. They contain confidential data, including account/password hashes. Backup bundles themselves are excluded from nested file backups and are not automatically deleted.
+
+For recovery, extract the bundle into a private directory. First restore `database.dump` into a separate empty database using `pg_restore --exit-on-error --no-owner --dbname YOUR_EMPTY_RESTORE_DATABASE database.dump`; supply connection credentials securely through PostgreSQL environment settings. Extract `files.tar.gz` into a separate directory and verify its contents against the manifest. Stop the app before switching to the restored database and file directory and preserve current backups separately. Restoration also restores the snapshot's users, permissions, sessions, and integration credentials: review access and revoke restored sessions/tokens before reopening the app. Routine recovery testing must use the isolated local test database procedure above, never the application database. Automated maintenance tests restore a generated archive into a second disposable database and verify uploaded file recovery.
+
+Schema migration 20 enforces unique employee, cost center, and account names using case-insensitive comparisons that ignore surrounding spaces. This applies to active and inactive masters. Resolve duplicate names before upgrading; startup fails rather than merging, deleting, or automatically renaming master records. Rename the affected masters while preserving their existing IDs so voucher links and permissions remain intact. Imports must also comply with these name constraints.
 
 Backfill GL entries for existing submitted invoices, payments, and stock entries:
 
@@ -323,3 +451,379 @@ Run `npm test` for the standard checks. To exercise HR accounting, concurrent pa
 
 
 The optional **ERPNext reference** view uses `ERPNEXT_URL`, `ERPNEXT_USERNAME`, and `ERPNEXT_PASSWORD` from the deployment environment (`.env` for local Docker Compose). Its ERPNext user needs Read access to Daily Activity Report. When no API URL is configured, the legacy MySQL source requires `DB_HOST`, `DB_USER`, and `DB_NAME`, plus `DB_PASSWORD` when required and `DB_PORT` if it differs from 3306. Missing or unavailable ERPNext settings show HTTP 503 in the reference view only; local Daily Activity creation and viewing use PostgreSQL and do not require ERPNext. No Daily Activity records are written to ERPNext. Recreate the app with `docker compose up -d --build invoice-app` after changing connection settings.
+
+Schema migration 22 adds per-reconciliation Photo Count Rpt quantities and Photo ID links for supporting item photos. Stock transaction resets include these records.
+
+### Large historical load-test artifacts
+
+The read-only ERPNext comparison retrieved on 17 October 2026 is in
+[`audits/erpnext-benchmark-review-2026-10-17/report.md`](audits/erpnext-benchmark-review-2026-10-17/report.md).
+It compares current aggregate counts with the proposed reduced benchmark and
+defines a candidate with 1,000,000 sales invoices averaging 10 items and other
+records at three times measured ERPNext counts. The machine-readable proposal is
+[`benchmark-3x.json`](audits/erpnext-benchmark-review-2026-10-17/benchmark-3x.json).
+Counts reflect the configured ERPNext account's visibility. The remote benchmark
+preparation and results are tracked in
+[`audits/vps-benchmark-2026-10-17/`](audits/vps-benchmark-2026-10-17/).
+Its isolated Compose project on `s1.zenjji.com` is `wm-benchmark-20261017`, under
+`/home/kagabu/wm-benchmark-20261017`, with no published app/database ports.
+It uses a source snapshot and freshly generated test credentials, never the
+application `.env` or business data. The full fixture contains one million invoices and ten million invoice items. Baseline,
+backup-restore and post-load reconciliation passed, as did the 90-write duplicate audit.
+The measured one-user stage recorded six stock-ledger timeouts in 156 requests; the
+error guard skipped higher concurrency. Performance acceptance failed. See the
+[completed report](audits/vps-benchmark-2026-10-17/report.md) for latency, resource
+limits and modeling limitations. The isolated app/DB have been stopped with data and
+backup retained. Restart with both `compose.yml` and `runtime.override.yml`; do not
+rerun the seed/controller against the retained fixture.
+Keep its databases, backup and results separate from the server's existing apps.
+
+The follow-up [invoice submission investigation](audits/invoice-submission-investigation-2026-10-17/report.md)
+traced the fixed submission delay to deferred inventory-event reconciliation without
+a stock-ledger index on `posting_event_id`. A temporary index on the retained
+synthetic database sharply reduced the delay and was removed after comparison.
+The permanent index is supplied by migration 38; the [fix and retry report](audits/invoice-submission-fix-2026-10-17/report.md) tracks its verification and submission-investigation retry.
+
+The 17 October 2026 storage-only pilot is documented in
+[`audits/storage-sample-2026-10-17/report.md`](audits/storage-sample-2026-10-17/report.md).
+It uses the current schema/indexes, 40,000 synthetic invoices and proportional
+supporting records, with full proposed customer/supplier/item counts. Its dedicated
+database is `storage_sample_hr_test` in `wm-storage-sample-db-20261017`, with data
+under `/mnt/HC_Volume_107155360/wm-storage-sample-20261017`. The internal network
+publishes no database ports and receives no application environment file.
+The retained sample is for storage sizing only: direct SQL does not produce a
+fully reconciled financial history and must not be reused for posting benchmarks.
+`run.sh` in that directory refuses existing resources; `project.py` validates sample
+counts and estimates the 4-million-invoice footprint. Preserve the results and data;
+the database container is stopped after measurement to release resources.
+
+The isolated 20/50-user, four-year synthetic workload and its measured results are
+kept in `audits/load-3m-2026-10-14/`. See that directory's `report.md` for the
+record breakdown, container limits, commands, latency measurements, integrity
+checks, and test limitations. The seed script requires the disposable database
+`load_3m_hr_test` on `wm-load-db` and refuses an existing invoice dataset. Never
+point this workload at the application database. Both scripts use the current
+workspace mounted at `/workspace`; hide `/workspace/.env` with a read-only
+`/dev/null` mount, and supply only disposable database settings. The benchmark
+creates 50 synthetic admin users and submits real test vouchers in that database.
+
+The historical query profiles are documented in
+`audits/load-3m-2026-10-14/profile-report.md`. Implemented changes, correctness
+checks, and the subsequent 20/50-user concurrency comparison are in
+`audits/load-3m-2026-10-14/implementation-report.md`. The archived prototype
+scripts and plans describe the pre-implementation query shapes; use the latest
+implementation report for current behavior and measured capacity limits.
+
+### Report concurrency and posting diagnostics
+
+General-ledger pages/full reads/streaming exports and trial-balance queries share
+a per-process limit, applied before acquiring a database connection. Defaults:
+`HEAVY_REPORT_CONCURRENCY=1`, `HEAVY_REPORT_QUEUE_MAX=100`, and
+`HEAVY_REPORT_QUEUE_TIMEOUT_MS=30000`. Extra work waits in FIFO order; overflow
+or expiry raises a report-busy error (status 503). Identical in-flight page
+requests share one execution. Reports have a separate admission queue and a `HEAVY_REPORT_CONNECTIONS=2` sub-budget within the common read-connection limit. Waiting reports do not occupy list admission slots. Each app process has its own
+limit; budget the combined limits when running multiple instances.
+
+Set `POSTING_TIMINGS=1` to emit JSON `posting_timing` records for standard invoice
+creation/submission and website invoice-create requests, including payload
+validation, creation/submission calls, connection wait, invoice lock, stock (including its stock-lock query), line costs,
+payment totals, accounting, commit, and total durations where applicable. Stage
+measurements include database execution and lock waits; they do not distinguish
+those two costs. `submit` includes its child stages, so durations must not be
+added together. Records contain no invoice payload or document identifiers.
+Request success means the handler returned normally (including handled validation
+responses); transaction success means it committed. Diagnostics are disabled by default. Compare timings under repeatable workloads
+before changing pool sizes or concurrency limits.
+
+### Database connection interruptions
+
+The app handles pooled connection errors, discards failed connections, and opens
+replacement connections on subsequent requests. Structured `postgres_pool_error`
+and `postgres_connection_error` logs contain a bounded error code rather than SQL,
+connection strings, or database error messages. An interrupted request may fail
+while the database is unavailable; connection recovery does not automatically
+retry financial writes. For API financial operations, retry the same payload with
+the same idempotency key to recover an uncertain response. For website saves,
+check the document before resubmitting. A database outage during app startup
+remains subject to the deployment restart policy.
+
+The [growth resilience live report](audits/growth-resilience-2026-10-14/live-report.md)
+tracks the isolated four-hour mixed workload and its 100-user traffic spikes.
+The retained workload, fault-drill and monitor scripts are in that audit
+directory. The monitor captures settled financial checks; the finalizer performs
+a low-concurrency recovery probe and writes `report.md` after the run. Dumps and
+private credential fixtures are excluded from Git. Test databases and volumes
+are retained for follow-up; routine schema-resetting integration containers are
+removed separately.
+
+### Ledger daily balances
+
+Migration 24 builds `wm_gl_daily` from the detailed ledger under a write lock on
+`app_gl_entries`; existing reports can still read, but ledger posting waits for
+the initial backfill transaction. Schedule the first upgrade for a quiet period
+on large databases. Insert/update/delete statement triggers maintain the derived
+balances in the same transaction as the detailed ledger. Truncation clears them.
+Sixteen voucher buckets reduce contention. Trial balance uses these daily totals;
+GL counts/totals use them for date/account/voucher filters and compatible HR/account
+access rules. Owner-scoped, party and free-text queries retain detailed-ledger
+aggregation. Detail rows and filtered running balances still use ledger entries.
+Daily balances are included in normal PostgreSQL backups; do not modify them or
+disable their triggers. Website invoice validation batches references and items
+in two reads, with fresh stock validation retained in the posting transaction.
+Cost-center display labels use a 30-second metadata cache; permission and posting
+validation continue to read current records.
+
+Migration 25 adds a concurrent partial index on linked invoice-payment journals.
+Ordinary invoice list/text-search pages materialize eligible unlinked customer
+journals once for the selected page before reading their lines. Linked receipts
+continue to come from invoice payments; manual journal references and computed
+payment-status searches retain their existing matching rules.
+
+The GL voucher-type dropdown also reads maintained daily counts, avoiding a
+scan of the full ledger just to populate its small list. Zero-count historical
+summary rows do not contribute dropdown choices.
+
+### Retained four-hour accounting verification
+
+`audits/final-verification-2026-10-15/` contains the follow-up endurance harness
+and its reports. It targets only the retained isolated `resilience_4y_hr_test`
+database on `wm-growth-db`, never the application database. The workload
+alternates 20/50 users and adds one-minute 100-user spikes every 30 minutes.
+`live-report.md` reports request counts, failures, averages and maxima; after
+the run, `report.md` adds exact nearest-rank p50/p95/p99 for every operation
+and each concurrency target, source-document/GL/stock/payment reconciliation,
+expected-write manifest checks, recovery checks and sampled host/container,
+PostgreSQL pool and report-queue evidence. Resource samples may miss brief peaks.
+
+The test app loads `queue-telemetry.cjs` only in its isolated container; it
+observes the existing report gate without changing its limits or retry behavior.
+`supervise.py` runs independently of SSH and writes final reports automatically.
+The original historical fixture has 101 stock balances seeded directly with
+10,000 units and no opening ledger entry. These are explicit baseline exceptions;
+a report with unresolved mismatches requires review and does not grant production
+approval. No test database, backup, volume or app is automatically disposed.
+
+### Expensive-read capacity
+
+Invoice/journal list pages use count-free navigation by default. Website users
+can request an exact total explicitly; API pagination totals remain compatible.
+Lists/searches and heavy reports have separate bounded admission queues. GET/HEAD requests, including authentication and detail/supporting lookups, use the common read-connection budget after store initialization. POST financial validation and writes do not enter this read budget. Defaults:
+
+| Setting | Default | Purpose |
+| --- | ---: | --- |
+| `EXPENSIVE_READ_CONCURRENCY` | 2 | Concurrent admitted list/search operations |
+| `EXPENSIVE_READ_QUEUE_MAX` | 100 | Maximum waiting operations |
+| `EXPENSIVE_READ_QUEUE_TIMEOUT_MS` | 15000 | Maximum admission/reader-lease wait |
+| `EXPENSIVE_READ_CONNECTIONS` | 4 | Maximum combined connections for classified reads |
+| `HEAVY_REPORT_CONNECTIONS` | 2 | Report connection sub-limit; capped below the common read limit when possible |
+| `POSTGRES_POSTING_RESERVE` | 3 | Minimum pool capacity excluded from those reads |
+
+The read limit is the smaller of `EXPENSIVE_READ_CONNECTIONS` and
+`POSTGRES_POOL_MAX - reserve`; very small pools retain at least one reader slot.
+With the default ten-connection pool, classified reads hold at most four connections; at most two are held by heavy reports. The configured reserve bounds reads, but login POSTs, financial transactions and background tasks share the remaining capacity. Each process has its own limits: include export workers and other app instances in the overall database connection budget. Nested work must reuse a checked-out
+transaction client rather than acquire another reader connection while holding
+one. Reports retain their own `HEAVY_REPORT_*` limits as well.
+
+`POSTGRES_POOL_METRICS_MS` also emits structured `workload_capacity` records with
+pool waiting, active reader connections, separate report/list queue peaks and refusals, and checkout count/mean/max/failures by workload class. Checkout timing includes reader admission, pool wait and audit setup, not just PostgreSQL execution; it contains no SQL or request payloads.
+Increasing connection counts on a CPU-saturated server requires measurement.
+Migration 26 refreshes invoice/journal statistics, increases search-expression
+statistics and lowers their automatic analyze threshold to 2% plus 1,000 modified
+rows. PostgreSQL autovacuum/analyze must remain enabled. The migration changes no
+voucher values or ledger postings.
+
+Staged measurements and the frozen-source endurance harness are retained under
+`audits/capacity-improvements-2026-10-15/`. The copied test database retains known
+synthetic opening-stock exceptions; these must be reported separately from new
+reconciliation discrepancies. No historical test resources are automatically
+removed. Performance results describe the tested workload, not an unqualified
+production capacity guarantee.
+
+Compiled EJS templates are cached by default in all runtime modes. Financial
+values, permissions and rendered pages are still supplied fresh on each request.
+Rebuild/restart after template changes, as required by this project's workflow.
+Set `VIEW_CACHE=0` only when live template recompilation is needed during
+development; that mode consumes more rendering CPU and must be identified in
+performance comparisons. This setting does not change HTTPS/authentication mode.
+
+Historical load-fixture opening stock: `scripts/fixtures/seed-load-stock.cjs`
+creates test opening documents, lines, stock ledger and balances atomically, and
+rejects existing stock with missing history. Its database allowlist is limited
+to `load_3m_hr_test` and `resilience_4y_hr_test`. The maintained posting benchmark
+scripts use this helper; older archived benchmark copies are historical evidence
+and must not be reused as fixture generators.
+
+The one-time `scripts/fixtures/repair-load-opening-stock.sql` is restricted to
+`resilience_4y_hr_test` and the exact 101 known zero-value, 10,000-unit discrepancies.
+Take a consistent backup before running it through `psql -X`; it restores source
+and opening-ledger history without changing current balances or existing ledger
+rows. It aborts for unexpected differences and safely does nothing on a second
+run. Evidence and backup are retained in
+`audits/opening-stock-repair-2026-10-15/`. This is a test-fixture repair, not a
+production stock adjustment procedure.
+
+Expanded-history load-test preparation is recorded in
+`audits/expanded-history-2026-10-15/plan.md`. Its read-only storage preflight is
+`python3 audits/expanded-history-2026-10-15/preflight.py`; it checks the retained
+isolated `wm-growth-db/resilience_4y_hr_test` database and writes capacity evidence.
+It does not create data or start traffic. The 3× stock-ledger/invoice-line expansion uses the separately attached
+Hetzner volume `/mnt/HC_Volume_107155360`; rerun the preflight with
+`--storage-root /mnt/HC_Volume_107155360` to measure that filesystem. Preserve successful databases and results;
+provision and verify storage, then validate a representative sizing pilot, restored
+backups, full accounting integrity and preliminary performance before any full run.
+
+The isolated expansion work lives under
+`/mnt/HC_Volume_107155360/wm-expanded-history-20261015/`. Its PostgreSQL container
+is `wm-expanded-db`, database `expanded_4y_hr_test`, on the internal
+`wm-expanded-history` network without published ports. Preparation checks the
+volume is mounted before creating the instance. Data/WAL, source snapshot,
+backups, manifests and logs use this volume. The original successful database
+and its result files stay in place. Keep the volume mounted while its containers
+run; these test containers do not automatically start on reboot.
+
+`audits/expanded-history-2026-10-15/preparation-status.json`, `pilot-status.json`
+and `expansion-status.json` describe background stages. Preparation restores and
+reconciles a fresh backup. The pilot runs only after clone verification; full
+generation runs only after pilot accounting and projected capacity pass. The
+generation controllers stop for review on errors. The detached `scenarios.py`
+controller waits for full expanded integrity, restore-verifies backups, checks
+shared-stock accounting controls, and runs a separate three-minute preliminary
+20/50/100 test before launching each four-hour scenario. It restores the same
+pristine paired fixture before scenario B and archives scenario A first. Any
+failed prerequisite stops that scenario for review; the original successful
+database is never a restore/reset target.
+Generation stops if free space falls below 8 GiB or retained WAL exceeds 4 GiB.
+Do not rerun a failed seeder blindly: committed documents and its manifest remain
+for review, and a persistent start marker prevents duplicate seeding.
+
+The pilot passed 18 global and five expanded-stock reconciliation checks plus
+its independent expected-document manifest. Full data generation is running
+through the unchanged application domain. Preliminary size estimates were
+replaced by the measured pilot forecast in `pilot-result.json`; allowances now
+include 5 GiB of retained backups and 2 GiB of logs/manifests. Source and result
+retention uses the attached volume; the combined live stage report is
+`audits/expanded-history-2026-10-15/live-report.md`. Source snapshots and test
+containers remain independent of terminal/SSH lifetime. Four-hour correctness
+passes are not production latency/capacity approval; no production SLO was
+specified.
+
+### Invoice payment lookup migration
+
+Schema migration 27 builds a partial index on nonblank journal-line invoice references concurrently. This supports invoice lists and text searches without scanning unrelated payment histories. Startup waits for the index build to complete before accepting requests; existing database traffic can continue during the build. A failed concurrent build is repaired on retry. Allow index-build time and storage when upgrading a large database; the migration does not change financial records.
+
+The expanded-history paired test can resume after the query fixes using `audits/expanded-history-2026-10-15/resume-after-query-fixes.py`, after `invoice-fix-release.json` records passing release checks. This controller archives the previous preliminary database state, restores the verified paired fixture into the isolated expanded database, reruns preliminary traffic and reconciliation, and compares browsing/posting p95 before launching Scenario A. Scenario B restores the paired fixture again and has its own preliminary gate. The original successful database, archives and failed preliminary results are retained. Controllers stop for review on failed gates; this does not constitute production performance approval.
+
+### Invoice ownership lookup migration
+
+Schema migration 28 builds concurrent indexes on invoice creator/ID and assigned employee/ID, excluding NULL ownership keys. Creator and assignment page candidates are fetched separately through these indexes and combined without duplicates before pagination; other filters apply to both routes. This improves owner-restricted list filtering without changing access rules. Startup waits for both indexes and invoice statistics refresh; allow build time and storage on large databases. Invalid concurrent indexes are repaired on retry. There is no accounting-data rewrite.
+
+### Mixed-workload detail lookup migration
+
+Migration 29 concurrently indexes customer payment-journal header references for submitted and cancelled journals. Invoice detail hydration now narrows journals by invoice header/line references before applying party and linked-payment rules. Cancelled payments remain visible in history and excluded from paid totals. Index creation does not rewrite accounting records. The migration waits for a valid index and refreshes journal statistics before startup completes.
+
+### Queued financial reads and freshness
+
+Identical pending report/list requests can share a future snapshot across commits only while their database work is still waiting for admission. Once execution starts, that read keeps its generation: a caller after another commit must receive a different fresh execution. Pool, filters, permissions and invalidation scopes remain part of the sharing key. Completion or failure removes financial results, including entries moved to a newer pending generation; completed financial values are not cached. The `sharing` field in workload-capacity metrics counts queued joins and rekeys without logging filters or financial data.
+
+### Historical invoice warehouse choices
+
+Migration 30 concurrently creates a partial warehouse index on nonblank invoice lines and refreshes their statistics. The invoice warehouse picker uses one indexed successor lookup per distinct warehouse rather than a full line-table DISTINCT on each metadata refresh. Historical warehouse codes are retained and request-level warehouse permissions still filter the choices. Display metadata keeps the existing 30-second lifetime; no financial values are cached. Allow index build time and storage on large datasets; invalid concurrent builds are repaired on retry.
+
+### Controlled inventory deployment (schema 33)
+
+Schema 33 installs warehouse count sessions, frozen snapshots, revision-based independent approval, immutable closure/audit records, canonical inventory movement timestamps, reviewed corrections and database posting guards. Installation alone leaves the policy inactive for a controlled client/role rollout. Existing reconciliations remain legacy records and do not establish closures. The first boundary for each warehouse must come from a new physical count. Activation affects **all warehouses**, not only warehouses that have already counted.
+
+Before activation, deploy compatible website/API/mobile clients and take a verified backup. Review outstanding physical movements and legacy future-dated inventory. Activation refuses unregistered stock items/warehouses, undated/future movements, or stock balances that do not match ledger quantities/values. Resolve such data through an evidenced repair process; never force activation by changing the policy flag.
+
+Run `npm run db:migrate` with the existing schema-owner credentials while application writers are drained. Then, from the project directory with owner-level role-management credentials, run `npm run inventory:setup`. On a host without Node.js, use the local image in a one-off container on the application's Docker network, mount the project read/write for this setup operation, pass the application environment, and run the script in `/workspace`; this is an operational command, not an isolated test. Stop the application before activation and restart it immediately after setup. Do not expose an older app version during rollout.
+
+The setup command creates a database-specific `wm_inventory_runtime_*` login, grants ordinary application access while withholding direct stock/control/schema writes, activates inventory controls, and atomically writes generated `POSTGRES_RUNTIME_USER` / `POSTGRES_RUNTIME_PASSWORD` entries into the local `.env` without displaying the secret. It requires a writable environment file (`INVENTORY_ENV_FILE`, default `.env`). These runtime credentials take precedence over the owner `POSTGRES_USER` credentials for application queries. When an owner URL is configured, the pool replaces its credentials with the generated runtime login in memory; an explicit `POSTGRES_RUNTIME_URL` may instead provide the separate runtime connection. Owner URL credentials never take precedence over the generated runtime login. Restart with `docker compose up -d --build invoice-app` and verify the local app before admitting traffic.
+
+Activation is one-way for the runtime and application administrators. Inventory-account GL lines require a matching controlled posting event and date; manual inventory journals and inventory-account mapping changes are rejected. Do not delete closures, lower boundaries, disable triggers or roll back by running an old image. Setup is intended to be performed by the operator during maintenance; no web administrator action can disable it. Database owners/superusers can alter database protections and remain an infrastructure trust boundary. In production, keep owner credentials in a separate migration job/environment and supply only runtime credentials to the web process. Runtime startup validates the schema version without attempting DDL; complete owner migrations before restarting it. Never grant runtime membership in the schema-owner role or schema CREATE/TRUNCATE rights.
+
+Use UTC database timestamps with Kampala display. The count's effective cut-off is distinct from its later approval/submission time. All ordinary inventory posting uses database time after warehouse locks; document dates never override it. Clock regressions or future-dated legacy conflicts fail closed. Transfers lock both warehouses in stable order. A short database-wide posting gate coordinates count lifecycle changes with already-running application transactions; warehouse freezes then persist independently while staff count offline.
+
+Backups include count/control/closure/correction records and supporting attachments. Runtime backups use the existing maintenance gate and an exported repeatable-read snapshot; table ACCESS SHARE locks permit the read-only inventory role to back up data without mutation rights. Transaction resets are prohibited once controls are active. Privileged restore procedures must verify recovered closures and recovery point before reopening traffic; restoring an older backup is not an application-level inventory reopening operation.
+
+`npm run test:postgres` includes enabled-policy tests for posting/count concurrency, both transfer warehouses, independent approval and evidence revision invalidation, zero-difference closure, failed-commit rollback, abandonment, immutable closed originals, correction double-count prevention and restricted SQL privileges. Use the isolated Docker procedure above; never target the application database.
+
+Schema version 34 allows completed Excel count sheets to revise unfinished reconciliations even during review or after approval. Run `npm run db:migrate` with the schema owner before starting the updated runtime; imports return the count to Counting and clear approval in the same transaction.
+
+Schema version 35 extends administrator authority over unfinished reconciliations, including own-count approval and edits during review. Apply the owner migration before starting the updated runtime. Historical closure and terminal-record protections remain enforced.
+
+### Posting date policy
+
+Apply schema migration 36 with `npm run db:migrate` using the existing owner credentials while application writers are stopped, then rebuild/restart the runtime. Schema migration 36 enforces that new submitted vouchers, payments, attendance and ledger postings cannot be dated after today in Africa/Kampala, including website, API and Admin operations. Future-dated drafts remain available for preparation; submission rechecks the date. Due dates and planning dates are unaffected. Existing records are not rewritten. Sales invoice accounting and generated journals use the selected invoice posting date; controlled physical inventory continues to use its separate server timestamp. Historical accounting and physical-stock reports can therefore show a sale on different dates.
+
+### Historical stock and reconciliation date enforcement
+
+Migration 37 adds database checks to controlled posting while preserving existing function identities and runtime grants. Stop application writers and run `npm run db:migrate` with the schema-owner credentials before restarting the updated runtime. Ordinary sales, purchase and stock-entry document timestamps must be after all affected warehouse reconciliation cut-offs. Stock-decreasing postings also check selected-date availability and later minimum balances under warehouse locks, including previous controlled backdated issues, repeated lines and concurrent submissions. Later physical receipts cannot supply earlier sales. The saved voucher header supplies the checked timestamp; movement payload dates cannot override it. Current-minute inputs with minute precision resolve to the submission instant for checks; earlier minutes and precise timestamps remain exact. Physical movements retain server timestamps. Approved count postings and current-period corrections retain their distinct workflows. No existing postings or closures are rewritten.
+
+
+### Stock posting-event index (migration 38)
+
+Run `npm run db:migrate` with the schema-owner credentials before starting the updated controlled runtime. Migration 38 builds `app_stock_ledger_posting_event_idx` on non-NULL `posting_event_id` values using `CREATE INDEX CONCURRENTLY`, outside a transaction, and checks that the index is ready and valid. It also refreshes statistics for that column. It does not rewrite vouchers, stock movements, accounting or inventory protections. New databases receive the same index through their migrations.
+
+If the build is interrupted, rerun the owner migration: an invalid index with that name is dropped concurrently and rebuilt before the migration is recorded. Allow storage and time for PostgreSQL to scan the ledger; a concurrent build can wait for existing transactions. Runtime credentials cannot perform this migration. Rebuild/restart the updated app after the owner migration completes.
+
+
+The [larger submission-only study](audits/invoice-submission-deep-study-2026-10-17/report.md)
+records 1,420 further submissions, balanced same/different-warehouse bursts and
+Admin/Standard HTTP timings on the retained synthetic VPS fixture. It identifies
+historical-availability document lookups as the next optimization target. Its
+read-only query prototype is not installed in the application; migration 38
+remains the current permanent submission fix.
+
+The [Stock Ledger report investigation and mixed-workload retry](audits/stock-ledger-fix-2026-10-17/report.md)
+records the report query change, balance regression checks and synthetic VPS measurements.
+The report calculates chronological quantity balances after selecting the visible page,
+using the existing item/warehouse/date index; this change needs no schema migration.
+
+The [General Ledger execution and queue investigation](audits/report-execution-study-2026-10-17/report.md)
+separates ownership-scoped SQL costs, CSV export work and admission waiting. Its
+one-versus-two-report experiments used temporary benchmark settings; application
+source and permanent concurrency/JIT settings were left unchanged.
+
+The [General Ledger CSV query and index review](audits/gl-export-query-review-2026-10-17/report.md)
+compares the original export, temporary composite indexing, redundant-sort removal
+and separate opening balances. At the time of that review its SQL rewrites were
+prototypes, and the temporary index was removed.
+
+General Ledger CSV, Excel and PDF exports now calculate eligible dated exports
+from opening totals in the existing transactionally maintained `wm_gl_daily`
+table and a running window over only the selected period. Ownership, party,
+text and individual-voucher restrictions retain detailed historical matching.
+The redundant inner output sort is removed from dated historical queries.
+This change requires no schema migration, additional index or balance refresh.
+The [export implementation validation](audits/gl-export-fix-2026-10-18/report.md)
+records local regression checks and before/after measurements on the retained
+synthetic VPS fixture.
+
+Ownership-restricted General Ledger bulk exports now build distinct permitted
+voucher keys and use the existing voucher index to retrieve ordinary entries.
+Reversals match their original source IDs separately; account, category and HR
+rules retain their existing meaning. Source existence already established by
+these lookups is reused for ordinary entries. Single-voucher exports keep their
+direct query. This path disables JIT only within its read-only export transaction,
+consistent with interactive reports; it changes no persistent database or queue
+setting. No new index, schema migration, ownership cache or posting writes are
+required. The [ownership export validation](audits/ownership-ledger-2026-10-18/report.md)
+records query experiments, regression coverage and measurements.
+
+The [mixed posting, browsing and export retry](audits/mixed-export-retry-2026-10-18/report.md)
+compares both export fixes with the original implementation on the retained
+million-invoice fixture. CSV median time falls from 30.59 to 3.67 seconds under
+the sampled mixed workload, with successful posting and full accounting/stock
+reconciliation. Browsing and interactive-report p95 do not improve; restricted
+interactive GL execution and report admission remain performance constraints.
+This bounded comparison does not establish maximum concurrent-user capacity.
+
+Ownership-restricted interactive General Ledger pages without an Account filter
+now use permitted voucher lookups for totals and rows. Each page query reuses
+matching detailed history for its transactions and earlier balances, applying
+the existing To, party, search and account/access restrictions before
+materializing that history. No
+new index, schema migration, persisted result cache or report-concurrency change
+is required. Account-filtered and individual-voucher pages retain their direct
+matching path. The [interactive GL validation](audits/interactive-ledger-2026-10-18/report.md)
+records execution plans, result-equivalence checks and the mixed-workload retry.

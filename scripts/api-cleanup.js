@@ -1,5 +1,5 @@
 'use strict';
-require('dotenv').config({ quiet: true });
+require('../src/environment').loadEnvironment();
 const { withPostgresTransaction, closeStore } = require('../src/core');
 
 async function main() {

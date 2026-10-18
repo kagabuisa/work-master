@@ -1,17 +1,15 @@
 'use strict';
 // Shared HTTP formatting helpers used by the route modules.
 
+const currencyFormat = new Intl.NumberFormat('en-UG', {
+  style: 'currency', currency: 'UGX', currencyDisplay: 'code', maximumFractionDigits: 0,
+});
+const numberFormat = new Intl.NumberFormat('en-UG', { maximumFractionDigits: 0 });
 function money(value) {
-  return Number(value || 0).toLocaleString('en-UG', {
-    style: 'currency',
-    currency: 'UGX',
-    currencyDisplay: 'code',
-    maximumFractionDigits: 0,
-  }).replace('UGX', 'Ugx');
+  return currencyFormat.format(Number(value || 0)).replace('UGX', 'Ugx');
 }
-
 function purchaseMoney(value) {
-  return `Ugx ${Number(value || 0).toLocaleString('en-UG', { maximumFractionDigits: 0 })}`;
+  return `Ugx ${numberFormat.format(Number(value || 0))}`;
 }
 
 function paymentReturnPath(value, invoiceId) {

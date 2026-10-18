@@ -1,0 +1,19 @@
+<section class="invoice-card report-section ui-surface ui-summary-line">
+  <%- include('ui-section-heading', { heading: { title: strip.title, help: strip.help } }) %>
+  <% strip.rows.forEach((row) => { %>
+    <div class="ui-summary-record" role="group" aria-label="<%= strip.title %>">
+      <div class="ui-summary-field">
+        <span class="ui-summary-caption"><%= strip.partyLabel %></span>
+        <span class="ui-summary-name"><%= row.party_name || row.party_id %></span>
+      </div>
+      <div class="ui-summary-field ui-summary-position">
+        <span class="ui-summary-caption">Payment position</span>
+        <span class="ui-summary-status"><%= row.balance === 0 ? 'Settled' : row.balance < 0 ? strip.negativeLabel : strip.positiveLabel %></span>
+      </div>
+      <div class="ui-summary-field ui-summary-amount">
+        <span class="ui-summary-caption">Balance (UGX)</span>
+        <strong class="ui-summary-value"><%= money(Math.abs(row.balance)) %></strong>
+      </div>
+    </div>
+  <% }) %>
+</section>

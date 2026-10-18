@@ -12,6 +12,20 @@ function currentPostingDate() {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function assertPostingDate(value) {
+  const { dateOnly, isValidIsoDate } = require('./lib/dates');
+  const day = dateOnly(value);
+  const valid = isValidIsoDate(day);
+  const future = valid && day > currentPostingDate();
+  if (!valid || future) {
+    const error = new Error(!valid ? 'Choose a valid posting date.' : 'Posting date cannot be in the future (Africa/Kampala).');
+    error.status = 400;
+    error.code = future ? 'future_posting_date' : 'invalid_posting_date';
+    throw error;
+  }
+  return day;
+}
+
 function normalizePostingTime(value, { required = false } = {}) {
   const time = String(value ?? '').trim();
   if (!time && !required) return currentPostingTime();
@@ -25,4 +39,4 @@ function storedPostingTime(value) {
   return value ? String(value).slice(0, 5) : '00:00';
 }
 
-module.exports = { currentPostingDate, currentPostingTime, normalizePostingTime, storedPostingTime };
+module.exports = { assertPostingDate, currentPostingDate, currentPostingTime, normalizePostingTime, storedPostingTime };

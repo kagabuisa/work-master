@@ -1,4 +1,4 @@
 <label><span class="hr-control-label"><%= label %></span><select name="<%= name %>" <% if(multiple){ %>multiple size="8"<% } %> required>
 <% if(!multiple){ %><option value="">Choose employee</option><% } %>
-<% opts.employees.filter(e=>e.status==='Active'&&!e.disabled).forEach(e=>{ %><option value="<%= e.employee_id %>" <%= typeof selectedIds!=='undefined' && selectedIds.includes(e.employee_id)?'selected':'' %>><%= e.employee_name %> — <%= e.employee_id %><%= e.company?' · '+e.company:'' %></option><% }) %>
+<% opts.employees.filter(e=>e.status==='Active'&&!e.disabled).forEach(e=>{ %><option value="<%= e.employee_id %>" <%= typeof selectedIds!=='undefined' && selectedIds.includes(e.employee_id)?'selected':'' %>><%= e.employee_name %></option><% }) %>
 </select><% if(multiple){ %><small>Select one or more employees.</small><% } %></label>

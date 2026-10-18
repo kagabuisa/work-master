@@ -31,4 +31,11 @@ function paginationResult(total, pagination) {
   };
 }
 
-module.exports = { paginationOptions, paginationResult };
+// A page plus one row determines Next without counting all matching documents.
+function paginationWindow(rowCount, pagination) {
+  const shown = Math.min(rowCount, pagination.limit);
+  return { ...pagination, total: null, total_pages: null,
+    start: shown ? pagination.offset + 1 : 0, end: shown ? pagination.offset + shown : 0,
+    has_next: rowCount > pagination.limit, has_previous: pagination.page > 1 };
+}
+module.exports = { paginationOptions, paginationResult, paginationWindow };

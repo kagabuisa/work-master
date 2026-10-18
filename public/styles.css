@@ -4161,10 +4161,6 @@ body.tracking-visible td.tracking-info {
 
 .journal-reference-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .journal-reference-chips button { padding: 4px 8px; min-height: 28px; font-size: 11px; border-radius: 8px; }
-.journal-posting-time { margin-top: 6px; }
-.journal-posting-time summary { width: fit-content; color: var(--accent-dark); font-size: 11px; cursor: pointer; }
-.journal-posting-time summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
-.journal-posting-time label { margin-top: 8px; }
 .reconciliation-sheet-actions { flex-wrap: wrap; gap: 8px; }
 .reconciliation-sheet-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
 #reconciliation-sheet-status { margin: 8px 0 12px; font-size: 13px; }

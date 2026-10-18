@@ -2,7 +2,7 @@ const pricing = require('./pricing');
 const { normalizePostingTime, storedPostingTime } = require('./posting-time');
 const { DEFAULT_DATE_TIME_SETTINGS, normalizeDateTimeSettings, validateDateTimeSettings } = require('./date-time-format');
 const { initRecordAudit, recordAuditFields } = require('./audit');
-require('dotenv').config({ quiet: true });
+require('./environment').loadEnvironment();
 
 const { roundMoney, numberValue, roundReportMoney } = require('./lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('./lib/quantity');
@@ -69,7 +69,11 @@ let dateTimeSettingsGeneration = 0;
 
 async function initStore() {
   const { ensureSchema } = require('./migrate');
-  await ensureSchema(getPostgresPool());
+  if (process.env.POSTGRES_RUNTIME_USER || process.env.POSTGRES_RUNTIME_URL) {
+    const version = (await getPostgresPool().query('SELECT max(version)::int AS version FROM wm_schema_version')).rows[0].version;
+    if (version !== require('./migrate').SCHEMA_VERSION) throw new Error('Run the database migration command with owner credentials before starting the runtime.');
+  } else await ensureSchema(getPostgresPool());
+  require('./services/inventory-posting').inventorySchemaReady();
 }
 
 const companyInformationFields = {

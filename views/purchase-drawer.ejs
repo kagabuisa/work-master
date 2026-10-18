@@ -3,8 +3,6 @@
   <div class="invoice-drawer-heading">
     <div>
       <p class="eyebrow">Purchase</p>
-      <h2><%= purchase.purchase_no %></h2>
-      <small><%= purchase.supplier_name %></small>
     </div>
   </div>
   <div class="invoice-drawer-actions">
@@ -20,17 +18,17 @@
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
-      <div><span>Supplier</span><strong><%= purchase.supplier_name %></strong><p><%= purchase.supplier_id %></p></div>
+      <div><span>Supplier</span><strong><%= purchase.supplier_id %></strong></div>
       <div><span>Posting Date/Time</span><strong><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></strong><% if (purchase.due_date) { %><p>Due <%= formatDate(purchase.due_date) %></p><% } %></div>
       <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
-      <% if (purchase.cost_center) { %><div><span>Cost Center</span><strong><%= purchase.cost_center %></strong></div><% } %>
+      <% if (purchase.cost_center) { %><div><span>Cost Center</span><strong><%= costCenterName(purchase.cost_center) %></strong></div><% } %>
     </div>
     <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
     <table>
       <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th>Unit Cost</th><th>Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
       <tbody>
         <% (purchase.items || []).forEach((item, index) => { %>
-          <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
+          <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
         <% }) %>
       </tbody>
     </table>
@@ -44,11 +42,11 @@
   <section class="invoice-card report-section">
     <div class="section-title"><h2>Supplier Payments</h2></div>
     <table>
-      <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Payment Reference</th><th>Notes</th><th>Amount</th><th>Status</th></tr></thead>
+      <thead><tr><th>#</th><th>Date</th><th>Account</th><th>Payment Reference</th><th>Notes</th><th>Amount</th><th>Status</th></tr></thead>
       <tbody>
         <% if (!(purchase.payments || []).length) { %><tr><td colspan="7" class="empty">No payments recorded.</td></tr><% } %>
         <% (purchase.payments || []).forEach((payment) => { %>
-          <tr><td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td><td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td></tr>
+          <tr><td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.account_name || payment.method %></td><td><%= payment.reference || '' %></td><td><%= payment.notes || '' %></td><td><%= money(payment.amount) %></td><td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td></tr>
         <% }) %>
       </tbody>
     </table>

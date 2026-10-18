@@ -7,7 +7,7 @@
   can('vouchers.purchases.create') && { href: '/purchases/new', label: 'Purchase', detail: 'Receive stock and track payment' },
   can('vouchers.purchase-orders.create') && { href: '/purchase-orders/new', label: 'Purchase Order', detail: 'Order goods from a supplier' },
   can('vouchers.stock.create') && !supplierScoped && { href: '/stock/entries/new', label: 'Stock Entry', detail: 'Record stock movement' },
-  can('vouchers.stock.create') && !supplierScoped && { href: '/stock/reconciliations/new', label: 'Stock Reconciliation', detail: 'Record a physical count' },
+  (can('vouchers.stock.create') || can('inventory.count.start')) && !supplierScoped && { href: '/stock/reconciliations/new', label: 'Stock Reconciliation', detail: 'Record a physical count' },
   can('vouchers.journals.create') && !scoped && { href: '/journals/new', label: 'Journal Entry', detail: 'Record accounting entry' },
 ].filter(Boolean); %>
 <aside class="module-nav" aria-label="Primary navigation" data-module-nav>
@@ -58,12 +58,12 @@
     </section>
     <% } %>
 
-    <% if (can('vouchers.stock.view') || can('vouchers.stock.create') && !supplierScoped) { %>
+    <% if (can('vouchers.stock.view') || (can('vouchers.stock.create') || can('inventory.count.view') || can('inventory.correction.view')) && !supplierScoped) { %>
     <section class="module-nav-section <%= currentModule === 'stock' ? 'active' : '' %>">
-      <a class="module-nav-primary" href="<%= can('vouchers.stock.view') ? supplierScoped ? '/stock' : '/stock/entries' : '/stock/entries/new' %>">Stocks</a>
+      <a class="module-nav-primary" href="<%= can('vouchers.stock.view') ? supplierScoped ? '/stock' : '/stock/entries' : can('inventory.count.view') ? '/stock/reconciliations/counts' : can('inventory.correction.view') ? '/stock/reconciliations/corrections' : '/stock/entries/new' %>">Stocks</a>
       <div class="module-nav-links">
         <% if (can('vouchers.stock.view') && !supplierScoped) { %><a href="/stock/entries">Stock Entries</a><% } %>
-        <% if (can('vouchers.stock.view') && !supplierScoped) { %><a href="/stock/reconciliations">Stock Reconciliation</a><% } %>
+        <% if ((can('vouchers.stock.view') || can('inventory.count.view') || can('inventory.correction.view')) && !supplierScoped) { %><a href="<%= can('vouchers.stock.view') ? '/stock/reconciliations' : can('inventory.count.view') ? '/stock/reconciliations/counts' : '/stock/reconciliations/corrections' %>">Stock Reconciliation</a><% } %>
         <% if (can('vouchers.stock.view')) { %><a href="/stock">Stock Balance</a><% } %>
         <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger">Stock Ledger</a><% } %>
         <% if (can('reports.stock-movement.view') && !scoped) { %><a href="/reports/stock-movement">Stock Movement</a><% } %>

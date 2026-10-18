@@ -1,4 +1,6 @@
+const { beginInventoryPosting, enabled: inventoryEnabled } = require('../services/inventory-posting');
 'use strict';
+const { DELIVERY_STATUSES, saveStockEntryDelivery, validateSharedStockEntryEdit } = require('../stock-entry-workflow');
 // Inventory domain: stock balances, stock entries, stock ledger/movement and
 // gross profit. Extracted from store.js.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
@@ -83,6 +85,14 @@ async function listStockEntries(filters = {}) {
   const params = [];
   const where = [];
   addVoucherOwnerFilter(where, params, 'se', filters.ownerId);
+  let sharedPermissionSql = 'NULL::text';
+  if (filters.sharedWithUserId) {
+    params.push(String(filters.sharedWithUserId));
+    where.push(`EXISTS (SELECT 1 FROM app_stock_entry_shares share
+      WHERE share.stock_entry_id=se.id AND share.user_id=$${params.length})`);
+    sharedPermissionSql = `(SELECT share.permission FROM app_stock_entry_shares share
+      WHERE share.stock_entry_id=se.id AND share.user_id=$${params.length})`;
+  }
   if (filters.excludeReconciliations) where.push("se.entry_type <> 'reconciliation'");
   const search = String(filters.q || '').trim().toLowerCase();
   const type = String(filters.entry_type || '').trim();
@@ -108,6 +118,11 @@ async function listStockEntries(filters = {}) {
   if (status && ['draft', 'submitted', 'cancelled'].includes(status)) {
     params.push(status);
     where.push(`COALESCE(se.docstatus, 'submitted') = $${params.length}`);
+  }
+  if (DELIVERY_STATUSES.includes(filters.delivery_status)) {
+    params.push(filters.delivery_status);
+    where.push(`EXISTS (SELECT 1 FROM app_stock_entry_delivery delivery
+      WHERE delivery.stock_entry_id=se.id AND delivery.delivery_status=$${params.length})`);
   }
   for (const [key, operator] of [['from', '>='], ['to', '<=']]) {
     const date = String(filters[key] || '').trim();
@@ -148,11 +163,16 @@ async function listStockEntries(filters = {}) {
   const rowsResult = await pool.query(`
     SELECT se.id, se.entry_no, se.entry_type, COALESCE(se.docstatus, 'submitted') AS docstatus,
       se.posting_date::text, se.posting_time::text, se.remarks, se.cost_center,
+      COALESCE(delivery.delivery_status, '') AS delivery_status,
+      ${sharedPermissionSql} AS share_permission,
+      COALESCE(item_summary.total_value, 0)::float AS total_value,
       COALESCE(item_summary.item_count, 0)::int AS item_count,
       COALESCE(item_summary.warehouses, '') AS warehouses
     FROM app_stock_entries se
+    LEFT JOIN app_stock_entry_delivery delivery ON delivery.stock_entry_id=se.id
     LEFT JOIN LATERAL (
       SELECT COUNT(*)::int AS item_count,
+        SUM(FLOOR(item.quantity * item.valuation_rate + 0.5)) AS total_value,
         STRING_AGG(DISTINCT item.warehouse, ', ' ORDER BY item.warehouse) AS warehouses
       FROM app_stock_entry_items item WHERE item.stock_entry_id = se.id
     ) item_summary ON true
@@ -178,7 +198,7 @@ async function localStockQuantity(itemCode, warehouse) {
   return rows[0] || { quantity: 0, stock_value: 0, valuation_rate: 0 };
 }
 
-async function createStockEntry(payload) {
+async function createStockEntry(payload, { deliveryUser } = {}) {
   const entryType = String(payload.entry_type || '').trim();
   if (!STOCK_ENTRY_TYPES.includes(entryType)) {
     const err = new Error('Choose a valid stock entry type.');
@@ -210,7 +230,7 @@ async function createStockEntry(payload) {
         supplier_phone, supplier_reference, cost_center
       )
       VALUES ($1, $2, $3, $9, $4, $5, $6, $7, $8, $10)
-      RETURNING id
+      RETURNING id, created_by_user_id
       `,
       [
         entryType,
@@ -233,8 +253,11 @@ async function createStockEntry(payload) {
     }
 
     await insertStockEntryItems(client, id, items);
+    if (payload.delivery_status !== undefined && (payload.delivery_status !== '' || deliveryUser)) {
+      await saveStockEntryDelivery(client, deliveryUser, { ...rows[0], entry_type: entryType, docstatus }, payload.delivery_status);
+    }
     if (docstatus === 'submitted') {
-      await postStockEntryMovements(client, { id, entryNo, entryType, postingDate, items });
+      await postStockEntryMovements(client, { id, entryNo, entryType, postingDate, postingTime, items });
       await postStockEntryGlEntry(client, { id, entryNo, entryType, postingDate });
     }
 
@@ -253,6 +276,8 @@ async function loadStockEntry(id) {
     `
     SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
       id, entry_no, entry_type, docstatus, posting_date::text, posting_time::text, remarks, cost_center,
+      COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
+        WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status,
       supplier_name, supplier_contact, supplier_phone, supplier_reference,
       submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at
@@ -411,7 +436,7 @@ async function searchStockEntriesForCancel(search = '', ownerId = null) {
   }));
 }
 
-async function updateStockEntry(id, payload) {
+async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false } = {}) {
   const stockEntryId = Number(id);
   if (!Number.isFinite(stockEntryId)) {
     const err = new Error('Stock entry not found.');
@@ -442,7 +467,10 @@ async function updateStockEntry(id, payload) {
   return withPostgresTransaction(async (client) => {
     const costCenter = await validateCostCenter(client, payload.cost_center);
     const { rows: existingRows } = await client.query(
-      'SELECT id, entry_no, docstatus FROM app_stock_entries WHERE id = $1 FOR UPDATE',
+      `SELECT id, entry_no, docstatus, created_by_user_id, cost_center,
+        COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
+          WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status
+        FROM app_stock_entries WHERE id = $1 FOR UPDATE`,
       [stockEntryId],
     );
     const existing = existingRows[0];
@@ -456,6 +484,7 @@ async function updateStockEntry(id, payload) {
       err.status = 400;
       throw err;
     }
+    if (sharedWrite) await validateSharedStockEntryEdit(client, deliveryUser, existing, payload);
 
     const supplier = entryType === 'purchase' ? normalizeSupplierInfo(payload) : normalizeSupplierInfo();
     await client.query(
@@ -491,12 +520,16 @@ async function updateStockEntry(id, payload) {
       await setVoucherDocstatus(client, 'app_stock_entries', stockEntryId, 'submitted');
     }
     await syncStockEntryItems(client, stockEntryId, items);
+    if (payload.delivery_status !== undefined && payload.delivery_status !== existing.delivery_status) {
+      await saveStockEntryDelivery(client, deliveryUser, { ...existing, entry_type: entryType, docstatus }, payload.delivery_status);
+    }
     if (docstatus === 'submitted') {
       await postStockEntryMovements(client, {
         id: stockEntryId,
         entryNo: existing.entry_no,
         entryType,
         postingDate,
+        postingTime,
         items,
       });
       await postStockEntryGlEntry(client, {
@@ -576,11 +609,13 @@ async function cancelStockEntry(id, payload = {}) {
       err.status = 400;
       throw err;
     }
+    // Purchase, invoice and stock IDs come from independent sequences.
     const { rows: existingReversal } = await client.query(
       `
       SELECT id
       FROM app_stock_ledger
       WHERE reversal_of_voucher_id = $1
+        AND voucher_type LIKE 'stock_%'
         AND is_reversal = true
       LIMIT 1
       `,
@@ -616,6 +651,7 @@ async function cancelStockEntry(id, payload = {}) {
       throw err;
     }
 
+    await beginInventoryPosting(client, ledgerRows[0].voucher_type, stockEntryId, ledgerRows.map(row => row.warehouse), true);
     await validateStockEntryCancellation(client, ledgerRows);
 
     const actor = actorAuditValues();
@@ -698,7 +734,7 @@ async function validateStockEntryCancellation(client, ledgerRows) {
       FROM app_stock_balances
       WHERE item_code = $1
         AND warehouse = $2
-      FOR UPDATE
+      ${await inventoryEnabled(client)?'':'FOR UPDATE'}
       `,
       [requirement.item_code, requirement.warehouse],
     );
@@ -748,23 +784,28 @@ async function stockLedgerReport(filters = {}) {
   params.push(pagination.limit, pagination.offset);
   const { rows } = await getPostgresPool().query(
     `
-    WITH ledger_running_balances AS (
-      SELECT id,
-        SUM(qty_change) OVER (
-          PARTITION BY item_code, warehouse
-          ORDER BY posting_date ASC, id ASC
-          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) AS balance_qty
-      FROM app_stock_ledger
+    WITH report_page AS MATERIALIZED (
+      SELECT l.*
+      FROM app_stock_ledger l
+      LEFT JOIN app_stock_entries se
+        ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
+        AND l.voucher_type LIKE 'stock_%'
+      LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
+      LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
+      ${whereSql}
+      ORDER BY l.posting_date ASC, l.movement_at ASC, l.id ASC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
     )
     SELECT
       l.posting_date::text AS posting_date,
+      CASE WHEN l.posting_event_id IS NOT NULL THEN l.movement_at END AS movement_at,
       l.item_code AS item_code,
       l.item_name AS item_name,
       l.warehouse AS warehouse,
       CASE
         WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.entry_type, replace(l.voucher_type, 'stock_', ''))
         WHEN l.voucher_type = 'purchase' THEN 'purchase'
+        WHEN l.voucher_type = 'inventory_correction' THEN 'adjustment'
         ELSE ''
       END AS stock_entry_type,
       CASE
@@ -796,19 +837,31 @@ async function stockLedgerReport(filters = {}) {
       l.stock_value_change::float AS stock_value_change,
       running.balance_qty::float AS qty_after_transaction,
       l.stock_value_after_transaction::float AS stock_value_after_transaction
-    FROM app_stock_ledger l
-    JOIN ledger_running_balances running ON running.id = l.id
+    FROM report_page l
+    -- The page is already selected. Include all earlier movements for its
+    -- item/warehouse, even those hidden by report filters or ownership rules.
+    CROSS JOIN LATERAL (
+      SELECT SUM(history.qty_change) AS balance_qty
+      FROM app_stock_ledger history
+      WHERE history.item_code = l.item_code AND history.warehouse = l.warehouse
+        AND history.posting_date <= l.posting_date
+        AND (
+          history.posting_date < l.posting_date
+          OR history.movement_at < l.movement_at
+          OR (l.movement_at IS NULL AND history.movement_at IS NOT NULL)
+          OR (history.movement_at IS NOT DISTINCT FROM l.movement_at AND history.id <= l.id)
+        )
+    ) running
     LEFT JOIN app_stock_entries se
       ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
       AND l.voucher_type LIKE 'stock_%'
     LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
     LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
-    ${whereSql}
-    ORDER BY l.posting_date ASC, l.id ASC
-    LIMIT $${params.length - 1} OFFSET $${params.length}
+    ORDER BY l.posting_date ASC, l.movement_at ASC, l.id ASC
     `,
     params,
   );
+  for (const row of rows) if (row.movement_at === null) delete row.movement_at;
   return { filters: reportFilterValues(filters), rows, pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination) };
 }
 

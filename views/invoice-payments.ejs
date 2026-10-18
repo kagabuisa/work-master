@@ -54,14 +54,14 @@
   <% if (docstatus === 'submitted' && balanceDue > 0 && can('payments.sales.record')) { %>
     <form method="post" action="/invoices/<%= invoice.id %>/payments" class="payment-form">
       <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
-      <label>Payment Date<input type="date" name="payment_date" value="<%= today %>" required></label>
+      <%- include('voucher-posting-fields', { postingFields: { date: today, dateName: 'payment_date', label: 'Payment Date' } }) %>
       <label>Amount<input type="number" min="1" max="<%= balanceDue %>" step="1" name="amount" required></label>
       <label class="payment-account-field">
         Account
         <select name="account_id" required>
           <option value="">Choose cash or bank account</option>
           <% (typeof receiptAccounts !== 'undefined' ? receiptAccounts : []).forEach((account) => { %>
-            <option value="<%= account.id %>"><%= account.account_code ? `${account.account_code} · ` : '' %><%= account.account_name %></option>
+            <option value="<%= account.id %>"><%= account.account_name %></option>
           <% }) %>
         </select>
       </label>

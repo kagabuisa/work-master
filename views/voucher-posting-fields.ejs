@@ -1,0 +1,14 @@
+<% const fields = postingFields; const hasTime = fields.time !== undefined; const locked = Boolean(fields.readOnly); %>
+<details class="ui-voucher-posting <%= hasTime ? '' : 'ui-voucher-posting-date' %>" data-voucher-posting <% if (fields.wrapperId) { %>id="<%= fields.wrapperId %>"<% } %> <%= fields.date === '' || hasTime && fields.time === '' ? 'open' : '' %>>
+  <summary><%= locked ? 'View' : 'Edit' %> <%= hasTime ? 'date / time' : (fields.label || 'posting date').toLowerCase() %></summary>
+  <div class="ui-voucher-posting-inputs">
+    <label <% if (fields.dateId) { %>for="<%= fields.dateId %>"<% } %>><%= fields.label || 'Posting Date' %>
+      <input <% if (fields.dateId) { %>id="<%= fields.dateId %>"<% } %> type="date" name="<%= fields.dateName !== undefined ? fields.dateName : 'posting_date' %>" value="<%= fields.date %>" required <%= locked ? 'readonly' : '' %>>
+    </label>
+    <% if (hasTime) { %>
+      <label <% if (fields.timeId) { %>for="<%= fields.timeId %>"<% } %>>Posting Time
+        <input <% if (fields.timeId) { %>id="<%= fields.timeId %>"<% } %> type="time" name="posting_time" value="<%= fields.time %>" required <%= locked ? 'readonly' : '' %>>
+      </label>
+    <% } %>
+  </div>
+</details>

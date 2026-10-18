@@ -1,0 +1,63 @@
+services:
+  benchmark-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: work_master_erp_benchmark_hr_test
+      POSTGRES_USER: benchmark_user
+      POSTGRES_PASSWORD: ${BENCHMARK_DB_PASSWORD:?Dedicated password required}
+    volumes:
+      - ${BENCHMARK_DIRECTORY:?Dedicated directory required}/db:/var/lib/postgresql/data
+    networks: [benchmark]
+    mem_limit: 850m
+    cpus: 1.0
+    pids_limit: 128
+    shm_size: 128m
+    command: [postgres, -c, shared_buffers=128MB, -c, work_mem=4MB, -c, maintenance_work_mem=96MB, -c, max_connections=30, -c, max_wal_size=512MB, -c, min_wal_size=80MB]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U benchmark_user -d work_master_erp_benchmark_hr_test]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+    logging:
+      options: {max-size: 10m, max-file: "2"}
+  benchmark-job:
+    image: ${BENCHMARK_IMAGE:?Frozen benchmark image required}
+    entrypoint: [node, --max-old-space-size=256, scripts/erpnext-benchmark/job.js]
+    environment:
+      ERP_BENCHMARK: "1"
+      BENCHMARK_MODE: ${BENCHMARK_MODE:?Mode required}
+      BENCHMARK_RUN_ID: ${BENCHMARK_RUN_ID:?Run identifier required}
+      BENCHMARK_OUTPUT: /output
+      BENCHMARK_SEED_WORKERS: "2"
+      POSTGRES_HOST: benchmark-db
+      POSTGRES_DB: work_master_erp_benchmark_hr_test
+      POSTGRES_USER: benchmark_user
+      POSTGRES_PASSWORD: ${BENCHMARK_DB_PASSWORD:?Dedicated password required}
+      POSTGRES_POOL_MAX: "6"
+      POSTGRES_CONNECTION_TIMEOUT_MS: "30000"
+      POSTGRES_STATEMENT_TIMEOUT_MS: "300000"
+      NODE_ENV: production
+      ALLOW_INSECURE_COOKIES: "true"
+      TZ: Africa/Kampala
+      PORT: "3020"
+      LEDGER_EXPORT_WORKERS: "1"
+      LEDGER_EXPORT_PDF_WORKERS: "1"
+      LEDGER_EXPORT_QUEUE_MAX: "10"
+      LEDGER_EXPORT_HEAP_MB: "192"
+      POSTGRES_POOL_METRICS_MS: "30000"
+    volumes:
+      - ${BENCHMARK_DIRECTORY}/output:/output
+    tmpfs: ["/app/data:mode=1777,size=64m", "/tmp:size=512m,mode=1777"]
+    networks: [benchmark]
+    mem_limit: 900m
+    cpus: 0.8
+    pids_limit: 256
+    depends_on:
+      benchmark-db: {condition: service_healthy}
+    restart: "no"
+    logging:
+      options: {max-size: 10m, max-file: "2"}
+networks:
+  benchmark:
+    internal: true

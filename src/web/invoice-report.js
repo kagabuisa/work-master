@@ -1,4 +1,5 @@
 'use strict';
+const {runExpensiveRead}=require('../workload-control');
 
 const { getPostgresPool } = require('../core');
 const { isValidIsoDate } = require('../lib/dates');
@@ -111,6 +112,9 @@ function dateFilter(value, label) {
 }
 
 async function invoiceReport(options = {}) {
+  return runExpensiveRead(() => loadInvoiceReport(options));
+}
+async function loadInvoiceReport(options = {}) {
   const exportPage = options.exportPage === true;
   const filters = {
     search: String(options.q || '').trim(),

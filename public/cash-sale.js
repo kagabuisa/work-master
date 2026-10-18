@@ -85,7 +85,7 @@
     let accounts = [];
     try { accounts = JSON.parse(trigger.dataset.cashSaleAccounts || '[]'); } catch { accounts = []; }
     for (const account of accounts) {
-      accountSelect.add(new Option(`${account.account_code ? `${account.account_code} · ` : ''}${account.account_name}`, String(account.id)));
+      accountSelect.add(new Option(account.account_name, String(account.id)));
     }
     layer.querySelector('[data-cash-account-empty]').hidden = accounts.length > 0;
     submitButton.disabled = accounts.length === 0;

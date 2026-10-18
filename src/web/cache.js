@@ -2,16 +2,13 @@
 // Invoice data-freshness cache + ERPNext sync state, shared by the dashboard,
 // the sales routes, and the settings routes.
 const { invoiceSummary, paginatedInvoices, topDebtors } = require('../store');
+const { getPostgresPool } = require('../core');
+const { invalidateFinancialReads } = require('../read-cache');
 const { DEFAULT_IMPORT_FROM } = require('../sales-invoice-importer');
 
 const DASHBOARD_CACHE_MS = Number(process.env.DASHBOARD_CACHE_MS || 15000);
-const INVOICE_LIST_CACHE_MS = Number(process.env.INVOICE_LIST_CACHE_MS || 10000);
-const INVOICE_LIST_CACHE_MAX_ENTRIES = 200;
 
 let dashboardCache = null;
-const invoiceListCache = new Map();
-const invoiceListInFlight = new Map();
-let invoiceListGeneration = 0;
 
 const syncState = { running: false, last: null };
 
@@ -22,7 +19,7 @@ async function dashboardData() {
   }
   const [summary, invoicePage, debtors] = await Promise.all([
     invoiceSummary(),
-    paginatedInvoices({ limit: 10 }),
+    paginatedInvoices({ limit: 10, includeTotal: false }),
     topDebtors(),
   ]);
   const data = { summary, recent: invoicePage.rows, debtors };
@@ -39,6 +36,7 @@ function clearDashboardCache() {
 
 function invoiceListCacheKey(query = {}) {
   return JSON.stringify({
+    exact_total: query.exact_total === '1',
     q: String(query.q || ''),
     from: String(query.from || ''),
     to: String(query.to || ''),
@@ -51,51 +49,17 @@ function invoiceListCacheKey(query = {}) {
   });
 }
 
+// The domain shares identical in-flight reads by full filter/access scope.
+// Completed financial rows are not retained here, so API/import writes are visible.
 async function cachedInvoiceList(query = {}) {
-  const key = invoiceListCacheKey(query);
-  const cached = invoiceListCache.get(key);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.data;
-  }
-  if (invoiceListInFlight.has(key)) return invoiceListInFlight.get(key);
-  const generation = invoiceListGeneration;
-  const request = (async () => {
-    const data = await paginatedInvoices({
-      search: String(query.q || '').trim(),
-      from: query.from,
-      to: query.to,
-      warehouse: query.warehouse,
-      page: query.page,
-      page_size: query.page_size,
-      allowedGroups: query.allowedGroups,
-      ownerId: query.ownerId,
-      ownerEmployeeId: query.ownerEmployeeId,
-    });
-    if (generation === invoiceListGeneration) {
-      const fetchedAt = Date.now();
-      for (const [cacheKey, entry] of invoiceListCache) {
-        if (entry.expiresAt <= fetchedAt) invoiceListCache.delete(cacheKey);
-      }
-      while (invoiceListCache.size >= INVOICE_LIST_CACHE_MAX_ENTRIES) {
-        invoiceListCache.delete(invoiceListCache.keys().next().value);
-      }
-      invoiceListCache.set(key, { data, expiresAt: fetchedAt + INVOICE_LIST_CACHE_MS });
-    }
-    return data;
-  })();
-  invoiceListInFlight.set(key, request);
-  try {
-    return await request;
-  } finally {
-    if (invoiceListInFlight.get(key) === request) invoiceListInFlight.delete(key);
-  }
+  return paginatedInvoices({ includeTotal: query.exact_total === '1',
+    search: String(query.q || '').trim(), from: query.from, to: query.to,
+    warehouse: query.warehouse, page: query.page, page_size: query.page_size,
+    allowedGroups: query.allowedGroups, ownerId: query.ownerId,
+    ownerEmployeeId: query.ownerEmployeeId });
 }
-
 function clearInvoiceListCache() {
-  invoiceListGeneration += 1;
-  invoiceListCache.clear();
-  invoiceListInFlight.clear();
+  invalidateFinancialReads(getPostgresPool(), ['invoice-list']);
 }
 
 function clearInvoiceCaches() {

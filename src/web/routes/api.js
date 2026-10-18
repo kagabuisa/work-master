@@ -6,6 +6,10 @@ const { warehouseAllowed, allowedInvoicePriceLists, allowedPurchasePriceLists, n
   selectedCategories, requireInvoicePriceList } = require('../../access');
 const { warehouseAccessOptions, accountAccessOptions, hrLedgerAccessOptions } = require('../helpers');
 const { normalizeStockQuantity } = require('../../lib/quantity');
+const { isValidIsoDate } = require('../../lib/dates');
+const { normalizePostingTime } = require('../../posting-time');
+const { transferStockAvailability } = require('../../stock-transfer-availability');
+const { invoiceStockBalances } = require('../../invoice-stock-balances');
 const {
   masterItemsWithStock,
   invoiceItemPrices,
@@ -29,6 +33,11 @@ const {
 } = require('../../store');
 
 const router = express.Router();
+router.get('/inventory-controls',async(req,res,next)=>{try{
+ const pool=getPostgresPool();const enabled=(await pool.query('SELECT wm_inventory_enabled() AS enabled')).rows[0].enabled;
+ const warehouses=enabled?(await pool.query('SELECT warehouse,active_count,closed_through FROM wm_inventory_control ORDER BY warehouse')).rows.filter(row=>warehouseAllowed(req.currentUser,row.warehouse)):[];
+ res.set('Cache-Control','no-store');res.json({enabled,inventory_timestamp_policy:enabled?'server_submission':'document',warehouses});
+}catch(error){next(error);}});
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 
 router.get('/items', async (req, res, next) => {
@@ -45,7 +54,15 @@ router.get('/items', async (req, res, next) => {
     }
     if (!priceList) { res.status(400).json({ error: 'Price list is required.' }); return; }
     requireInvoicePriceList(req.currentUser, priceList);
-    res.json(await masterItemsWithStock({ search, warehouse, priceList, limit: 25 }));
+    const controlled=(await getPostgresPool().query('SELECT wm_inventory_enabled() AS enabled')).rows[0]?.enabled;
+    let postingDate, postingTime;
+    if (!controlled && (req.query.posting_date !== undefined || req.query.posting_time !== undefined)) {
+      if (!isValidIsoDate(req.query.posting_date)) return res.status(400).json({ error: 'Choose a valid posting date.' });
+      postingDate = req.query.posting_date;
+      postingTime = normalizePostingTime(req.query.posting_time, { required: true });
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json(await masterItemsWithStock({ search, warehouse, priceList, limit: 25, postingDate, postingTime }));
   } catch (err) {
     next(err);
   }
@@ -129,6 +146,35 @@ router.get('/report-items', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.post('/invoice-stock-balances', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const body = req.body || {};
+    if (!Array.isArray(body.items) || !body.items.length || body.items.length > 200
+        || body.items.some(row => !row || typeof row.item_code !== 'string' || !row.item_code.trim()
+          || typeof row.warehouse !== 'string' || !row.warehouse.trim())) {
+      return res.status(400).json({ error: 'Choose 1 to 200 item and warehouse pairs.' });
+    }
+    const pairs = [...new Map(body.items.map(row => {
+      const pair = { item_code: row.item_code.trim(), warehouse: row.warehouse.trim() };
+      return [JSON.stringify([pair.item_code, pair.warehouse]), pair];
+    })).values()];
+    if (pairs.some(pair => !warehouseAllowed(req.currentUser, pair.warehouse))) {
+      return res.status(403).json({ error: 'Warehouse is not permitted.' });
+    }
+    let postingDate, postingTime;
+    if (body.posting_date !== undefined || body.posting_time !== undefined) {
+      if (!isValidIsoDate(body.posting_date)) return res.status(400).json({ error: 'Choose a valid posting date.' });
+      postingDate = body.posting_date;
+      try { postingTime = normalizePostingTime(body.posting_time, { required: true }); }
+      catch (error) { return res.status(400).json({ error: error.message }); }
+    }
+    const rows = await invoiceStockBalances(getPostgresPool(), pairs, postingDate, postingTime);
+    res.json(rows.map(row => ({ item_code: row.item_code, warehouse: row.warehouse,
+      quantity: normalizeStockQuantity(row.quantity), available_quantity: normalizeStockQuantity(row.available_quantity) })));
+  } catch (error) { next(error); }
+});
+
 router.get('/stock-balance', async (req, res, next) => {
   try {
     const itemCode = String(req.query.item_code || '').trim();
@@ -140,9 +186,19 @@ router.get('/stock-balance', async (req, res, next) => {
     if (!warehouseAllowed(req.currentUser, warehouse)) {
       res.status(403).json({ error: 'Warehouse is not permitted.' }); return;
     }
+    res.set('Cache-Control', 'no-store');
     const balance = await localStockQuantity(itemCode, warehouse);
+    let availability;
+    if (req.query.posting_date !== undefined || req.query.posting_time !== undefined) {
+      if (!isValidIsoDate(req.query.posting_date)) {
+        return res.status(400).json({ error: 'Choose a valid posting date.' });
+      }
+      const time = normalizePostingTime(req.query.posting_time, { required: true });
+      availability = await transferStockAvailability(getPostgresPool(), itemCode, warehouse, req.query.posting_date, time);
+    }
     res.json({
-      quantity: normalizeStockQuantity(balance.quantity),
+      quantity: normalizeStockQuantity(availability ? availability.quantity : balance.quantity),
+      ...(availability ? { available_quantity: normalizeStockQuantity(availability.available_quantity) } : {}),
       valuation_rate: Number(balance.valuation_rate || 0),
       stock_value: Number(balance.stock_value || 0),
     });

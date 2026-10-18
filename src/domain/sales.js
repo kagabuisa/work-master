@@ -1,6 +1,10 @@
+const { beginInventoryPosting } = require('../services/inventory-posting');
 'use strict';
 // Sales domain: invoices, payments, debtor reports and invoice hydration.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
+const { measurePosting, postingStage, runExpensiveRead } = require('../workload-control');
+const { shareRead, readSnapshot } = require('../read-cache');
+const { invoiceSearchSql, invoiceTextOnlyPattern } = require('./search-sql');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { recordAuditFields } = require('../audit');
@@ -9,7 +13,7 @@ const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity')
 const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
-const { paginationOptions, paginationResult } = require('../lib/pagination');
+const { paginationOptions, paginationResult, paginationWindow } = require('../lib/pagination');
 const { addVoucherOwnerFilter } = require('../voucher-ownership');
 const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, createOrUpdateSalesInvoiceJournalEntry, postCustomerPaymentGlEntry, applyPostgresStockMovement, postGlEntry, reverseVoucherGlEntries, resolveAccountingAccounts, actorAuditValues, setVoucherDocstatus, nonZeroAccountingLines, addReportFilters, reportFilterValues, groupByInvoiceId, postgresItemToInvoiceItem, postgresPaymentToInvoicePayment } = require('./posting');
 const { syncPostgresInvoicePaymentTotals } = require('./schema');
@@ -26,13 +30,21 @@ async function paginatedInvoices(options = {}) {
 }
 
 async function invoiceWarehouses() {
-  const { rows } = await getPostgresPool().query(`
-    SELECT DISTINCT warehouse
-    FROM app_invoice_items
-    WHERE COALESCE(warehouse, '') <> ''
-    ORDER BY warehouse
-  `);
-  return rows.map((row) => row.warehouse);
+  const pool = getPostgresPool();
+  return shareRead(pool, 'invoice-warehouses', async () => {
+    // One index seek per distinct warehouse, rather than scanning every line
+    // whenever display metadata expires. Historical non-master codes survive.
+    const { rows } = await pool.query(`WITH RECURSIVE used(warehouse) AS (
+      (SELECT warehouse FROM app_invoice_items WHERE warehouse IS NOT NULL AND warehouse<>''
+        ORDER BY warehouse LIMIT 1)
+      UNION ALL
+      SELECT next.warehouse FROM used CROSS JOIN LATERAL (
+        SELECT warehouse FROM app_invoice_items WHERE warehouse IS NOT NULL AND warehouse<>''
+          AND warehouse>used.warehouse ORDER BY warehouse LIMIT 1
+      ) next
+    ) SELECT warehouse FROM used ORDER BY warehouse`);
+    return rows.map(row => row.warehouse);
+  }, { metadata: true });
 }
 
 async function findInvoice(id) {
@@ -83,15 +95,15 @@ async function cancelInvoicePayment(id, paymentId) {
 }
 
 async function invoiceSummary() {
-  return postgresInvoiceSummary();
+  return runExpensiveRead(() => postgresInvoiceSummary());
 }
 
 async function topDebtors(limit = 10) {
-  return postgresTopDebtors(limit);
+  return runExpensiveRead(() => postgresTopDebtors(limit));
 }
 
 async function debtorReport(options = {}) {
-  return postgresDebtorReport(options);
+  return runExpensiveRead(() => postgresDebtorReport(options));
 }
 
 function postgresInvoiceBalancesCte() {
@@ -394,7 +406,11 @@ async function allPostgresInvoices() {
 }
 
 async function paginatedPostgresInvoices(options = {}) {
+  const includeTotal = options.includeTotal !== false;
   const search = String(options.search || '').trim().toLowerCase();
+  const pattern = sqlLikePattern(search);
+  const textSearch = Boolean(search) && invoiceTextOnlyPattern(pattern);
+  const computedFilter = Boolean((search && !textSearch) || options.paymentStatus);
   const from = String(options.from || '').trim();
   const to = String(options.to || '').trim();
   const warehouse = String(options.warehouse || '').trim();
@@ -437,18 +453,20 @@ async function paginatedPostgresInvoices(options = {}) {
   if (options.docstatus) {
     params.push(options.docstatus); where.push(`invoice.docstatus=$${params.length}`);
   }
+  if (options.paymentStatus) {
+    params.push(options.paymentStatus); where.push(`invoice.status=$${params.length}`);
+  }
   if (search) {
-    params.push(sqlLikePattern(search));
-    where.push(`(
-      LOWER(COALESCE(invoice_no, '')) LIKE $${params.length}
-      OR LOWER(COALESCE(non_system_invoice, '')) LIKE $${params.length}
-      OR invoice_date::text LIKE $${params.length}
-      OR LOWER(customer_name) LIKE $${params.length}
-      OR total::text LIKE $${params.length}
-      OR amount_paid::text LIKE $${params.length}
-      OR LOWER(status) LIKE $${params.length}
-      OR LOWER(docstatus) LIKE $${params.length}
-    )`);
+    params.push(pattern);
+    const match = `$${params.length}`;
+    const fields = ["LOWER(COALESCE(invoice_no, ''))", "LOWER(COALESCE(non_system_invoice, ''))",
+      'LOWER(customer_name)', 'LOWER(docstatus)'];
+    if (!textSearch) fields.push('invoice_date::text', 'total::text', 'amount_paid::text', 'LOWER(status)');
+    where.push(`(${fields.map(field => `${field} LIKE ${match}`).join(' OR ')})`);
+    if (textSearch) {
+      params.push(`%${pattern}%`);
+      where.push(`${invoiceSearchSql('invoice')} LIKE $${params.length}`);
+    }
   }
   if (from) {
     params.push(from);
@@ -468,7 +486,7 @@ async function paginatedPostgresInvoices(options = {}) {
     )`);
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const pageParams = [...params, pagination.limit, pagination.offset];
+  const pageParams = [...params, pagination.limit + (includeTotal ? 0 : 1), pagination.offset];
   const invoiceListSql = (invoiceSource = 'app_invoices') => `
     FROM (
       SELECT
@@ -515,7 +533,7 @@ async function paginatedPostgresInvoices(options = {}) {
         JOIN (
           SELECT journal.id, COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) AS reference_no, journal.party_id, journal.party_name,
             SUM(line.credit - line.debit) AS amount
-          FROM app_journal_entries journal
+          FROM ${invoiceSource === 'selected_invoices' ? 'unlinked_customer_journals' : 'app_journal_entries'} journal
           JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
           JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
             AND setting.account_id = line.account_id
@@ -526,7 +544,7 @@ async function paginatedPostgresInvoices(options = {}) {
               WHERE scoped_invoice.invoice_no = COALESCE(NULLIF(line.reference_no, ''), journal.reference_no)
             )` : ''}
             AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id = journal.id)
-          GROUP BY journal.id, COALESCE(NULLIF(line.reference_no, ''), journal.reference_no)
+          GROUP BY journal.id, journal.party_id, journal.party_name, COALESCE(NULLIF(line.reference_no, ''), journal.reference_no)
           HAVING SUM(line.credit - line.debit) > 0
         ) journal_payment ON journal_payment.reference_no = invoice.invoice_no
           AND (NULLIF(journal_payment.party_id, '') = NULLIF(invoice.customer_id, '')
@@ -536,18 +554,49 @@ async function paginatedPostgresInvoices(options = {}) {
     ) invoice
   `;
   // A normal list page can choose its invoice IDs before computing totals.
-  // Text search still needs the computed status and amount for filtering.
-  const selectedInvoicesSql = search ? '' : `WITH selected_invoices AS MATERIALIZED (
-    SELECT invoice.* FROM app_invoices invoice ${whereSql}
+  // Numeric/payment-status searches retain computed totals before pagination.
+  // For creator OR assignment access, take at most offset+page-size candidates
+  // from each independently indexed route. UNION removes overlaps before the
+  // final page is selected. Every other filter still applies to both routes.
+  const ownerAlternatives = options.ownerId != null && options.ownerEmployeeId
+    ? ['invoice.created_by_user_id = $1', 'invoice.invoicer_id = $2'] : null;
+  const invoiceCandidatesSql = ownerAlternatives ? `SELECT invoice.* FROM app_invoices invoice
+    JOIN (${ownerAlternatives.map(owner => `(SELECT invoice.id FROM app_invoices invoice
+      WHERE ${[owner, ...where.slice(1)].join(' AND ')} ORDER BY invoice.id ${order}
+      LIMIT ($${pageParams.length - 1}::bigint + $${pageParams.length}::bigint))`).join(' UNION ')}
+    ) permitted ON permitted.id=invoice.id` : `SELECT invoice.* FROM app_invoices invoice ${whereSql}`;
+  // Match references before hydrating customer journals. UNION deduplicates
+  // journals whose header and one or more lines all reference the same page.
+  const selectedInvoicesSql = computedFilter ? '' : `WITH selected_invoices AS MATERIALIZED (
+    ${invoiceCandidatesSql}
     ORDER BY invoice.id ${order}
     LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+  ), customer_journal_candidates AS MATERIALIZED (
+    SELECT journal.id FROM app_journal_entries journal
+    WHERE journal.docstatus='submitted' AND journal.party_type='customer'
+      AND journal.journal_type IN ('cash_receipt','payment_journal','journal_entry')
+      AND journal.reference_no IN (SELECT invoice_no FROM selected_invoices)
+    UNION
+    SELECT line.journal_entry_id AS id FROM app_journal_entry_lines line
+    WHERE line.reference_no IS NOT NULL AND line.reference_no<>''
+      AND line.reference_no IN (SELECT invoice_no FROM selected_invoices)
+  ), unlinked_customer_journals AS MATERIALIZED (
+    SELECT journal.* FROM customer_journal_candidates candidate
+    JOIN app_journal_entries journal ON journal.id=candidate.id
+    WHERE journal.docstatus='submitted' AND journal.party_type='customer'
+      AND journal.journal_type IN ('cash_receipt','payment_journal','journal_entry')
+      AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment WHERE payment.journal_entry_id=journal.id)
+      AND EXISTS (SELECT 1 FROM selected_invoices scoped_invoice
+        WHERE NULLIF(journal.party_id,'')=NULLIF(scoped_invoice.customer_id,'')
+          OR (COALESCE(journal.party_id,'')='' AND journal.party_name=scoped_invoice.customer_name))
   )`;
+  return shareRead(getPostgresPool(), ['invoice-page', whereSql, params, order, pagination, includeTotal], () => runExpensiveRead(() => readSnapshot(getPostgresPool(), async client => {
   const [countResult, pageResult] = await Promise.all([
-    getPostgresPool().query(
-      `SELECT COUNT(*)::int AS total ${search ? invoiceListSql() : 'FROM app_invoices invoice'} ${whereSql}`,
+    includeTotal ? client.query(
+      `SELECT COUNT(*)::int AS total ${computedFilter ? invoiceListSql() : 'FROM app_invoices invoice'} ${whereSql}`,
       params,
-    ),
-    getPostgresPool().query(
+    ) : Promise.resolve(null),
+    client.query(
     `
     ${selectedInvoicesSql}
     SELECT
@@ -570,18 +619,19 @@ async function paginatedPostgresInvoices(options = {}) {
       status,
       created_at,
       updated_at
-    ${invoiceListSql(search ? 'app_invoices' : 'selected_invoices')}
-    ${search ? whereSql : ''}
+    ${invoiceListSql(computedFilter ? 'app_invoices' : 'selected_invoices')}
+    ${computedFilter ? whereSql : ''}
     ORDER BY id ${order}
-    ${search ? `LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}` : ''}
+    ${computedFilter ? `LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}` : ''}
     `,
       pageParams,
     ),
   ]);
   return {
-    rows: pageResult.rows.map(postgresInvoiceListRow),
-    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
+    rows: pageResult.rows.slice(0, pagination.limit).map(postgresInvoiceListRow),
+    pagination: includeTotal ? paginationResult(Number(countResult.rows[0].total || 0), pagination) : paginationWindow(pageResult.rows.length, pagination),
   };
+  })), {scope:'invoice-list'});
 }
 
 function postgresInvoiceListRow(row) {
@@ -626,7 +676,7 @@ async function findPostgresInvoice(id) {
 
 async function createPostgresInvoice(payload) {
   const invoiceData = buildInvoiceData(payload);
-  return withPostgresTransaction(client => createPostgresInvoiceInTransaction(client, payload, invoiceData));
+  return measurePosting('invoice_create', () => withPostgresTransaction(client => postingStage('create', () => createPostgresInvoiceInTransaction(client, payload, invoiceData)), {invalidate:['invoice-list']}));
 }
 
 async function createPostgresInvoiceInTransaction(client, payload, invoiceData = buildInvoiceData(payload)) {
@@ -690,10 +740,12 @@ async function createCashSaleInvoice(payload, payment) {
       [id],
     );
 
+    await beginInventoryPosting(client, 'invoice', Number(id), itemRows.map(item => item.warehouse));
     let totalCost = 0;
     for (const item of itemRows) {
       const movement = await applyPostgresStockMovement(client, {
         posting_date: dateOnly(invoiceData.invoice_date),
+        posting_time: invoiceData.posting_time,
         item_code: item.item_code,
         item_name: item.item_name,
         warehouse: item.warehouse,
@@ -759,8 +811,11 @@ async function createCashSaleInvoice(payload, payment) {
 }
 
 async function updatePostgresInvoice(id, payload) {
+  return withPostgresTransaction(client => updatePostgresInvoiceInTransaction(client, id, payload));
+}
+
+async function updatePostgresInvoiceInTransaction(client, id, payload) {
   const invoiceData = buildInvoiceData(payload);
-  return withPostgresTransaction(async (client) => {
     const { rows } = await client.query(
       'SELECT invoice_no, docstatus FROM app_invoices WHERE id = $1 FOR UPDATE',
       [Number(id)],
@@ -806,19 +861,18 @@ async function updatePostgresInvoice(id, payload) {
     await syncPostgresInvoiceItems(client, Number(id), invoice.invoice_no, invoiceData.items);
     await insertPostgresPayments(client, Number(id), invoiceData.payments);
     return Number(id);
-  });
 }
 
 async function submitPostgresInvoice(id) {
-  await withPostgresTransaction(client => submitPostgresInvoiceInTransaction(client, id));
+  await measurePosting('invoice_submit', () => withPostgresTransaction(client => postingStage('submit', () => submitPostgresInvoiceInTransaction(client, id))));
   return Number(id);
 }
 
 async function submitPostgresInvoiceInTransaction(client, id) {
-  const { rows: invoiceRows } = await client.query(
+  const { rows: invoiceRows } = await postingStage('invoice_lock', () => client.query(
     'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
     [Number(id)],
-  );
+  ));
   const invoice = invoiceRows[0];
   if (!invoice) {
     const err = new Error('Invoice not found.');
@@ -841,10 +895,13 @@ async function submitPostgresInvoiceInTransaction(client, id) {
     [Number(id)],
   );
 
+  await beginInventoryPosting(client, 'invoice', Number(id), itemRows.map(item => item.warehouse));
   let totalCost = 0;
+  const lineCosts = [];
   for (const item of itemRows) {
-    const movement = await applyPostgresStockMovement(client, {
+    const movement = await postingStage('stock', () => applyPostgresStockMovement(client, {
       posting_date: dateOnly(invoice.invoice_date),
+      posting_time: invoice.posting_time,
       item_code: item.item_code,
       item_name: item.item_name,
       warehouse: item.warehouse,
@@ -852,31 +909,28 @@ async function submitPostgresInvoiceInTransaction(client, id) {
       voucher_id: Number(id),
       voucher_no: invoice.invoice_no,
       qty_change: -Math.abs(Number(item.quantity || 0)),
-    });
+    }));
     const costRate = movement.outgoing_rate;
     const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
     totalCost += costAmount;
     const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
-    await client.query(
-      `
-      UPDATE app_invoice_items
-      SET cost_rate = $1,
-        cost_amount = $2,
-        gross_profit = $3,
-        stock_at_sale = $4
-      WHERE id = $5
-      `,
-      [costRate, costAmount, grossProfit, movement.previous_quantity, Number(item.id)],
-    );
+    lineCosts.push({ id: Number(item.id), cost_rate: costRate, cost_amount: costAmount,
+      gross_profit: grossProfit, stock_at_sale: movement.previous_quantity });
   }
 
+  if (lineCosts.length) await postingStage('line_costs', () => client.query(`
+    UPDATE app_invoice_items item SET cost_rate = costs.cost_rate, cost_amount = costs.cost_amount,
+      gross_profit = costs.gross_profit, stock_at_sale = costs.stock_at_sale
+    FROM jsonb_to_recordset($1::jsonb) AS costs(id bigint, cost_rate numeric, cost_amount numeric,
+      gross_profit numeric, stock_at_sale numeric)
+    WHERE item.id = costs.id AND item.invoice_pk = $2`, [JSON.stringify(lineCosts), Number(id)]));
   await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
-  await syncPostgresInvoicePaymentTotals(client, Number(id));
-  await postSalesInvoiceGlEntry(client, {
+  await postingStage('payment_totals', () => syncPostgresInvoicePaymentTotals(client, Number(id)));
+  await postingStage('accounting', () => postSalesInvoiceGlEntry(client, {
     ...invoice,
     id: Number(id),
     total_cost: roundMoney(totalCost),
-  });
+  }));
   const { rows: paymentRows } = await client.query(
     `
     SELECT id, payment_no, payment_date, amount, method, account_id, reference, notes, journal_entry_id
@@ -920,10 +974,12 @@ async function submitCashSaleInvoice(id, payment) {
       [Number(id)],
     );
 
+    await beginInventoryPosting(client, 'invoice', Number(id), itemRows.map(item => item.warehouse));
     let totalCost = 0;
     for (const item of itemRows) {
       const movement = await applyPostgresStockMovement(client, {
         posting_date: dateOnly(invoice.invoice_date),
+        posting_time: invoice.posting_time,
         item_code: item.item_code,
         item_name: item.item_name,
         warehouse: item.warehouse,
@@ -1011,6 +1067,7 @@ async function cancelPostgresInvoice(id) {
       "SELECT * FROM app_stock_ledger WHERE voucher_type = 'invoice' AND voucher_id = $1 AND is_reversal = false ORDER BY id",
       [Number(id)],
     );
+    await beginInventoryPosting(client, 'invoice', Number(id), stockRows.map(row => row.warehouse), true);
     for (const row of stockRows) {
       await applyPostgresStockMovement(client, {
         posting_date: postingDate,
@@ -1270,12 +1327,25 @@ async function hydratePostgresInvoices(invoiceRows) {
     ),
     getPostgresPool().query(
       `
+      WITH requested_invoices AS MATERIALIZED (
+        SELECT * FROM app_invoices WHERE id=ANY($1::bigint[])
+      ), candidate_journals AS MATERIALIZED (
+        SELECT journal.id FROM app_journal_entries journal
+        WHERE journal.party_type='customer' AND journal.docstatus IN ('submitted','cancelled')
+          AND journal.journal_type IN ('cash_receipt','payment_journal','journal_entry')
+          AND journal.reference_no IN (SELECT invoice_no FROM requested_invoices)
+        UNION
+        SELECT line.journal_entry_id AS id FROM app_journal_entry_lines line
+        WHERE line.reference_no IS NOT NULL AND line.reference_no<>''
+          AND line.reference_no IN (SELECT invoice_no FROM requested_invoices)
+      )
       SELECT invoice.id AS invoice_id, journal.id AS journal_id, journal.journal_no,
         journal.posting_date::text AS payment_date, journal.docstatus,
         journal.remarks, journal.created_at, journal.updated_at,
         SUM(line.credit - line.debit)::float AS amount
-      FROM app_invoices invoice
-      JOIN app_journal_entries journal ON EXISTS (SELECT 1 FROM app_journal_entry_lines ref_line WHERE ref_line.journal_entry_id=journal.id AND COALESCE(NULLIF(ref_line.reference_no, ''), journal.reference_no)=invoice.invoice_no)
+      FROM requested_invoices invoice
+      JOIN candidate_journals candidate ON true
+      JOIN app_journal_entries journal ON journal.id=candidate.id
         AND journal.party_type = 'customer'
         AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
           OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
@@ -1374,37 +1444,32 @@ function invoiceParams(invoiceData) {
 
 async function insertPostgresItems(client, invoiceId, invoiceNo, items) {
   await populateInvoiceItemDetails(client, items);
-  for (const item of items || []) {
-    await client.query(
-      `
-      INSERT INTO app_invoice_items (
-        invoice_pk, invoice_id, invoice_no, line_no, item_code, item_name, warehouse,
-        quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit,
-        item_category, source, cost
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-      `,
-      [
-        invoiceId,
-        invoiceId,
-        invoiceNo,
-        item.line_no ?? item.id,
-        item.item_code,
-        item.item_name,
-        item.warehouse,
-        item.quantity,
-        item.unit_price,
-        item.stock_at_sale,
-        item.line_total,
-        item.cost_rate || 0,
-        item.cost_amount || 0,
-        item.gross_profit || 0,
-        item.item_category,
-        item.source,
-        item.cost,
-      ],
-    );
-  }
+  if (!items?.length) return;
+  // Keep master snapshots and normalized values identical to individual inserts.
+  // Row audit triggers still stamp every inserted line on this connection.
+  const lines = items.map(item => ({
+    line_no: item.line_no ?? item.id,
+    item_code: item.item_code, item_name: item.item_name, warehouse: item.warehouse,
+    quantity: item.quantity, unit_price: item.unit_price, stock_at_sale: item.stock_at_sale,
+    line_total: item.line_total, cost_rate: item.cost_rate || 0,
+    cost_amount: item.cost_amount || 0, gross_profit: item.gross_profit || 0,
+    item_category: item.item_category, source: item.source, cost: item.cost,
+  }));
+  await client.query(`
+    INSERT INTO app_invoice_items (
+      invoice_pk, invoice_id, invoice_no, line_no, item_code, item_name, warehouse,
+      quantity, unit_price, stock_at_sale, line_total, cost_rate, cost_amount, gross_profit,
+      item_category, source, cost
+    )
+    SELECT $1, $1, $2, line.line_no, line.item_code, line.item_name, line.warehouse,
+      line.quantity, line.unit_price, line.stock_at_sale, line.line_total,
+      line.cost_rate, line.cost_amount, line.gross_profit, line.item_category, line.source, line.cost
+    FROM jsonb_to_recordset($3::jsonb) AS line(
+      line_no integer, item_code text, item_name text, warehouse text,
+      quantity numeric, unit_price numeric, stock_at_sale numeric, line_total numeric,
+      cost_rate numeric, cost_amount numeric, gross_profit numeric,
+      item_category text, source text, cost numeric
+    ) ORDER BY line.line_no`, [invoiceId, invoiceNo, JSON.stringify(lines)]);
 }
 
 async function syncPostgresInvoiceItems(client, invoiceId, invoiceNo, items) {
@@ -1545,6 +1610,7 @@ async function insertPostgresPayments(client, invoiceId, payments) {
   }
 }
 module.exports = {
+  updatePostgresInvoiceInTransaction,
   createPostgresInvoiceInTransaction,
   submitPostgresInvoiceInTransaction,
   addPostgresInvoicePaymentInTransaction,

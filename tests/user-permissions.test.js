@@ -20,6 +20,33 @@ const { addGeneralLedgerAccessFilter } = require('../src/domain/ledger');
 const { homeSections } = require('../src/web/home-navigation');
 const { journalEntries } = require('../src/store');
 
+test('admin voucher and report access ignores saved record denials and selected scopes', async () => {
+  const access = require('../src/access');
+  const { warehouseAccessOptions, accountAccessOptions, hrLedgerAccessOptions } = require('../src/web/helpers');
+  const denials = ['warehouse.view:WH', 'account.view:5', 'employee.view:EMP', 'cost-center.view:CC'];
+  const user = { id: 12, role: 'admin', permissions: [], permission_denials: denials,
+    scopes: { warehouses: { mode: 'selected', values: [] }, accounts: { mode: 'selected', values: [] } },
+    record_access: { warehouse: 'OTHER', employee_id: 'OTHER', cost_center: 'OTHER' } };
+  assert.deepEqual(warehouseAccessOptions(user), { allowedWarehouses: null, deniedWarehouses: [] });
+  assert.deepEqual(accountAccessOptions(user), { allowedAccounts: null, deniedAccounts: [] });
+  assert.deepEqual(hrLedgerAccessOptions(user), { hrAccess: { payroll: true, money: true,
+    employees: null, deniedEmployees: [], costCenters: null, deniedCostCenters: [] } });
+  for (const [kind, value] of [['employees', 'EMP'], ['cost-centers', 'CC']]) {
+    assert.equal(access.assignedMasterRecordAllowed(user, kind, value), true);
+    assert.deepEqual(access.deniedMasterRecordIds({ ...user, role: 'standard' }, kind), [value]);
+  }
+  for (const [kind, value] of [['warehouses', 'WH'], ['accounts', '5']]) {
+    assert.deepEqual(access.deniedNamedListValues({ ...user, role: 'standard' }, kind), [value]);
+  }
+  for (const permission of PERMISSIONS) assert.equal(can(user, permission.key), true, permission.key);
+  for (const kind of ['sales', 'purchases', 'purchase-orders', 'stock', 'journals']) {
+    assert.equal(await voucherOwnedByUser(user, kind, 999, {
+      query: async () => { throw new Error('Admin must not be filtered by voucher ownership'); },
+    }), true, kind);
+  }
+  assert.equal(await scopeCheck({ currentUser: user, method: 'POST', path: '/invoices/999/submit', body: {} }), true);
+});
+
 test('journal list filters restricted accounts even for the creator', async () => {
   const calls = [];
   const pool = { query: async (sql, params) => {

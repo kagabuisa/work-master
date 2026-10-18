@@ -1,6 +1,7 @@
 <!doctype html>
 <% const journalReadOnly = Boolean(readOnly); %>
 <% const journalLines = Array.isArray(journal.lines) && journal.lines.length ? journal.lines : [{}, {}]; %>
+<% const journalReferences = [...new Set([journal.reference_no, ...journalLines.map((line) => line.reference_no)].filter(Boolean))]; %>
 <% const journalStatus = journal.docstatus || (journalReadOnly ? 'submitted' : 'draft'); %>
 <% const manualJournal = Boolean(journal.can_cancel); %>
 <% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
@@ -36,19 +37,7 @@
             <option value="sales_invoice" <%= journal.journal_type === 'sales_invoice' ? 'selected' : '' %>>Sales Invoice</option>
           </select>
         </label>
-        <div class="journal-posting-date">
-          <label>
-            Posting Date
-            <input type="date" name="posting_date" value="<%= journal.posting_date || today %>" required <%= journalReadOnly ? 'readonly' : '' %>>
-          </label>
-          <details class="journal-posting-time" <%= journal.posting_time === '' ? 'open' : '' %>>
-            <summary><%= journalReadOnly ? 'View time' : 'Edit time' %></summary>
-            <label>
-              Posting Time
-              <input type="time" name="posting_time" value="<%= journal.posting_time !== undefined ? journal.posting_time : currentPostingTime() %>" required <%= journalReadOnly ? 'readonly' : '' %>>
-            </label>
-          </details>
-        </div>
+        <%- include('voucher-posting-fields', { postingFields: { date: journal.posting_date || today, time: journal.posting_time !== undefined ? journal.posting_time : currentPostingTime(), readOnly: journalReadOnly } }) %>
         <%- include('cost-center-field', { value: journal.cost_center, readOnly: journalReadOnly }) %>
         <label>
           Party Type
@@ -61,13 +50,13 @@
         </label>
         <% if (journalReadOnly) { %>
           <label>
-            Party ID
-            <input name="party_id" value="<%= journal.party_id || '' %>" readonly>
+            Party
+            <input value="<%= journal.party_type === 'employee' ? journal.party_name || journal.party_id || '' : journal.party_id || '' %>" readonly>
           </label>
         <% } else { %>
           <label class="lookup-field">
-            Party ID
-            <input id="party-search" autocomplete="off" placeholder="Choose a party type first" value="<%= journal.party_id || '' %>">
+            Party
+            <input id="party-search" autocomplete="off" placeholder="Choose a party type first" value="<%= journal.party_type === 'employee' ? journal.party_name || journal.party_id || '' : journal.party_id || '' %>">
             <input type="hidden" name="party_id" id="party-id" value="<%= journal.party_id || '' %>">
             <div id="party-results" class="results"></div>
           </label>
@@ -75,8 +64,8 @@
         <input type="hidden" name="party_name" id="party-name" value="<%= journal.party_name || '' %>">
         <% if (journalReadOnly) { %>
           <label>
-            Reference
-            <input name="reference_no" value="<%= journal.reference_no || '' %>" readonly>
+            References
+            <input value="<%= journalReferences.join(', ') %>" readonly aria-label="References">
           </label>
         <% } else { %>
           <label class="lookup-field">
@@ -84,14 +73,16 @@
             <input id="reference-search" autocomplete="off" placeholder="Select a party first" value="<%= journal.reference_no || '' %>">
             <input type="hidden" name="reference_no" id="journal-header-reference" value="<%= journal.reference_no || '' %>">
             <div id="reference-results" class="results"></div>
-            <span class="field-hint">Select multiple references to add their party account rows. Edit amounts for partial payments.</span>
-            <div id="journal-selected-references" class="journal-reference-chips" aria-label="Selected references"></div>
           </label>
         <% } %>
       </section>
 
-      <section id="journal-selection-summary" class="journal-selection-summary" aria-label="Selected party and reference" <%= journal.party_name || journalReadOnly && journal.reference_no ? '' : 'hidden' %>>
-        <div id="party-selection-detail" class="journal-selection-detail" data-detail-title="Selected party" role="status" <%= journal.party_name ? '' : 'hidden' %>><%= journal.party_name || '' %></div>
+      <% if (!journalReadOnly) { %>
+        <div id="journal-selected-references" class="journal-reference-chips" aria-label="Selected references"></div>
+      <% } %>
+
+      <section id="journal-selection-summary" class="journal-selection-summary" aria-label="Selected party and reference" <%= journalReadOnly && journal.reference_no ? '' : 'hidden' %>>
+        <div id="party-selection-detail" class="journal-selection-detail" data-detail-title="Party details" role="status" hidden></div>
         <% if (journalReadOnly) { %>
           <% if (journal.reference_no) { const detail = typeof selectedReference !== 'undefined' ? selectedReference : null; %>
             <div class="journal-selection-detail" data-detail-title="Selected reference">
@@ -110,7 +101,6 @@
       <% if (!journalReadOnly) { %>
         <script id="journal-account-data" type="application/json"><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))) %></script>
       <% } %>
-      <p class="field-hint">Select References above to add party account rows. Supplier invoices use Accounts Payable debits; customer invoices use Accounts Receivable credits. Adjust amounts for partial payments and add the balancing bank or cash row with no reference.</p>
       <datalist id="journal-purchase-invoices"></datalist>
       <div class="ui-table-scroll" role="region" aria-label="Journal Entry table" tabindex="0"><table class="editable" id="journal-lines">
         <thead>
@@ -123,7 +113,7 @@
             <th>Line Remarks</th>
             <th>Status</th>
             <% if (journalReadOnly) { %><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><% } %>
-            <th></th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -133,11 +123,11 @@
               <td>
                 <input type="hidden" name="line_id" value="<%= line.id || '' %>">
                 <% if (journalReadOnly) { %>
-                  <span><%= line.account_code || accounts.find((account) => Number(account.id) === Number(line.account_id))?.account_code || '' %> - <%= line.account_name || accounts.find((account) => Number(account.id) === Number(line.account_id))?.account_name || '' %></span>
+                  <span><%= line.account_name || accounts.find((account) => Number(account.id) === Number(line.account_id))?.account_name || '' %></span>
                 <% } else { const selectedAccount = accounts.find((account) => Number(account.id) === Number(line.account_id)); %>
                   <div class="journal-account-picker">
                     <input type="hidden" name="account_id" value="<%= selectedAccount ? selectedAccount.id : '' %>">
-                    <input type="text" data-account-search autocomplete="off" role="combobox" aria-label="Account" aria-autocomplete="list" aria-controls="journal-account-menu" aria-expanded="false" placeholder="Search code or name (% wildcard)" value="<%= selectedAccount ? `${selectedAccount.account_code} - ${selectedAccount.account_name}` : '' %>">
+                    <input type="text" data-account-search autocomplete="off" role="combobox" aria-label="Account" aria-autocomplete="list" aria-controls="journal-account-menu" aria-expanded="false" placeholder="Search accounts (% wildcard)" value="<%= selectedAccount ? selectedAccount.account_name : '' %>">
                   </div>
                 <% } %>
               </td>
@@ -151,7 +141,13 @@
               <td><input name="line_remarks" value="<%= line.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>></td>
               <td><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
               <% if (journalReadOnly) { %><td class="tracking-info"><%= line.created_by || 'Unknown' %><% if (lineAuditTime(line.created_at)) { %> <small><%= lineAuditTime(line.created_at) %></small><% } %></td><td class="tracking-info"><%= line.updated_by || 'Unknown' %><% if (lineAuditTime(line.updated_at)) { %> <small><%= lineAuditTime(line.updated_at) %></small><% } %></td><% } %>
-              <td><button type="button" class="button-light" data-remove-journal-row <%= journalReadOnly ? 'hidden' : '' %>>Remove</button></td>
+              <td>
+                <% if (!journalReadOnly) { %>
+                  <button type="button" class="button-light" data-move-journal-row="up" aria-label="Move row <%= index + 1 %> up" <%= index === 0 ? 'disabled' : '' %>>↑</button>
+                  <button type="button" class="button-light" data-move-journal-row="down" aria-label="Move row <%= index + 1 %> down" <%= index === journalLines.length - 1 ? 'disabled' : '' %>>↓</button>
+                <% } %>
+                <button type="button" class="button-light" data-remove-journal-row <%= journalReadOnly ? 'hidden' : '' %>>Remove</button>
+              </td>
             </tr>
           <% }) %>
         </tbody>

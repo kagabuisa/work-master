@@ -26,17 +26,19 @@
       <% } %>
     </div></div>
     <div class="invoice-meta">
-      <div><span>Supplier</span><strong><%= order.supplier_name %></strong><p><%= order.supplier_id %></p></div>
+      <div><span>Supplier</span><strong><%= order.supplier_id %></strong></div>
       <div><span>Order Date/Time</span><strong><%= formatDateTime(order.posting_date, order.posting_time || '00:00') %></strong><% if (order.due_date) { %><p>Expected <%= formatDate(order.due_date) %></p><% } %></div>
-      <div><span>Status</span><strong><span class="badge <%= order.docstatus %>"><%= order.docstatus %></span></strong></div>
+      <div><span>Status</span><strong><span class="badge <%= order.status_class || order.docstatus %>"><%= order.status_label || order.docstatus %></span></strong></div>
     </div>
-    <p>Price List: <strong><%= order.price_list %></strong></p>
-    <p>Warehouse: <strong><%= orderWarehouse || 'Multiple warehouses' %></strong></p>
-    <% if (order.cost_center) { %><p>Cost Center: <strong><%= order.cost_center %></strong></p><% } %>
+    <div class="ui-voucher-attributes" aria-label="Purchase order details">
+      <p><span>Price List</span><strong><%= order.price_list %></strong></p>
+      <p><span>Warehouse</span><strong><%= orderWarehouse || 'Multiple warehouses' %></strong></p>
+      <% if (order.cost_center) { %><p><span>Cost Center</span><strong><%= costCenterName(order.cost_center) %></strong></p><% } %>
+    </div>
     <% if (order.supplier_reference) { %><p>Supplier reference: <strong><%= order.supplier_reference %></strong></p><% } %>
     <div class="ui-table-scroll" role="region" aria-label="Purchase Order table" tabindex="0"><table class="ui-table"><thead><tr><th>#</th><th>Item</th><% if (mixedWarehouses) { %><th>Warehouse</th><% } %><th>Qty Ordered</th><th>Qty Received</th><th>Remaining</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th></tr></thead>
       <tbody><% order.items.forEach((item, index) => { %><tr>
-        <td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td>
+        <td><%= index + 1 %></td><td><strong><%= item.item_code %></strong></td>
         <% if (mixedWarehouses) { %><td><%= item.warehouse %></td><% } %><td><%= Number(item.quantity).toLocaleString() %></td>
         <td><%= Number(item.received || 0).toLocaleString() %></td><td><%= Math.max(0, Math.round((Number(item.quantity) - Number(item.received || 0)) * 1000) / 1000).toLocaleString() %></td>
         <td class="ui-amount"><%= money(item.unit_price) %></td><td class="ui-amount"><%= money(item.line_total) %></td>

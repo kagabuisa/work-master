@@ -924,6 +924,17 @@
               "maxLength": 200
             },
             "description": "Optional permitted active UGX selling list; adds unit_price/has_list_price/currency using existing pricing fallback."
+          },
+          {
+            "name": "warehouse",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Only items with positive stock in this permitted warehouse; adds warehouse and stock_balance. Requires stock:read for integration credentials and the existing stock-balance lookup permission."
           }
         ]
       }
@@ -1464,6 +1475,20 @@
               ],
               "default": "id_desc"
             }
+          },
+          {
+            "name": "payment_status",
+            "in": "query",
+            "required": false,
+            "description": "Computed payment status; permitted counts and pagination use the same filter.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "paid",
+                "partial",
+                "unpaid"
+              ]
+            }
           }
         ]
       },
@@ -1610,6 +1635,94 @@
             }
           }
         ]
+      },
+      "post": {
+        "operationId": "editInvoiceDraft",
+        "summary": "Replace an authorized draft Sales Invoice",
+        "description": "Requires sales Edit permission and invoices:create integration scope. Only drafts are editable. Same reference validation, rounding, transaction and idempotency rules as creation. Submitted invoices reject edits.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "401": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "413": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "415": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ApiError"
+          },
+          "200": {
+            "description": "Committed result; identical status/body on an authorized replay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InvoiceMutationResult"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/invoices/{id}/payments": {
@@ -1889,6 +2002,7 @@
               "type": "string",
               "enum": [
                 "invoicing",
+                "invoice-edit",
                 "payments"
               ]
             }
@@ -2420,6 +2534,13 @@
             "enum": [
               "UGX"
             ]
+          },
+          "warehouse": {
+            "type": "string"
+          },
+          "stock_balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
           }
         },
         "required": [
@@ -2754,6 +2875,24 @@
           "line_total": {
             "type": "string",
             "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "updated_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
@@ -2880,6 +3019,57 @@
             "items": {
               "$ref": "#/components/schemas/InvoiceItem"
             }
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "updated_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer_phone": {
+            "type": "string"
+          },
+          "is_cash_sale": {
+            "type": "boolean"
+          },
+          "company": {
+            "$ref": "#/components/schemas/InvoiceCompany"
+          },
+          "display_settings": {
+            "$ref": "#/components/schemas/InvoiceDisplaySettings"
+          },
+          "submitted_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "submitted_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "cancelled_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancelled_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "inventory_timestamp_policy": {
+            "type": "string",
+            "enum": [
+              "server_submission"
+            ],
+            "description": "Present when controlled inventory is active. Document dates and posting_time do not set inventory movement time."
+          },
+          "inventory_posted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Authoritative server-generated inventory movement timestamp. Null for drafts and legacy records without a controlled posting event."
           }
         },
         "required": [
@@ -2962,6 +3152,31 @@
           "journal_id": {
             "type": "string",
             "nullable": true
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "updated_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "account_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string"
           }
         },
         "required": [
@@ -3058,6 +3273,12 @@
             "maxLength": 20,
             "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$",
             "description": "Nonnegative decimal, maximum 999999999999; existing whole-UGX rounding applies."
+          },
+          "warehouse": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Optional line warehouse; otherwise uses the invoice warehouse. Subject to the same warehouse permissions."
           }
         },
         "required": [
@@ -3102,11 +3323,13 @@
           },
           "invoice_date": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": " With controlled inventory active this is documentary metadata; the server assigns inventory movement time on submission."
           },
           "posting_time": {
             "type": "string",
-            "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$"
+            "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$",
+            "description": " With controlled inventory active this is documentary metadata; the server assigns inventory movement time on submission."
           },
           "due_date": {
             "type": "string",
@@ -3143,6 +3366,10 @@
             "minLength": 0,
             "maxLength": 100,
             "description": "Trimmed string without NUL; surrounding whitespace is rejected."
+          },
+          "check_stock": {
+            "type": "boolean",
+            "description": "Legacy compatibility flag. Every draft create/edit checks combined quantities per item/warehouse against current and selected-date stock, later stock minima, and permanent reconciliation cut-offs before saving. Omission or false does not disable validation. Saving does not reserve or post stock."
           }
         },
         "required": [
@@ -3235,6 +3462,19 @@
           "total": {
             "type": "string",
             "pattern": "^[0-9]+(?:\\.[0-9]+)?$"
+          },
+          "inventory_timestamp_policy": {
+            "type": "string",
+            "enum": [
+              "server_submission"
+            ],
+            "description": "Present when controlled inventory is active. Document dates and posting_time do not set inventory movement time."
+          },
+          "inventory_posted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Authoritative server-generated inventory movement timestamp. Null for drafts and legacy records without a controlled posting event."
           }
         },
         "required": [
@@ -3270,6 +3510,69 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {}
+      },
+      "InvoiceCompany": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "tax_id": {
+            "type": "string"
+          },
+          "registration_number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "phone",
+          "email",
+          "website",
+          "tax_id",
+          "registration_number"
+        ],
+        "description": "Company display information shown on the main invoice, included only after invoice visibility checks."
+      },
+      "InvoiceDisplaySettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "date_format": {
+            "type": "string",
+            "enum": [
+              "YYYY-MM-DD",
+              "DD/MM/YYYY",
+              "MM/DD/YYYY",
+              "DD-MM-YYYY"
+            ]
+          },
+          "time_format": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "12h"
+            ]
+          }
+        },
+        "required": [
+          "date_format",
+          "time_format"
+        ]
       }
     },
     "responses": {

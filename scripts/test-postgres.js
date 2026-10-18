@@ -1,6 +1,6 @@
 'use strict';
 
-require('dotenv').config({ quiet: true });
+require('../src/environment').loadEnvironment();
 const { spawnSync } = require('node:child_process');
 const { getPostgresPool, closeStore } = require('../src/core');
 

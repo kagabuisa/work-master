@@ -1,7 +1,7 @@
 (() => {
   const section = document.querySelector('[data-reconciliation-attachments]');
   if (!section?.dataset.voucherId) return;
-  const endpoint = `/stock/reconciliations/${section.dataset.voucherId}/attachments`;
+  const endpoint = section.dataset.attachmentEndpoint || `/stock/reconciliations/${section.dataset.voucherId}/attachments`;
   const rows = section.querySelector('[data-scan-rows]');
   const table = section.querySelector('[data-scan-table]');
   const empty = section.querySelector('[data-scan-empty]');

@@ -5,15 +5,16 @@ const {employeeDetailFields}=require('../../hr-employee-fields');
 const {getCompanyInformation}=require('../../store');
 const {sendEmployeeDetailsPdf}=require('../employee-details-pdf');
 const {can}=require('../../authorize');
-const {todayString}=require('../format');
+const {currentPostingDate:todayString}=require('../../posting-time');
 const money=value=>`Ugx ${Number(value||0).toLocaleString('en-UG',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const {fail}=require('../../hr-policy');
 
 router.use((_req,res,next)=>{res.set('Cache-Control','private, no-store');next();});
-const handle=fn=>async(req,res,next)=>{try{await fn(req,res);}catch(e){if(e.code==='23505'){e.status=409;e.message='A record already exists for this employee and date or payroll month. Cancel the previous record before creating a replacement.';}else if(e.code==='23503'){e.status=400;e.message='Choose an existing employee, leave type, cost center, and account.';}next(e);}};
+const handle=fn=>async(req,res,next)=>{try{await fn(req,res);}catch(e){if(require('../../master-display').masterNameConflict(e)){}else if(e.code==='23505'){e.status=409;e.message='A record already exists for this employee and date or payroll month. Cancel the previous record before creating a replacement.';}else if(e.code==='23503'){e.status=400;e.message='Choose an existing employee, leave type, cost center, and account.';}next(e);}};
 const render=async(req,res,page,title,data={})=>{
   const opts=await hr.options(req.currentUser);
-  res.render('hr',{page,title,money,today:todayString(),opts,employeeDetailFields,isNewEmployee:false,...data});
+  res.render('hr',{page,title,money,today:todayString(),opts,employeeDetailFields,isNewEmployee:false,
+    costCenterName:res.locals.costCenterName || require('../../master-display').costCenterLabels(opts.centers),...data});
 };
 const components=body=>Array.isArray(body.components)?body.components:Object.values(body.components||{});
 const recoveries=body=>Array.isArray(body.recoveries)?body.recoveries:Object.values(body.recoveries||{});

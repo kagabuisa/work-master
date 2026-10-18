@@ -1,0 +1,11 @@
+<% const entryStatus = entry.docstatus || 'submitted'; %>
+<% if (entryStatus === 'draft' && typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly && typeof sharedWriteAccess !== 'undefined' && sharedWriteAccess) { %>
+  <a class="button button-light" href="/stock/entries/<%= entry.id %>/edit">Edit</a>
+<% } %>
+<% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %>
+    <% if (entryStatus === 'draft' && can('vouchers.stock.edit')) { %><a class="button button-light" href="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/edit` : `/stock/entries/${entry.id}/edit` %>">Edit</a><% } %>
+    <% if (entryStatus === 'draft' && can('vouchers.stock.delete')) { %><form method="post" action="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/delete` : `/stock/entries/${entry.id}/delete` %>" class="inline-form" data-confirm="Delete this draft stock voucher? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
+    <% if (entryStatus === 'draft' && can('vouchers.stock.submit') && (entry.entry_type !== 'cancel' || can('vouchers.stock.cancel'))) { %><form method="post" action="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/submit` : `/stock/entries/${entry.id}/submit` %>" class="inline-form" data-confirm="Submit this stock voucher? Its saved quantities and rates will be posted to stock and accounting."><button type="submit">Submit</button></form><% } %>
+    <% if (entryStatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="<%= entry.entry_type === 'reconciliation' ? `/stock/reconciliations/${entry.id}/delete` : `/stock/entries/${entry.id}/delete` %>" class="inline-form" data-confirm="Delete this cancelled stock voucher? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
+    <% if (['opening', 'purchase', 'adjustment', ...stockTransferTypes].includes(entry.entry_type) && can('vouchers.stock.view') && can('vouchers.stock.create')) { %><a class="button button-light" href="/stock/entries/<%= entry.id %>/duplicate">Duplicate</a><% } %>
+<% } %>

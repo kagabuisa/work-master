@@ -4,6 +4,13 @@ const { storedPostingTime } = require('./posting-time');
 const { auditActor } = require('./audit');
 const { addVoucherOwnerFilter } = require('./voucher-ownership');
 
+function receiptStatus(docstatus, hasReceipts, fullyReceived) {
+  if (docstatus !== 'submitted') return { status_label: docstatus === 'cancelled' ? 'Cancelled' : 'Draft', status_class: docstatus };
+  if (fullyReceived) return { status_label: 'Completed', status_class: 'paid' };
+  if (hasReceipts) return { status_label: 'Partially Received', status_class: 'partial' };
+  return { status_label: 'Submitted', status_class: 'submitted' };
+}
+
 function error(message, status = 400) {
   const result = new Error(message);
   result.status = status;
@@ -107,7 +114,21 @@ async function listPurchaseOrders(filters = {}) {
     o.supplier_reference, o.total::float FROM app_purchase_orders o ${whereSql}
     ORDER BY o.posting_date DESC, o.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
   [...params, limit, offset]);
-  return { rows: rows.rows.map((row) => ({ ...row, posting_time: storedPostingTime(row.posting_time) })),
+  const receipts = rows.rows.length ? await pool.query(`SELECT oi.purchase_order_id,
+    BOOL_OR(COALESCE(receipts.received, 0) > 0) AS has_receipts,
+    BOOL_AND(oi.quantity <= COALESCE(receipts.received, 0)) AS fully_received
+    FROM app_purchase_order_items oi LEFT JOIN LATERAL (
+      SELECT SUM(pi.quantity) AS received FROM app_purchase_items pi
+      JOIN app_purchases p ON p.id=pi.purchase_id
+      WHERE pi.purchase_order_item_id=oi.id AND p.docstatus='submitted'
+    ) receipts ON true WHERE oi.purchase_order_id=ANY($1::bigint[])
+    GROUP BY oi.purchase_order_id`, [rows.rows.map((row) => row.id)]) : { rows: [] };
+  const byOrder = new Map(receipts.rows.map((row) => [Number(row.purchase_order_id), row]));
+  return { rows: rows.rows.map((row) => {
+    const receipt = byOrder.get(Number(row.id));
+    return { ...row, posting_time: storedPostingTime(row.posting_time),
+      ...receiptStatus(row.docstatus, receipt?.has_receipts, receipt?.fully_received) };
+  }),
     pagination: { page: safePage, limit, total_pages: totalPages, total, offset,
       start: total ? offset + 1 : 0, end: Math.min(offset + limit, total) } };
 }
@@ -133,7 +154,10 @@ async function loadPurchaseOrder(value, options = {}) {
   const invoices = await pool.query(`SELECT id, purchase_no, docstatus FROM app_purchases
     WHERE purchase_order_id=$1${ownerFilter} ORDER BY id DESC`, invoiceParams);
   const warehouses = [...new Set(items.rows.map((item) => item.warehouse).filter(Boolean))];
-  return { ...result.rows[0], posting_time: storedPostingTime(result.rows[0].posting_time),
+  const hasReceipts = items.rows.some((item) => Number(item.received) > 0);
+  const fullyReceived = items.rows.length > 0 && items.rows.every((item) =>
+    Math.round(Number(item.quantity) * 1000) <= Math.round(Number(item.received) * 1000));
+  return { ...result.rows[0], ...receiptStatus(result.rows[0].docstatus, hasReceipts, fullyReceived), posting_time: storedPostingTime(result.rows[0].posting_time),
     warehouse: warehouses.length === 1 ? warehouses[0] : '',
     mixedWarehouses: warehouses.length > 1,
     items: items.rows, invoices: invoices.rows };

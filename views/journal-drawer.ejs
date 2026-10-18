@@ -1,11 +1,11 @@
 <% const journalStatus = journal.docstatus || 'submitted'; %>
 <% const journalLines = Array.isArray(journal.lines) && journal.lines.length ? journal.lines : []; %>
+<% const journalReferences = [...new Set([journal.reference_no, ...journalLines.map((line) => line.reference_no)].filter(Boolean))]; %>
 <div class="invoice-drawer-content" data-voucher-title="<%= journal.journal_no %>" data-voucher-eyebrow="Journal Entry">
   <div class="invoice-drawer-heading">
     <div>
       <p class="eyebrow"><%= journalTypeLabel ? journalTypeLabel(journal.journal_type) : journal.journal_type %></p>
-      <h2><%= journal.journal_no %></h2>
-      <small><%= journal.party_name || journal.party_id || '' %></small>
+      <small><%= journal.party_type === 'employee' ? journal.party_name || journal.party_id || '' : journal.party_id || '' %></small>
     </div>
   </div>
   <div class="invoice-drawer-actions">
@@ -25,8 +25,8 @@
     <div class="invoice-meta">
       <div><span>Posting Date/Time</span><strong><%= formatDateTime(journal.posting_date, journal.posting_time || '00:00') %></strong></div>
       <div><span>Status</span><strong><span class="badge <%= journalStatus %>"><%= journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></div>
-      <div><span>Reference</span><strong><%= journal.reference_no || '' %></strong></div>
-      <% if (journal.cost_center) { %><div><span>Cost Center</span><strong><%= journal.cost_center %></strong></div><% } %>
+      <div><span>References</span><strong><%= journalReferences.join(', ') %></strong></div>
+      <% if (journal.cost_center) { %><div><span>Cost Center</span><strong><%= costCenterName(journal.cost_center) %></strong></div><% } %>
     </div>
     <table>
       <thead><tr><th>#</th><th>Account</th><th>Debit</th><th>Credit</th><th>Purchase Invoice</th><th>Line Remarks</th></tr></thead>
@@ -34,7 +34,7 @@
         <% journalLines.forEach((line, index) => { %>
           <tr>
             <td><%= index + 1 %></td>
-            <td><strong><%= line.account_code %></strong> - <%= line.account_name %></td>
+            <td><strong><%= line.account_name %></strong></td>
             <td><%= Number(line.debit || 0) ? money(line.debit) : '' %></td>
             <td><%= Number(line.credit || 0) ? money(line.credit) : '' %></td>
             <td><%= line.reference_no || '' %></td>

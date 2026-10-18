@@ -48,7 +48,7 @@ async function options(user) {
     pool.query(`SELECT e.employee_id,e.employee_name,e.company,e.status,e.disabled,p.cost_center,p.joining_date::text,p.leaving_date::text,
       p.manager_id,p.branch,p.employment_type FROM app_master_employees e LEFT JOIN app_hr_profiles p USING(employee_id) ORDER BY e.employee_name`),
     pool.query('SELECT id,account_name,account_type,account_detail_type FROM app_accounts WHERE is_active AND NOT is_group ORDER BY account_name'),
-    pool.query('SELECT cost_center FROM app_master_cost_centers WHERE NOT disabled AND NOT is_group ORDER BY cost_center'),
+    pool.query('SELECT cost_center,cost_center_name FROM app_master_cost_centers WHERE NOT disabled AND NOT is_group ORDER BY cost_center'),
     pool.query('SELECT * FROM app_hr_leave_types ORDER BY name'), pool.query('SELECT holiday_date::text,description FROM app_hr_holidays ORDER BY holiday_date DESC'),
   ]);
   return {employees:employees.rows.filter(e=>employeeAllowed(user,e.employee_id,e.cost_center)),

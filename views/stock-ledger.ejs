@@ -33,12 +33,7 @@
         Type
         <select name="entry_type">
           <option value="">All</option>
-          <option value="opening" <%= report.filters.entry_type === 'opening' ? 'selected' : '' %>>Opening Stock</option>
-          <option value="purchase" <%= report.filters.entry_type === 'purchase' ? 'selected' : '' %>>Purchase Receipt</option>
-          <option value="transfer" <%= report.filters.entry_type === 'transfer' ? 'selected' : '' %>>Transfer</option>
-          <option value="adjustment" <%= report.filters.entry_type === 'adjustment' ? 'selected' : '' %>>Adjustment</option>
-          <option value="reconciliation" <%= report.filters.entry_type === 'reconciliation' ? 'selected' : '' %>>Stock Reconciliation</option>
-          <option value="cancel" <%= report.filters.entry_type === 'cancel' ? 'selected' : '' %>>Cancel Entry</option>
+          <% Object.entries(stockEntryTypeLabels).forEach(([value, label]) => { %><option value="<%= value %>" <%= report.filters.entry_type === value ? 'selected' : '' %>><%= label %></option><% }) %>
         </select>
       </label>
       <label>
@@ -70,10 +65,10 @@
           <% report.rows.forEach((row, index) => { %>
             <tr class="<%= row.stock_entry_status === 'cancelled' || row.is_reversal ? 'ledger-cancelled-row' : '' %>">
               <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
-              <td><%= formatDate(row.posting_date) %></td>
+              <td><%= row.movement_at ? new Date(row.movement_at).toLocaleString('en-GB',{timeZone:'Africa/Kampala'}) : formatDate(row.posting_date) %></td>
               <td class="item-code-col"><strong><%= row.item_code %></strong></td>
               <td class="warehouse-col"><%= row.warehouse %></td>
-              <td><%= row.stock_entry_type || '' %></td>
+              <td><%= stockEntryTypeLabels[row.stock_entry_type] || row.stock_entry_type || '' %></td>
               <td><%= row.stock_entry_status || '' %><%= row.is_reversal ? ' reversal' : '' %></td>
               <td>
                 <% if (row.voucher_id && row.voucher_exists !== false) { %>

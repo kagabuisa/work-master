@@ -15,7 +15,24 @@ async function masterItemsWithStock(options = {}) {
   const warehouse = String(options.warehouse || '').trim();
   const limit = Math.max(1, Math.min(Number(options.limit || 25), 100));
   const params = [warehouse];
-  const where = ['item.disabled = false', "item.docstatus = 'submitted'", 'COALESCE(balance.quantity, 0) > 0'];
+  let historyJoin = '';
+  let quantitySql = 'COALESCE(balance.quantity, 0)';
+  if (options.postingDate) {
+    params.push(options.postingDate, options.postingTime);
+    quantitySql = 'COALESCE(historical.quantity, 0)';
+    historyJoin = `LEFT JOIN LATERAL (
+      SELECT SUM(l.qty_change) AS quantity FROM app_stock_ledger l
+      LEFT JOIN app_stock_entries se ON l.voucher_type LIKE 'stock_%' AND se.id=l.voucher_id
+      LEFT JOIN app_purchases p ON l.voucher_type='purchase' AND p.id=l.voucher_id
+      LEFT JOIN app_invoices i ON l.voucher_type='invoice' AND i.id=l.voucher_id
+      WHERE l.item_code=item.item_code AND l.warehouse=$1
+        AND (l.posting_date, CASE WHEN l.posting_event_id IS NOT NULL THEN (l.movement_at AT TIME ZONE 'Africa/Kampala')::time WHEN l.is_reversal
+          THEN date_trunc('minute',l.created_at AT TIME ZONE 'Africa/Kampala')::time
+          ELSE COALESCE(se.posting_time,p.posting_time,i.posting_time,TIME '00:00:00') END)
+          <= ($2::date,$3::time)
+    ) historical ON true`;
+  }
+  const where = ['item.disabled = false', "item.docstatus = 'submitted'", `${quantitySql} > 0`];
   if (search) {
     params.push(sqlLikePattern(search));
     where.push(`(
@@ -42,12 +59,13 @@ async function masterItemsWithStock(options = {}) {
       item.default_rate::float,
       item.default_rate::float AS unit_price,
       $1::text AS warehouse,
-      COALESCE(balance.quantity, 0)::float AS stock_balance,
+      ${quantitySql}::float AS stock_balance,
       COALESCE(balance.valuation_rate, 0)::float AS valuation_rate
     FROM app_master_items item
     LEFT JOIN app_stock_balances balance
       ON balance.item_code = item.item_code
       AND balance.warehouse = $1
+    ${historyJoin}
     WHERE ${where.join(' AND ')}
     ORDER BY item.item_name, item.item_code
     LIMIT $${params.length}
@@ -68,6 +86,13 @@ async function masterItems(options = {}) {
     where.push('disabled = false');
     where.push("docstatus = 'submitted'");
     where.push("docstatus = 'submitted'");
+  }
+  let stockColumns = '';
+  if (options.warehouse) {
+    params.push(String(options.warehouse));
+    const warehouseParam = `$${params.length}`;
+    where.push(`EXISTS (SELECT 1 FROM app_stock_balances balance WHERE balance.item_code=app_master_items.item_code AND balance.warehouse=${warehouseParam} AND balance.quantity>0)`);
+    stockColumns = `${warehouseParam}::text AS warehouse, (SELECT balance.quantity FROM app_stock_balances balance WHERE balance.item_code=app_master_items.item_code AND balance.warehouse=${warehouseParam}) AS stock_balance,`;
   }
   const search = String(options.search || '').trim().toLowerCase();
   if (search) {
@@ -105,6 +130,7 @@ async function masterItems(options = {}) {
       item_name,
       stock_uom,
       category,
+      ${stockColumns}
       description,
       default_rate::float,
       unit_cost::float,

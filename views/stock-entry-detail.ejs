@@ -1,0 +1,50 @@
+<% const entryStatus = entry.docstatus || 'submitted'; %>
+<% const itemValue = item => Math.round(Number(item.quantity || 0) * Number(item.valuation_rate || 0)); %>
+<% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
+  <section class="invoice-card ui-surface sales-invoice-card">
+    <%- include('ui-section-heading', { heading: { title: entry.entry_no, meta: entry.entry_type === 'reconciliation' ? 'Stock Reconciliation' : 'Stock Entry', help: entry.entry_type === 'reconciliation' ? '' : 'The owner, an admin, or a user with Read & write sharing can update delivery status after submission. This does not change stock or accounting postings.' } }) %>
+    <div class="ui-voucher-attributes ui-attributes-compact ui-attributes-inline" role="region" aria-label="Stock entry details" tabindex="0">
+      <p><span>Type</span><strong><%= stockEntryTypeLabels[entry.entry_type] || entry.entry_type %></strong></p>
+      <p><span>Posting Date/Time</span><strong><%= formatDateTime(entry.posting_date, entry.posting_time || '00:00') %></strong></p>
+      <p><span>Status</span><strong><span class="badge <%= entryStatus %>"><%= entryStatus === 'draft' ? 'Draft' : entryStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></p>
+      <% if (entry.entry_type !== 'reconciliation') { %>
+        <% if ((typeof canUpdateDelivery !== 'undefined' ? canUpdateDelivery : typeof canManageWorkflow !== 'undefined' && canManageWorkflow) && entryStatus !== 'cancelled') { %>
+          <form method="post" action="/stock/entries/<%= entry.id %>/delivery" class="ui-attribute-control">
+            <%- include('stock-entry-delivery-field', { deliveryField: { value: entry.delivery_status || '', disabled: false } }) %>
+            <button type="submit" class="button-light">Save delivery status</button>
+          </form>
+        <% } else { %><p><span>Delivery status</span><strong><%= entry.delivery_status || 'Not set' %></strong></p><% } %>
+      <% } %>
+    </div>
+    <% if (entry.cost_center) { %><div class="ui-voucher-attributes"><p><span>Cost Center</span><strong><%= costCenterName(entry.cost_center) %></strong></p></div><% } %>
+    <% if (entry.entry_type === 'purchase' && (entry.supplier_name || entry.supplier_reference)) { %>
+      <div class="invoice-meta sales-invoice-meta">
+        <div class="invoice-meta-card"><span>Supplier</span><strong><%= entry.supplier_name || '' %></strong><% if (entry.supplier_phone) { %><p><%= entry.supplier_phone %></p><% } %></div>
+        <div class="invoice-meta-card"><span>Reference</span><strong><%= entry.supplier_reference || '' %></strong></div>
+      </div>
+    <% } %>
+    <div class="ui-table-scroll" role="region" aria-label="Stock entry items" tabindex="0"><table class="ui-table sales-invoice-items">
+      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th class="warehouse-col">Target</th><th class="invoice-number-cell"><%= entry.entry_type === 'reconciliation' ? 'Counted Qty' : 'Qty' %></th><% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><th class="invoice-number-cell">Change</th><% } %><th class="invoice-number-cell">Rate</th><th class="invoice-number-cell">Item value (UGX)</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
+      <tbody>
+        <% (items || []).forEach((item, index) => { %>
+          <tr>
+            <td><%= index + 1 %></td>
+            <td class="item-code-col"><strong><%= item.item_code %></strong></td>
+            <td class="warehouse-col"><%= item.warehouse || '' %></td>
+            <td class="warehouse-col"><%= item.target_warehouse || '' %></td>
+            <td class="invoice-number-cell"><%= Number(item.quantity || 0).toLocaleString() %></td>
+            <% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><td class="invoice-number-cell"><%= Number(item.quantity_change || 0).toLocaleString() %></td><% } %>
+            <td class="invoice-number-cell"><%= money(item.valuation_rate || 0) %></td>
+            <td class="invoice-number-cell"><%= money(itemValue(item)) %></td>
+            <td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td>
+            <td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot><tr><th colspan="<%= entry.entry_type === 'reconciliation' && entryStatus !== 'draft' ? 7 : 6 %>">Total item value (UGX)</th><td class="invoice-number-cell"><%= money((items || []).reduce((sum, item) => sum + itemValue(item), 0)) %></td><td colspan="2"></td></tr></tfoot>
+    </table></div>
+    <p class="field-hint">Item value is quantity × saved rate, rounded to whole UGX. It does not represent the net ledger effect of a transfer or cancellation.</p>
+    <% if (entry.remarks) { %><p class="notes"><%= entry.remarks %></p><% } %>
+  </section>
+<%- include('stock-entry-workflow', { entry }) %>
+<%- include('record-audit', { record: entry }) %>

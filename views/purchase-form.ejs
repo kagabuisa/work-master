@@ -13,10 +13,10 @@
       </div>
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
-    <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
+    <% if (error) { %><section class="notice warning"><strong><% if (typeof draftPurchase !== 'undefined' && draftPurchase && can('vouchers.purchases.view')) { %>This purchase order already has a draft purchase invoice: <a href="/purchases/<%= draftPurchase.id %>"><%= draftPurchase.purchase_no %></a>. Edit or submit this draft, or delete it before creating another.<% } else { %><%= error %><% } %></strong></section><% } %>
     <% if (!purchase.purchase_order_id && typeof purchaseOrders !== 'undefined' && purchaseOrders.length) { %>
       <form method="get" action="<%= purchase.id ? `/purchases/${purchase.id}/edit` : '/purchases/new' %>" class="invoice-card report-filters ui-toolbar ui-filter-row ui-surface">
-        <label>Receive from Purchase Order<select name="purchase_order_id" required><option value="">Choose a submitted order</option><% purchaseOrders.forEach((order) => { %><option value="<%= order.id %>"><%= order.order_no %> · <%= order.supplier_name %></option><% }) %></select></label>
+        <label>Receive from Purchase Order<select name="purchase_order_id" required><option value="">Choose a submitted order</option><% purchaseOrders.forEach((order) => { %><option value="<%= order.id %>"><%= order.order_no %> · <%= order.supplier_id %></option><% }) %></select></label>
         <button type="submit">Load Order Items</button>
         <% if (purchase.id) { %><p>Loading an order replaces the current draft items and supplier when you save.</p><% } %>
       </form>
@@ -28,10 +28,9 @@
       <datalist id="purchase-items-list"></datalist>
       <datalist id="purchase-warehouses"></datalist>
       <section class="form-grid ui-form-grid">
-        <label>Purchase Date<input type="date" name="posting_date" value="<%= purchase.posting_date || '' %>" required></label>
-        <label>Posting Time<input type="time" name="posting_time" value="<%= purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() %>" required></label>
+        <%- include('voucher-posting-fields', { postingFields: { date: purchase.posting_date !== undefined ? purchase.posting_date : currentPostingDate(), time: purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() } }) %>
         <label>Due Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
-        <label>Supplier name<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></label>
+        <label>Supplier<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></label>
         <label>Price List<% if (purchase.purchase_order_id) { %><input type="hidden" name="price_list" value="<%= purchase.price_list || '' %>"><% } %><select name="<%= purchase.purchase_order_id ? '' : 'price_list' %>" id="purchase-price-list" <%= purchase.purchase_order_id ? 'disabled' : 'required' %>><option value="<%= purchase.price_list || '' %>"><%= purchase.price_list || 'Loading price lists...' %></option></select></label>
         <%- include('cost-center-field', { value: purchase.cost_center, readOnly: false }) %>
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
@@ -43,13 +42,13 @@
       </div>
       <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
       <table class="editable entry-table" id="purchase-items">
-        <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Warehouse</th><th>Qty</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Item Code</th><th>Warehouse</th><th>Qty</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th></th></tr></thead>
         <tbody>
           <% (purchase.items && purchase.items.length ? purchase.items : [{}]).forEach((item, index) => { %>
             <tr>
               <td class="row-number" data-label="Item"><%= index + 1 %></td>
-              <td data-label="Item Code"><input type="hidden" name="item_id" value="<%= item.id || '' %>"><input type="hidden" name="purchase_order_item_id" value="<%= item.purchase_order_item_id || '' %>"><input aria-label="Item Code" name="item_code" list="purchase-items-list" autocomplete="off" value="<%= item.item_code || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></td>
-              <td data-label="Item Name"><input aria-label="Item Name" name="item_name" value="<%= item.item_name || '' %>" readonly></td>
+              <td data-label="Item Code"><input type="hidden" name="item_name" value="<%= item.item_name || '' %>"><input type="hidden" name="item_id" value="<%= item.id || '' %>"><input type="hidden" name="purchase_order_item_id" value="<%= item.purchase_order_item_id || '' %>"><input aria-label="Item Code" name="item_code" list="purchase-items-list" autocomplete="off" value="<%= item.item_code || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></td>
+
               <td data-label="Warehouse"><input aria-label="Warehouse" name="warehouse" list="purchase-warehouses" autocomplete="off" value="<%= item.warehouse || '' %>" <%= purchase.purchase_order_id ? 'readonly' : '' %> required></td>
               <td data-label="Qty"><input aria-label="Qty" name="quantity" type="number" min="0.001" step="0.001" value="<%= item.quantity || '' %>" required></td>
               <td data-label="Unit Cost"><input aria-label="Unit Cost" name="unit_price" type="number" min="0.01" step="0.01" value="<%= item.unit_price != null ? item.unit_price : '' %>" required></td>

@@ -1,3 +1,6 @@
+const { beginInventoryPosting } = require('./services/inventory-posting');
+const { validateReceivingAccount } = require('./domain/ledger');
+const { postPurchasePaymentJournal, reversePurchasePayment } = require('./purchase-payment-posting');
 const {
   getPostgresPool,
   withPostgresTransaction,
@@ -221,8 +224,10 @@ async function validatePurchaseOrder(client, purchase, excludePurchaseId = null,
       WHERE purchase_order_id=$1 AND docstatus='draft'
         AND ($2::bigint IS NULL OR id<>$2) ORDER BY id LIMIT 1`, [order.id, excludePurchaseId]);
     if (drafts.length) {
-      const invoiceNo = drafts[0].purchase_no || `PUR-${String(drafts[0].id).padStart(6, '0')}`;
-      throw badRequest(`This purchase order already has a draft purchase invoice: ${invoiceNo}. Edit or submit this draft, or delete it before creating another.`);
+      const invoiceNo = drafts[0].purchase_no || `PURINV-${String(drafts[0].id).padStart(6, '0')}`;
+      const error = badRequest(`This purchase order already has a draft purchase invoice: ${invoiceNo}. Edit or submit this draft, or delete it before creating another.`);
+      error.draftPurchase = { id: Number(drafts[0].id), purchase_no: invoiceNo };
+      throw error;
     }
   }
   const { rows: orderItems } = await client.query(`SELECT id, item_code, warehouse, quantity::float AS quantity
@@ -269,7 +274,7 @@ async function createPurchase(payload) {
       purchase.subtotal, purchase.total, purchase.price_list, purchase.posting_time, purchase.purchase_order_id, purchase.cost_center]);
     const id = Number(rows[0].id);
     await client.query('UPDATE app_purchases SET purchase_no = $1 WHERE id = $2',
-      [`PUR-${String(id).padStart(6, '0')}`, id]);
+      [`PURINV-${String(id).padStart(6, '0')}`, id]);
     await insertItems(client, id, purchase.items);
     return id;
   });
@@ -378,10 +383,10 @@ async function loadPurchase(id) {
       FROM app_purchase_items WHERE purchase_id = $1 ORDER BY line_no
     `, [purchaseId]),
     pool.query(`
-      SELECT id, payment_no, created_by, created_by_user_id, created_at,
-        updated_by, updated_by_user_id, updated_at,
-        payment_date::text, amount::float, method, reference, notes, docstatus, journal_entry_id
-      FROM app_purchase_payments WHERE purchase_id = $1 ORDER BY payment_no
+      SELECT payment.*, payment.payment_date::text, payment.amount::float,
+        account.account_name
+      FROM app_purchase_payments payment LEFT JOIN app_accounts account ON account.id=payment.account_id
+      WHERE payment.purchase_id = $1 ORDER BY payment.payment_no
     `, [purchaseId]),
   ]);
   return { ...result.rows[0], posting_time: storedPostingTime(result.rows[0].posting_time),
@@ -418,6 +423,7 @@ async function submitPurchase(id) {
       await validatePurchaseOrder(client, { ...purchase, items: itemResult.rows.map((item) => ({ ...item,
         purchase_order_item_id: Number(item.purchase_order_item_id) })) }, purchaseId, true);
     }
+    await beginInventoryPosting(client, 'purchase', purchaseId, itemResult.rows.map(item => item.warehouse));
     for (const item of itemResult.rows) {
       await applyPostgresStockMovement(client, {
         posting_date: purchase.posting_date,
@@ -485,6 +491,7 @@ async function cancelPurchase(id) {
       "SELECT * FROM app_stock_ledger WHERE voucher_type = 'purchase' AND voucher_id = $1 AND is_reversal = false ORDER BY id",
       [purchaseId],
     );
+    await beginInventoryPosting(client, 'purchase', purchaseId, stockRows.map(row => row.warehouse), true);
     for (const row of stockRows) {
       await applyPostgresStockMovement(client, {
         posting_date: postingDate,
@@ -504,10 +511,13 @@ async function cancelPurchase(id) {
     }
 
     const { rows: payments } = await client.query(
-      "SELECT id FROM app_purchase_payments WHERE purchase_id = $1 AND docstatus = 'submitted'", [purchaseId],
+      "SELECT id, method, journal_entry_id FROM app_purchase_payments WHERE purchase_id = $1 AND docstatus = 'submitted'", [purchaseId],
     );
+    if (payments.some((payment) => payment.journal_entry_id && payment.method === 'journal')) {
+      throw badRequest('Cancel the linked supplier journals before cancelling this purchase.');
+    }
     for (const payment of payments) {
-      await reverseVoucherGlEntries(client, 'purchase_payment', payment.id, postingDate);
+      await reversePurchasePayment(client, payment, postingDate);
       await client.query("UPDATE app_purchase_payments SET docstatus = 'cancelled' WHERE id = $1", [payment.id]);
     }
     await reverseVoucherGlEntries(client, 'purchase', purchaseId, postingDate);
@@ -533,10 +543,10 @@ async function addPurchasePayment(id, payload) {
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   const amount = Number(payload.amount);
   const paymentDate = String(payload.payment_date || '').trim();
-  const method = String(payload.method || '').trim();
+  let method = String(payload.method || '').trim();
   if (!validDate(paymentDate)) throw badRequest('Choose a valid payment date.');
   if (!Number.isFinite(amount) || amount <= 0 || money(amount) !== amount) throw badRequest('Enter a valid payment amount.');
-  if (!['cash', 'bank', 'mobile_money', 'card'].includes(method)) throw badRequest('Choose a payment method.');
+  if (!payload.account_id && !['cash', 'bank', 'mobile_money', 'card'].includes(method)) throw badRequest('Choose a payment method.');
   return withPostgresTransaction(async (client) => {
     const result = await client.query(`
       SELECT id, purchase_no, docstatus, posting_date::text, supplier_id, supplier_name, cost_center, total::float, amount_paid::float
@@ -547,6 +557,8 @@ async function addPurchasePayment(id, payload) {
     if (purchase.docstatus !== 'submitted') throw badRequest('Submit the purchase before recording payments.');
     if (paymentDate < purchase.posting_date) throw badRequest('Payment date cannot be before the purchase date.');
     if (amount > money(purchase.total - purchase.amount_paid)) throw badRequest('Payment exceeds the outstanding balance.');
+    const account = payload.account_id ? await validateReceivingAccount(client, payload.account_id) : null;
+    if (account) method = account.method;
     const next = await client.query(`
       SELECT COALESCE(MAX(payment_no), 0)::int + 1 AS payment_no
       FROM app_purchase_payments WHERE purchase_id = $1
@@ -556,24 +568,12 @@ async function addPurchasePayment(id, payload) {
     const notes = String(payload.notes || '').trim() || null;
     const payment = await client.query(`
       INSERT INTO app_purchase_payments (
-        purchase_id, payment_no, payment_date, amount, method, reference, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-    `, [purchaseId, paymentNo, paymentDate, amount, method, reference, notes]);
+        purchase_id, payment_no, payment_date, amount, method, reference, notes, account_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+    `, [purchaseId, paymentNo, paymentDate, amount, method, reference, notes, account?.id || null]);
     const paymentId = Number(payment.rows[0].id);
-    await postGlEntry(client, {
-      posting_date: paymentDate,
-      cost_center: purchase.cost_center,
-      voucher_type: 'purchase_payment',
-      voucher_id: paymentId,
-      voucher_no: `${purchase.purchase_no}-PAY-${String(paymentNo).padStart(3, '0')}`,
-      party_type: 'supplier',
-      party_id: purchase.supplier_id,
-      party_name: purchase.supplier_name,
-      remarks: reference || notes || 'Supplier payment',
-      lines: [
-        { account_key: 'accounts_payable', debit: amount },
-        { account_key: method === 'bank' ? 'bank' : method === 'mobile_money' ? 'mobile_money' : method === 'card' ? 'card_clearing' : 'cash', credit: amount },
-      ],
+    await postPurchasePaymentJournal(client, purchase, {
+      id: paymentId, payment_date: paymentDate, amount, method, reference, notes, account_id: account?.id,
     });
     const amountPaid = money(Number(purchase.amount_paid) + amount);
     await client.query(`
@@ -596,16 +596,16 @@ async function cancelPurchasePayment(id, paymentNo) {
     if (!purchase) throw notFound();
     if (purchase.docstatus !== 'submitted') throw badRequest('Only payments on submitted purchases can be cancelled.');
     const { rows: payments } = await client.query(
-      'SELECT id, docstatus, journal_entry_id FROM app_purchase_payments WHERE purchase_id = $1 AND payment_no = $2 FOR UPDATE',
+      'SELECT id, docstatus, method, journal_entry_id FROM app_purchase_payments WHERE purchase_id = $1 AND payment_no = $2 FOR UPDATE',
       [purchaseId, Number(paymentNo)],
     );
     const payment = payments[0];
     if (!payment) throw badRequest('Payment not found.');
     if (payment.docstatus !== 'submitted') throw badRequest('Payment is already cancelled.');
-    if (payment.journal_entry_id) throw badRequest('Cancel the linked journal to reverse this payment allocation.');
+    if (payment.journal_entry_id && payment.method === 'journal') throw badRequest('Cancel the linked journal to reverse this payment allocation.');
 
     const postingDate = new Date().toISOString().slice(0, 10);
-    await reverseVoucherGlEntries(client, 'purchase_payment', payment.id, postingDate);
+    await reversePurchasePayment(client, payment, postingDate);
     await client.query("UPDATE app_purchase_payments SET docstatus = 'cancelled' WHERE id = $1", [payment.id]);
     const { rows: totals } = await client.query(
       "SELECT COALESCE(SUM(amount), 0)::float AS amount_paid FROM app_purchase_payments WHERE purchase_id = $1 AND docstatus = 'submitted'",

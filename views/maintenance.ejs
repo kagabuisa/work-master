@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head><title>Transaction maintenance</title><%- include('partials-head') %></head>
+<body><main class="shell ui-page ui-page-form">
+  <header class="topbar"><div><p class="eyebrow">Administration</p>
+    <%- include('breadcrumbs',{breadcrumbs:[{label:'Home',href:'/'},{label:'Settings',href:'/settings'},{label:'Maintenance'}]}) %>
+  </div><nav><%- include('module-nav',{activeModule:'settings'}) %></nav></header>
+  <%- include('settings-tabs',{activeSettingsTab:'maintenance'}) %>
+  <% if(error){ %><section class="notice warning" role="alert"><%= error %></section><% } %>
+  <section class="ui-surface invoice-card">
+    <%- include('ui-section-heading',{heading:{title:'Reset transactions',help:'Remove business transactions while keeping master records, users, permissions, company settings, employee profiles, and pay plans. A full database and file backup is required first.'}}) %>
+    <form method="get" class="ui-toolbar ui-filter-row">
+      <label>Reset scope<select name="scope">
+        <option value="financial" <%= resetScope==='financial'?'selected':'' %>>Accounting and stock only — retain HR</option>
+        <option value="all" <%= resetScope==='all'?'selected':'' %>>All transactions, including HR</option>
+      </select></label><button type="submit" class="button-light">Review scope</button>
+    </form>
+    <p class="ui-helper">Both scopes remove sales, purchases, purchase orders, payments, journals, stock records, reconciliations and their attachments, and daily activity records.</p>
+    <p class="ui-helper"><%= resetScope==='financial'?'HR attendance, leave, payroll, employee money, and their ledger entries remain. Financial balances from HR remain; stock balances become zero.':'HR attendance, leave allocations and requests, payroll, employee money, and all ledger entries are also removed. Stock and account balances become zero.' %></p>
+    <div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Records to remove</th><th class="ui-amount">Current count</th></tr></thead><tbody>
+      <% const labels={app_invoices:'Sales invoices',app_invoice_items:'Sales invoice rows',app_invoice_payments:'Customer payments',app_purchases:'Purchase invoices',app_purchase_items:'Purchase invoice rows',app_purchase_payments:'Supplier payments',app_purchase_orders:'Purchase orders',app_purchase_order_items:'Purchase order rows',app_journal_entries:'Journals',app_journal_entry_lines:'Journal rows',app_stock_entries:'Stock vouchers',app_stock_entry_items:'Stock voucher rows',app_stock_ledger:'Stock movements',app_stock_balances:'Stock balances',app_stock_reconciliation_attachments:'Reconciliation attachments',app_reconciliation_photo_counts:'Photo counts',app_daily_activity_reports:'Daily activity records',app_gl_entries:'General ledger rows',app_hr_attendance:'Attendance',app_hr_leave_allocations:'Leave allocations',app_hr_leave_requests:'Leave requests',app_hr_money:'Employee money',app_hr_runs:'Payroll runs',app_hr_slips:'Payslips',app_hr_payments:'HR payments',app_hr_recoveries:'Payroll recoveries'}; %>
+      <% Object.entries(counts).forEach(([group,rows])=>{Object.entries(rows).forEach(([key,count])=>{ %>
+        <tr><td><%= labels[key] %></td><td class="ui-amount"><%= count.toLocaleString() %></td></tr>
+      <% });}); %>
+    </tbody></table></div>
+  </section>
+  <section class="ui-surface invoice-card">
+    <%- include('ui-section-heading',{heading:{title:'1. Create a verified backup',help:'Back up the complete database and persistent files. Keep a downloaded copy outside this app. Backups contain confidential business and account data.'}}) %>
+    <p class="ui-helper">Entry and other database operations pause while the backup is prepared. The backup is eligible for reset for 15 minutes. If master records or transactions change, create another backup.</p>
+    <form method="post" action="/settings/maintenance/backup" data-maintenance-form data-progress-label="Preparing backup…">
+      <input type="hidden" name="scope" value="<%= resetScope %>"><input type="hidden" name="csrf_token" value="<%= csrfToken %>">
+      <div class="actions ui-form-footer"><button type="submit">Create verified backup</button></div>
+    </form>
+    <% const ready=Boolean(backup&&!backup.consumed_at&&new Date(backup.expires_at)>new Date()); if(backup){ %>
+      <p role="status"><%= ready?'Verified backup ready':'Backup is no longer eligible for reset' %> · <%= formatTimestamp(backup.created_at) %></p>
+      <a class="button button-light" href="/settings/maintenance/backups/<%= backup.id %>">Download backup</a>
+    <% } %>
+  </section>
+  <section class="ui-surface invoice-card">
+    <%- include('ui-section-heading',{heading:{title:'2. Confirm the reset',help:'This clears the selected transactions permanently from the app. Restoring them requires the backup.'}}) %>
+    <p class="notice warning">This permanently removes the selected transaction history from the app. Recovery requires the backup.</p>
+    <p class="ui-helper">All website and mobile users will be signed out. Integration tokens will be revoked and must be replaced before reconnecting. Voucher numbering continues; existing numbers are not reused. Project files, master records, employee profiles, and pay plans remain.</p>
+    <form method="post" action="/settings/maintenance/reset" data-maintenance-form data-progress-label="Resetting transactions…">
+      <input type="hidden" name="scope" value="<%= resetScope %>"><input type="hidden" name="csrf_token" value="<%= csrfToken %>">
+      <input type="hidden" name="backup_id" value="<%= ready?backup.id:'' %>">
+      <% const inventoryLocked=typeof inventoryControlled!=='undefined'&&inventoryControlled; %>
+      <% if(inventoryLocked){ %><p class="notice warning">Controlled inventory is active. Transaction resets are prohibited; inventory closure history must be preserved. Backups remain available.</p><% } %>
+      <fieldset class="ui-form-section" <%= ready&&!inventoryLocked?'':'disabled' %>><div class="form-grid ui-form-grid">
+        <label>Your administrator password<input name="password" type="password" autocomplete="current-password" maxlength="512" required></label>
+        <label>Type RESET TRANSACTIONS<input name="confirmation" autocomplete="off" pattern="RESET TRANSACTIONS" required></label>
+      </div><div class="actions ui-form-footer"><button type="submit">Reset transactions</button></div></fieldset>
+      <% if(!ready){ %><p class="ui-helper">Create a verified backup to enable reset.</p><% } %>
+    </form>
+  </section>
+  <section class="ui-surface invoice-card">
+    <%- include('ui-section-heading',{heading:{title:'Reset history'}}) %>
+    <div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>When</th><th>Administrator</th><th>Scope</th><th class="ui-amount">Removed records</th></tr></thead><tbody>
+      <% if(!history.length){ %><tr><td colspan="4" class="empty">No transaction resets have been performed.</td></tr><% } %>
+      <% history.forEach(row=>{ %><tr><td><%= formatTimestamp(row.created_at) %></td><td><%= row.actor_name %></td><td><%= row.scope==='all'?'All transactions, including HR':'Accounting and stock only' %></td><td class="ui-amount"><%= Object.values(row.counts).flatMap(group=>Object.values(group)).reduce((sum,count)=>sum+Number(count),0).toLocaleString() %></td></tr><% }); %>
+    </tbody></table></div>
+  </section>
+</main><script src="/transaction-reset.js?v=<%= assetVersion %>" defer></script></body></html>

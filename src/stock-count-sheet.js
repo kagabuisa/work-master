@@ -16,7 +16,7 @@ function invalid(message) {
   return error;
 }
 
-async function createCountSheet(warehouse, items) {
+async function createCountSheet(warehouse, items, session = null) {
   if (items.length > MAX_COUNT_ROWS) throw invalid(`Count sheets support up to ${MAX_COUNT_ROWS} item rows.`);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Work Master';
@@ -44,7 +44,7 @@ async function createCountSheet(warehouse, items) {
   sheet.autoFilter = { from: 'A1', to: `E${Math.max(1, items.length + 1)}` };
   const instructions = workbook.addWorksheet('Instructions');
   instructions.getColumn(1).width = 110;
-  for (const text of [
+  const legacyInstructions = [
     'Work Master stock count sheet', `Warehouse: ${warehouse}`,
     'Enter physical quantities in Counted Qty. Use 0 for an item with no stock. Blank counts are ignored.',
     'Use up to three decimal places. Enter numbers, not formulas. Keep Warehouse and Item Code unchanged.',
@@ -52,7 +52,17 @@ async function createCountSheet(warehouse, items) {
     'Upload the .xlsx file on a new reconciliation or while editing a draft. Upload fills the form; it does not save or submit.',
     'Existing form rows omitted from the upload keep their current counts. Review differences, then Save draft or Submit reconciliation.',
     'Book Qty and Item Name are for reference; current stock and master data are used when importing. Rates are not imported.',
-  ]) instructions.addRow([text]);
+  ];
+  const texts=session?[
+    'Controlled warehouse count sheet',`Warehouse: ${warehouse}`,`Count: ${session.id}; revision: ${session.revision}; fixed cut-off: ${session.cutoff}`,
+    'Physical movement and ordinary inventory posting are frozen. Book quantities are the frozen snapshot.',
+    'Enter explicit quantities including zero. Blank cells remain incomplete. Keep warehouse and item codes unchanged.',
+    'Import on this count session. Import saves a new count revision but never approves or submits.',
+    'After importing, explain discrepancies and review gain rates in the app. The app ignores edited book quantities.',
+    'A different authorized reviewer must approve the completed count. Stale sheets are rejected.'
+  ]:legacyInstructions;
+  for (const text of texts) instructions.addRow([text]);
+  if(session){const meta=workbook.addWorksheet('_CountSession',{state:'veryHidden'});meta.addRow([String(session.id),String(session.revision),String(session.cutoff)]);}
   instructions.getCell('A1').font = { bold: true, size: 16 };
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
@@ -63,12 +73,13 @@ function cellText(value, row, field) {
   throw invalid(`Row ${row}: ${field} must contain plain text, not a formula.`);
 }
 
-async function readCountSheet(buffer, warehouse) {
+async function readCountSheet(buffer, warehouse, session = null) {
   if (!buffer?.length) throw invalid('Choose an Excel count sheet (.xlsx).');
   if (buffer.length > MAX_COUNT_FILE_BYTES) throw invalid('Count sheets must be no larger than 5 MB.');
   const workbook = new ExcelJS.Workbook();
   try { await workbook.xlsx.load(buffer); }
   catch { throw invalid('The file is not a valid Excel .xlsx workbook.'); }
+  if(session){const meta=workbook.getWorksheet('_CountSession');const values=meta?.getRow(1);if(!values||String(values.getCell(1).value)!==String(session.id)||String(values.getCell(2).value)!==String(session.revision)||String(values.getCell(3).value)!==String(session.cutoff))throw invalid('This sheet belongs to a different count or stale revision. Download the current sheet.');}
   const sheet = workbook.getWorksheet('Count Sheet') || workbook.worksheets[0];
   if (!sheet) throw invalid('The workbook has no count sheet.');
   if (sheet.rowCount > MAX_COUNT_ROWS + 1) throw invalid(`Count sheets support up to ${MAX_COUNT_ROWS} item rows.`);

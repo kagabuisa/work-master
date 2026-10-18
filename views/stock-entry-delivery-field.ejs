@@ -1,0 +1,7 @@
+<label>
+  Delivery status
+  <select name="delivery_status" <%= deliveryField.disabled ? 'disabled' : '' %>>
+    <option value="">Not set</option>
+    <% deliveryStatuses.forEach(status => { %><option value="<%= status %>" <%= deliveryField.value === status ? 'selected' : '' %>><%= status %></option><% }) %>
+  </select>
+</label>

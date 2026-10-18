@@ -4,21 +4,44 @@
   <title>Log in · Work Master</title>
   <%- include('partials-head') %>
 </head>
-<body class="auth-page">
-  <main class="auth-card auth-login">
-    <%- include('auth-brand') %>
-    <h1>Welcome back</h1>
-    <p class="auth-intro">Log in to your workspace.</p>
+<body class="auth-page auth-premium">
+  <main class="auth-shell">
+    <section class="auth-story" aria-labelledby="workspace-title">
+      <%- include('auth-brand') %>
+      <div class="auth-story-copy">
+        <p class="auth-eyebrow">Your Business, Transactions &amp; Information Connected</p>
+        <h2 id="workspace-title">A clearer view.<br>Better work everyday</h2>
+        <p>Bring your transactions, accounts, inventory and people together in one workspace.</p>
+      </div>
+      <div class="auth-story-footer"><span class="auth-story-line" aria-hidden="true"></span>Work Better</div>
+      <div class="auth-orbit" aria-hidden="true"></div>
+    </section>
+    <section class="auth-card auth-login" aria-labelledby="login-title">
+    <div class="auth-form-heading">
+      <p class="auth-eyebrow">WORK MASTER WORKSPACE</p>
+    <h1 id="login-title">Welcome back.</h1>
+      <p class="auth-intro">Enter your details to pick up where you left off.</p>
+    </div>
+    <% if (typeof resetCompleted !== 'undefined' && resetCompleted) { %><p class="notice" role="status">Transactions were reset successfully. Sign in to continue.</p><% } %>
     <% if (error) { %><p class="auth-error" role="alert"><%= error %></p><% } %>
     <% if (setupNeeded) { %><p>No users have been created. Run <code>npm run user:create -- admin</code> on the app server to create the first account.</p><% } %>
     <form method="post" action="/login">
       <input type="hidden" name="next" value="<%= nextPath %>">
-      <label for="username">Username</label>
-      <input id="username" name="username" type="text" autocomplete="username" required autofocus value="<%= username %>">
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Log in</button>
+      <div class="auth-field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" required autofocus value="<%= username %>" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit">Log in <span aria-hidden="true">→</span></button>
     </form>
+    <div class="auth-support">
+      <span>Need access?</span>
+      <%- include('ui-helper', { helpLabel: 'Help signing in', helpText: 'Contact your Work Master administrator to create an account or reset your password.' }) %>
+    </div>
+    </section>
   </main>
 </body>
 </html>

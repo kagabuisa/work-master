@@ -189,10 +189,10 @@ function renderRows() {
         <input type="hidden" name="id" value="${escapeHtml(item.id || '')}">
         <input type="hidden" name="item_code" value="${escapeHtml(item.code)}">
         <input type="hidden" name="item_name" value="${escapeHtml(item.name)}">
-        <strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.code)}</small>
+        <strong>${escapeHtml(item.code)}</strong>
       </td>
       <td class="reconciliation-book-qty" data-label="Book Qty">${qty(item.book)}</td>
-      <td data-label="Counted Qty"><input name="quantity" type="number" min="0" step="0.001" value="${item.counted}" aria-label="Counted quantity for ${escapeHtml(item.name)}" ${readOnly ? 'readonly' : ''} required></td>
+      <td data-label="Counted Qty"><input name="quantity" type="number" min="0" step="0.001" value="${item.counted}" aria-label="Counted quantity for ${escapeHtml(item.code)}" ${readOnly ? 'readonly' : ''} required></td>
       <td data-label="Difference" data-difference></td>
       <td class="reconciliation-rate-cell" data-label="Rate">
         <span class="reconciliation-rate-value">${rateMoney(item.rate)}</span>
@@ -303,7 +303,7 @@ async function searchItems(query) {
       button.type = 'button';
       button.dataset.itemCode = item.item_code;
       button.dataset.itemName = item.item_name || item.item_code;
-      button.innerHTML = `<strong>${escapeHtml(item.item_name || item.item_code)}</strong><small>${escapeHtml(item.item_code)}</small>`;
+      button.innerHTML = `<strong>${escapeHtml(item.item_code)}</strong>`;
       searchResults.appendChild(button);
     }
     if (!searchResults.children.length) searchResults.textContent = 'No other matching items.';

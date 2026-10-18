@@ -10,7 +10,7 @@
 <form method="post" action="/hr/payroll" class="hr-grid ui-form-grid hr-payroll-preparation">
 <label>Company<select name="company" required><option value="">Choose company</option><% [...new Set(opts.employees.filter(e=>e.status==='Active'&&!e.disabled).map(e=>e.company).filter(Boolean))].sort().forEach(company=>{ %><option <%= payrollForm.company===company?'selected':'' %>><%= company %></option><% }) %></select></label>
 <label>Payroll month<input type="month" name="period" value="<%= payrollForm.period||today.slice(0,7) %>" required></label>
-<label>Posting date<input type="date" name="posting_date" value="<%= payrollForm.posting_date||new Date(Date.UTC(Number(today.slice(0,4)),Number(today.slice(5,7)),0)).toISOString().slice(0,10) %>" required></label>
+<%- include('voucher-posting-fields', { postingFields: { date: payrollForm.posting_date || today } }) %>
 <%- include('hr-employee-select',{label:'Employees (choose the same company)',name:'employee_ids',multiple:true,activeOnly:true,selectedIds:selectedEmployees}) %>
 <div><button class="button">Create draft payroll</button></div></form>
 </section><% } %>

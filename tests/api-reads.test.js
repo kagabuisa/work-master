@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { readQuery, dates } = require('../src/api/query');
-const { decimal, payment } = require('../src/api/serializers');
+const { decimal, payment, invoice, company } = require('../src/api/serializers');
 
 test('read contract bounds queries and preserves decimal text and stable legacy identities', () => {
   const { requireLookup } = require('../src/api/policy');
@@ -19,6 +19,26 @@ test('read contract bounds queries and preserves decimal text and stable legacy 
   assert.equal(decimal('9007199254740993.125'), '9007199254740993.125');
   assert.equal(decimal(1e-7), '0.0000001');
   assert.equal(payment({ id: 1, method: 'legacy', amount: 10 }, 7).id, 'legacy-7');
+});
+
+test('invoice display fields match the website without exposing internal identities or company audit', () => {
+  const audit = { created_by: 'Operator', created_at: new Date('2026-10-13T08:00:00Z'),
+    updated_by: 'Reviewer', updated_at: '2026-10-13T09:00:00Z', created_by_user_id: 'private-id' };
+  const detail = invoice({ ...audit, id: 7, customer_phone: '+256700123456', is_cash_sale: true,
+    submitted_by: 'Reviewer', submitted_at: '2026-10-13T09:00:00Z',
+    items: [{ ...audit, item_code: 'I1', item_name: 'Item', cost_amount: 999 }] }, true);
+  assert.equal(detail.customer_phone, '+256700123456'); assert.equal(detail.is_cash_sale, true);
+  assert.equal(detail.created_by, 'Operator'); assert.equal(detail.submitted_by, 'Reviewer');
+  assert.equal(detail.items[0].created_at, '2026-10-13T08:00:00.000Z');
+  assert.equal('created_by_user_id' in detail, false); assert.equal('created_by_user_id' in detail.items[0], false);
+  assert.equal('cost_amount' in detail.items[0], false);
+  const receipt = payment({ ...audit, payment_record_id: 4, account_name: 'Cash', notes: 'Receipt notes' }, 7);
+  assert.equal(receipt.account_name, 'Cash'); assert.equal(receipt.notes, 'Receipt notes');
+  assert.equal('created_by_user_id' in receipt, false);
+  const displayedCompany = company({ name: 'Example Company', address: 'Kampala', tax_id: 'TIN', ...audit, private_key: 'secret' });
+  assert.equal(displayedCompany.name, 'Example Company'); assert.equal('created_by' in displayedCompany, false);
+  assert.equal('private_key' in displayedCompany, false);
+  assert.equal('customer_phone' in invoice({ id: 7 }), false);
 });
 
 test('versioned reads isolate master data, stock, invoices, receipts and sales selectors', {
@@ -38,6 +58,8 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
   try {
     await resetGoldenSchema();
     const pool = store.getPostgresPool();
+    await store.saveCompanyInformation({ name: 'API Invoice Company', phone: '+256700111222' });
+    await store.saveDateTimeSettings({ date_format: 'DD/MM/YYYY', time_format: '12h' });
     const admin = await auth.createUser('reads-admin', 'ReadsPassword123!', { role: 'admin' });
     const cash = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
     const bank = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1120'")).rows[0].id;
@@ -78,6 +100,12 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
       INSERT INTO app_stock_balances(item_code,item_name,warehouse,quantity,valuation_rate,stock_value) VALUES
         ('I1','Alpha Item','Main',12.125,20,242.5),('I2','Beta Item','Main',5,30,150),('I1','Alpha Item','Secret',99,20,1980);
     `);
+    // Seed matching history so stock exists before the invoices' posting time.
+    await pool.query(`INSERT INTO app_stock_ledger
+      (posting_date,item_code,item_name,warehouse,voucher_type,voucher_id,voucher_no,
+       qty_change,qty_after_transaction,incoming_rate,stock_value_change,stock_value_after_transaction)
+      SELECT '2026-09-30',item_code,item_name,warehouse,'stock_opening',0,'READ-OPENING',
+        quantity,quantity,valuation_rate,stock_value,stock_value FROM app_stock_balances`);
     const payload = (customer = 'C1', warehouse = 'Main', priceList = 'Retail') => ({
       invoice_date: '2026-10-01', customer_id: customer, customer_name: customer === 'C3' ? 'Secret Customer' : 'Alpha Customer',
       price_list: priceList, invoicer_id: 'E1', invoicer: 'Permitted Invoicer',
@@ -140,6 +168,15 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
       assert.equal(priced.body.data.find(row => row.id === 'I2').has_list_price, false);
       assert.equal((await get('/items?price_list=Wholesale')).status, 403);
       assert.equal((await get('/items?price_list=Inactive', admin)).status, 422);
+      const inStock = await get('/items?warehouse=Main&price_list=Retail&page_size=1');
+      assert.equal(inStock.status,200); assert.equal(inStock.body.meta.total,2);
+      assert.equal(inStock.body.data[0].stock_balance,'11.125'); assert.equal(inStock.body.data[0].warehouse,'Main');
+      assert.equal('valuation_rate' in inStock.body.data[0],false);
+      assert.equal((await get('/items?warehouse=Secret&price_list=Retail')).status,403);
+      await pool.query("UPDATE app_stock_balances SET quantity=0 WHERE item_code='I2' AND warehouse='Main'");
+      assert.equal((await get('/items?warehouse=Main&price_list=Retail')).body.meta.total,1);
+      assert.equal((await get('/items?warehouse=Main&price_list=Retail&q=Beta')).body.meta.total,0);
+      await pool.query("UPDATE app_stock_balances SET quantity=5 WHERE item_code='I2' AND warehouse='Main'");
       const options = await get('/sales-options?purpose=invoicing');
       assert.deepEqual(options.body.data.invoicers.map(row => row.id), ['E1']);
       assert.equal('email' in options.body.data.invoicers[0], false);
@@ -168,6 +205,11 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
       assert.equal((await get('/invoices?page=2&page_size=1&sort=id_asc')).body.data[0].id, String(draft));
       assert.equal((await get('/invoices?q=Secret')).body.meta.total, 0);
       assert.equal((await get('/invoices?docstatus=submitted')).body.meta.total, 1);
+      assert.equal((await get('/invoices?payment_status=partial&page_size=1')).body.meta.total, 1);
+      assert.equal((await get('/invoices?payment_status=partial')).body.data[0].id, String(permitted));
+      assert.equal((await get('/invoices?payment_status=unpaid')).body.meta.total, 2);
+      assert.equal((await get('/invoices?payment_status=paid')).body.meta.total, 0);
+      assert.equal((await get('/invoices?payment_status=unpaid&docstatus=submitted')).body.meta.total, 0);
       assert.equal((await get('/invoices?customer_id=C3')).body.meta.total, 0);
       assert.equal((await get('/invoices?warehouse=Secret')).status, 403);
       for (const id of [blockedCustomer, blockedWarehouse, blockedPrice, mixed, 999999]) {
@@ -178,6 +220,12 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
       assert.equal(detail.body.data.total, '100'); assert.equal(detail.body.data.amount_paid, '30');
       assert.equal(detail.body.data.balance_due, '70');
       assert.equal(detail.body.data.items[0].quantity, '1');
+      assert.equal(detail.body.data.company.name, 'API Invoice Company');
+      assert.deepEqual(detail.body.data.display_settings, { date_format: 'DD/MM/YYYY', time_format: '12h' });
+      assert.equal('created_by_user_id' in detail.body.data.company, false);
+      assert.equal(detail.body.data.created_by, 'reads-standard');
+      assert.equal(detail.body.data.items[0].created_by, 'reads-standard');
+      assert.equal(typeof detail.body.data.customer_phone, 'string');
       assert.equal('created_by_user_id' in detail.body.data, false);
       assert.equal('cost_amount' in detail.body.data.items[0], false);
       assert.equal('payments' in detail.body.data, false);
@@ -200,6 +248,9 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
     await t.test('receipts inherit parent access and receiving-account restrictions before counts', async () => {
       const payments = await get(`/invoices/${permitted}/payments?page_size=1`);
       assert.equal(payments.status, 200); assert.equal(payments.body.meta.total, 1);
+      assert.equal(typeof payments.body.data[0].account_name, 'string');
+      assert.equal(typeof payments.body.data[0].notes, 'string');
+      assert.equal('created_by_user_id' in payments.body.data[0], false);
       assert.equal(payments.body.data[0].amount, '10'); assert.equal(payments.body.data[0].account_id, String(cash));
       const hiddenReference = (await store.findInvoice(permitted)).payments.find(row => row.account_id === Number(bank)).reference;
       assert.equal((await get(`/invoices/${permitted}/payments?q=${encodeURIComponent(hiddenReference)}`)).body.meta.total, 0);
@@ -244,7 +295,7 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
 
     await t.test('malformed queries fail explicitly and reads leave financial rows unchanged', async () => {
       for (const path of ['/items?includeDisabled=true', '/items?page_size=201', '/items?page=1&page=2',
-        '/items?q[a]=b', '/invoices?sort=total;DROP', '/invoices?docstatus=anything', '/invoices?from=2026-02-30',
+        '/items?q[a]=b', '/invoices?sort=total;DROP', '/invoices?docstatus=anything', '/invoices?payment_status=anything', '/invoices?from=2026-02-30',
         '/invoices?from=2026-10-02&to=2026-10-01', `/invoices/${permitted}?q=anything`, '/sales-options']) {
         assert.equal((await get(path)).status, 400, path);
       }

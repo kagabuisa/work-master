@@ -5,6 +5,7 @@ const { REPORTS } = require('./report-permissions');
 const { can, permissionCheck, scopeCheck } = require('./authorize');
 const { getPostgresPool } = require('./store');
 const { activePermissionPriceLists } = require('./permission-price-lists');
+const { stockEntryShareAccess } = require('./stock-entry-workflow');
 const { recordAccessChoices, selectedLabels, validateRecordAccess,
   defaultRecordPermissions } = require('./user-record-access');
 const { invoicePriceListAllowed, priceListActionAllowed, anyNamedPriceListAction,
@@ -205,6 +206,7 @@ function installAuth(app) {
       if (await sessionUser(sessionToken(req))) return res.redirect('/');
       res.set('Cache-Control', 'no-store');
       res.render('login', { error: req.query.expired === '1' ? 'Your session ended. Please log in again.' : null,
+        resetCompleted: req.query.reset === 'complete',
         username: '', nextPath: safeNext(req.query.next), setupNeeded: await userCount() === 0 });
     } catch (error) { next(error); }
   });
@@ -585,6 +587,13 @@ function installAuth(app) {
 
   app.use(async (req, res, next) => {
     try {
+      const sharedEntryPath = ['GET', 'POST'].includes(req.method)
+        && req.path.match(/^\/stock\/entries\/([1-9][0-9]*)(?:\/(?:drawer|edit|delivery))?$/);
+      if (sharedEntryPath) {
+        const access = await stockEntryShareAccess(req.currentUser, sharedEntryPath[1]);
+        req.stockEntrySharedRead = Boolean(access);
+        req.stockEntrySharedWrite = access === 'write';
+      }
       if (!permissionCheck(req)) {
         if (req.method === 'GET' && /^\/journals(?:\/\d+(?:\/drawer)?)?$/.test(req.path)) {
           req.accessDeniedReason = req.path === '/journals'

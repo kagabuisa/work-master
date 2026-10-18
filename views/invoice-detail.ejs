@@ -8,7 +8,7 @@
   <div class="invoice-meta sales-invoice-meta">
     <div class="invoice-meta-card invoice-customer-card">
       <span>Customer</span>
-      <strong><%= invoice.customer_name %></strong>
+      <strong><%= invoice.customer_id %></strong>
       <% if (invoice.customer_phone) { %><p><%= invoice.customer_phone %></p><% } %>
     </div>
     <div class="invoice-meta-card">
@@ -28,7 +28,7 @@
     <thead>
       <tr>
         <th class="row-number">#</th>
-        <th class="item-code-col">Item Name</th>
+        <th class="item-code-col">Item Code</th>
         <th class="warehouse-col">Warehouse</th>
         <th class="invoice-number-cell">Qty</th>
         <th class="invoice-number-cell">Unit Price</th>

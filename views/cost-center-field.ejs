@@ -1,7 +1,9 @@
+<% const centerId = value || (!readOnly && typeof defaultCostCenter !== 'undefined' ? defaultCostCenter : ''); %>
 <label>Cost Center
-  <input name="cost_center" list="voucher-cost-centers" data-cost-center-input
+  <input type="hidden" name="cost_center" data-cost-center-id value="<%= centerId %>">
+  <input list="voucher-cost-centers" data-cost-center-input
     data-default-cost-center="<%= currentUser && currentUser.record_access && currentUser.record_access.cost_center || '' %>"
-    value="<%= value || (!readOnly && typeof defaultCostCenter !== 'undefined' ? defaultCostCenter : '') %>" autocomplete="off" placeholder="Search cost centers"
+    value="<%= typeof costCenterName === 'function' ? costCenterName(centerId) : centerId %>" autocomplete="off" placeholder="Search cost centers"
     <%= readOnly ? 'readonly' : '' %>>
 </label>
 <datalist id="voucher-cost-centers"></datalist>

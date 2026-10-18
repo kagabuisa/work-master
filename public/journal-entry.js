@@ -169,6 +169,21 @@ journalLinesBody.addEventListener('input', (event) => {
 });
 
 journalLinesBody.addEventListener('click', (event) => {
+  const moveButton = event.target.closest('[data-move-journal-row]');
+  if (moveButton) {
+    const row = moveButton.closest('tr');
+    const movingUp = moveButton.dataset.moveJournalRow === 'up';
+    const neighbour = movingUp ? row.previousElementSibling : row.nextElementSibling;
+    if (!neighbour) return;
+    journalLinesBody.insertBefore(movingUp ? row : neighbour, movingUp ? neighbour : row);
+    updateJournalRowNumbers();
+    // Keep keyboard focus on the moved row, including at the table boundaries.
+    const focusButton = moveButton.disabled
+      ? row.querySelector(`[data-move-journal-row="${movingUp ? 'down' : 'up'}"]`)
+      : moveButton;
+    focusButton.focus();
+    return;
+  }
   if (!event.target.matches('[data-remove-journal-row]')) {
     return;
   }
@@ -283,7 +298,7 @@ function showAccountResults(picker) {
   const matches = journalAccounts.filter((account) => journalAccountMatches(account, query));
   accountMenu.innerHTML = matches.slice(0, 40).map((account) => `
     <button type="button" role="option" data-account-option="${escapeAttr(account.id)}">
-      <strong>${escapeHtml(account.code)}</strong><span>${escapeHtml(account.name)}</span>
+      <strong>${escapeHtml(account.name)}</strong>
     </button>
   `).join('') || '<p>No matching accounts.</p>';
   if (matches.length > 40) accountMenu.insertAdjacentHTML('beforeend', '<p>Showing first 40 accounts. Refine your search.</p>');
@@ -323,7 +338,7 @@ function selectAccount(picker, id) {
   if (!account) return;
   picker.querySelector('[name="account_id"]').value = account.id;
   const input = picker.querySelector('[data-account-search]');
-  input.value = `${account.code} - ${account.name}`;
+  input.value = account.name;
   input.focus();
   hideAccountResults();
   updateJournalTotals();
@@ -493,8 +508,8 @@ function renderPartyResults(type, rows) {
     const normalized = normalizeParty(type, party);
     return `
       <button type="button" data-id="${escapeAttr(normalized.id)}" data-name="${escapeAttr(normalized.name)}" data-detail="${escapeAttr(partyDetailText(normalized, type))}">
-        <strong>${escapeHtml(normalized.id)}</strong>
-        <span>${escapeHtml([normalized.name, normalized.meta].filter(Boolean).join(' - '))}</span>
+        <strong>${escapeHtml(type === 'employee' ? normalized.name : normalized.id)}</strong>
+        <span>${escapeHtml(normalized.meta || '')}</span>
       </button>
     `;
   }).join('') || '<p>No matching parties.</p>';
@@ -535,7 +550,7 @@ function normalizeParty(type, party) {
 function selectParty(button) {
   partyId.value = button.dataset.id;
   partyName.value = button.dataset.name;
-  partySearch.value = button.dataset.id;
+  partySearch.value = partyType.value === 'employee' ? button.dataset.name : button.dataset.id;
   setSelectionDetail(partyDetail, button.dataset.detail);
   partyResults.innerHTML = '';
   clearReferenceSelection();
@@ -697,7 +712,7 @@ function selectReference(button) {
     if (!row.isConnected) journalLinesBody.appendChild(row);
     const account = journalAccounts.find((account) => Number(account.id) === Number(detail.account_id));
     row.querySelector('[name="account_id"]').value = account.id;
-    row.querySelector('[data-account-search]').value = `${account.code} - ${account.name}`;
+    row.querySelector('[data-account-search]').value = account.name;
     row.querySelector('[name="debit"]').value = detail.debit || '';
     row.querySelector('[name="credit"]').value = detail.credit || '';
     row.querySelector('[name="line_reference_no"]').value = reference.reference;
@@ -748,7 +763,7 @@ function clearReferenceSelection() {
 }
 
 function partyDetailText(party, type) {
-  return [partyTypeLabel(type).replace(/^./, (letter) => letter.toUpperCase()), party.name, party.meta]
+  return [party.meta]
     .filter(Boolean).join(' · ');
 }
 
@@ -782,11 +797,17 @@ function clearJournalRow(row) {
 }
 
 function updateJournalRowNumbers() {
+  const rowCount = journalLinesBody.rows.length;
   journalLinesBody.querySelectorAll('tr').forEach((row, index) => {
     const numberCell = row.querySelector('.row-number');
     if (numberCell) {
       numberCell.textContent = index + 1;
     }
+    row.querySelectorAll('[data-move-journal-row]').forEach((button) => {
+      const movingUp = button.dataset.moveJournalRow === 'up';
+      button.disabled = movingUp ? index === 0 : index === rowCount - 1;
+      button.setAttribute('aria-label', `Move row ${index + 1} ${movingUp ? 'up' : 'down'}`);
+    });
   });
 }
 

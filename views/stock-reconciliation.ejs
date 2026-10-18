@@ -16,7 +16,9 @@
       </div>
       <nav><%- include('module-nav', { activeModule: 'stock' }) %><%- include('stock-new-menu') %></nav>
     </header>
+<%- include('stock-reconciliation-tabs',{activeReconciliationTab:'vouchers'}) %>
 
+    <% if (saved) { %><%- include('reconciliation-tabs', { entry, photoTab: false }) %><% } %>
     <% if (saved) { %>
     <section class="reconciliation-heading">
       <div class="reconciliation-heading-row">
@@ -43,7 +45,7 @@
       <div class="reconciliation-record-meta">
         <span>Warehouse: <strong><%= warehouse || '—' %></strong></span>
         <span>Posted: <strong><%= entry.posting_date %><%= entry.posting_time ? ' · ' + entry.posting_time : '' %></strong></span>
-        <% if (entry.cost_center) { %><span>Cost Center: <strong><%= entry.cost_center %></strong></span><% } %>
+        <% if (entry.cost_center) { %><span>Cost Center: <strong><%= costCenterName(entry.cost_center) %></strong></span><% } %>
         <% if (entry.remarks) { %><span>Remarks: <strong><%= entry.remarks %></strong></span><% } %>
       </div>
     <% } %>
@@ -56,8 +58,7 @@
             <input id="reconciliation-warehouse" name="warehouse" list="reconciliation-warehouses" autocomplete="off" value="<%= warehouse || '' %>" <%= saved ? 'readonly' : '' %> required>
             <datalist id="reconciliation-warehouses"></datalist>
           </label>
-          <label>Posting Date<input name="posting_date" type="date" value="<%= entry && entry.posting_date ? entry.posting_date : today %>" <%= isReadOnly ? 'readonly' : '' %> required></label>
-          <label>Posting Time<input name="posting_time" type="time" value="<%= entry && entry.posting_time ? entry.posting_time : postingTime %>" <%= isReadOnly ? 'readonly' : '' %> required></label>
+          <%- include('voucher-posting-fields', { postingFields: { date: entry && entry.posting_date ? entry.posting_date : today, time: entry && entry.posting_time ? entry.posting_time : postingTime, readOnly: isReadOnly } }) %>
           <%- include('cost-center-field', { value: entry && entry.cost_center, readOnly: isReadOnly }) %>
           <label>Remarks<input name="remarks" value="<%= entry && entry.remarks ? entry.remarks : '' %>" placeholder="Count notes or reason for variance" <%= isReadOnly ? 'readonly' : '' %>></label>
           <% if (!saved) { %><button type="button" class="button-light" id="reconciliation-load">Load warehouse stock</button><% } %>

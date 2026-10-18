@@ -1,5 +1,7 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { Pool } = require('pg');
+const { acquireReadLease, connectionWorkload, recordConnectionCheckout } = require('./workload-control');
+const { MAINTENANCE_LOCK, maintenanceBusy, resetEpoch, staleResetRequest } = require('./maintenance-lock');
 
 const context = new AsyncLocalStorage();
 const AUDIT_FIELDS = ['created_by', 'created_by_user_id', 'created_at', 'updated_by', 'updated_by_user_id', 'updated_at'];
@@ -15,23 +17,70 @@ function auditActor() {
 
 // Every checkout sets both values, including background jobs, so pooled
 // connections can never carry the preceding request's identity into a write.
+const connectionFailures = new WeakMap();
+const watchedConnections = new WeakSet();
+function logConnectionError(event, error) {
+  const code = /^[A-Z0-9_]{1,32}$/.test(error?.code || '') ? error.code : 'CONNECTION_LOST';
+  console.error(JSON.stringify({ event, code }));
+}
 class AuditPool extends Pool {
+  constructor(options) {
+    super(options);
+    // pg emits idle-client failures on the pool and removes unusable clients.
+    this.on('error', error => logConnectionError('postgres_pool_error', error));
+  }
   connect(callback) {
     if (!callback) {
       return new Promise((resolve, reject) => this.connect((error, client) => error ? reject(error) : resolve(client)));
     }
+    const started=performance.now(),kind=connectionWorkload(),deliver=callback;
+    callback=(...args)=>{recordConnectionCheckout(kind,performance.now()-started,Boolean(args[0]));return deliver(...args);};
     const actor = auditActor();
-    return super.connect((error, client, release) => {
-      if (error) return callback(error);
-      client.query("SELECT set_config('app.audit_user_id', $1, false), set_config('app.audit_username', $2, false)",
-        [actor.id || '', actor.name], (settingError) => {
+    const expected=resetEpoch();
+    acquireReadLease().then(freeReadSlot => super.connect((error, client, rawRelease) => {
+      if (error) { freeReadSlot(); return callback(error); }
+      const release = error => { try { rawRelease(error); } finally { freeReadSlot(); } };
+      // During checkout pg removes its idle listener. Keep one lifetime listener
+      // so a socket failure cannot become an uncaught EventEmitter error.
+      if (!watchedConnections.has(client)) {
+        watchedConnections.add(client);
+        client.on('error', failure => {
+          connectionFailures.set(client, failure);
+          logConnectionError('postgres_connection_error', failure);
+        });
+      }
+      client.query("SELECT set_config('app.audit_user_id', $1, false), set_config('app.audit_username', $2, false), pg_try_advisory_lock_shared($3) AS available",
+        [actor.id || '', actor.name, MAINTENANCE_LOCK], (settingError, result) => {
           if (settingError) {
             release(settingError);
             return callback(settingError);
           }
-          callback(null, client, release);
+          if (!result.rows[0].available) {
+            release();
+            return callback(maintenanceBusy());
+          }
+          const ready = () => {
+            let released = false;
+            const guardedRelease = (error) => {
+              if (released) throw new Error('Client already released.');
+              released = true;
+              if (error || connectionFailures.has(client)) return release(error || connectionFailures.get(client));
+              client.query('SELECT pg_advisory_unlock_shared($1)', [MAINTENANCE_LOCK], (unlockError) => release(unlockError));
+            };
+            client.release = guardedRelease;
+            callback(null, client, guardedRelease);
+          };
+          if (expected===undefined) return ready();
+          client.query('SELECT COALESCE(MAX(id),0)::text AS epoch FROM wm_transaction_resets', (epochError, epochResult) => {
+            if (epochError || epochResult.rows[0].epoch!==expected) {
+              const error=epochError || staleResetRequest();
+              release(error);
+              return callback(error);
+            }
+            ready();
+          });
         });
-    });
+    }), callback);
   }
 }
 

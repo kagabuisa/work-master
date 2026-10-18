@@ -20,8 +20,7 @@
       <datalist id="purchase-items-list"></datalist>
       <datalist id="purchase-warehouses"></datalist>
       <section class="form-grid ui-form-grid">
-        <label>Order Date<input type="date" name="posting_date" value="<%= purchase.posting_date || '' %>" required></label>
-        <label>Posting Time<input type="time" name="posting_time" value="<%= purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() %>" required></label>
+        <%- include('voucher-posting-fields', { postingFields: { date: purchase.posting_date !== undefined ? purchase.posting_date : currentPostingDate(), time: purchase.posting_time !== undefined ? purchase.posting_time : currentPostingTime() } }) %>
         <label>Expected Delivery Date<input type="date" name="due_date" value="<%= purchase.due_date || '' %>"></label>
         <label>Supplier ID<input name="supplier_id" id="purchase-supplier" list="purchase-suppliers" autocomplete="off" value="<%= purchase.supplier_id || '' %>" required></label>
         <label>Price List<select name="price_list" id="purchase-price-list" required><option value="<%= purchase.price_list || '' %>"><%= purchase.price_list || 'Loading price lists...' %></option></select></label>
@@ -35,13 +34,13 @@
       </div>
       <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Purchase items" tabindex="0">
       <table class="editable entry-table" id="purchase-items">
-        <thead><tr><th>#</th><th>Item Code</th><th>Item Name</th><th>Qty</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Item Code</th><th>Qty</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th></th></tr></thead>
         <tbody>
           <% (purchase.items && purchase.items.length ? purchase.items : [{}]).forEach((item, index) => { %>
             <tr>
               <td class="row-number" data-label="Item"><%= index + 1 %></td>
-              <td data-label="Item Code"><input type="hidden" name="item_id" value="<%= item.id || '' %>"><input aria-label="Item Code" name="item_code" list="purchase-items-list" autocomplete="off" value="<%= item.item_code || '' %>" required></td>
-              <td data-label="Item Name"><input aria-label="Item Name" name="item_name" value="<%= item.item_name || '' %>" readonly></td>
+              <td data-label="Item Code"><input type="hidden" name="item_name" value="<%= item.item_name || '' %>"><input type="hidden" name="item_id" value="<%= item.id || '' %>"><input aria-label="Item Code" name="item_code" list="purchase-items-list" autocomplete="off" value="<%= item.item_code || '' %>" required></td>
+
               <td data-label="Qty"><input aria-label="Qty" name="quantity" type="number" min="0.001" step="0.001" value="<%= item.quantity || '' %>" required></td>
               <td data-label="Unit Cost"><input aria-label="Unit Cost" name="unit_price" type="number" min="0.01" step="0.01" value="<%= item.unit_price != null ? item.unit_price : '' %>" required></td>
               <td class="purchase-line-total" data-label="Total"><%= item.line_total || 0 %></td>

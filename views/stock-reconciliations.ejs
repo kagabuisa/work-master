@@ -13,9 +13,10 @@
       </div>
       <nav>
         <%- include('module-nav', { activeModule: 'stock' }) %>
-        <% if (can('vouchers.stock.create') && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/reconciliations/new">New</a><% } %>
+        <% if ((can('vouchers.stock.create') || can('inventory.count.start')) && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/reconciliations/new">New</a><% } %>
       </nav>
     </header>
+<%- include('stock-reconciliation-tabs',{activeReconciliationTab:'vouchers'}) %>
     <form class="report-filters invoice-filters stock-reconciliation-filters ui-toolbar ui-filter-row" method="get" action="/stock/reconciliations">
       <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Voucher, item or remarks"></label>
       <label>From<input type="date" name="from" value="<%= query.from || '' %>"></label>

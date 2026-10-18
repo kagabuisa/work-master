@@ -795,7 +795,64 @@
       "debit": 2048,
       "credit": 2048,
       "balance": 0
-    }
+    },
+    "opening_rows": [
+      {
+        "account_code": "1100",
+        "account_name": "Accounts Receivable",
+        "running_balance": 0
+      },
+      {
+        "account_code": "1110",
+        "account_name": "Cash",
+        "running_balance": 0
+      },
+      {
+        "account_code": "1120",
+        "account_name": "Bank",
+        "running_balance": 0
+      },
+      {
+        "account_code": "1200",
+        "account_name": "Inventory",
+        "running_balance": 0
+      },
+      {
+        "account_code": "2100",
+        "account_name": "Accounts Payable",
+        "running_balance": 0
+      },
+      {
+        "account_code": "2200",
+        "account_name": "Tax Payable",
+        "running_balance": 0
+      },
+      {
+        "account_code": "3000",
+        "account_name": "Opening Equity",
+        "running_balance": 0
+      },
+      {
+        "account_code": "4000",
+        "account_name": "Sales Income",
+        "running_balance": 0
+      },
+      {
+        "account_code": "4100",
+        "account_name": "Stock Adjustment Gain",
+        "running_balance": 0
+      },
+      {
+        "account_code": "5000",
+        "account_name": "Cost of Goods Sold",
+        "running_balance": 0
+      },
+      {
+        "account_code": "5100",
+        "account_name": "Stock Adjustment Loss",
+        "running_balance": 0
+      }
+    ]
   },
   "stockLedger": {
     "filters": {

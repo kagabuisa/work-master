@@ -1,6 +1,6 @@
 const mysql = require('mysql2/promise');
 const { databaseTls } = require('./database-tls');
-require('dotenv').config({ quiet: true });
+require('./environment').loadEnvironment();
 
 function sslConfig() {
   return databaseTls(process.env.DB_SSL, process.env.DB_SSL_CA_FILE);

@@ -14,7 +14,7 @@
     <section class="invoice-meta">
       <div class="invoice-bill-to">
         <span>Bill To</span>
-        <strong><%= invoice.customer_name %></strong>
+        <strong><%= invoice.customer_id %></strong>
         <% if (invoice.customer_phone) { %><p><%= invoice.customer_phone %></p><% } %>
       </div>
       <div>
@@ -40,7 +40,7 @@
       <thead>
         <tr>
           <th class="row-number">#</th>
-          <th class="item-code-col">Item Name</th>
+          <th class="item-code-col">Item Code</th>
           <th>Qty</th>
           <th>Unit Price</th>
           <th>Total</th>
@@ -50,7 +50,7 @@
         <% items.forEach((item, index) => { %>
           <tr>
             <td class="row-number"><%= index + 1 %></td>
-            <td class="item-code-col"><%= item.item_name || item.item_code %></td>
+            <td class="item-code-col"><%= item.item_code %></td>
             <td><%= Number(item.quantity).toLocaleString() %></td>
             <td><%= money(item.unit_price) %></td>
             <td><%= money(item.line_total) %></td>

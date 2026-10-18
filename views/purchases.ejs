@@ -34,7 +34,7 @@
               <td><%= (result.pagination ? result.pagination.offset : (result.page - 1) * 25) + index + 1 %></td>
               <td><a href="/purchases/<%= purchase.id %>" data-voucher-drawer="/purchases/<%= purchase.id %>/drawer"><%= purchase.purchase_no %></a></td>
               <td><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></td>
-              <td><%= purchase.supplier_name %></td>
+              <td><%= purchase.supplier_id %></td>
               <td><%= purchase.supplier_reference || '' %></td>
               <td class="ui-amount"><%= money(purchase.total) %></td>
               <td class="ui-amount"><%= money(purchase.amount_paid) %></td>

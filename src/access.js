@@ -126,6 +126,7 @@ function allowedNamedListValues(user, kind) {
 }
 
 function deniedNamedListValues(user, kind) {
+  if (user?.role === 'admin') return [];
   const prefix = kind === 'warehouses' ? 'warehouse.view:' : 'account.view:';
   return (user?.permission_denials || []).filter((permission) => permission.startsWith(prefix))
     .map((permission) => permission.slice(prefix.length));
@@ -172,6 +173,7 @@ function allowedMasterRecordIds(user, kind) {
 }
 
 function deniedMasterRecordIds(user, kind) {
+  if (user?.role === 'admin') return [];
   const prefix = kind === 'cost-centers' ? 'cost-center.view:' : 'employee.view:';
   return (user?.permission_denials || []).filter((key) => key.startsWith(prefix))
     .map((key) => key.slice(prefix.length));

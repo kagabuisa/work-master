@@ -6,6 +6,8 @@ RUN npm ci --omit=dev
 
 FROM node:22-alpine
 
+RUN apk add --no-cache postgresql16-client tar
+
 ENV NODE_ENV=production
 WORKDIR /app
 

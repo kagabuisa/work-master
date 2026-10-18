@@ -32,7 +32,7 @@ test('API sales reliability, final validation, lock ordering and financial parit
       INSERT INTO app_master_employees(employee_id,employee_name,status,disabled) VALUES ('E1','Authoritative Invoicer','Active',false);
       INSERT INTO app_master_items(item_code,item_name,stock_uom,docstatus) VALUES
         ('I1','First Item','Each','submitted'),('I2','Second Item','Each','submitted'),('SCARCE','Scarce Item','Each','submitted');`);
-    await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', items: [
+    await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', posting_time: '00:00', items: [
       { item_code: 'I1', item_name: 'First Item', warehouse: 'Main', quantity: 40, valuation_rate: 20 },
       { item_code: 'I2', item_name: 'Second Item', warehouse: 'Main', quantity: 40, valuation_rate: 30 },
       { item_code: 'SCARCE', item_name: 'Scarce Item', warehouse: 'Main', quantity: 2, valuation_rate: 10 },
@@ -124,7 +124,7 @@ test('API sales reliability, final validation, lock ordering and financial parit
       assert.equal((await store.findInvoice(failed.id)).docstatus, 'draft');
       assert.equal((await pool.query('SELECT 1 FROM wm_api_idempotency WHERE key=$1', [failed.key])).rowCount, 0);
       assert.equal((await pool.query("SELECT 1 FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [failed.id])).rowCount, 0);
-      await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', items: [
+      await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', posting_time: '00:00', items: [
         { item_code: 'SCARCE', item_name: 'Scarce Item', warehouse: 'Main', quantity: 2, valuation_rate: 10 },
       ] });
       assert.equal((await submit(failed.id, failed.key, failed.actor)).status, 200);
@@ -148,12 +148,17 @@ test('API sales reliability, final validation, lock ordering and financial parit
       assert.equal((await store.findInvoice(main)).amount_paid, 0);
     });
 
-    await t.test('repeated item lines share one locked stock budget and cannot partially submit', async () => {
-      await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', items: [
+    await t.test('repeated item lines fail save checks and legacy drafts cannot partially submit', async () => {
+      await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', posting_time: '00:00', items: [
         { item_code: 'SCARCE', item_name: 'Scarce Item', warehouse: 'Main', quantity: 3, valuation_rate: 10 },
       ] });
       const body = payload('SCARCE', 2);
-      const id = await create('repeated-lines', { ...body, items: [...body.items, ...body.items] });
+      const beforeCreate=await snapshot();
+      await assert.rejects(create('repeated-lines-rejected',{...body,items:[...body.items,...body.items]}),error=>error.code==='insufficient_stock');
+      assert.deepEqual(await snapshot(),beforeCreate);
+      const id = await create('repeated-lines', { ...body, items: [...body.items, ...body.items].map(item=>({...item,quantity:1})) });
+      // Submission still protects drafts saved before availability changed.
+      await pool.query('UPDATE app_invoice_items SET quantity=2 WHERE invoice_pk=$1',[id]);
       const before = await snapshot();
       await assert.rejects(submit(id, 'repeated-lines-submit'), error => error.code === 'insufficient_stock');
       assert.deepEqual(await snapshot(), before);

@@ -24,6 +24,8 @@ const VOUCHER_TYPES = [
 ];
 const { HR_AREAS } = require('./hr-policy');
 const PERMISSIONS = [
+  ...['view','start','save','review','approve','reject','submit','abandon'].map(action => ({ key:`inventory.count.${action}`, label:`${action} warehouse counts`, group:'Inventory control' })),
+  ...['view','create','approve','submit','abandon'].map(action => ({ key:`inventory.correction.${action}`, label:`${action} inventory corrections`, group:'Inventory control' })),
   ...HR_AREAS.flatMap((area) => area.actions.map((action) => ({
     key: `hr.${area.key}.${action}`, label: `${action} ${area.label}`, group: 'HR' }))),
   ...MASTER_LISTS.flatMap(([key, label]) => ['view', 'create', 'edit', 'submit', 'cancel', 'delete']

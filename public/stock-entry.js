@@ -14,13 +14,92 @@ const cancelEntrySourceStatus = document.querySelector('#cancel-entry-source-sta
 const cancelEntryButton = document.querySelector('#cancel-entry-button');
 const stockEntryPostingWrapper = document.querySelector('#stock-entry-posting-wrapper');
 const stockEntryRemarksWrapper = document.querySelector('#stock-entry-remarks-wrapper');
-const stockEntrySubmitButtons = [...document.querySelectorAll('#stock-entry-form button[type="submit"]')];
+const stockEntrySubmitButtons = [...document.querySelectorAll('#stock-entry-form button[type="submit"], button[type="submit"][form="stock-entry-form"]')];
 const importStockEntryRowsButton = document.querySelector('#import-stock-entry-rows');
 const stockEntryImportFile = document.querySelector('#stock-entry-import-file');
 const stockEntryImportStatus = document.querySelector('#stock-entry-import-status');
 const initialStockEntry = window.STOCK_ENTRY_INITIAL || { entry: null, items: [] };
 const stockEntryReadOnly = Boolean(initialStockEntry.readOnly);
+const stockTransferTypes = new Set(initialStockEntry.transferTypes || ['transfer']);
 const rowTemplate = tableBody.querySelector('tr').cloneNode(true);
+const stockEntryItemPicker = document.querySelector('#stock-entry-item-picker');
+const stockEntryItemSearch = document.querySelector('#stock-entry-item-search');
+const stockEntryItemResults = document.querySelector('#stock-entry-item-results');
+const stockEntryItemStatus = document.querySelector('#stock-entry-item-status');
+let itemPickerTimer;
+let itemPickerRequest;
+
+if (stockEntryItemSearch) {
+  stockEntryItemSearch.addEventListener('input', () => {
+    clearTimeout(itemPickerTimer);
+    itemPickerRequest?.abort();
+    stockEntryItemResults.replaceChildren();
+    stockEntryItemStatus.textContent = '';
+    itemPickerTimer = setTimeout(searchStockEntryItemPicker, 180);
+  });
+  stockEntryItemResults.addEventListener('click', event => {
+    const button = event.target.closest('[data-stock-picker-item]');
+    if (button) addStockEntryPickerItem(JSON.parse(button.dataset.stockPickerItem));
+  });
+  stockEntryItemPicker.addEventListener('keydown', event => {
+    const buttons = [...stockEntryItemResults.querySelectorAll('button')];
+    const index = buttons.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const next = event.key === 'ArrowDown' ? index + 1 : index < 0 ? buttons.length - 1 : index - 1;
+      buttons[(next + buttons.length) % buttons.length]?.focus();
+    } else if (event.key === 'Escape') {
+      clearTimeout(itemPickerTimer);
+      itemPickerRequest?.abort();
+      stockEntryItemResults.replaceChildren();
+      stockEntryItemSearch.focus();
+    } else if (event.key === 'Enter' && event.target === stockEntryItemSearch) {
+      event.preventDefault();
+      buttons[0]?.click();
+    }
+  });
+  document.addEventListener('click', event => {
+    if (!stockEntryItemPicker.contains(event.target)) {
+      clearTimeout(itemPickerTimer);
+      itemPickerRequest?.abort();
+      stockEntryItemResults.replaceChildren();
+    }
+  });
+}
+
+async function searchStockEntryItemPicker() {
+  const query = stockEntryItemSearch.value.trim();
+  if (!query || entryType.value === 'cancel') return;
+  const request = new AbortController();
+  itemPickerRequest = request;
+  try {
+    const response = await fetch(`/api/master-items?q=${encodeURIComponent(query)}`, { signal: request.signal });
+    if (!response.ok) throw new Error('Item lookup failed.');
+    const items = await response.json();
+    if (request.signal.aborted || stockEntryItemSearch.value.trim() !== query) return;
+    stockEntryItemResults.innerHTML = items.map(item => `<button type="button" data-stock-picker-item="${escapeAttr(JSON.stringify(item))}">${escapeHtml(item.item_code)}</button>`).join('');
+    stockEntryItemStatus.textContent = items.length ? '' : 'No matching items.';
+  } catch (error) {
+    if (!request.signal.aborted) stockEntryItemStatus.textContent = 'Could not load items. Type again to retry.';
+  }
+}
+
+function addStockEntryPickerItem(item) {
+  if (stockEntryReadOnly || entryType.value === 'cancel') return;
+  let row = [...tableBody.querySelectorAll('tr')].find(row => !row.querySelector('[name="item_code"]').value.trim());
+  if (!row) {
+    addRowButton.click();
+    row = tableBody.lastElementChild;
+  }
+  row.querySelector('[name="item_code"]').value = item.item_code;
+  applyItemToRow(row, item);
+  updateRowBalances(row);
+  stockEntryItemSearch.value = '';
+  itemPickerRequest?.abort();
+  stockEntryItemResults.replaceChildren();
+  stockEntryItemStatus.textContent = `${item.item_code} added to row ${[...tableBody.children].indexOf(row) + 1}. Enter its quantity in the table.`;
+  row.querySelector('[name="quantity"]').focus();
+}
 
 let itemCacheByQuery = new Map();
 let itemTimer;
@@ -35,6 +114,16 @@ stockEntryForm.addEventListener('submit', (event) => {
   if (entryType.value === 'cancel') {
     event.preventDefault();
   }
+});
+const balanceRequests = new WeakMap();
+window.addEventListener('focus', updateRowsBalances);
+document.addEventListener('inventory-control-ready',updateRowsBalances);
+stockEntryForm.addEventListener('change', event => {
+  if (event.target.matches('[name="posting_date"], [name="posting_time"], [name="quantity"]')) updateRowsBalances();
+});
+stockEntryForm.addEventListener('input', event => {
+  if (event.target.matches('[name="quantity"], [name="valuation_rate"]')) updateStockEntryValues();
+  if (event.target.matches('[name="posting_date"], [name="posting_time"]')) updateRowsBalances();
 });
 
 addRowButton.addEventListener('click', () => {
@@ -72,6 +161,7 @@ tableBody.addEventListener('click', (event) => {
 
 tableBody.addEventListener('input', (event) => {
   if (event.target.matches('[name="item_code"]')) {
+    updateRowBalances(event.target.closest('tr'));
     clearTimeout(itemTimer);
     itemTimer = setTimeout(() => searchItems(event.target), 180);
     return;
@@ -186,7 +276,7 @@ async function searchItems(input) {
     results.innerHTML = items.map((item) => (
       `<button type="button" data-stock-item="${escapeAttr(JSON.stringify(item))}">
         <strong>${escapeHtml(item.item_code)}</strong>
-        <span>${escapeHtml(item.item_name || '')}</span>
+
       </button>`
     )).join('') || '<p>No matching items.</p>';
   } catch {
@@ -377,7 +467,7 @@ function selectItem(button) {
 function applyItemToRow(row, item) {
   row.querySelector('[name="item_name"]').value = item.item_name || item.item_code;
   const rateInput = row.querySelector('[name="valuation_rate"]');
-  if (['transfer', 'cancel'].includes(entryType.value)) {
+  if ((stockTransferTypes.has(entryType.value) || entryType.value === 'cancel')) {
     updateRowBalances(row);
     return;
   }
@@ -629,7 +719,7 @@ function applyLockedTargetWarehouse(row) {
 }
 
 function updateEntryTypeControls() {
-  const transfer = entryType.value === 'transfer';
+  const transfer = stockTransferTypes.has(entryType.value);
   const reconciliation = entryType.value === 'reconciliation';
   document.querySelector('#stock-entry-quantity-heading').textContent = reconciliation ? 'Counted Qty' : 'Qty';
   document.querySelector('#stock-reconciliation-hint').hidden = !reconciliation;
@@ -660,6 +750,14 @@ function updateCancelEntrySourceControls() {
     return;
   }
   const isCancelEntry = entryType.value === 'cancel';
+  if (stockEntryItemPicker) {
+    stockEntryItemPicker.hidden = isCancelEntry;
+    stockEntryItemSearch.disabled = isCancelEntry;
+    clearTimeout(itemPickerTimer);
+    itemPickerRequest?.abort();
+    stockEntryItemResults.replaceChildren();
+    stockEntryItemStatus.textContent = '';
+  }
   cancelEntrySourceWrapper.hidden = !isCancelEntry;
   if (isCancelEntry && !selectedCancelEntry) {
     populateRows([], { readOnly: true });
@@ -740,6 +838,7 @@ function populateInitialStockEntry() {
 }
 
 function updateStockEntryRowNumbers() {
+  updateStockEntryValues();
   tableBody.querySelectorAll('tr').forEach((row, index) => {
     const numberCell = row.querySelector('.row-number');
     if (numberCell) {
@@ -757,11 +856,26 @@ function defaultInputValue(input) {
 
 function resetBalanceDisplays(row) {
   row.querySelectorAll('[data-balance-field]').forEach((field) => {
-    field.textContent = 'Balance: 0';
+    field.textContent = 'As of: —';
   });
 }
 
+function updateStockEntryValues() {
+  let total = 0;
+  tableBody.querySelectorAll('tr').forEach(row => {
+    const quantity = Number(row.querySelector('[name="quantity"]').value || 0);
+    const rate = Math.max(0, Math.round(Number(row.querySelector('[name="valuation_rate"]').value || 0)));
+    const value = Number.isFinite(quantity * rate) ? Math.round(quantity * rate) : 0;
+    total += value;
+    const output = row.querySelector('[data-item-value]');
+    if (output) output.textContent = value.toLocaleString('en-UG');
+  });
+  const totalOutput = document.querySelector('#stock-entry-total-value');
+  if (totalOutput) totalOutput.textContent = total.toLocaleString('en-UG');
+}
+
 function updateRowsBalances() {
+  updateStockEntryValues();
   tableBody.querySelectorAll('tr').forEach((row) => updateRowBalances(row));
 }
 
@@ -769,6 +883,7 @@ async function updateRowBalances(row) {
   if (!row) {
     return;
   }
+  updateStockEntryValues();
   const itemCode = row.querySelector('[name="item_code"]').value.trim();
   await Promise.all([
     updateBalanceField(row, 'warehouse', 'warehouse_balance', itemCode),
@@ -779,30 +894,41 @@ async function updateRowBalances(row) {
 async function updateBalanceField(row, warehouseFieldName, balanceFieldName, itemCode) {
   const warehouseInput = row.querySelector(`[name="${warehouseFieldName}"]`);
   const balanceInput = row.querySelector(`[data-balance-field="${balanceFieldName}"]`);
-  if (!warehouseInput || !balanceInput || balanceInput.hidden) {
-    return;
-  }
+  if (!warehouseInput || !balanceInput) return;
+  balanceRequests.get(balanceInput)?.abort();
+  const controller = new AbortController();
+  balanceRequests.set(balanceInput, controller);
+  if (balanceInput.hidden) return;
   const warehouse = warehouseInput.value.trim();
+  const date = stockEntryForm.querySelector('[name="posting_date"]').value;
+  const time = stockEntryForm.querySelector('[name="posting_time"]').value;
+  const current = () => !controller.signal.aborted && row.isConnected
+    && row.querySelector('[name="item_code"]').value.trim() === itemCode
+    && warehouseInput.value.trim() === warehouse
+    && stockEntryForm.querySelector('[name="posting_date"]').value === date
+    && stockEntryForm.querySelector('[name="posting_time"]').value === time;
   if (!itemCode || !warehouse) {
-    balanceInput.textContent = 'Balance: 0';
+    balanceInput.textContent = 'As of: —';
     return;
   }
-  balanceInput.textContent = 'Balance: checking';
+  balanceInput.textContent = 'As of: checking';
   try {
-    const response = await fetch(`/api/stock-balance?item_code=${encodeURIComponent(itemCode)}&warehouse=${encodeURIComponent(warehouse)}`);
-    if (!response.ok) {
-      throw new Error('Balance lookup failed.');
-    }
+    const params = new URLSearchParams({ item_code: itemCode, warehouse });
+    if (!window.inventoryControlState?.enabled) { params.set('posting_date',date);params.set('posting_time',time); }
+    const response = await fetch(`/api/stock-balance?${params}`, { signal: controller.signal, cache: 'no-store' });
+    if (!response.ok) throw new Error('Balance lookup failed.');
     const balance = await response.json();
-    balanceInput.textContent = `Balance: ${formatQuantity(balance.quantity)}`;
-    if (warehouseFieldName === 'warehouse' && ['transfer', 'cancel', 'reconciliation'].includes(entryType.value)) {
+    if (!current()) return;
+    balanceInput.textContent = `As of: ${formatQuantity(balance.quantity)}${balance.available_quantity < balance.quantity ? `; available: ${formatQuantity(balance.available_quantity)}` : ''}`;
+    if (warehouseFieldName === 'warehouse' && (stockTransferTypes.has(entryType.value) || ['cancel', 'reconciliation'].includes(entryType.value))) {
       const rateInput = row.querySelector('[name="valuation_rate"]');
       if (entryType.value !== 'reconciliation' || !Number(rateInput.value)) {
         rateInput.value = formatRate(balance.valuation_rate);
+        updateStockEntryValues();
       }
     }
   } catch {
-    balanceInput.textContent = 'Balance: unavailable';
+    if (current()) balanceInput.textContent = 'As of: unavailable — change item or warehouse to retry';
   }
 }
 

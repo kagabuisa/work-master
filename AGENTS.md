@@ -8,6 +8,10 @@ After every successfully completed change, run `docker compose up -d --build inv
 
 Keep user-facing documentation current as the app develops. In the same change as a voucher, screen, validation, permission, or report change, update the relevant section of `docs/app-guide.md`. Update `docs/permissions.md` for access-rule changes and `README.md` for setup or operational changes. Verify descriptions against the implemented behavior and avoid documenting planned behavior as current behavior.
 
+## Benchmark retention
+
+The user has instructed that the ERPNext-sized benchmark setup and resources must be retained for future tests until they explicitly request removal. Preserve benchmark databases and seeded fixtures, run directories under `/mnt/HC_Volume_107155360/wm-erp-*`, private configuration and credentials, frozen Docker images, containers and networks, local pointers under `data/erp-benchmark/`, scripts, profiles and result artifacts. Do not delete, reset, overwrite or prune these resources during routine cleanup. Completed benchmark containers may be stopped to release CPU and memory while retaining their data and configuration. Preserve prior results and the reusable fixture when preparing future tests. This retention rule does not apply to disposable integration-test containers and networks created by the isolated test procedure below.
+
 ## UI consistency
 
 For screen changes, follow `docs/design-guide.md` and reuse the shared styles in `public/design-system.css` and the `ui-section-heading` / `ui-helper` partials. Use the documented list, form/detail, and report reference layouts; avoid duplicating shared components with page-specific CSS. Preserve the fixed outline-label behavior and the exceptions documented in the guide.

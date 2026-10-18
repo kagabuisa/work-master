@@ -3,7 +3,7 @@ const itemSearch = document.querySelector('#item-search');
 const itemResults = document.querySelector('#item-results');
 const warehouseSelect = document.querySelector('#warehouse-select');
 const priceListSelect = document.querySelector('#invoice-price-list');
-const costCenterInput = document.querySelector('#invoice-cost-center');
+const costCenterInput = document.querySelector('[data-cost-center-id]');
 const refreshPricesButton = document.querySelector('#refresh-invoice-prices');
 const priceUpdateStatus = document.querySelector('#invoice-price-update-status');
 const customerSearch = document.querySelector('#customer-search');
@@ -64,6 +64,103 @@ let invoicerController;
 let customersLoading = false;
 let customerRequestId = 0;
 let editingPaymentIndex = null;
+
+let stockRefreshTimer;
+let stockRefreshController;
+function invoiceStockDate() {
+  if (window.inventoryControlState?.enabled) return new URLSearchParams();
+  return new URLSearchParams({ posting_date: document.querySelector('#invoice-date').value,
+    posting_time: document.querySelector('#invoice-posting-time').value });
+}
+function scheduleStockRefresh() {
+  clearTimeout(stockRefreshTimer);
+  stockRefreshController?.abort();
+  for (const item of items) item.live_stock_status = 'Checking…';
+  updateStockCells();
+  stockRefreshTimer = setTimeout(refreshInvoiceStock, 200);
+}
+function updateStockCells() {
+  tbody.querySelectorAll('[data-stock-index]').forEach(cell => {
+    const item = items[Number(cell.dataset.stockIndex)];
+    if (!item) return;
+    cell.textContent = item.live_stock_status || (item.live_stock == null ? 'Checking…'
+      : `${formatQuantity(item.live_stock)}${item.live_available < item.live_stock ? `; available: ${formatQuantity(item.live_available)}` : ''}`);
+  });
+}
+function invoiceStockPair(item) {
+  return { item_code: String(item.item_code || '').trim(),
+    warehouse: String(item.warehouse || warehouseSelect.value || '').trim() };
+}
+function invoiceStockKey(pair) {
+  return JSON.stringify([pair.item_code, pair.warehouse]);
+}
+function invoiceStockSignature() {
+  return JSON.stringify([invoiceStockDate().toString(), warehouseSelect.value, items.map(invoiceStockPair)]);
+}
+async function refreshInvoiceStock() {
+  stockRefreshController?.abort();
+  const controller = stockRefreshController = new AbortController();
+  const signature = invoiceStockSignature();
+  const snapshot = items.map(item => ({ item, pair: invoiceStockPair(item) }));
+  const pairs = [...new Map(snapshot.map(({ pair }) => [invoiceStockKey(pair), pair])).values()];
+  const balances = new Map();
+  const posting = Object.fromEntries(invoiceStockDate());
+  // Large legacy invoices use bounded, sequential chunks; ordinary invoices use one request.
+  for (let start = 0; start < pairs.length && !controller.signal.aborted; start += 200) {
+    const chunk = pairs.slice(start, start + 200);
+    const keys = new Set(chunk.map(invoiceStockKey));
+    try {
+      const response = await fetch('/api/invoice-stock-balances', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: chunk, ...posting }), signal: controller.signal, cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('Stock lookup failed.');
+      const rows = await response.json();
+      if (!Array.isArray(rows)) throw new Error('Invalid stock response.');
+      const received = new Map();
+      for (const row of rows) {
+        const key = row && invoiceStockKey(row);
+        if (!keys.has(key) || received.has(key) || typeof row.quantity !== 'number'
+            || !Number.isFinite(row.quantity) || typeof row.available_quantity !== 'number'
+            || !Number.isFinite(row.available_quantity)) throw new Error('Invalid stock response.');
+        received.set(key, row);
+      }
+      for (const [key, row] of received) balances.set(key, row);
+    } catch {
+      // Missing or failed balances remain unavailable, never a fabricated zero.
+    }
+    if (signature !== invoiceStockSignature()) return;
+  }
+  if (controller.signal.aborted || signature !== invoiceStockSignature()) return;
+  for (const { item, pair } of snapshot) {
+    if (!items.includes(item)) continue;
+    const balance = balances.get(invoiceStockKey(pair));
+    if (balance) {
+      item.live_stock = balance.quantity;
+      item.live_available = balance.available_quantity;
+      item.live_stock_status = '';
+    } else item.live_stock_status = 'Unavailable — retry by editing quantity';
+  }
+  if (snapshot.length) updateStockCells();
+}
+form.addEventListener('input', event => {
+  if (event.target.matches('#invoice-date, #invoice-posting-time')) {
+    scheduleStockRefresh();
+    itemController?.abort();
+    itemRequestId += 1;
+    itemResults.innerHTML = '';
+    if (document.activeElement === itemSearch) searchItems();
+  } else if (event.target.matches('[data-field="quantity"]')) scheduleStockRefresh();
+});
+form.addEventListener('change', event => {
+  if (event.target.matches('#invoice-date, #invoice-posting-time')) scheduleStockRefresh();
+});
+window.addEventListener('focus', scheduleStockRefresh);
+document.addEventListener('inventory-control-ready', () => {
+  scheduleStockRefresh();
+  itemController?.abort();itemRequestId+=1;itemResults.innerHTML='';
+  if (document.activeElement===itemSearch) searchItems();
+});
 
 let itemTimer;
 itemSearch.addEventListener('input', () => {
@@ -128,7 +225,7 @@ async function searchInvoicers() {
     invoicerResults.innerHTML = rows.map((employee) => `
       <button type="button" data-id="${escapeAttr(employee.employee_id)}" data-name="${escapeAttr(employee.employee_name)}">
         <strong>${escapeHtml(employee.employee_name)}</strong>
-        <span>${escapeHtml([employee.employee_id, employee.department].filter(Boolean).join(' · '))}</span>
+        <span>${escapeHtml([employee.department].filter(Boolean).join(' · '))}</span>
       </button>
     `).join('') || '<p>No matching employees.</p>';
     invoicerResults.querySelectorAll('[data-id]').forEach((button) => {
@@ -174,6 +271,7 @@ customerSearch.addEventListener('input', () => {
   customerController?.abort();
   customerRequestId += 1;
   customerId.value = '';
+  document.querySelector('#customer-name').value = '';
   clearTimeout(customerTimer);
   customerTimer = setTimeout(searchCustomers, 220);
 });
@@ -208,6 +306,7 @@ form.addEventListener('input', clearFormError);
 
 initializeInvoiceForm();
 initializePayments();
+scheduleStockRefresh();
 savedInvoiceState = JSON.stringify(invoiceState());
 updateEditActions();
 loadWarehouses();
@@ -318,18 +417,20 @@ async function searchItems() {
   const q = itemSearch.value.trim();
   const warehouse = warehouseSelect.value;
   const priceList = priceListSelect.value;
+  const posting = invoiceStockDate().toString();
   if (!warehouse || !priceListSelect.value) {
     itemResults.innerHTML = '<p>Choose a price list and warehouse before searching items.</p>';
     return;
   }
   const isCurrentSearch = () => !signal.aborted && requestId === itemRequestId
+    && posting === invoiceStockDate().toString()
     && warehouse === warehouseSelect.value
     && priceList === priceListSelect.value
     && q === itemSearch.value.trim()
     && (document.activeElement === itemSearch || itemResults.contains(document.activeElement));
   itemResults.innerHTML = '<p>Loading items...</p>';
   try {
-    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}&price_list=${encodeURIComponent(priceList)}`, { signal });
+    const response = await fetch(`/api/items?q=${encodeURIComponent(q)}&warehouse=${encodeURIComponent(warehouse)}&price_list=${encodeURIComponent(priceList)}&${posting}`, { signal, cache: 'no-store' });
     if (!response.ok) {
       throw new Error('Item request failed.');
     }
@@ -346,14 +447,14 @@ function renderItemResults(rows) {
   itemResults.innerHTML = rows.map((item) => `
     <div class="result-row">
       <div class="item-result-details">
-        <strong class="item-result-name">${escapeHtml(item.item_name || item.item_code)}</strong>
+        <strong class="item-result-name">${escapeHtml(item.item_code)}</strong>
         <span class="item-result-meta">${[
-          item.item_code !== item.item_name ? item.item_code : '',
+
           item.category,
         ].filter(Boolean).map(escapeHtml).join(' · ')}</span>
       </div>
       <div class="item-result-stock">
-        <span class="item-result-label">In stock</span>
+        <span class="item-result-label">${window.inventoryControlState?.enabled ? 'Current stock preview' : 'Stock as of posting'}</span>
         <strong>${formatQuantity(item.stock_balance)}${item.stock_uom ? ` <small>${escapeHtml(item.stock_uom)}</small>` : ''}</strong>
       </div>
       <div class="item-result-price">
@@ -362,9 +463,9 @@ function renderItemResults(rows) {
       </div>
       <label class="item-result-quantity">
         <span class="item-result-label">Qty</span>
-        <input type="text" inputmode="decimal" value="1" data-qty aria-label="Quantity for ${escapeAttr(item.item_name || item.item_code)}">
+        <input type="text" inputmode="decimal" value="1" data-qty aria-label="Quantity for ${escapeAttr(item.item_code)}">
       </label>
-      <button type="button" data-item='${escapeAttr(JSON.stringify(item))}' aria-label="Add ${escapeAttr(item.item_name || item.item_code)}">Add</button>
+      <button type="button" data-item='${escapeAttr(JSON.stringify(item))}' aria-label="Add ${escapeAttr(item.item_code)}">Add</button>
     </div>
   `).join('') || '<p>No matching items.</p>';
 
@@ -396,6 +497,9 @@ function renderItemResults(rows) {
   });
 
   itemResults.querySelectorAll('[data-qty]').forEach((input) => {
+    input.addEventListener('focus', () => {
+      input.value = '';
+    });
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -421,6 +525,7 @@ function selectItemResult(button) {
 }
 
 async function loadWarehouses() {
+  const previousWarehouse = warehouseSelect.value;
   try {
     const response = await fetch('/api/warehouses');
     if (!response.ok) {
@@ -443,6 +548,7 @@ async function loadWarehouses() {
   } finally {
     syncWarehouseFields();
     updateEditActions();
+    if (items.length && warehouseSelect.value !== previousWarehouse) scheduleStockRefresh();
   }
 }
 
@@ -616,7 +722,7 @@ function showPreloadedCustomers() {
 function renderCustomerResults(rows) {
   customerResults.innerHTML = rows.map((customer) => `
     <button type="button" data-id="${escapeAttr(customer.customer_id)}" data-name="${escapeAttr(customer.customer_name)}">
-      <strong>${escapeHtml(customer.customer_name)}</strong>
+      <strong>${escapeHtml(customer.customer_id)}</strong>
       <span>${escapeHtml([customer.territory, customer.customer_group].filter(Boolean).join(' · '))}</span>
     </button>
   `).join('') || '<p>No matching customers.</p>';
@@ -656,6 +762,7 @@ function addItem(source, quantity = 1) {
     });
   }
   renderItems();
+  scheduleStockRefresh();
 }
 
 function initializeInvoiceForm() {
@@ -731,8 +838,8 @@ function renderItems() {
     return `
       <tr>
         <td class="row-number" data-label="Item">${index + 1}</td>
-        <td class="item-code-col" data-label="Item Name"><strong>${escapeHtml(item.item_code)}</strong></td>
-        <td data-label="Stock">${item.stock_at_sale == null ? '—' : formatQuantity(item.stock_at_sale)}</td>
+        <td class="item-code-col" data-label="Item Code"><strong>${escapeHtml(item.item_code)}</strong></td>
+        <td data-label="Stock as of posting" data-stock-index="${index}"></td>
         <td data-label="Qty"><input aria-label="Quantity" type="text" inputmode="decimal" value="${formatQuantity(quantity)}" data-index="${index}" data-field="quantity"></td>
         <td data-label="Unit Price"><input aria-label="Unit price" type="number" min="0" step="1" value="${roundMoney(item.unit_price)}" data-index="${index}" data-field="unit_price"></td>
         <td data-label="Total" data-line-total="${index}">${formatMoney(total || 0)}</td>
@@ -741,6 +848,7 @@ function renderItems() {
     `;
   }).join('');
 
+  updateStockCells();
   tbody.querySelectorAll('input').forEach((input) => {
     input.addEventListener('input', () => {
       const index = Number(input.dataset.index);
@@ -780,6 +888,7 @@ function renderItems() {
       dirty = true;
       items.splice(Number(button.dataset.remove), 1);
       renderItems();
+      scheduleStockRefresh();
     });
   });
 
@@ -934,7 +1043,7 @@ function invoiceState() {
     due_date: document.querySelector('#due-date').value,
     non_system_invoice: document.querySelector('#ext-invoice').value.trim(),
     customer_id: customerId.value,
-    customer_name: customerSearch.value.trim(),
+    customer_name: document.querySelector('#customer-name').value.trim(),
     price_list: priceListSelect.value,
     cost_center: costCenterInput.value.trim(),
     invoicer_id: invoicerId.value,
@@ -1085,7 +1194,8 @@ function clearUnselectedCustomer() {
 function selectCustomer(button) {
   dirty = true;
   customerId.value = button.dataset.id;
-  customerSearch.value = button.dataset.name;
+  customerSearch.value = button.dataset.id;
+  document.querySelector('#customer-name').value = button.dataset.name;
   customerResults.innerHTML = '';
   updateEditActions();
 }

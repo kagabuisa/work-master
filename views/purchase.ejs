@@ -33,19 +33,21 @@
         <% } %>
       </div>
       <div class="invoice-meta">
-        <div><span>Supplier</span><strong><%= purchase.supplier_name %></strong><p><%= purchase.supplier_id %></p></div>
+        <div><span>Supplier</span><strong><%= purchase.supplier_id %></strong></div>
         <div><span>Posting Date/Time</span><strong><%= formatDateTime(purchase.posting_date, purchase.posting_time || '00:00') %></strong><% if (purchase.due_date) { %><p>Due <%= formatDate(purchase.due_date) %></p><% } %></div>
         <div><span>Document</span><strong><span class="badge <%= purchase.docstatus %>"><%= purchase.docstatus %></span></strong><p><span class="badge <%= purchase.status %>"><%= purchase.status %></span></p></div>
       </div>
-      <% if (purchase.price_list) { %><p>Price List: <strong><%= purchase.price_list %></strong></p><% } %>
-      <% if (purchase.cost_center) { %><p>Cost Center: <strong><%= purchase.cost_center %></strong></p><% } %>
-      <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p>Purchase Order: <a href="/purchase-orders/<%= purchase.purchase_order_id %>">PO-<%= String(purchase.purchase_order_id).padStart(6, '0') %></a></p><% } %>
+      <div class="ui-voucher-attributes" aria-label="Purchase details">
+        <% if (purchase.price_list) { %><p><span>Price List</span><strong><%= purchase.price_list %></strong></p><% } %>
+        <% if (purchase.cost_center) { %><p><span>Cost Center</span><strong><%= costCenterName(purchase.cost_center) %></strong></p><% } %>
+        <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p><span>Purchase Order</span><a href="/purchase-orders/<%= purchase.purchase_order_id %>">PO-<%= String(purchase.purchase_order_id).padStart(6, '0') %></a></p><% } %>
+      </div>
       <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
       <div class="ui-table-scroll" role="region" aria-label="Purchase table" tabindex="0"><table class="ui-table">
         <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
         <tbody>
           <% purchase.items.forEach((item, index) => { %>
-            <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong> · <%= item.item_name %></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td class="ui-amount"><%= money(item.unit_price) %></td><td class="ui-amount"><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
+            <tr><td><%= index + 1 %></td><td><strong><%= item.item_code %></strong></td><td><%= item.warehouse %></td><td><%= Number(item.quantity).toLocaleString() %></td><td class="ui-amount"><%= money(item.unit_price) %></td><td class="ui-amount"><%= money(item.line_total) %></td><td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td><td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td></tr>
           <% }) %>
         </tbody>
       </table></div>
@@ -59,17 +61,17 @@
     <section class="invoice-card report-section ui-surface">
       <%- include('ui-section-heading', { heading: { title: 'Supplier Payments' } }) %>
       <div class="ui-table-scroll" role="region" aria-label="Purchase table" tabindex="0"><table class="ui-table">
-        <thead><tr><th>#</th><th>Date</th><th>Method</th><th>Payment Reference</th><th>Notes</th><th class="ui-amount">Amount</th><th>Status</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Date</th><th>Account</th><th>Payment Reference</th><th>Notes</th><th class="ui-amount">Amount</th><th>Status</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th><th></th></tr></thead>
         <tbody>
           <% if (!purchase.payments.length) { %><tr><td colspan="10" class="empty">No payments recorded.</td></tr><% } %>
           <% purchase.payments.forEach((payment) => { %>
             <tr>
-              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.method %></td><td><% if (payment.journal_entry_id && can('vouchers.journals.view')) { %><a href="/journals/<%= payment.journal_entry_id %>"><%= payment.reference %></a><% } else { %><%= payment.reference || '' %><% } %></td><td><%= payment.notes || '' %></td><td class="ui-amount"><%= money(payment.amount) %></td>
+              <td><%= payment.payment_no %></td><td><%= formatDate(payment.payment_date) %></td><td><%= payment.account_name || payment.method %></td><td><% if (payment.journal_entry_id && can('vouchers.journals.view')) { %><a href="/journals/<%= payment.journal_entry_id %>"><%= payment.reference %></a><% } else { %><%= payment.reference || '' %><% } %></td><td><%= payment.notes || '' %></td><td class="ui-amount"><%= money(payment.amount) %></td>
               <td><span class="badge <%= payment.docstatus === 'cancelled' ? 'cancelled' : 'paid' %>"><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></span></td>
               <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (lineAuditTime(payment.created_at)) { %> <small><%= lineAuditTime(payment.created_at) %></small><% } %></td>
               <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (lineAuditTime(payment.updated_at)) { %> <small><%= lineAuditTime(payment.updated_at) %></small><% } %></td>
               <td>
-                <% if (purchase.docstatus === 'submitted' && payment.docstatus !== 'cancelled' && !payment.journal_entry_id && can('payments.purchases.cancel')) { %>
+                <% if (purchase.docstatus === 'submitted' && payment.docstatus !== 'cancelled' && (!payment.journal_entry_id || payment.method !== 'journal') && can('payments.purchases.cancel')) { %>
                   <form method="post" action="/purchases/<%= purchase.id %>/payments/<%= payment.payment_no %>/cancel" class="inline-form" data-confirm="Cancel this payment? Its ledger entry will be reversed.">
                     <button type="submit" class="button-light">Cancel</button>
                   </form>
@@ -81,9 +83,14 @@
       </table></div>
       <% if (purchase.docstatus === 'submitted' && purchase.total > purchase.amount_paid && can('payments.purchases.record')) { %>
         <form method="post" action="/purchases/<%= purchase.id %>/payments" class="payment-form">
-          <label>Payment Date<input type="date" name="payment_date" value="<%= today %>" required></label>
+          <%- include('voucher-posting-fields', { postingFields: { date: today, dateName: 'payment_date', label: 'Payment Date' } }) %>
           <label>Amount<input type="number" name="amount" min="0.01" max="<%= purchase.total - purchase.amount_paid %>" step="0.01" required></label>
-          <label>Method<select name="method"><option value="cash">Cash</option><option value="bank">Bank</option><option value="mobile_money">Mobile Money</option><option value="card">Card</option></select></label>
+          <label class="payment-account-field">Account<select name="account_id" required>
+            <option value="">Choose cash or bank account</option>
+            <% (typeof receiptAccounts !== 'undefined' ? receiptAccounts : []).forEach((account) => { %>
+              <option value="<%= account.id %>"><%= account.account_name %></option>
+            <% }) %>
+          </select></label>
           <label>Payment Reference<input name="reference"></label>
           <label>Notes<input name="notes"></label>
           <div class="payment-submit"><button type="submit">Record Payment</button></div>

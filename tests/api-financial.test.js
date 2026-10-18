@@ -18,8 +18,8 @@ test('financial input rejects lossy decimals, invalid dates, unbounded and undoc
   for (const value of ['2026-02-30', '0000-01-01', '2026-1-01', null]) assert.throws(() => invoiceCreate(draft({ invoice_date: value })), { status: 400 });
   for (const value of ['24:00', '09:60', '09:30:60', null]) assert.throws(() => invoiceCreate(draft({ posting_time: value })), { status: 400 });
   for (const extra of [{ customer_name: 'Forged' }, { payments: [] }, { amount_paid: '1' }, { total: '1' },
-    { is_cash_sale: true }, { notes: 'x'.repeat(4001) }, { notes: '\0' }, { items: [] },
-    { items: Array(201).fill(draft().items[0]) }, { items: [{ ...draft().items[0], warehouse: 'Secret' }] },
+    { is_cash_sale: true }, { check_stock:'true' }, { notes: 'x'.repeat(4001) }, { notes: '\0' }, { items: [] },
+    { items: Array(201).fill(draft().items[0]) }, { items: [{ ...draft().items[0], warehouse: '' }] },
     { items: [{ ...draft().items[0], unit_price: '1.001' }] }]) assert.throws(() => invoiceCreate(draft(extra)), { status: 400 });
   assert.equal(invoiceCreate(draft({ items: Array(200).fill(draft().items[0]) })).items.length, 200);
   for (const extra of [{ method: 'bank' }, { invoice_id: '1' }, { reference: 'unprotected' },
@@ -50,7 +50,7 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
     const cash = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
     const bank = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1120'")).rows[0].id;
     const ar = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1100'")).rows[0].id;
-    const permissions = ['vouchers.sales.create', 'vouchers.sales.submit', 'vouchers.sales.view', 'payments.sales.record'];
+    const permissions = ['vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.sales.submit', 'vouchers.sales.view', 'payments.sales.record'];
     const role = await auth.createRole('API Financial Tester', permissions, {
       customers: { mode: 'selected', values: ['retail'] }, warehouses: { mode: 'selected', values: ['Main'] },
       invoicePriceLists: { mode: 'selected', values: ['Retail'] }, accounts: { mode: 'selected', values: [String(cash)] },
@@ -68,7 +68,7 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       INSERT INTO app_master_items(item_code,item_name,stock_uom,docstatus) VALUES
       ('I1','First Item','Each','submitted'),('SCARCE','Scarce Item','Each','submitted');
       INSERT INTO app_master_item_prices(item_code,price_list,price_list_rate,active) VALUES ('I1','Retail',999,1);`);
-    await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', items: [
+    await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', posting_time: '00:00', items: [
       { item_code: 'I1', item_name: 'First Item', warehouse: 'Main', quantity: 100, valuation_rate: 20 },
       { item_code: 'I1', item_name: 'First Item', warehouse: 'Secret', quantity: 100, valuation_rate: 20 },
       { item_code: 'SCARCE', item_name: 'Scarce Item', warehouse: 'Main', quantity: 1, valuation_rate: 10 },
@@ -157,7 +157,10 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       assert.equal(saved.items[0].item_name, 'First Item'); assert.equal(saved.items[0].unit_price, 101);
       assert.equal(saved.items[0].quantity, 1.125); assert.equal(saved.created_by_user_id, String(user.id));
       assert.equal(saved.posting_time, '09:30'); assert.equal(saved.amount_paid, 0);
-      assert.equal((await cachedInvoiceList({})).pagination.total, cached.pagination.total + 1);
+      const updatedPage = await cachedInvoiceList({});
+      assert.equal(updatedPage.pagination.total, null);
+      assert.ok(updatedPage.rows.some(row => row.id === Number(main)));
+      assert.equal((await cachedInvoiceList({exact_total:'1'})).pagination.total, cached.rows.length + 1);
       await pool.query("UPDATE app_master_customers SET customer_name='Changed Customer',disabled=true WHERE customer_id='C1'");
       assert.deepEqual((await create('main-create', body)).body, results[0].body);
       assert.equal((await create('disabled-customer', draft())).status, 422);
@@ -193,7 +196,10 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       assert.equal((await submit(main, 'second-submit')).body.error.code, 'state_conflict');
       assert.equal((await cachedInvoiceList({})).rows.find(row => String(row.id) === main).docstatus, 'submitted');
       assert.equal(cached.rows.find(row => String(row.id) === main).docstatus, 'draft');
-      const tooMany = (await create('insufficient-create', draft({ items: [{ item_code: 'I1', quantity: '101', unit_price: '100' }] }))).body.data.id;
+      assert.equal((await create('insufficient-create-rejected', draft({ items: [{ item_code: 'I1', quantity: '101', unit_price: '100' }] }))).status,422);
+      const tooMany = (await create('insufficient-create')).body.data.id;
+      // Simulate an older saved draft whose quantity is no longer valid.
+      await pool.query('UPDATE app_invoice_items SET quantity=101 WHERE invoice_pk=$1',[tooMany]);
       const before = await snapshot();
       assert.equal((await submit(tooMany, 'insufficient-submit')).body.error.code, 'insufficient_stock');
       assert.deepEqual(await snapshot(), before); assert.equal((await store.findInvoice(tooMany)).docstatus, 'draft');
@@ -392,6 +398,33 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       assert(metrics.series.some(row => row.status_class === '5xx' && row.route === '/invoices/:id/payments'));
       assert(!JSON.stringify(metrics.series).includes('main-receipt'));
     });
+    await t.test('all drafts reject combined quantities without optional stock-check flags or partial writes',async()=>{
+      const before=await snapshot();
+      assert.equal((await create('checked-stock-fail',draft({check_stock:true,items:[{item_code:'I1',quantity:'60',unit_price:'10'},{item_code:'I1',quantity:'60',unit_price:'10'}]}))).body.error.code,'insufficient_stock');
+      assert.deepEqual(await snapshot(),before);
+      for(const flag of [undefined,false]){const payload=draft({items:[{item_code:'I1',quantity:'60',unit_price:'10'},{item_code:'I1',quantity:'60',unit_price:'10'}]});if(flag!==undefined)payload.check_stock=flag;assert.equal((await create('mandatory-stock-'+String(flag),payload)).body.error.code,'insufficient_stock');assert.deepEqual(await snapshot(),before);}
+      const made=await create('checked-stock-ok',draft({check_stock:true}));assert.equal(made.status,201);
+      assert.deepEqual((await snapshot()).stock,before.stock);
+      assert.equal((await request('/invoices/'+made.body.data.id,{key:'checked-edit-fail',body:draft({check_stock:true,items:[{item_code:'I1',quantity:'101',unit_price:'10'}]})})).status,422);
+      assert.equal((await pool.query("SELECT COUNT(*) FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1",[made.body.data.id])).rows[0].count,'0');
+    });
+    await t.test('draft editing is permission checked, transactional and safely replayable', async () => {
+      const created = await create('edit-create'); const id = created.body.data.id;
+      const update = draft({ notes: 'Updated on mobile', items: [{ item_code: 'I1', warehouse: 'Main', quantity: '2', unit_price: '125' }] });
+      const saved = await request('/invoices/'+id, { key: 'edit-save', body: update });
+      assert.equal(saved.status, 200); assert.equal(Number(saved.body.data.total), 250);
+      assert.deepEqual((await request('/invoices/'+id, { key: 'edit-save', body: update })).body, saved.body);
+      assert.equal((await request('/invoices/'+id, { key: 'edit-save', body: draft() })).status, 409);
+      assert.equal((await request('/invoices/'+id, { token: tokens.get(other.id), key: 'edit-other', body: draft() })).status, 200);
+      assert.equal((await request('/invoices/'+id, { key: 'edit-hidden', body: draft({ customer_id:'C2' }) })).status, 403);
+      const noEdit = await auth.createUser('financial-no-edit','FinancialPass123!', { role: role.slug, permission_denials:['vouchers.sales.edit'], record_access:{employee_id:'E1',cost_center:'CC1'} });
+      await auth.saveUserPermissionOverrides(noEdit.id,[],['vouchers.sales.edit']);
+      const login = await request('/auth/login', { token:'',body:{username:noEdit.username,password:'FinancialPass123!'},headers:{Authorization:''} });
+      assert.equal((await request('/invoices/'+id,{token:login.body.data.access_token,key:'edit-denied',body:draft()})).status,403);
+      assert.equal((await submit(id,'edit-submit')).status,200);
+      assert.equal((await request('/invoices/'+id,{key:'edit-after-submit',body:draft()})).status,409);
+    });
+
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     clearInvoiceCaches();

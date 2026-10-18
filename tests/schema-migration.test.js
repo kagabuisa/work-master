@@ -3,7 +3,57 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const store = require('../src/store');
+const { SCHEMA_VERSION } = require('../src/migrate');
 const { FIXED, seedGoldenData } = require('./helpers/golden-seed');
+
+test('read/write sharing migration preserves existing read-only shares and financial records', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const users = (await pool.query(`INSERT INTO app_users(username,password_hash)
+      VALUES ('share-upgrade-owner','unused'),('share-upgrade-recipient','unused') RETURNING id`)).rows;
+    const id = (await pool.query("SELECT id FROM app_stock_entries WHERE entry_type <> 'reconciliation' ORDER BY id LIMIT 1")).rows[0].id;
+    await pool.query('INSERT INTO app_stock_entry_shares(stock_entry_id,user_id,granted_by_user_id) VALUES ($1,$2,$3)', [id, users[1].id, users[0].id]);
+    await pool.query('ALTER TABLE app_stock_entry_shares DROP COLUMN permission');
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=40');
+    const snapshot = async () => (await pool.query(`SELECT
+      (SELECT jsonb_agg(to_jsonb(s) ORDER BY id) FROM app_stock_entries s) AS documents,
+      (SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM app_stock_ledger l) AS stock,
+      (SELECT jsonb_agg(to_jsonb(g) ORDER BY id) FROM app_gl_entries g) AS accounting,
+      (SELECT jsonb_agg(to_jsonb(s)-'permission' ORDER BY user_id) FROM app_stock_entry_shares s) AS shares`)).rows[0];
+    const before = await snapshot();
+    await store.initStore();
+    assert.equal((await pool.query('SELECT permission FROM app_stock_entry_shares WHERE stock_entry_id=$1 AND user_id=$2', [id, users[1].id])).rows[0].permission, 'read');
+    assert.deepEqual(await snapshot(), before);
+    await store.initStore();
+    assert.deepEqual(await snapshot(), before);
+  } finally { await store.closeStore(); }
+});
+
+test('master names are unique across case and surrounding whitespace without changing master IDs', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await require('./helpers/golden-seed').resetGoldenSchema();
+    const pool = store.getPostgresPool();
+    for (const [table, id, name] of [
+      ['app_master_employees', 'employee_id', 'employee_name'],
+      ['app_master_cost_centers', 'cost_center', 'cost_center_name'],
+    ]) {
+      await pool.query(`INSERT INTO ${table}(${id},${name}) VALUES ('NAME-ONE','Unique Name'),('NAME-TWO','Other Name')`);
+      await assert.rejects(pool.query(`INSERT INTO ${table}(${id},${name}) VALUES ('NAME-THREE',' unique name ')`), { code: '23505' });
+      await assert.rejects(pool.query(`UPDATE ${table} SET ${name}='UNIQUE NAME' WHERE ${id}='NAME-TWO'`), { code: '23505' });
+      assert.deepEqual((await pool.query(`SELECT ${id} AS id FROM ${table} ORDER BY ${id}`)).rows.map(row => row.id), ['NAME-ONE', 'NAME-TWO']);
+    }
+    const account = (await pool.query('SELECT account_name FROM app_accounts ORDER BY id LIMIT 1')).rows[0];
+    await assert.rejects(pool.query(`INSERT INTO app_accounts(account_code,account_name,account_type,normal_balance)
+      VALUES ('NAME-TEST',$1,'asset','debit')`, [` ${account.account_name.toUpperCase()} `]), { code: '23505' });
+    await store.initStore();
+    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, SCHEMA_VERSION);
+  } finally { await store.closeStore(); }
+});
 
 test('version 18 retry audit upgrade retains saved responses and financial records', {
   skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
@@ -17,7 +67,7 @@ test('version 18 retry audit upgrade retains saved responses and financial recor
       (SELECT jsonb_agg(to_jsonb(g) ORDER BY g.id) FROM app_gl_entries g) AS ledger`)).rows[0];
     await pool.query(`ALTER TABLE wm_api_idempotency DROP COLUMN resource_type;
       ALTER TABLE wm_api_idempotency DROP COLUMN resource_id;
-      DELETE FROM wm_schema_version WHERE version=19`);
+      DELETE FROM wm_schema_version WHERE version>=19`);
     const body = { data: { id: String(invoiceId) } };
     await pool.query(`INSERT INTO wm_api_idempotency(actor_id,operation,resource_path,key,payload_hash,response,status,expires_at)
       VALUES ($1,'invoice.submit',$2,'old-key','old-hash',$3::jsonb,200,now()+interval '1 day')`, [user.id, `/invoices/${invoiceId}/submit`, JSON.stringify(body)]);
@@ -47,7 +97,7 @@ test('version 17 API upgrade preserves existing financial rows and ordinary user
     await pool.query(`DROP TABLE wm_api_refresh_tokens,wm_api_sessions,wm_api_credentials,
       wm_api_audit,wm_api_idempotency,wm_api_payment_references,wm_api_rate_limits;
       ALTER TABLE app_users DROP COLUMN api_service_account;
-      DELETE FROM wm_schema_version WHERE version IN (18,19)`);
+      DELETE FROM wm_schema_version WHERE version IN (18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)`);
     await store.initStore();
     assert.deepEqual(await snapshot(), before);
     assert.equal((await pool.query('SELECT api_service_account FROM app_users WHERE id=$1', [user.id])).rows[0].api_service_account, false);
@@ -67,12 +117,12 @@ test('version 1 upgrades once without duplicating accounting postings', {
       SELECT (SELECT count(*)::int FROM app_gl_entries) AS gl,
         (SELECT count(*)::int FROM app_journal_entries) AS journals
     `)).rows[0];
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
     await pool.query("INSERT INTO wm_schema_version (version, name) VALUES (1, 'baseline')");
 
     await store.initStore();
     assert.deepEqual((await pool.query('SELECT version FROM wm_schema_version ORDER BY version')).rows,
-      [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 }, { version: 14 }, { version: 15 }, { version: 16 }, { version: 17 }, { version: 18 }, { version: 19 }]);
+      Array.from({ length: SCHEMA_VERSION }, (_, index) => ({ version: index + 1 })));
     const journalReferenceIndex = await pool.query(`SELECT 1 FROM pg_indexes
       WHERE tablename = 'app_journal_entries'
         AND indexname = 'app_journal_entries_invoice_reference_idx'`);
@@ -126,7 +176,7 @@ test('version 4 databases gain missing invoice item snapshot columns', {
     for (const column of ['item_category', 'source', 'cost']) {
       await pool.query(`ALTER TABLE app_invoice_items DROP COLUMN ${column}`);
     }
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
 
     await store.initStore();
     const snapshot = await pool.query(`SELECT item_category, source, cost::float
@@ -137,7 +187,7 @@ test('version 4 databases gain missing invoice item snapshot columns', {
       items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName,
         warehouse: FIXED.warehouse, quantity: 1, unit_price: 180 }] });
     assert.equal((await store.findInvoice(id)).items[0].item_category, 'Hardware');
-    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, 19);
+    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, SCHEMA_VERSION);
   } finally {
     await store.closeStore();
   }
@@ -150,7 +200,7 @@ test('version 8 databases gain the session activity column', {
     await seedGoldenData();
     const pool = store.getPostgresPool();
     await pool.query('ALTER TABLE app_user_sessions DROP COLUMN IF EXISTS last_activity_at');
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
 
     await store.initStore();
 
@@ -159,7 +209,7 @@ test('version 8 databases gain the session activity column', {
       WHERE table_name = 'app_user_sessions' AND column_name = 'last_activity_at'`);
     assert.equal(activityColumn.rows[0].is_nullable, 'NO');
     assert.equal(activityColumn.rows[0].column_default, 'now()');
-    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, 19);
+    assert.equal((await pool.query('SELECT MAX(version)::int AS version FROM wm_schema_version')).rows[0].version, SCHEMA_VERSION);
   } finally {
     await store.closeStore();
   }
@@ -195,9 +245,57 @@ test('version 15 employee statuses reconcile legacy flags', {
     const pool=store.getPostgresPool();
     assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name, /_hr_test$/);
     await pool.query("INSERT INTO app_master_employees(employee_id,employee_name,status,disabled) VALUES ('STATUS-A','A','Active',true),('STATUS-L','L','Left',false),('STATUS-OLD','Old',NULL,true),('STATUS-BLANK','Blank',NULL,false)");
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (16,17,18,19)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (16,17,18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
     await store.initStore();
     const rows=(await pool.query("SELECT employee_id,status,disabled FROM app_master_employees WHERE employee_id LIKE 'STATUS-%' ORDER BY employee_id")).rows;
     assert.deepEqual(rows,[{employee_id:'STATUS-A',status:'Active',disabled:false},{employee_id:'STATUS-BLANK',status:null,disabled:false},{employee_id:'STATUS-L',status:'Left',disabled:true},{employee_id:'STATUS-OLD',status:'Left',disabled:true}]);
+  } finally { await store.closeStore(); }
+});
+
+
+test('posting-event lookup upgrades v37 without changing postings and recovers an invalid concurrent build', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const metadata = async () => (await pool.query(`SELECT i.indexrelid::text AS oid,
+      i.indisvalid, i.indisready, pg_get_indexdef(i.indexrelid) AS definition
+      FROM pg_index i WHERE i.indexrelid=to_regclass('app_stock_ledger_posting_event_idx')`)).rows[0];
+    const assertLookup = async () => {
+      const index = await metadata();
+      assert.equal(index?.indisvalid, true);
+      assert.equal(index.indisready, true);
+      assert.match(index.definition, /ON public.app_stock_ledger USING btree \(posting_event_id\)/);
+      assert.match(index.definition, /WHERE \(posting_event_id IS NOT NULL\)/);
+      return index.oid;
+    };
+    // A fresh installation must include the same valid lookup.
+    await assertLookup();
+    const snapshot = async () => (await pool.query(`SELECT
+      (SELECT jsonb_agg(to_jsonb(i) ORDER BY id) FROM app_invoices i) invoices,
+      (SELECT jsonb_agg(to_jsonb(g) ORDER BY id) FROM app_gl_entries g) gl,
+      (SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM app_stock_ledger l) stock,
+      (SELECT jsonb_agg(to_jsonb(b) ORDER BY item_code,warehouse) FROM app_stock_balances b) balances`)).rows[0];
+    const before = await snapshot();
+    await pool.query('DROP INDEX app_stock_ledger_posting_event_idx');
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=38');
+    await store.initStore();
+    const oid = await assertLookup();
+    assert.deepEqual(await snapshot(), before);
+    await store.initStore();
+    assert.equal(await assertLookup(), oid);
+
+    // A failed concurrent build leaves a named invalid index; retry must repair
+    // it rather than silently skipping it with CREATE ... IF NOT EXISTS.
+    await pool.query('DROP INDEX app_stock_ledger_posting_event_idx');
+    await assert.rejects(pool.query(`CREATE UNIQUE INDEX CONCURRENTLY
+      app_stock_ledger_posting_event_idx ON app_stock_ledger(warehouse)`), { code: '23505' });
+    assert.equal((await metadata()).indisvalid, false);
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=38');
+    await store.initStore();
+    await assertLookup();
+    assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version, SCHEMA_VERSION);
+    assert.deepEqual(await snapshot(), before);
   } finally { await store.closeStore(); }
 });

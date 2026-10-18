@@ -6,7 +6,7 @@
   <%- include('partials-head') %>
 </head>
 <body>
-  <main class="shell ui-page ui-page-report">
+  <main class="shell ui-page ui-page-report ui-list-compact">
     <header class="topbar">
       <div>
         <p class="eyebrow">Accounting</p>
@@ -17,13 +17,14 @@
       </nav>
     </header>
 
-    <section class="metrics general-ledger-metrics ui-report-metrics">
-      <article><span>Debits</span><strong><%= money(report.summary.debit) %></strong></article>
-      <article><span>Credits</span><strong><%= money(report.summary.credit) %></strong></article>
-      <article><span>Net</span><strong><%= money(report.summary.balance) %></strong></article>
+    <section class="metrics general-ledger-metrics ui-report-metrics ui-metrics-compact">
+      <article><span>Filtered debits</span><strong><%= money(report.summary.debit) %></strong></article>
+      <article><span>Filtered credits</span><strong><%= money(report.summary.credit) %></strong></article>
+      <article class="ui-metric-focus"><span>Net Balance</span><strong><%= money(report.summary.balance) %></strong></article>
     </section>
 
     <form class="report-filters general-ledger-filters ui-toolbar ui-filter-row" method="get">
+      <% if (report.filters.voucher_id) { %><input type="hidden" name="voucher_id" value="<%= report.filters.voucher_id %>"><% } %>
       <label class="general-ledger-floating-field">
         <input name="q" value="<%= report.filters.search %>" placeholder=" " autocomplete="off">
         <span class="floating-label">Search</span>
@@ -37,6 +38,12 @@
         <input name="party" value="<%= report.filters.party %>" placeholder=" " autocomplete="off" data-gl-party>
         <span class="floating-label">Party</span>
         <div class="results gl-party-results"></div>
+      </label>
+      <label class="general-ledger-floating-field general-ledger-choice-field">
+        <select name="party_scope"><option value="lines" <%= report.filters.party_scope === 'lines' ? 'selected' : '' %>>Party entries</option><option value="related" <%= report.filters.party_scope !== 'lines' ? 'selected' : '' %>>All related voucher postings</option></select><span class="floating-label">Party scope</span>
+      </label>
+      <label class="general-ledger-floating-field general-ledger-choice-field">
+        <select name="group_by"><option value="date">Posting date</option><option value="account" <%= report.filters.group_by === 'account' ? 'selected' : '' %>>GL account</option></select><span class="floating-label">Group by</span>
       </label>
       <label class="general-ledger-floating-field general-ledger-choice-field">
         <select name="voucher_type">
@@ -55,13 +62,44 @@
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
         <a class="button button-light" href="/reports/general-ledger">Reset</a>
-        <button type="submit" name="format" value="csv" class="button-light">CSV</button>
-        <button type="submit" name="format" value="xlsx" class="button-light">Excel</button>
-        <button type="submit" name="format" value="pdf" class="button-light">PDF</button>
+        <%- include('ui-download-menu') %>
       </div>
     </form>
 
-    <section class="invoice-card report-section ui-surface">
+    <% const balanceStrips = [
+      { title: 'Customer receivables', rows: report.customer_balances || [], partyLabel: 'Customer',
+        positiveLabel: 'Outstanding receivable', negativeLabel: 'Credit balance',
+        help: 'Customer Accounts Receivable balance through To, or all dates if To is blank. From, Account, Search, Voucher and Party scope do not narrow this balance. Party and access restrictions still apply. A credit balance is money owed to the customer.' },
+      { title: 'Supplier payables', rows: report.supplier_balances || [], partyLabel: 'Supplier',
+        positiveLabel: 'Outstanding payable', negativeLabel: 'Supplier advance',
+        help: 'Supplier Accounts Payable balance through To, or all dates if To is blank. From, Account, Search, Voucher and Party scope do not narrow this balance. Party and access restrictions still apply. Positive balances are owed to the supplier; negative balances are supplier advances.' },
+    ]; %>
+    <% balanceStrips.filter((strip) => strip.rows.length).forEach((strip) => { %>
+      <%- include('ui-party-balance-strip', { strip }) %>
+    <% }) %>
+    <% if (report.account_summaries) { %>
+      <section class="invoice-card report-section ui-surface">
+        <%- include('ui-section-heading', { heading: { title: 'Balances by GL account', help: 'Full filtered period, including accounts with opening history but no period entries. Closing = opening + debit - credit. Positive balances are debit and negative balances are credit.' } }) %>
+        <div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Account</th><th class="ui-amount">Opening</th><th class="ui-amount">Period debit</th><th class="ui-amount">Period credit</th><th class="ui-amount">Closing</th></tr></thead><tbody>
+        <% report.account_summaries.forEach((row) => { %><tr><td><%= row.account_code %> — <%= row.account_name %></td><td class="ui-amount"><%= money(row.opening_balance) %></td><td class="ui-amount"><%= money(row.debit) %></td><td class="ui-amount"><%= money(row.credit) %></td><td class="ui-amount"><%= money(row.closing_balance) %></td></tr><% }) %>
+        </tbody></table></div>
+      </section>
+    <% } %>
+    <% if (report.filters.voucher_id) { const voucherDifference = report.summary.debit - report.summary.credit; %>
+      <section class="invoice-card report-section ui-surface">
+        <%- include('ui-section-heading', { heading: { title: 'Voucher posting reconciliation', help: 'Exact voucher type and ID. The View posting link clears Party, Account, Search and date filters so all accessible lines can be reviewed. Permissions still apply; restricted views can omit lines.' } }) %>
+        <p><%= report.pagination && report.pagination.total === 0 ? 'No accessible posting lines match this voucher.' : voucherDifference === 0 ? 'Displayed debit and credit totals balance.' : 'Displayed debit and credit totals differ by ' + money(voucherDifference) + '. Check any remaining filters and account access.' %></p>
+        <% if (report.allocations && report.allocations.length) { %>
+          <%- include('ui-section-heading', { heading: { title: 'Invoice allocations', help: 'Saved invoice references on receivable/payable source journal lines. These are source allocations, not an additional posting. Cancellation rows reverse their accounting effect.' } }) %>
+          <div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Invoice reference</th><th>Account</th><th class="ui-amount">Allocated debit</th><th class="ui-amount">Allocated credit</th></tr></thead><tbody>
+            <% report.allocations.forEach((row) => { %><tr><td><%= row.reference_no %></td><td><%= row.account_code %> — <%= row.account_name %></td><td class="ui-amount"><%= money(row.debit) %></td><td class="ui-amount"><%= money(row.credit) %></td></tr><% }) %>
+          </tbody></table></div>
+        <% } %>
+      </section>
+    <% } %>
+
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Ledger entries', help: 'Opening balance includes matching postings before From, separately per account. It is repeated at the top of each page; running balances include opening history and earlier pages. With no From date, opening is zero. Positive balances are debit; negative balances are credit. All other filters and permissions apply to opening history.' } }) %>
       <div class="ui-table-scroll" role="region" aria-label="General Ledger table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
@@ -70,24 +108,33 @@
             <th>Account</th>
             <th class="ui-amount">Debit</th>
             <th class="ui-amount">Credit</th>
-            <th class="ui-amount">Balance</th>
+            <th class="ui-amount">Account Running Balance</th>
             <th>Voucher Type</th>
             <th>Voucher No.</th>
             <th>Party</th>
-            <th>Remarks</th>
+            <th>Narration</th>
           </tr>
         </thead>
         <tbody>
+          <% (report.opening_rows || []).forEach((row) => { %>
+            <tr class="ui-opening-row">
+              <td class="row-number">—</td><th scope="row">Opening balance</th>
+              <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
+              <td></td><td></td><td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
+              <td colspan="4"><%= report.filters.from ? 'Before ' + formatDate(report.filters.from) : 'All matching history; opening is zero' %></td>
+            </tr>
+          <% }) %>
           <% if (!report.rows.length) { %>
             <tr><td colspan="10" class="empty">No general ledger entries found.</td></tr>
           <% } %>
           <% report.rows.forEach((row, index) => { %>
+            <% if (report.filters.group_by === 'account' && (index === 0 || report.rows[index-1].account_code !== row.account_code)) { %><tr class="ui-account-divider"><th colspan="10" scope="rowgroup"><%= row.account_code %> — <%= row.account_name %></th></tr><% } %>
             <tr>
               <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td><%= formatDate(row.posting_date) %></td>
               <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
-              <td><%= row.debit ? money(row.debit) : '' %></td>
-              <td><%= row.credit ? money(row.credit) : '' %></td>
+              <td class="ui-amount"><%= row.debit ? money(row.debit) : '' %></td>
+              <td class="ui-amount"><%= row.credit ? money(row.credit) : '' %></td>
               <td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
               <td><%= (row.voucher_type || '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') %></td>
               <td>
@@ -106,6 +153,7 @@
                 <% } else { %>
                   <%= row.voucher_no || row.voucher_id || '' %>
                 <% } %>
+                <% if (row.voucher_id && row.voucher_type) { %><a class="ui-row-action" href="/reports/general-ledger?voucher_type=<%= encodeURIComponent(row.voucher_type) %>&amp;voucher_id=<%= encodeURIComponent(row.voucher_id) %>">View posting</a><% } %>
               </td>
               <td><%= row.party_name || row.party_id || '' %></td>
               <td><%= row.remarks || '' %></td>
@@ -120,8 +168,8 @@
             <th></th>
             <th colspan="4"></th>
           </tr>
-          <tr>
-            <th colspan="5" scope="row">Balance (debit − credit)</th>
+          <tr class="ui-total-row">
+            <th colspan="5" scope="row">Net Balance</th>
             <th><%= money(report.summary.balance) %></th>
             <th colspan="4"></th>
           </tr>

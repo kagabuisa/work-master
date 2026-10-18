@@ -18,6 +18,7 @@ function operation(name, parse) {
 }
 
 router.post('/invoices', operation('invoice.create', invoiceCreate));
+router.post('/invoices/:id', operation('invoice.edit', invoiceCreate));
 router.post('/invoices/:id/submit', operation('invoice.submit', body => { bodyFields(body, []); return {}; }));
 router.post('/invoices/:id/payments', operation('payment.record', paymentCreate));
 module.exports = router;

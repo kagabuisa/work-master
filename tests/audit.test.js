@@ -69,12 +69,13 @@ test('Postgres auditing covers every app table and isolates concurrent users and
       if (error) return reject(error);
       try { assert.equal(result.rows[0].created_by, 'bob'); resolve(); } catch (failure) { reject(failure); }
     })));
-    // An aborted transaction must not poison the next pool checkout's identity.
+    // Releasing an aborted transaction discards the unusable connection while
+    // releasing its maintenance guard; the next checkout is already healthy.
     const client = await runWithAuditUser(alice, () => pool.connect());
     await client.query('BEGIN');
     await assert.rejects(client.query('SELECT missing_column FROM app_master_customers'));
     client.release();
-    await assert.rejects(pool.query('SELECT 1'));
+    assert.equal((await pool.query('SELECT 1')).rowCount,1);
     assert.equal((await runWithAuditUser(bob, () => pool.query("INSERT INTO app_master_customers(id,value) VALUES ('recovered','ok') RETURNING *"))).rows[0].created_by, 'bob');
   } finally {
     if (pool) await pool.end();

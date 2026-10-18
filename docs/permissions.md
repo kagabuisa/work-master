@@ -1,5 +1,17 @@
 # Permissions and voucher visibility
 
+Order, Taff Kla Order, DDR Shortage, and DDR Excess use the existing Stock Entry permissions and source/target warehouse restrictions. All four are transfers; the DDR labels do not grant stock gain/loss posting rights.
+
+Submitting a saved stock entry from its preview or drawer requires Stock Entry Submit and the existing source ownership/warehouse scope checks. Edit permission is not required to submit saved values; the submit endpoint ignores editable fields supplied in its request. Cancellation entries additionally require Stock Entry Cancel. Only draft entries can be submitted.
+
+Stock entry **Duplicate** requires both Stock Entry Read and Create. Existing source-voucher ownership, warehouse, and supplier scope restrictions apply. It opens an unsaved copy and does not require Edit on the original. Saving and submitting the copy enforce the usual Create and Submit permissions and stock validation. Cancellation entries and stock reconciliations cannot be duplicated through this action.
+
+The browser invoice stock-preview batch (`POST /api/invoice-stock-balances`) uses the same action permissions as the existing single-stock lookup: Warehouse Read, Sales Create, Purchase Create, Purchase Order Create/Edit, or Stock Entry Create/Edit. Every requested warehouse must be permitted; a forbidden warehouse rejects the whole batch before any balances are read. This read-only endpoint accepts up to 200 item/warehouse entries per request and grants no posting rights. Existing browser session and cross-origin request protections apply; it is separate from the versioned integration API.
+
+## Transaction maintenance
+
+**Settings → Maintenance is Admin-only.** Backup creation/download and reset routes cannot be granted through custom role permissions. The backend checks that the administrator is active, is not an API service account, and is not awaiting a password change. Backups belong to their creating administrator and selected scope. Reset requires the current administrator password, a session-bound confirmation token, the exact phrase `RESET TRANSACTIONS`, and a fresh verified backup. Password attempts are limited to five per 15 minutes. Resetting ends website/mobile sessions and revokes integration tokens while retaining users, roles, permissions, and existing API audit history.
+
 ## Versioned API access
 
 Mobile API requests resolve the user's current role, overrides and restrictions independently of browser sessions. Temporary-password sessions can only change their own password or log out. Integration credentials belong to dedicated non-admin accounts, expire after 90 days, and narrow account permissions through allowlisted scopes. Deactivated accounts, revoked/expired tokens and service accounts promoted to Admin are denied. Dedicated service accounts cannot use website/mobile password login, including after a password reset.
@@ -23,7 +35,7 @@ Local staging seeds an Admin and a restricted sales role/user in its separate da
 ## How access is decided
 
 1. Each user has one role. Roles grant actions on voucher types, master lists, payments, accounts, and reports. The built-in roles are Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management. Retail, Wholesale, Finance, Logistics, and Management start with the same permission set as Standard; an admin can edit role permissions in **Settings → Roles**.
-2. An admin can adjust a user's effective permissions in **Settings → Users**. User grants add to the role permissions, and user denials remove them. A denial wins when a permission appears in both places. Admin has full access.
+2. An admin can adjust a user's effective permissions in **Settings → Users**. User grants add to the role permissions, and user denials remove them. A denial wins when a permission appears in both places. Admin has full access to all voucher types, regardless of creator, selected scopes, assigned records, or saved permission denials. This includes voucher lists, reports, exports, payments, and HR vouchers. Voucher status, stock, accounting, and dependent-transaction validation rules still apply.
 3. A user's permitted records narrow which named records they can use or view. **Settings → Users** provides Warehouse, Cost Center, Employee name, Retail Price list, and Wholesale Price list assignments. Assigned values are stored in `app_users.record_access`; the related named Read permissions are added to the user. Customer group, supplier type, price list, warehouse, and account scopes can narrow access further.
 4. The application checks both the action permission and the record scope on each request. A menu link or a report permission alone does not grant access to a voucher outside the user's scope.
 
@@ -67,6 +79,8 @@ Listing and downloading scanned stock sheets requires Stock Entry Read or Edit; 
 
 General Ledger CSV, Excel, and PDF downloads require General Ledger Read permission and preserve the report’s ownership, account, and customer/supplier scope restrictions. Downloads include only the rows accessible to the current user.
 
+When both HR payroll and employee-money ledger access are denied, HR entries remain excluded. Assigned HR employee or cost center restrictions do not block the user's permitted non-HR General Ledger rows; the existing ownership, assigned-invoicer, account, and party-category restrictions still apply.
+
 
 ## HR permissions and visibility
 
@@ -98,3 +112,51 @@ Employee suggestions for new user defaults and employee permission rows offer on
 ## Daily Activity creation
 
 Daily Activity has separate Read (`reports.daily-activity.view`) and Create (`reports.daily-activity.create`) actions in the Reports permission table. Opening the New form or saving a local draft requires both. Read alone does not permit creation. Admin has both automatically; grant Create explicitly to other existing roles or users. Standard users retain the existing Daily Activity restriction, including the reference view. The local form, save route, list, totals, and details apply assigned cost-center and warehouse restrictions. Drafts are saved in PostgreSQL and audited under the app user who created them. No ERPNext credentials or permissions are needed to create local drafts. The separate ERPNext reference view uses the configured API user's Read access. This flow does not grant edit, submit, cancel, or delete access.
+
+### API invoice display metadata
+
+The existing invoice read permission and parent visibility checks also gate company display information, customer snapshot phone and record/item tracking display names/timestamps. Payment account visibility checks run before account names, notes and tracking data are serialized. No additional role, endpoint or permission is introduced. Internal actor IDs and company audit metadata are not returned.
+
+Mobile transaction buttons follow existing `vouchers.sales.create`, `vouchers.sales.edit`, `vouchers.sales.submit` and `payments.sales.record` permissions. The API repeats current permission, ownership and reference checks inside each transaction. Draft-edit requests use the `invoices:create` integration scope plus sales Edit; existing grants are not expanded. Mobile master selections and receiving accounts retain existing lookup and record restrictions.
+
+Mobile invoice Add items now uses a persistent search window with item name/code, positive warehouse balance, selected price-list rate, Qty and Add. Adding keeps the window open; Close returns to the invoice. `/api/v1/items?warehouse=...&price_list=...` filters positive balances before counting/pagination and returns only balance/warehouse plus the existing public item fields. Warehouse access and stock lookup permission apply; integration credentials also require stock:read. Cost and valuation fields are not added.
+
+The stock reconciliation **Photo Count Rpt** sub-tab and its photo downloads use Stock Entry Read or Edit, with existing voucher ownership and warehouse restrictions. Saving auditor/verified quantities and uploading photos requires Stock Entry Edit, including on submitted and cancelled reconciliations.
+
+General Ledger related-voucher scope and View posting retain all existing account, ownership, customer/supplier category, and HR restrictions. Related-voucher discovery requires an accessible party-bearing line; displayed related lines are independently access-filtered. Posting drill-down clears report filters, not permissions. Customer receivable and supplier payable summaries use the same access restrictions.
+
+Supplier payment journals generated from purchase invoices retain the purchase invoice ownership and supplier-type scope in ledger reports. Recording and cancelling these payments uses the purchase payment permissions; opening their linked journals requires journal view permission.
+
+Purchase invoice payments use the same permitted active Cash and Bank asset accounts as sales invoice payments. The Account dropdown applies the user’s account restrictions, and recording a payment rejects an account outside those permissions.
+
+### Warehouse count and correction permissions
+
+Controlled inventory adds explicit `inventory.count.view`, `.start`, `.save`, `.review`, `.approve`, `.reject`, `.submit`, and `.abandon` capabilities, plus `inventory.correction.view`, `.create`, `.approve`, `.submit`, and `.abandon`. Assign these through role extra permissions; existing Stock Entry permissions do not implicitly authorize count approval. Warehouse access still applies. Count views cover permitted warehouse sessions, including sessions prepared by other users. Supplier-scoped roles retain the stock-screen restriction. Count-session supporting sheets/photos use count View/Save permissions and warehouse access, so independent reviewers can inspect another preparer’s evidence. Legacy reconciliation attachment screens retain their existing Stock Entry view/edit and ownership rules.
+
+A non-administrator approving a count must be a different person from its preparer and must not have entered counts or changed evidence. Administrators may approve their own count. Corrections always require a different approver. Material evidence changes invalidate approval and advance the count revision. Final submission revalidates the active account, current permissions, warehouse access and approved revision inside the transaction. Correction accounts and receivable/payable parties are checked at preparation, approval and submission.
+
+Administrators can perform all count actions, including self-approval of reconciliations, but cannot bypass a warehouse freeze, backdate inventory timestamps, reopen closures, cancel closed originals, or reset controlled inventory. The provisioned database runtime login is a non-owner with read-only access to stock/control records and narrowly granted posting routines. Schema owners, database superusers and infrastructure recovery operators remain a separate trust boundary; never give their credentials to application users.
+
+Reconciliation workspace sub-tabs at `/stock/reconciliations/counts` and `/stock/reconciliations/corrections` use the same explicit `inventory.count.*` and `inventory.correction.*` permissions as the compatible older routes. Stock voucher permissions do not grant count approval or correction rights. Independent reviewers open REC references through the Counts sub-tab, subject to warehouse access.
+
+The count-scoped item autocomplete (`/stock/reconciliations/counts/:id/items`) requires Count View and access to the count's warehouse. It returns active submitted item codes/names and the warehouse valuation rate (or item unit cost fallback).
+
+**Add found item** requires Count Save, uses the count's current revision and warehouse access, and cannot replace an existing count line.
+
+Count Save permits importing a completed Excel template into any unfinished count, including one awaiting review or approved. Import clears approval and returns it to Counting atomically; Count Reject is not required for this import. Approval is required again before submission; non-administrators still need an independent approver.
+
+Administrators may prepare, save, review, approve and submit the same reconciliation. The self-approval restriction applies to non-administrators. Administrator edits during review or approval clear approval and return the count to Counting; a current approved revision is still required for submission. This exception applies to reconciliation counts, not correction self-approval or closed-history immutability.
+
+## Stock entry delivery and sharing
+
+Only the original creator (`created_by_user_id`) or Admin can grant, change or revoke sharing. Choose **Read-only** (`read`) or **Read & write** (`write`). Sharing management requires Stock Entry Read and the normal owner/warehouse/supplier access checks. Custom roles with broad access to other users' vouchers cannot manage sharing unless they own the entry. Historical entries with no creator can be shared only by Admin. The service checks ownership in a transaction while locking the entry.
+
+Both share levels grant record-specific access to detail, drawer, and the signed-in recipient's Shared stock entries list, overriding ordinary Stock Entry Read, creator, warehouse and supplier restrictions only for the shared entry. The shared list filters by the current recipient before search and pagination and shows their access level. Reconciliations cannot be shared. Shares do not grant general stock balances, master lookups, reports, integration API access, duplication, submission, cancellation, deletion, posting-time edits or onward sharing. Existing independent role access remains valid.
+
+Read & write additionally grants the draft edit screen and saving that draft (`action=save_draft`), including delivery status. Existing warehouses and cost center may be retained; newly selected warehouses and cost center must be permitted for the recipient. Reconciliation/cancellation conversion and posting through a shared draft-save request are rejected. Saving checks the current write grant inside the transaction and locks it until commit; invalid input, downgrade or revocation rolls back voucher changes. Submitted quantities and rates remain immutable.
+
+The owner, Admin or a Read & write recipient can update delivery status through its main field on draft and submitted previews, including after inventory closure. The dedicated delivery action needs no Stock Entry Edit or Submit permission; ordinary owner/Admin access requires Stock Entry Read, while an explicit write share authorizes only that entry. Cancelled entries reject delivery/item changes but permit sharing changes. New and draft forms also save delivery atomically with the entry under the relevant Create/Edit/Submit permissions, or shared draft-write permission. Unauthorized editors see a disabled delivery field.
+
+All shared entry, drawer and edit responses use private, no-store caching. Each subsequent request checks the current share level; downgrading to Read-only removes shared write access and revoking removes shared access, without removing independently granted role access. Inactive and API-only accounts cannot receive new shares; inactive users cannot sign in. Owners and admins already have access and are omitted from the recipient picker.
+
+Delivery metadata is separate from inventory documents so changing it never rewrites posted document, stock or accounting history. Duplicates inherit neither delivery nor shares. Deletion cascades these records; authorized transaction resets include them. Migration 40 preserves existing shares as Read-only.

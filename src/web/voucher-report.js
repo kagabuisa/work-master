@@ -1,4 +1,5 @@
 'use strict';
+const {runExpensiveRead}=require('../workload-control');
 
 const { getPostgresPool } = require('../core');
 const { isValidIsoDate } = require('../lib/dates');
@@ -185,6 +186,9 @@ function parseFilters(config, options) {
 }
 
 async function voucherReport(kind, options = {}) {
+  return runExpensiveRead(() => loadVoucherReport(kind,options));
+}
+async function loadVoucherReport(kind, options = {}) {
   const config = reportConfig(kind);
   const filters = parseFilters(config, options);
   const exportPage = options.exportPage === true;

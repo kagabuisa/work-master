@@ -1,7 +1,7 @@
 'use strict';
-// Extracted without behavior changes from website sales routes.
-const { findMasterItem, findMasterRecord, localStockQuantity } = require('../store');
-const { findDbCustomer } = require('../web/parties');
+// Website sales input and save-time stock validation.
+const { getPostgresPool } = require('../core');
+const { validateInvoiceDraftStock } = require('./invoice-draft-validation');
 const { accountAllowed, requireInvoicePriceList } = require('../access');
 
 function requireReceiptAccount(user, value) {
@@ -15,6 +15,9 @@ function requireReceiptAccount(user, value) {
 
 
 async function validateDbItems(items, warehouse, options = {}) {
+  if (items && !Array.isArray(items)) {
+    const error=new Error('Provide a list of invoice items.'); error.status=400; throw error;
+  }
   const checkStock = options.checkStock === true;
   const selectedWarehouse = String(warehouse || '').trim();
   if (!selectedWarehouse) {
@@ -23,6 +26,15 @@ async function validateDbItems(items, warehouse, options = {}) {
     throw err;
   }
 
+  const codes = [...new Set((items || []).filter(item => normalizeItemQuantity(item.quantity)>0)
+    .map(item => String(item.item_code || '').trim()).filter(Boolean))];
+  const { rows } = codes.length ? await getPostgresPool().query(`
+    SELECT item.item_code,item.item_name,stock.quantity::float
+    FROM app_master_items item LEFT JOIN app_stock_balances stock
+      ON stock.item_code=item.item_code AND stock.warehouse=$2
+    WHERE item.item_code=ANY($1::text[]) AND item.disabled=false AND item.docstatus='submitted'`,
+    [codes,selectedWarehouse]) : { rows: [] };
+  const byCode = new Map(rows.map(item => [item.item_code,item]));
   const validated = [];
   for (const item of items || []) {
     const itemCode = String(item.item_code || '').trim();
@@ -31,14 +43,13 @@ async function validateDbItems(items, warehouse, options = {}) {
       continue;
     }
 
-    const dbItem = await findDbItem(itemCode);
+    const dbItem = byCode.get(itemCode);
     if (!dbItem) {
       const err = new Error(`Item ${itemCode} is not available in ${selectedWarehouse}.`);
       err.status = 400;
       throw err;
     }
-    const localBalance = await localStockQuantity(dbItem.item_code, selectedWarehouse);
-    const available = normalizeStockQuantity(localBalance.quantity);
+    const available = normalizeStockQuantity(dbItem.quantity);
     if (checkStock && quantity > available) {
       const err = new Error(`Adjust quantity for ${dbItem.item_name}.`);
       err.status = 400;
@@ -64,15 +75,6 @@ async function validateDbItems(items, warehouse, options = {}) {
   }
 
   return validated;
-}
-
-
-async function findDbItem(itemCode) {
-  const code = String(itemCode || '').trim();
-  if (!code) {
-    return null;
-  }
-  return findMasterItem(code);
 }
 
 
@@ -119,7 +121,14 @@ async function buildInvoicePayload(body, user) {
     err.status = 400;
     throw err;
   }
-  const customer = await findDbCustomer(payload.customer_id);
+  const { rows: [references] } = await getPostgresPool().query(`SELECT
+    (SELECT to_jsonb(c) FROM app_master_customers c WHERE c.customer_id=$1
+      AND c.disabled=false AND c.docstatus='submitted') customer,
+    (SELECT to_jsonb(p) FROM app_master_price_lists p WHERE p.price_list=$2) price_list,
+    (SELECT to_jsonb(e) FROM app_master_employees e WHERE e.employee_id=$3) employee,
+    (SELECT to_jsonb(c) FROM app_master_cost_centers c WHERE c.cost_center=$4) cost_center`,
+    [String(payload.customer_id || '').trim(),payload.price_list,payload.invoicer_id,payload.cost_center]);
+  const customer = references.customer;
   if (!customer) {
     const err = new Error('Select a customer from the database.');
     err.status = 400;
@@ -127,24 +136,25 @@ async function buildInvoicePayload(body, user) {
   }
   payload.customer_id = customer.customer_id;
   payload.customer_name = customer.customer_name;
-  const priceList = await findMasterRecord('price-lists', payload.price_list);
+  const priceList = references.price_list;
   if (!priceList || priceList.active !== 1 || priceList.currency !== 'UGX' || !['selling', 'both'].includes(priceList.price_type)) {
     const err = new Error('Select an active UGX selling price list.'); err.status = 400; throw err;
   }
   requireInvoicePriceList(user, payload.price_list);
   if (payload.cost_center) {
-    const costCenter = await findMasterRecord('cost_centers', payload.cost_center);
-    if (!costCenter || costCenter.is_group || costCenter.disabled === '1') {
+    const costCenter = references.cost_center;
+    if (!costCenter || costCenter.is_group || costCenter.disabled === true) {
       const err = new Error('Select an enabled cost center.'); err.status = 400; throw err;
     }
   }
-  const invoicer = payload.invoicer_id && await findMasterRecord('employees', payload.invoicer_id);
-  if (!invoicer || (invoicer.disabled === '1'
+  const invoicer = payload.invoicer_id && references.employee;
+  if (!invoicer || (invoicer.disabled === true
       && payload.invoicer_id !== user?.record_access?.employee_id)) {
     const err = new Error('Select an invoicer from the employee list.'); err.status = 400; throw err;
   }
   payload.invoicer = invoicer.employee_name;
-  payload.items = await validateDbItems(payload.items, payload.warehouse);
+  payload.items = await validateDbItems(payload.items, payload.warehouse, { checkStock: false });
+  await validateInvoiceDraftStock(getPostgresPool(), payload);
   return payload;
 }
 

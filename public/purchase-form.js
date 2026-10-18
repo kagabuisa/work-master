@@ -84,7 +84,7 @@ retryLookup.addEventListener('click', () => {
 function loadSuppliers() {
   return lookup(supplierList, supplierInput, '/api/suppliers', 'suppliers', (rows) => {
     suppliers = rows;
-    setOptions(supplierList, rows, 'supplier_id', 'supplier_name');
+    setOptions(supplierList, rows, 'supplier_id');
     updateSupplierName();
   });
 }
@@ -93,7 +93,7 @@ function loadItems(input) {
   if (!priceListSelect.value) { showLookupStatus('Choose a price list first.'); return; }
   return lookup(itemList, input, `/api/master-items?price_list=${encodeURIComponent(priceListSelect.value)}`, 'items', (rows) => {
     items = rows;
-    setOptions(itemList, rows, 'item_code', 'item_name');
+    setOptions(itemList, rows, 'item_code');
     updateItemName(input);
   }, (rows) => rows.filter((item) => item.is_purchase_item && item.disabled !== '1'));
 }

@@ -27,7 +27,7 @@
     window.addEventListener('scroll', position, { passive: true });
     input.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
   });
-  document.querySelectorAll('.ui-filter-row .invoice-report-columns').forEach((details) => {
+  document.querySelectorAll('.ui-filter-row .invoice-report-columns, .ui-filter-row .ui-download-menu').forEach((details) => {
     const panel = details.querySelector('.ui-filter-panel');
     const summary = details.querySelector('summary');
     if (!panel || !summary) return;
@@ -38,7 +38,7 @@
         return;
       }
       const anchor = summary.getBoundingClientRect();
-      const width = Math.min(640, window.innerWidth - 24);
+      const width = Math.min(details.classList.contains('ui-download-menu') ? 180 : 640, window.innerWidth - 24);
       panel.style.width = `${width}px`;
       panel.style.left = `${Math.max(12, Math.min(anchor.right - width, window.innerWidth - width - 12))}px`;
       panel.style.top = `${anchor.bottom + 4}px`;
@@ -46,10 +46,13 @@
       if (!panel.matches(':popover-open')) panel.showPopover();
     };
     details.addEventListener('toggle', position);
+    if (details.classList.contains('ui-download-menu')) {
+      details.closest('form')?.addEventListener('submit', () => { details.open = false; });
+    }
     details.closest('.ui-filter-row').addEventListener('scroll', position, { passive: true });
     window.addEventListener('resize', position);
     window.addEventListener('scroll', position, { passive: true });
     document.addEventListener('click', (event) => { if (!details.contains(event.target)) details.open = false; });
-    panel.addEventListener('keydown', (event) => { if (event.key === 'Escape') { details.open = false; summary.focus(); } });
+    details.addEventListener('keydown', (event) => { if (event.key === 'Escape') { details.open = false; summary.focus(); } });
   });
 })();

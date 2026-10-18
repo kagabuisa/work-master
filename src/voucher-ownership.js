@@ -41,6 +41,7 @@ function addStockLedgerOwnerFilter(where, params, alias, ownerId, employeeId = n
       SELECT 1 FROM app_stock_entries owned_stock
       WHERE owned_stock.id = COALESCE(${alias}.voucher_id, ${alias}.reversal_of_voucher_id)
         AND owned_stock.created_by_user_id = ${value}))
+    OR (${alias}.voucher_type = 'inventory_correction' AND EXISTS (SELECT 1 FROM wm_inventory_corrections owned_correction WHERE owned_correction.id=${alias}.voucher_id AND owned_correction.prepared_by::text=${value}))
     OR (${alias}.voucher_type = 'purchase' AND EXISTS (
       SELECT 1 FROM app_purchases owned_purchase
       WHERE owned_purchase.id = ${alias}.voucher_id AND owned_purchase.created_by_user_id = ${value}))

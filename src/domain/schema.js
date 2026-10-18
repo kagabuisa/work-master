@@ -372,6 +372,7 @@ async function initPostgresStore() {
   `);
   await pool.query('ALTER TABLE app_stock_entry_items ADD COLUMN IF NOT EXISTS counted_quantity NUMERIC(14, 3)');
   await initReconciliationAttachments(pool);
+  await require('../photo-count').initPhotoCountSchema(pool);
 
   await pool.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
   await pool.query(`
@@ -430,6 +431,7 @@ async function initPostgresStore() {
   await pool.query('ALTER TABLE app_accounts ADD COLUMN IF NOT EXISTS erpnext_account_name TEXT');
   await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS app_accounts_erpnext_name_idx ON app_accounts (erpnext_account_name)');
   await pool.query('ALTER TABLE app_invoice_payments ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES app_accounts(id)');
+  await pool.query('ALTER TABLE app_purchase_payments ADD COLUMN IF NOT EXISTS account_id BIGINT REFERENCES app_accounts(id)');
   await pool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'app_invoice_payments_account_id_fkey'
@@ -605,6 +607,7 @@ async function initPostgresStore() {
   await syncAllPostgresInvoicePaymentTotals(pool);
   await backfillSalesInvoiceJournals(pool);
   await backfillInvoicePaymentJournals(pool);
+  await require('../master-display').ensureUniqueMasterNames(pool);
 }
 
 async function createPerformanceIndexes(pool) {

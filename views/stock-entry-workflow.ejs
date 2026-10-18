@@ -1,0 +1,42 @@
+<% if (entry.entry_type !== 'reconciliation' && typeof sharing !== 'undefined' && sharing) { %>
+<% const sharedIds = new Set(sharing.shares.map(share => String(share.user_id))); %>
+<% const availableUsers = sharing.users.filter(user => !sharedIds.has(String(user.id))); %>
+<section class="ui-surface ui-form-section ui-access-panel" data-entry-sharing-panel data-entry-id="<%= entry.id %>">
+  <%- include('ui-section-heading', { heading: { title: 'Sharing', meta: `${sharing.shares.length} ${sharing.shares.length === 1 ? 'person' : 'people'}`, help: 'Read-only allows viewing. Read & write allows draft edits and delivery updates after submission. Sharing does not grant submit, cancel, delete, or onward sharing rights. Only the owner or an admin can manage access.' } }) %>
+  <form method="post" action="/stock/entries/<%= entry.id %>/share" class="ui-access-invite" data-entry-sharing-form data-share-mode="invite">
+    <label>Share with<select name="user_id" required <%= availableUsers.length ? '' : 'disabled' %>>
+      <option value=""><%= availableUsers.length ? 'Choose a user' : 'No more users to add' %></option>
+      <% availableUsers.forEach(user => { %><option value="<%= user.id %>"><%= user.username %></option><% }) %>
+    </select></label>
+    <label>Access<select name="permission" <%= availableUsers.length ? '' : 'disabled' %>><option value="read">Read-only</option><option value="write">Read &amp; write</option></select></label>
+    <button type="submit" <%= availableUsers.length ? '' : 'disabled' %>>Share</button>
+  </form>
+  <p class="ui-access-feedback" role="status" aria-live="polite" data-share-feedback><span data-share-auto-hint>Permission changes save automatically.</span><span data-share-manual-hint>Choose access, then Save to update.</span></p>
+  <% if (sharing.shares.length) { %>
+  <ul class="ui-access-list" aria-label="People with access">
+    <% sharing.shares.forEach(share => { %>
+    <li class="ui-access-person" data-share-user="<%= share.user_id %>">
+      <span class="ui-access-avatar" aria-hidden="true"><%= Array.from(share.username).slice(0, 2).join('').toUpperCase() %></span>
+      <div class="ui-access-identity"><strong><%= share.username %></strong><span><%= share.active ? `Shared ${formatTimestamp(share.granted_at)}` : 'Account inactive' %></span></div>
+      <div class="ui-access-controls" data-standard-labels>
+        <form method="post" action="/stock/entries/<%= entry.id %>/share" data-entry-sharing-form data-share-mode="permission">
+          <input type="hidden" name="user_id" value="<%= share.user_id %>">
+          <select name="permission" aria-label="Access for <%= share.username %>" data-current-permission="<%= share.permission || 'read' %>" <%= share.active ? '' : 'disabled' %>>
+            <option value="read" <%= share.permission !== 'write' ? 'selected' : '' %>>Read-only</option>
+            <option value="write" <%= share.permission === 'write' ? 'selected' : '' %>>Read &amp; write</option>
+          </select>
+          <button type="submit" class="button-light" data-share-fallback <%= share.active ? '' : 'disabled' %>>Save</button>
+        </form>
+        <form method="post" action="/stock/entries/<%= entry.id %>/share" data-entry-sharing-form data-share-mode="revoke">
+          <input type="hidden" name="user_id" value="<%= share.user_id %>"><input type="hidden" name="action" value="revoke">
+          <button type="submit" class="ui-access-remove" aria-label="Remove access for <%= share.username %>" title="Remove access for <%= share.username %>"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        </form>
+      </div>
+    </li>
+    <% }) %>
+  </ul>
+  <% } else { %>
+  <div class="ui-access-empty"><strong>Only the owner and admins have access</strong><span>Choose a user above to share this entry.</span></div>
+  <% } %>
+</section>
+<% } %>

@@ -2,6 +2,7 @@
 // API-only final checks on the financial transaction connection. Website
 // validation and posting entry points keep their existing behavior.
 const access = require('../access');
+const { enabled: inventoryEnabled } = require('./inventory-posting');
 const { apiError } = require('../api/errors');
 const { normalizeQuantity } = require('../lib/quantity');
 const { roundMoney } = require('../lib/money');
@@ -42,7 +43,7 @@ async function lockReferences(client, actor, payload, { creating = false } = {})
   const byCode = new Map(masterItems.map(item => [item.item_code, item]));
   const stockAtDraft = new Map();
   for (const warehouse of warehouses) {
-    const balances = (await client.query('SELECT item_code,quantity FROM app_stock_balances WHERE warehouse=$1 AND item_code=ANY($2::text[]) ORDER BY item_code FOR SHARE', [warehouse, codes])).rows;
+    const balances = (await client.query(`SELECT item_code,quantity FROM app_stock_balances WHERE warehouse=$1 AND item_code=ANY($2::text[]) ORDER BY item_code ${await inventoryEnabled(client)?'':'FOR SHARE'}`, [warehouse, codes])).rows;
     for (const row of balances) stockAtDraft.set(JSON.stringify([row.item_code, warehouse]), normalizeStockQuantity(row.quantity));
   }
   const normalized = items.map(item => {
@@ -63,7 +64,7 @@ async function lockReferences(client, actor, payload, { creating = false } = {})
     || normalized.reduce((total, item) => total + roundMoney(item.quantity * roundMoney(item.unit_price)), 0) + roundMoney(amounts[0]) > 999999999999) {
     throw apiError(422, 'validation_failed', 'Invoice amounts exceed supported storage bounds.');
   }
-  return { ...payload, customer_name: customer.customer_name, invoicer: employee.employee_name, items: normalized };
+  return { ...payload, customer_name: customer.customer_name, customer_phone: customer.phone || null, invoicer: employee.employee_name, items: normalized };
 }
 
 async function lockStock(client, items) {
@@ -71,7 +72,7 @@ async function lockStock(client, items) {
     .sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0);
   const balances = new Map();
   for (const [code, warehouse] of keys) {
-    const row = (await client.query('SELECT quantity FROM app_stock_balances WHERE item_code=$1 AND warehouse=$2 FOR UPDATE', [code, warehouse])).rows[0];
+    const row = (await client.query(`SELECT quantity FROM app_stock_balances WHERE item_code=$1 AND warehouse=$2 ${await inventoryEnabled(client)?'':'FOR UPDATE'}`, [code, warehouse])).rows[0];
     balances.set(JSON.stringify([code, warehouse]), Number(row?.quantity || 0));
   }
   for (const item of items) {

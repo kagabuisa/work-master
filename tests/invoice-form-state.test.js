@@ -13,6 +13,11 @@ test('new sales invoices default the employee and permitted retail price list', 
   const previousRoute = require.cache[routePath];
   const originalFind = store.findMasterRecord;
   const originalCreate = store.createInvoice;
+  const pool = require('../src/core').getPostgresPool();
+  const originalQuery = pool.query;
+  pool.query = async () => ({ rows: [{ customer: { customer_id:'C-1', customer_name:'Customer' },
+    price_list:{active:1,currency:'UGX',price_type:'selling'},
+    employee:{employee_name:'Isa Kagabu',disabled:employeeDisabled==='1'} }] });
   const parties = require('../src/web/parties');
   const originalCustomer = parties.findDbCustomer;
   const lookups = [];
@@ -86,7 +91,7 @@ test('new sales invoices default the employee and permitted retail price list', 
     let redirect;
     const body = {
       customer_id: 'C-1', customer_name: 'Customer', price_list: 'Retail Selling',
-      invoicer_id: 'EMP-ISA', warehouse: 'Main', ext_invoice: 'EXT-42', items_json: '[]',
+      invoicer_id: 'EMP-ISA', warehouse: 'Main', ext_invoice: 'EXT-42', items_json: '[]', invoice_date:'2026-10-01', posting_time:'12:00',
     };
     await create({ currentUser: { role: 'admin', record_access: { employee_id: 'EMP-ISA' } }, body },
       { redirect: (url) => { redirect = url; } }, (error) => errors.push(error));
@@ -103,6 +108,7 @@ test('new sales invoices default the employee and permitted retail price list', 
   } finally {
     store.findMasterRecord = originalFind;
     store.createInvoice = originalCreate;
+    pool.query = originalQuery;
     parties.findDbCustomer = originalCustomer;
     delete require.cache[routePath];
     if (previousRoute) require.cache[routePath] = previousRoute;
@@ -292,8 +298,43 @@ test('sales payment form offers cash and bank ledger accounts', async () => {
     ],
   });
   assert.match(html, /select name="account_id" required/);
-  assert.match(html, /value="6">1110 · Till Cash/);
-  assert.match(html, /value="7">1120 · Main Bank/);
+  assert.match(html, /value="6">Till Cash/);
+  assert.match(html, /value="7">Main Bank/);
   assert.doesNotMatch(html, /select name="method"/);
   assert.match(html, /<td>Main Bank<\/td>/);
+});
+
+test('invoice stock refresh uses selected posting time and ignores superseded responses', async () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../public/invoice.js'), 'utf8');
+  const requests = [];
+  const fields = { '#invoice-date': { value: '2026-02-01' }, '#invoice-posting-time': { value: '10:00' } };
+  const item = { item_code: 'ITEM', warehouse: 'Main' };
+  const cell = { dataset: { stockIndex: '0' }, textContent: '' };
+  const context = vm.createContext({ items: [item], URLSearchParams, AbortController,
+    setTimeout: () => 1, clearTimeout() {},
+    form: { addEventListener() {} }, window: { addEventListener() {} },
+    document: { querySelector: selector => fields[selector], addEventListener() {} },
+    tbody: { querySelectorAll: () => [cell] }, warehouseSelect: { value: 'Main' },
+    formatQuantity: String,
+    fetch: (url, options) => new Promise(resolve => requests.push({ url, options, resolve })),
+  });
+  vm.runInContext(source.slice(source.indexOf('let stockRefreshTimer;'), source.indexOf('let itemTimer;')), context);
+  const old = vm.runInContext('refreshInvoiceStock()', context);
+  assert.equal(requests[0].url, '/api/invoice-stock-balances');
+  assert.deepEqual(JSON.parse(requests[0].options.body), { items: [{ item_code: 'ITEM', warehouse: 'Main' }], posting_date: '2026-02-01', posting_time: '10:00' });
+  fields['#invoice-date'].value = '2026-02-02';
+  const fresh = vm.runInContext('refreshInvoiceStock()', context);
+  requests[1].resolve({ ok: true, json: async () => [{ item_code: 'ITEM', warehouse: 'Main', quantity: 100, available_quantity: 90 }] });
+  await fresh;
+  assert.equal(cell.textContent, '100; available: 90');
+  requests[0].resolve({ ok: true, json: async () => [{ item_code: 'ITEM', warehouse: 'Main', quantity: 10, available_quantity: 10 }] });
+  await old;
+  assert.equal(cell.textContent, '100; available: 90');
+  assert.equal(requests[0].options.signal.aborted, true);
+  const failure = vm.runInContext('refreshInvoiceStock()', context);
+  requests[2].resolve({ ok: false });
+  await failure;
+  assert.match(cell.textContent, /Unavailable/);
 });

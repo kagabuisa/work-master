@@ -183,7 +183,9 @@ router.post('/accounts', async (req, res, next) => {
     });
     res.redirect('/accounts');
   } catch (err) {
-    if (err.code === '23505') {
+    if (require('../../master-display').masterNameConflict(err)) {
+      // Display the duplicate name error below.
+    } else if (err.code === '23505') {
       err.message = 'An account with that code already exists.';
       err.status = 400;
     }
@@ -214,7 +216,9 @@ router.post('/accounts/:id', async (req, res, next) => {
     await updateAccountingAccount(req.params.id, req.body);
     res.redirect('/accounts');
   } catch (err) {
-    if (err.code === '23505') {
+    if (require('../../master-display').masterNameConflict(err)) {
+      // Display the duplicate name error below.
+    } else if (err.code === '23505') {
       err.message = 'An account with that code already exists.';
       err.status = 400;
     }
@@ -232,6 +236,7 @@ router.get('/journals', async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim();
     const journals = await journalEntries({
+      includeTotal: req.query.exact_total === '1',
       search,
       journal_type: req.query.journal_type,
       status: req.query.status,

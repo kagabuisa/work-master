@@ -10,6 +10,7 @@ const { voucherOwnedByUser } = require('../../voucher-ownership');
 const { money, todayString } = require('../format');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { parseStockEntryPayload } = require('../parsers');
+const { STOCK_ENTRY_CHOICES, STOCK_TRANSFER_TYPES } = require('../../constants');
 const { applyReconciliationRatePolicy } = require('../reconciliation-rates');
 const { warehouseAllowed } = require('../../access');
 const { warehouseAccessOptions } = require('../helpers');
@@ -29,7 +30,18 @@ const {
   getPostgresPool,
 } = require('../../store');
 
+const { photoCountRows, savePhotoCount } = require('../../photo-count');
 const router = express.Router();
+const { DELIVERY_STATUSES, canManageStockEntry, stockEntrySharing, changeStockEntryWorkflow } = require('../../stock-entry-workflow');
+
+async function workflowView(req, entry) {
+  return { deliveryStatuses: DELIVERY_STATUSES, canManageWorkflow: canManageStockEntry(req.currentUser, entry),
+    canUpdateDelivery: canManageStockEntry(req.currentUser, entry) || Boolean(req.stockEntrySharedWrite),
+    sharing: await stockEntrySharing(req.currentUser, entry), sharedAccessOnly: Boolean(req.stockEntrySharedRead),
+    sharedWriteAccess: Boolean(req.stockEntrySharedWrite) };
+}
+router.use('/reconciliations', require('./inventory-counts'));
+router.use(require('./inventory-counts'));
 
 function reconciliationView(entry = null, items = [], error = null, warehouse = '', balances = []) {
   return { entry, items, error, balances, warehouse: warehouse || items[0]?.warehouse || '',
@@ -188,8 +200,12 @@ router.get('/reconciliations', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/reconciliations/new', (_req, res) => {
-  res.render('stock-reconciliation', reconciliationView());
+router.get('/reconciliations/new', async (req, res, next) => {
+  try {
+    const { rows } = await getPostgresPool().query('SELECT wm_inventory_enabled() AS enabled');
+    if (rows[0].enabled) return res.redirect(303, '/stock/reconciliations/counts#start-count');
+    res.render('stock-reconciliation', reconciliationView());
+  } catch (error) { next(error); }
 });
 
 router.post('/reconciliations', async (req, res) => {
@@ -204,6 +220,31 @@ router.post('/reconciliations', async (req, res) => {
       remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
     }, items, err.message, req.body.warehouse));
   }
+});
+
+router.get('/reconciliations/:id/photo-count', async (req, res, next) => {
+  try {
+    const data = await loadReconciliation(req.params.id);
+    const rows = await photoCountRows(getPostgresPool(), req.params.id);
+    const photos = (await getPostgresPool().query(`SELECT id, photo_id, file_name FROM app_stock_reconciliation_attachments
+      WHERE stock_entry_id=$1 AND photo_id IS NOT NULL ORDER BY uploaded_at,id`, [req.params.id])).rows;
+    res.set('Cache-Control', 'private, no-store');
+    res.render('reconciliation-photo-count', { entry: data.entry, warehouse: data.items[0]?.warehouse || '', rows, photos, error: req.query.error || null });
+  } catch (error) { next(error); }
+});
+const photoUpload = multer({ storage: multer.memoryStorage(), limits: {
+  fileSize: MAX_SCAN_BYTES, files: MAX_SCAN_FILES, fields: 3, parts: 6,
+} }).array('photos', MAX_SCAN_FILES);
+router.post('/reconciliations/:id/photo-count', (req, res) => {
+  photoUpload(req, res, async uploadError => {
+    let failure;
+    try {
+      if (uploadError) throw countSheetError('Upload up to three JPG or PNG photos, each no larger than 10 MB.');
+      await loadReconciliation(req.params.id);
+      await withPostgresTransaction(client => savePhotoCount(client, req.params.id, req.body, req.files, req.currentUser),{inventoryExclusive:true});
+    } catch (error) { failure = error.status ? error.message : 'Could not save the photo count. Please retry.'; }
+    res.redirect(303, `/stock/reconciliations/${req.params.id}/photo-count${failure ? '?error=' + encodeURIComponent(failure) : ''}`);
+  });
 });
 
 router.get('/reconciliations/:id/attachments', async (req, res, next) => {
@@ -244,7 +285,7 @@ router.post('/reconciliations/:id/attachments', (req, res) => {
     try {
       if (uploadError) throw countSheetError('Upload up to three PDF, JPG, PNG, CSV, or Excel (.xls/.xlsx) sheets, each no larger than 10 MB.');
       await loadReconciliation(req.params.id);
-      const count = await withPostgresTransaction((client) => saveAttachments(client, req.params.id, req.files, req.currentUser));
+      const count = await withPostgresTransaction((client) => saveAttachments(client, req.params.id, req.files, req.currentUser),{inventoryExclusive:true});
       scanResponse(req, res, null, count);
     } catch (error) { scanResponse(req, res, error); }
   });
@@ -253,7 +294,7 @@ router.post('/reconciliations/:id/attachments', (req, res) => {
 router.post('/reconciliations/:id/attachments/:attachmentId/delete', async (req, res) => {
   try {
     await loadReconciliation(req.params.id);
-    await deleteAttachment(getPostgresPool(), req.params.id, req.params.attachmentId);
+    await withPostgresTransaction(client=>deleteAttachment(client, req.params.id, req.params.attachmentId),{inventoryExclusive:true});
     scanResponse(req, res, null);
   } catch (error) { scanResponse(req, res, error); }
 });
@@ -270,6 +311,8 @@ router.get('/reconciliations/:id/edit', async (req, res, next) => {
 
 router.get('/reconciliations/:id', async (req, res, next) => {
   try {
+    const linked = await getPostgresPool().query('SELECT id FROM wm_inventory_counts WHERE reconciliation_id=$1', [req.params.id]);
+    if (linked.rows.length) return res.redirect(303, `/stock/reconciliations/counts/${linked.rows[0].id}`);
     const data = await loadReconciliation(req.params.id);
     const balances = data.entry.docstatus === 'draft' ? await reconciliationBalances(data.items) : [];
     res.render('stock-reconciliation', {
@@ -396,13 +439,22 @@ router.get('/entries', async (req, res, next) => {
     const result = await listStockEntries({ ...req.query, excludeReconciliations: true,
       ownerId: voucherOwnerId(req.currentUser),
       ...warehouseAccessOptions(req.currentUser) });
-    res.render('stock-entries', { result, query: req.query });
+    res.render('stock-entries', { result, query: req.query, deliveryStatuses: DELIVERY_STATUSES, sharedList: false, money });
   } catch (err) { next(err); }
+});
+
+router.get('/shared', async (req, res, next) => {
+  try {
+    const result = await listStockEntries({ ...req.query, excludeReconciliations: true,
+      ownerId: null, allowedWarehouses: null, deniedWarehouses: [], sharedWithUserId: req.currentUser.id });
+    res.set('Cache-Control', 'private, no-store');
+    res.render('stock-entries', { result, query: req.query, deliveryStatuses: DELIVERY_STATUSES, sharedList: true, money });
+  } catch (error) { next(error); }
 });
 
 router.get('/entries/new', (req, res) => {
   if (req.query.entry_type === 'reconciliation') return res.redirect(302, '/stock/reconciliations/new');
-  const defaultEntryType = ['purchase', 'reconciliation'].includes(req.query.entry_type)
+  const defaultEntryType = STOCK_ENTRY_CHOICES.includes(req.query.entry_type)
     ? req.query.entry_type : 'opening';
   res.render('stock-entry', { today: currentPostingDate(), error: null, entry: null, items: [], defaultEntryType });
 });
@@ -411,9 +463,9 @@ router.post('/entries', async (req, res, next) => {
   try {
     const payload = req.body.entry_type === 'reconciliation'
       ? await reconciliationPayload(req.body, req.currentUser) : parseStockEntryPayload(req.body);
-    const id = await createStockEntry(payload);
-    res.redirect(req.body.entry_type === 'reconciliation'
-      ? `/stock/reconciliations/${id}` : `/reports/stock-ledger?voucher_id=${id}`);
+    const id = await createStockEntry(payload, { deliveryUser: req.currentUser });
+    res.redirect(303, req.body.entry_type === 'reconciliation'
+      ? `/stock/reconciliations/${id}` : '/stock/entries');
   } catch (err) {
     if (req.body.entry_type === 'reconciliation') {
       return res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
@@ -427,10 +479,38 @@ router.post('/entries', async (req, res, next) => {
       postingTime: req.body.posting_time,
       error: err.message || 'Could not save stock entry.',
       entry: null,
+      attemptedDeliveryStatus: req.body.delivery_status,
       attemptedCostCenter: req.body.cost_center || '',
       items: [],
     });
   }
+});
+
+router.get('/entries/:id/duplicate', async (req, res, next) => {
+  try {
+    const { entry, items } = await loadStockEntry(req.params.id);
+    if (!['opening', 'purchase', 'adjustment', ...STOCK_TRANSFER_TYPES].includes(entry.entry_type)) {
+      const error = new Error('This stock entry type cannot be duplicated.');
+      error.status = 400;
+      throw error;
+    }
+    res.set('Cache-Control', 'private, no-store');
+    res.render('stock-entry', {
+      today: currentPostingDate(), error: null, duplicateOf: entry.entry_no,
+      entry: {
+        entry_type: entry.entry_type, docstatus: 'draft',
+        posting_date: currentPostingDate(), posting_time: currentPostingTime(),
+        cost_center: entry.cost_center, remarks: entry.remarks,
+        supplier_name: entry.supplier_name, supplier_contact: entry.supplier_contact,
+        supplier_phone: entry.supplier_phone, supplier_reference: '',
+      },
+      items: items.map(item => ({
+        item_code: item.item_code, item_name: item.item_name,
+        warehouse: item.warehouse, target_warehouse: item.target_warehouse,
+        quantity: item.quantity, valuation_rate: item.valuation_rate,
+      })),
+    });
+  } catch (error) { next(error); }
 });
 
 router.get('/entries/:id/edit', async (req, res, next) => {
@@ -442,10 +522,12 @@ router.get('/entries/:id/edit', async (req, res, next) => {
       err.status = 400;
       throw err;
     }
+    res.set('Cache-Control', 'private, no-store');
     res.render('stock-entry', {
       today: data.entry.posting_date,
       error: null,
       ...data,
+      sharedWriteAccess: Boolean(req.stockEntrySharedWrite),
     });
   } catch (err) {
     next(err);
@@ -456,14 +538,49 @@ router.get('/entries/:id', async (req, res, next) => {
   try {
     const data = await loadStockEntry(req.params.id);
     if (data.entry.entry_type === 'reconciliation') return res.redirect(302, `/stock/reconciliations/${req.params.id}`);
+    res.set('Cache-Control', 'private, no-store');
     res.render('stock-entry', {
       today: data.entry.posting_date,
       error: req.query.error || null,
       readOnly: true,
+      money,
       ...data,
+      ...await workflowView(req, data.entry),
     });
   } catch (err) {
     next(err);
+  }
+});
+
+router.post('/entries/:id/submit', async (req, res, next) => {
+  try {
+    const { entry, items } = await loadStockEntry(req.params.id);
+    if (entry.docstatus !== 'draft' || entry.entry_type === 'reconciliation') {
+      const error = new Error('Only draft stock entries can be submitted here.');
+      error.status = 400;
+      throw error;
+    }
+    if (entry.entry_type === 'cancel' && !can(req.currentUser, 'vouchers.stock.cancel')) {
+      const error = new Error('Stock cancellation permission is required.');
+      error.status = 403;
+      throw error;
+    }
+    await updateStockEntry(req.params.id, {
+      entry_type: entry.entry_type, action: 'submit',
+      posting_date: entry.posting_date, posting_time: entry.posting_time,
+      cost_center: entry.cost_center, remarks: entry.remarks,
+      supplier_name: entry.supplier_name, supplier_contact: entry.supplier_contact,
+      supplier_phone: entry.supplier_phone, supplier_reference: entry.supplier_reference,
+      items: items.map(item => ({
+        id: item.id, item_code: item.item_code, item_name: item.item_name,
+        warehouse: item.warehouse, target_warehouse: item.target_warehouse,
+        quantity: item.quantity, valuation_rate: item.valuation_rate,
+      })),
+    });
+    res.redirect(303, '/stock/entries');
+  } catch (error) {
+    if (error.status === 400) return res.redirect(303, `/stock/entries/${req.params.id}?error=${encodeURIComponent(error.message)}`);
+    next(error);
   }
 });
 
@@ -485,20 +602,46 @@ router.post('/entries/:id/delete', async (req, res, next) => {
 router.get('/entries/:id/drawer', async (req, res, next) => {
   try {
     const data = await loadStockEntry(req.params.id);
-    res.set('Cache-Control', 'private, max-age=10');
-    res.render('stock-entry-drawer', { ...data, money });
+    res.set('Cache-Control', 'private, no-store');
+    res.render('stock-entry-drawer', { ...data, money, ...await workflowView(req, data.entry) });
   } catch (err) {
     next(err);
   }
 });
+
+for (const action of ['delivery', 'share']) {
+  router.post(`/entries/:id/${action}`, async (req, res, next) => {
+    const inlineSharing = action === 'share' && req.get('x-requested-with') === 'XMLHttpRequest';
+    try {
+      const change = action === 'delivery' ? 'delivery' : req.body.action === 'revoke' ? 'revoke' : 'share';
+      await changeStockEntryWorkflow(req.currentUser, req.params.id, change,
+        action === 'delivery' ? req.body.delivery_status : req.body.user_id, req.body.permission || 'read');
+      if (inlineSharing) {
+        const { entry } = await loadStockEntry(req.params.id);
+        const sharing = await stockEntrySharing(req.currentUser, entry);
+        res.set('Cache-Control', 'private, no-store');
+        return res.render('stock-entry-workflow', { entry, sharing }, (error, html) => {
+          if (error) return next(error);
+          res.json({ html });
+        });
+      }
+      res.redirect(303, `/stock/entries/${req.params.id}`);
+    } catch (error) {
+      if (inlineSharing) return res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save sharing. Please try again.' });
+      if (error.status === 400) return res.redirect(303, `/stock/entries/${req.params.id}?error=${encodeURIComponent(error.message)}`);
+      next(error);
+    }
+  });
+}
 
 router.post('/entries/:id', async (req, res, next) => {
   try {
     const current = await loadStockEntry(req.params.id);
     const payload = current.entry.entry_type === 'reconciliation' || req.body.entry_type === 'reconciliation'
       ? await reconciliationPayload(req.body, req.currentUser, current.items) : parseStockEntryPayload(req.body);
-    const id = await updateStockEntry(req.params.id, payload);
-    res.redirect(`/reports/stock-ledger?status=${req.body.action === 'save_draft' ? 'draft' : 'submitted'}&voucher_id=${id}`);
+    const id = await updateStockEntry(req.params.id, payload, { deliveryUser: req.currentUser, sharedWrite: Boolean(req.stockEntrySharedWrite) });
+    res.redirect(303, payload.entry_type === 'reconciliation'
+      ? `/stock/reconciliations/${id}` : req.stockEntrySharedWrite ? `/stock/entries/${id}` : '/stock/entries');
   } catch (err) {
     try {
       const data = await loadStockEntry(req.params.id);
@@ -507,6 +650,8 @@ router.post('/entries/:id', async (req, res, next) => {
         postingTime: req.body.posting_time,
         error: err.message || 'Could not save stock entry.',
         ...data,
+        sharedWriteAccess: Boolean(req.stockEntrySharedWrite),
+        attemptedDeliveryStatus: req.body.delivery_status,
         attemptedCostCenter: req.body.cost_center || '',
       });
     } catch (loadErr) {
