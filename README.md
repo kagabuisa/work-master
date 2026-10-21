@@ -2,6 +2,12 @@
 
 Node/Express app for sales invoices, purchases, inventory, and accounting. It syncs ERP/MySQL master data into local Postgres tables and stores app-created vouchers in Postgres.
 
+## Private audit artifacts
+
+The root `audits/` directory contains private local evidence and benchmark artifacts. It is excluded from Git and Docker build contexts; references to `audits/` elsewhere in this guide require those separately retained local files. Fresh clones do not include them. Keep audit artifacts and their backups in private storage, and do not force-add them to Git.
+
+The repository history has been rewritten to remove `audits/`. Existing clones must use the cleaned history before pushing again; merging an old branch can restore the removed information. Preserve uncommitted work and local artifacts before replacing a clone, then transfer only the required source changes onto a fresh clone. Rotate any exposed credentials, and request GitHub Support cleanup for sensitive cached commits or pull-request references.
+
 ## Run
 
 ```bash

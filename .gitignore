@@ -12,3 +12,4 @@ data/*.tmp
 data/project-files/
 data/api-staging/
 data/erp-benchmark/
+/audits/
