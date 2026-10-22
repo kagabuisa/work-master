@@ -54,6 +54,11 @@ test('multiple customer references allocate, validate and reverse each invoice i
         const detail=await store.findInvoice(invoice.id);
         assert.equal(detail.amount_paid,invoice.invoice_no==='INV-MULTI-A'?100:150);
         assert.equal(detail.payments.filter(payment=>payment.journal_id===id).length,1);
+        // The payment guard must use the same header/line allocations, including
+        // legacy party-name matching, and never count a candidate twice.
+        await assert.rejects(store.addInvoicePayment(invoice.id, {
+          payment_date:'2026-10-03', amount:invoice.invoice_no==='INV-MULTI-A'?1:51, method:'cash',
+        }), /cannot exceed/);
       }
     }
     await pool.query('UPDATE app_journal_entries SET party_id=$1 WHERE id=$2',['OTHER',id]);
@@ -83,7 +88,17 @@ test('multiple customer references allocate, validate and reverse each invoice i
       { account_id: account('accounts_receivable'), credit: 25 }, { account_id: account('bank'), debit: 25 },
     ] });
     assert.deepEqual(await balances(), [100, 175]);
+    const secondInvoice=invoices.rows.find(invoice=>invoice.invoice_no==='INV-MULTI-B');
+    await assert.rejects(store.addInvoicePayment(secondInvoice.id, {
+      payment_date:'2026-10-03', amount:176, method:'cash',
+    }), /cannot exceed/);
     await store.cancelJournalEntry(legacy);
     assert.deepEqual(await balances(), [100, 200]);
+    await store.addInvoicePayment(secondInvoice.id, {payment_date:'2026-10-03', amount:200, method:'cash'});
+    assert.deepEqual(await balances(), [100, 0]);
+    assert.equal((await store.findInvoice(secondInvoice.id)).amount_paid,200);
+    await assert.rejects(store.addInvoicePayment(secondInvoice.id, {
+      payment_date:'2026-10-03', amount:1, method:'cash',
+    }), /cannot exceed/);
   } finally { await store.closeStore(); }
 });

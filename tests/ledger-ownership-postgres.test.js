@@ -47,7 +47,10 @@ test('voucher membership preserves ownership, reversals, category scopes, HR and
    if(n<=2)sources.push({type:'inventory_correction',id,n});
   }
   sources.push({type:'inventory_correction',id:900001,reversal:900002,n:1},
-   {type:'inventory_correction',id:900002,reversal:900001,n:2});
+   {type:'inventory_correction',id:900002,reversal:900001,n:2},
+   // This unsupported spelling must not inherit correction ownership merely
+   // because it resembles a supported cancellation voucher type.
+   {type:'inventory_correction_cancellation',id:900001,n:1});
   // Shared payment journals, NULL journal links and sources shared by creator
   // and assigned employee must preserve set membership without duplicating rows.
   await pool.query(`INSERT INTO app_purchase_payments(id,purchase_id,payment_no,payment_date,amount,method,journal_entry_id)

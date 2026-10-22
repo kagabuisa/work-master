@@ -22,6 +22,8 @@ For synthetic practice and deployment checks, the [local staging environment](ap
 
 ## Screen layout
 
+Browser tabs use the WM logo shown on the login screen and in the app navigation.
+
 Sales invoices, purchase invoices and orders, journals, stock entries and reconciliations, accounts, master-data lists, HR pages (including attendance, leave, payroll, Employee Money, settings, payroll runs, and payslips), and accounting, stock, invoice, voucher, debtor, and Daily Activity reports share compact cards, toolbars, section headings, and table styles. List tables use compact rows and scroll horizontally within their cards on narrow screens. Non-HR voucher and master forms use shared card, field-grid, and save-footer spacing; editable item tables retain their specialized controls. General settings, users, roles, and Project Files reuse shared surfaces and table scrolling. Company and date/time settings guidance opens from **i** icons. Employee profiles retain grouped sections and a save footer. HR forms use aligned compact controls and shared section headings; guidance for attendance, leave requests, payroll preparation, and HR settings opens from **i** helper icons. Employee multi-selects keep visible labels and occupy their own space. HR tables scroll inside their cards on small screens, show clear messages when there are no records, and align monetary amounts to the right. Search and filter bars across reports, voucher lists, master lists, HR registers, role/user selectors, and statement date ranges keep fields and action buttons in one row. Swipe or scroll horizontally within a filter bar on smaller screens to reach all controls. Daily Activity places its single-row filters directly below the breadcrumb, with totals and a result count below; report guidance is available from the **i** icon beside **Daily Activity vouchers**. See the [design guide](design-guide.md) for the shared components and reference layouts.
 
 ## Employee selections
@@ -182,7 +184,7 @@ When Party matches a customer or supplier, the corresponding **Customer receivab
 
 General Ledger begins with an **Opening balance** row for each matching account. It includes matching postings before **From**; with no From date, opening is zero. Opening rows repeat at the top of each page and are excluded from transaction counts and period debit/credit totals. Running balances include opening history and earlier pages, separately per account. Accounts with historical activity remain visible in opening rows even when there are no period transactions. Positive balances are debit and negative balances are credit. Account, Party, Search, Voucher, To, and access restrictions apply to opening history too. Opening balances and period totals are calculated together to reduce repeated database work. The page, matching count, and debit/credit totals come from one saved-data snapshot, so a transaction posted while the report loads does not mix newer rows with older totals. Entries before a page are calculated separately for earlier dates and earlier entries on the same date, preserving running balances when many transactions share a date or a transaction is backdated. Refresh or Apply again to include later postings. General Ledger and Trial Balance require valid dates with **From** on or before **To**. Trial Balance opening balances include postings before From; narrowing the period does not discard opening history.
 
-Invoice lists use indexed creator and employee-assignment lookups for restricted users. A document matching both routes appears once, and other category and warehouse restrictions still apply. Invoice details look up payment journals by the invoice reference, including individual line references; cancelled journal payments remain visible in payment history without increasing the paid amount. Lists/searches and heavy reports have separate waiting queues. Viewing requests share a database connection limit so they leave capacity available for saving and posting. If a queue is full or its waiting limit expires, retry the view shortly. Invoice lists and text searches look up payment journals by the displayed invoice references, including references entered on individual journal lines. Linked payments are counted once; cancelled journals are excluded. Invoice and journal text searches retain case-insensitive per-field matching and `%` wildcards. Searches by numeric amounts, dates, and invoice payment status remain available. Identical simultaneous report requests can share their database work only when their filters and access restrictions match; completed financial report results are not cached. Requests already waiting for the same report may share one execution that starts after the latest posting; a new request never joins a report snapshot that started before its latest committed changes. The historical warehouse and ledger voucher-type choices refresh within 30 seconds. Warehouse choices use indexed lookups and retain warehouse names used on older invoices even when they are absent from current master records; the user’s warehouse restrictions still apply. Transaction resets clear these temporary choices.
+Invoice lists use indexed creator and employee-assignment lookups for restricted users. A document matching both routes appears once, and other category and warehouse restrictions still apply. Before accepting an invoice payment, the app finds manual customer journal allocations by their header and individual line references using indexed lookups. Matching allocations are counted once; cancelled journals and journals already linked to saved invoice payments do not reduce the available balance again. Payments still cannot exceed the remaining balance. Invoice details load the header, items and payment history from one saved-data snapshot, so a concurrent edit cannot mix versions; refresh to see later changes. Warehouse and customer-category visibility checks read only the fields needed to enforce those restrictions. Invoice details look up payment journals by the invoice reference, including individual line references; cancelled journal payments remain visible in payment history without increasing the paid amount. Lists/searches and heavy reports have separate waiting queues. Viewing requests share a database connection limit so they leave capacity available for saving and posting. If a queue is full or its waiting limit expires, retry the view shortly. Invoice lists and text searches look up payment journals by the displayed invoice references, including references entered on individual journal lines. Linked payments are counted once; cancelled journals are excluded. Invoice and journal text searches retain case-insensitive per-field matching and `%` wildcards. Searches by numeric amounts, dates, and invoice payment status remain available. Identical simultaneous report requests can share their database work only when their filters and access restrictions match; completed financial report results are not cached. Requests already waiting for the same report may share one execution that starts after the latest posting; a new request never joins a report snapshot that started before its latest committed changes. The historical warehouse and ledger voucher-type choices refresh within 30 seconds. Warehouse choices use indexed lookups and retain warehouse names used on older invoices even when they are absent from current master records; the user’s warehouse restrictions still apply. Transaction resets clear these temporary choices.
 
 ## General Ledger downloads
 
@@ -195,7 +197,7 @@ In **Reports → General Ledger**, open **Download** beside Apply and select **C
 - **HR** manages employee employment details, pay plans, attendance, leave, employee money, payroll, and payslips. It has separate HR permissions.
 - **Accounts** includes the chart of accounts and journals. Administrators can import ERPNext accounts using the server command documented in the README. Imported accounts use numeric local codes grouped by root type (1xxx assets, 2xxx liabilities, 3xxx equity, 4xxx income, and 5xxx expenses) and category. Names retain the ERPNext company suffix. Subsequent imports preserve assigned account codes and local code edits. Group accounts cannot receive journal postings, and disabled or frozen ERPNext accounts are unavailable for new postings. The import retains existing local accounts and posting defaults.
 - **Stocks → Stock Balance** shows current nonzero stock balances. Use **Download CSV** to download all rows matching the Item and Warehouse fields, including rows beyond the current page. The CSV includes item code, warehouse, quantity, valuation rate, and stock value.
-The **Stock Ledger** quantity balance includes earlier movements for the same item and warehouse, including movements before the selected date range and vouchers outside the current report filters. Filtering or changing pages does not reset the balance.
+Ownership-restricted Stock Ledger views look up each matching source voucher directly, including employee-assigned invoices and stock reversal sources. The **Stock Ledger** quantity balance includes earlier movements for the same item and warehouse, including movements before the selected date range and vouchers outside the current report filters. Filtering or changing pages does not reset the balance.
 
 - **Reports** includes debtors, stock ledger, stock movement, gross profit, general ledger, trial balance, profit and loss, balance sheet, and Daily Activity. Each report has its own Read permission. Daily Activity opens reports saved in this app. With Daily Activity Read and Create, choose **New Daily Activity**, complete date, shop/unit, warehouse, unit type, sales, expense, expense details, packages received, and delivery differences, then **Save draft**. Enabled local shops and warehouses provide suggestions; assigned shop and warehouse restrictions apply. Field Sales also requires a non-negative Leads value. Saving creates a local PostgreSQL draft with a generated DAR number and records the creating user, then opens its detail page. Balance to be banked is calculated as sales minus expense. Saving does not post accounting or stock entries. The current local flow creates and views drafts; it does not edit or submit them. Date, shop, status, and text filters apply to local reports and their totals. **ERPNext reference** opens existing ERPNext vouchers in a separate read-only view; it does not create or change ERPNext records. A missing or unavailable ERPNext connection affects only that reference view.
 - App-created vouchers, Daily Activity drafts, and accounting data are stored in PostgreSQL. ERPNext supplies reference data through its configured API (with legacy MySQL available for Daily Activity references when no API URL is configured). App-created entries are not written back to ERPNext.
@@ -307,9 +309,29 @@ using the database. A full or expired queue reports that reports are busy; retry
 shortly. Other screens and posting can continue to compete for the remaining
 database capacity. Report filters, totals and access rules are unchanged.
 
-Standard invoice submission processes stock valuation in line order and saves
+Credit invoices and cash sales process stock valuation in line order and save
 line costs in one batch inside the same transaction as stock and accounting.
 A failed submission rolls back these posting changes together.
+With controlled inventory active, invoice stock movements are sent together to
+the database and processed in line order through the existing stock checks.
+Repeated items still use the balance left by preceding lines; stock, accounting,
+warehouse restrictions and reconciliation cut-offs are checked before commit.
+Availability checks combine stock at the selected posting time with the lowest
+balance reached by later movements. Movements sharing a timestamp retain their
+recorded order, so a later receipt cannot hide an intervening shortage.
+Historical checks look up saved source-document times only for controlled issues
+that require them. Other movements use their recorded physical timestamps;
+backdated availability, reversals and reconciliation protections still apply.
+With inventory controls active, a successful availability check at or after the
+warehouse's latest physical movement uses its protected current balance. Earlier
+posting times and shortage warnings retain the historical calculation. Saving
+does not reserve stock, and submission rechecks availability under the existing
+locks before posting stock and accounting together.
+Final controlled stock-balance verification checks quantities and values against
+the full ledger before commit. A covering index reduces the historical table
+reads needed by this check when PostgreSQL can use index-only access. It does
+not skip verification, reserve stock or change warehouse locking; uncached data
+and concurrent work can still affect response times.
 
 When creating and immediately submitting an invoice on the website, item and
 stock prechecks run once while preparing the invoice. Posting still checks stock
@@ -326,11 +348,13 @@ idempotency key.
 
 ### Historical report totals
 
-General Ledger page balances use daily account totals for dates before the first displayed day when those totals can represent all filters and access restrictions; entries earlier on that same day still use the individual ledger rows. Owner and free-text/party restrictions retain detailed matching. Trial balance reads daily account totals maintained together with each ledger
+General Ledger page balances use daily account totals for dates before the first displayed day when those totals can represent all filters and access restrictions; entries earlier on that same day still use the individual ledger rows. Ordinary owner-scoped pages also use ownership-aware daily totals and indexed ownership records. Trial balance reads daily account totals maintained together with each ledger
 write. Backdated postings update their posting day's totals; cancellations add
 reversal entries on the cancellation date. GL page totals also use daily balances
 when the filters and access rules can be evaluated exactly from those balances.
-Owner-scoped and party/free-text searches continue to aggregate detailed entries.
+Owner-scoped pages with customer/supplier category restrictions, account access lists,
+HR access, account grouping, party/free-text searches or an individual voucher
+continue to use detailed permission matching.
 Report rows, running balances and permissions retain their existing meaning.
 General Ledger CSV, Excel and PDF exports with a From date also use these daily
 totals for opening balances when every filter and access restriction can be
@@ -345,10 +369,24 @@ their detailed ledger entries. Reversals retain their original source ownership,
 and account, category and HR restrictions still apply. Single-voucher exports
 retain direct matching. Each export uses one consistent database snapshot;
 ownership edits appear in subsequent exports without a balance-cache refresh.
-Ownership-restricted General Ledger pages without an Account filter also retrieve
-entries from permitted vouchers. Matching historical entries are reused within
-each page query for its transactions and earlier running balances, including
-entries before From.
+Other ownership-restricted General Ledger pages without an Account filter retrieve
+entries from permitted vouchers. Each page reuses matching historical balance
+fields for its opening totals, transaction count and running balances, including
+entries before From. Narration, party details and voucher links are loaded for the
+displayed transactions after selecting the page. The same ownership and account,
+party, search and date restrictions apply throughout.
+For ordinary owner-scoped pages, opening balances and totals come from daily
+summaries of the same source ownership. The selected period's rows use indexed
+ownership records; narration, parties and links still come from the ledger.
+Invoice creators and assigned invoicers, linked supplier payments and cancellation
+sources retain their existing visibility, without counting entries twice when
+several ownership rules match. Source ownership edits and ledger postings update
+these records and balances in the same transaction, including backdated changes
+and reversals. Changing a user's assigned employee or access restrictions takes
+effect on their next report; no scheduled refresh is required. Bulk export
+permissions and calculations remain unchanged.
+CSV, Excel and PDF retain their financial columns and balances; link availability
+is checked for displayed page links rather than while preparing download rows.
 Opening rows, period counts, grouped summaries and permissions keep the same
 meaning. Refresh or Apply again to reflect later postings or ownership edits.
 Account-filtered and individual-voucher pages retain their direct matching path.

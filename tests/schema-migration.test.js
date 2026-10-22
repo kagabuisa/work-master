@@ -6,6 +6,34 @@ const store = require('../src/store');
 const { SCHEMA_VERSION } = require('../src/migrate');
 const { FIXED, seedGoldenData } = require('./helpers/golden-seed');
 
+test('history optimisations upgrade v42/v43/v44 without rewriting stock, accounting or helper privileges', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();const pool=store.getPostgresPool();
+    const sql=require('node:fs').readFileSync(require('node:path').join(__dirname,'../src/sql/inventory-document-rules.sql'),'utf8');
+    const snapshot=async()=> (await pool.query(`SELECT
+      (SELECT jsonb_agg(to_jsonb(i) ORDER BY id) FROM app_invoices i) invoices,
+      (SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM app_stock_ledger l) stock,
+      (SELECT jsonb_agg(to_jsonb(b) ORDER BY item_code,warehouse) FROM app_stock_balances b) balances,
+      (SELECT jsonb_agg(to_jsonb(g) ORDER BY id) FROM app_gl_entries g) accounting,
+      (SELECT jsonb_build_object('oid',oid::text,'owner',proowner,'acl',proacl,'security_definer',prosecdef,'config',proconfig)
+        FROM pg_proc WHERE oid='wm_inventory_check_history(wm_inventory_events,jsonb)'::regprocedure) helper`)).rows[0];
+    for (const version of [42,43,44]) {
+      if(version===42)await pool.query(sql.match(/CREATE OR REPLACE FUNCTION wm_inventory_check_history[\s\S]+?END \$\$;/)[0]);
+      else await pool.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'../src/sql/inventory-history-suffix.sql'),'utf8'));
+      if(version===44)await pool.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'../src/sql/inventory-history-source-lookups.sql'),'utf8'));
+      await pool.query('DELETE FROM wm_schema_version WHERE version>$1',[version]);
+      const before=await snapshot();
+      await store.initStore();
+      assert.deepEqual(await snapshot(),before);
+      assert.equal((await pool.query("SELECT has_function_privilege('public','wm_inventory_check_history(wm_inventory_events,jsonb)','EXECUTE') allowed")).rows[0].allowed,false);
+      assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version,SCHEMA_VERSION);
+      await store.initStore();assert.deepEqual(await snapshot(),before);
+    }
+  } finally {await store.closeStore();}
+});
+
 test('read/write sharing migration preserves existing read-only shares and financial records', {
   skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
 }, async () => {
@@ -97,7 +125,7 @@ test('version 17 API upgrade preserves existing financial rows and ordinary user
     await pool.query(`DROP TABLE wm_api_refresh_tokens,wm_api_sessions,wm_api_credentials,
       wm_api_audit,wm_api_idempotency,wm_api_payment_references,wm_api_rate_limits;
       ALTER TABLE app_users DROP COLUMN api_service_account;
-      DELETE FROM wm_schema_version WHERE version IN (18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)`);
+      DELETE FROM wm_schema_version WHERE version IN (18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46)`);
     await store.initStore();
     assert.deepEqual(await snapshot(), before);
     assert.equal((await pool.query('SELECT api_service_account FROM app_users WHERE id=$1', [user.id])).rows[0].api_service_account, false);
@@ -117,7 +145,7 @@ test('version 1 upgrades once without duplicating accounting postings', {
       SELECT (SELECT count(*)::int FROM app_gl_entries) AS gl,
         (SELECT count(*)::int FROM app_journal_entries) AS journals
     `)).rows[0];
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46)');
     await pool.query("INSERT INTO wm_schema_version (version, name) VALUES (1, 'baseline')");
 
     await store.initStore();
@@ -176,7 +204,7 @@ test('version 4 databases gain missing invoice item snapshot columns', {
     for (const column of ['item_category', 'source', 'cost']) {
       await pool.query(`ALTER TABLE app_invoice_items DROP COLUMN ${column}`);
     }
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46)');
 
     await store.initStore();
     const snapshot = await pool.query(`SELECT item_category, source, cost::float
@@ -200,7 +228,7 @@ test('version 8 databases gain the session activity column', {
     await seedGoldenData();
     const pool = store.getPostgresPool();
     await pool.query('ALTER TABLE app_user_sessions DROP COLUMN IF EXISTS last_activity_at');
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46)');
 
     await store.initStore();
 
@@ -245,7 +273,7 @@ test('version 15 employee statuses reconcile legacy flags', {
     const pool=store.getPostgresPool();
     assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name, /_hr_test$/);
     await pool.query("INSERT INTO app_master_employees(employee_id,employee_name,status,disabled) VALUES ('STATUS-A','A','Active',true),('STATUS-L','L','Left',false),('STATUS-OLD','Old',NULL,true),('STATUS-BLANK','Blank',NULL,false)");
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (16,17,18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (16,17,18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46)');
     await store.initStore();
     const rows=(await pool.query("SELECT employee_id,status,disabled FROM app_master_employees WHERE employee_id LIKE 'STATUS-%' ORDER BY employee_id")).rows;
     assert.deepEqual(rows,[{employee_id:'STATUS-A',status:'Active',disabled:false},{employee_id:'STATUS-BLANK',status:null,disabled:false},{employee_id:'STATUS-L',status:'Left',disabled:true},{employee_id:'STATUS-OLD',status:'Left',disabled:true}]);
@@ -298,4 +326,70 @@ test('posting-event lookup upgrades v37 without changing postings and recovers a
     assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version, SCHEMA_VERSION);
     assert.deepEqual(await snapshot(), before);
   } finally { await store.closeStore(); }
+});
+
+test('balance covering index upgrades v45 without changing verification, repairs interrupted builds and rejects a wrong definition', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();
+    const pool=store.getPostgresPool();
+    const name='app_stock_ledger_balance_cover_idx';
+    const metadata=async()=>(await pool.query(`SELECT indexrelid::text oid,indisvalid,indisready,
+      pg_get_indexdef(indexrelid) definition FROM pg_index WHERE indexrelid=to_regclass($1)`,[name])).rows[0];
+    const check=async()=>{
+      const index=await metadata();assert.equal(index?.indisvalid,true);assert.equal(index.indisready,true);
+      assert.match(index.definition,/\(item_code, warehouse\) INCLUDE \(qty_change, stock_value_change\)/);
+      return index.oid;
+    };
+    await check();
+    const snapshot=async()=>(await pool.query(`SELECT
+      (SELECT jsonb_agg(to_jsonb(i) ORDER BY id) FROM app_invoices i) invoices,
+      (SELECT jsonb_agg(to_jsonb(g) ORDER BY id) FROM app_gl_entries g) accounting,
+      (SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM app_stock_ledger l) stock,
+      (SELECT jsonb_agg(to_jsonb(b) ORDER BY item_code,warehouse) FROM app_stock_balances b) balances,
+      pg_get_functiondef('wm_inventory_balance_check()'::regprocedure) checker,
+      (SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgname='wm_inventory_balance_check') trigger,
+      (SELECT jsonb_build_object('owner',proowner,'acl',proacl,'definer',prosecdef,'config',proconfig)
+       FROM pg_proc WHERE oid='wm_inventory_balance_check()'::regprocedure) privileges`)).rows[0];
+    const before=await snapshot();
+    await pool.query(`DROP INDEX ${name}`);await pool.query('DELETE FROM wm_schema_version WHERE version>=46');
+    await store.initStore();const oid=await check();assert.deepEqual(await snapshot(),before);
+    await store.initStore();assert.equal(await check(),oid);
+
+    const client=await pool.connect();
+    try {
+      await client.query('BEGIN');await client.query('SET LOCAL enable_seqscan=off');
+      const plan=(await client.query(`EXPLAIN (ANALYZE,FORMAT JSON)
+        SELECT sum(qty_change),sum(stock_value_change) FROM app_stock_ledger WHERE item_code=$1 AND warehouse=$2`,[FIXED.itemCode,FIXED.warehouse])).rows[0]['QUERY PLAN'];
+      assert.match(JSON.stringify(plan),/Index Only Scan/);assert.match(JSON.stringify(plan),/app_stock_ledger_balance_cover_idx/);
+    } finally {await client.query('ROLLBACK');client.release();}
+
+    await pool.query(`DROP INDEX ${name}`);
+    await assert.rejects(pool.query(`CREATE UNIQUE INDEX CONCURRENTLY ${name} ON app_stock_ledger(warehouse)`),{code:'23505'});
+    assert.equal((await metadata()).indisvalid,false);
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=46');await store.initStore();await check();
+    assert.deepEqual(await snapshot(),before);
+
+    await pool.query(`DROP INDEX ${name}`);await pool.query(`CREATE INDEX ${name} ON app_stock_ledger(warehouse)`);
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=46');
+    await assert.rejects(store.initStore(),/unexpected definition/);
+    assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version,45);
+    await pool.query(`DROP INDEX ${name}`);await store.initStore();await check();
+    assert.deepEqual(await snapshot(),before);
+
+    await pool.query('INSERT INTO app_master_warehouses(warehouse) VALUES($1) ON CONFLICT DO NOTHING',[FIXED.warehouse]);
+    await pool.query('INSERT INTO app_master_items(item_code,item_name) VALUES($1,$2) ON CONFLICT DO NOTHING',[FIXED.itemCode,FIXED.itemName]);
+    await pool.query('SELECT wm_inventory_activate()');
+    // Both quantity and value corruption must still fail the deferred check.
+    for(const column of ['quantity','stock_value']) {
+      const c=await pool.connect();
+      try {
+        await c.query('BEGIN');await c.query(`UPDATE app_stock_balances SET ${column}=${column}+1 WHERE item_code=$1 AND warehouse=$2`,[FIXED.itemCode,FIXED.warehouse]);
+        await assert.rejects(c.query('SET CONSTRAINTS ALL IMMEDIATE'),/inventory_balance_mismatch/);
+      } finally {await c.query('ROLLBACK');c.release();}
+    }
+    assert.deepEqual(await snapshot(),before);
+    assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version,SCHEMA_VERSION);
+  } finally {await store.closeStore();}
 });

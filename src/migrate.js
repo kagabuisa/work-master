@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 40;
+const SCHEMA_VERSION = 46;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -204,6 +204,20 @@ const MIGRATIONS = [
     up:()=>require('./inventory-indexes').createStockPostingEventIndex(getPostgresPool()) },
   { version:39, name:'stock_entry_delivery_and_sharing', up: require('./stock-entry-workflow').initStockEntryWorkflow },
   { version:40, name:'stock_entry_read_write_sharing', up: require('./stock-entry-workflow').initStockEntrySharePermissions },
+  { version:41, name:'ledger_scoped_read_indexes', transactional:false,
+    up:()=>require('./ledger-indexes').createLedgerReadIndexes(getPostgresPool()) },
+  { version:42, name:'transactional_owned_ledger_balances', up:require('./gl-owned').initOwnedGl },
+  { version:43, name:'inventory_history_suffix_balances', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-history-suffix.sql'),'utf8'));
+  } },
+  { version:44, name:'inventory_history_conditional_sources', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-history-source-lookups.sql'),'utf8'));
+  } },
+  { version:45, name:'inventory_current_availability', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-current-availability.sql'),'utf8'));
+  } },
+  { version:46, name:'inventory_balance_covering_index', transactional:false,
+    up:()=>require('./inventory-indexes').createStockBalanceCoverIndex(getPostgresPool()) },
 ];
 
 async function ensureSchema(pool) {

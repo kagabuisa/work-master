@@ -20,6 +20,20 @@ async function inventoryMovement(client, movement) {
   const value = (await client.query('SELECT wm_inventory_apply($1::jsonb) AS movement',[JSON.stringify(movement)])).rows[0].movement;
   return Object.fromEntries(Object.entries(value).map(([key,value])=>[key,Number(value)]));
 }
+async function inventoryMovements(client, movements) {
+  if (!await enabled(client)) return null;
+  if (!movements.length) return [];
+  // Each recursive step depends on its predecessor, so repeated item lines see
+  // the preceding balance. Keep the existing guarded posting function for every
+  // movement, but send the invoice's stock work in a single round trip.
+  const { rows } = await client.query(`WITH RECURSIVE posted AS (
+    SELECT 0 AS ordinal, NULL::jsonb AS movement
+    UNION ALL
+    SELECT ordinal+1,wm_inventory_apply($1::jsonb -> ordinal)
+    FROM posted WHERE ordinal<jsonb_array_length($1::jsonb)
+  ) SELECT movement FROM posted WHERE ordinal>0 ORDER BY ordinal`, [JSON.stringify(movements)]);
+  return rows.map(({movement}) => Object.fromEntries(Object.entries(movement).map(([key,value])=>[key,Number(value)])));
+}
 async function inventoryGlDate(client, entry) {
   // Invoice accounting follows its document date; physical stock keeps the controlled event time.
   if (entry.voucher_type === 'sales_invoice' || !await enabled(client)) return entry;
@@ -30,4 +44,4 @@ async function inventoryGlDate(client, entry) {
   [type, entry.voucher_id, Boolean(entry.is_reversal)])).rows[0];
   return event ? {...entry,posting_date:event.date,posting_time:event.time} : entry;
 }
-module.exports = { inventorySchemaReady, loadTransactionMode, enabled, beginInventoryPosting, inventoryMovement, inventoryGlDate };
+module.exports = { inventorySchemaReady, loadTransactionMode, enabled, beginInventoryPosting, inventoryMovement, inventoryMovements, inventoryGlDate };

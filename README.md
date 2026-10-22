@@ -99,6 +99,46 @@ Schema migration 39 adds indexed Stock Entry delivery metadata and per-user read
 
 Schema migration 40 adds Read-only / Read & write sharing levels; all existing Stock Entry shares remain Read-only. On controlled-inventory deployments, run the owner migration before restarting the runtime. No ledger records are rewritten.
 
+Schema migration 41 adds the journal-creator and ledger/daily-balance read indexes
+described below. Build the updated image first with `docker compose build invoice-app`.
+Then apply it with the owner credentials before restarting a restricted runtime:
+`docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js`.
+This migration builds indexes concurrently and does not rewrite financial records.
+
+Schema migration 43 optimises historical inventory availability checks. It sums
+stock through the selected posting time and calculates running balances only for
+later movements. Invoice draft validation uses the same rule, including later
+shortages and the recorded order of movements sharing a timestamp. The migration
+replaces a private helper without rewriting ledger rows or stock balances; it
+preserves its owner and execution permissions. Build the updated image and run
+the owner migration command above before restarting a restricted runtime.
+
+Schema migration 44 avoids unnecessary invoice and stock-document index lookups
+during historical stock checks. Only controlled declining movements that need a
+saved document time look up their source header; other movements keep their
+recorded physical time. It preserves the private helper's identity and
+permissions and does not rewrite inventory or accounting records. Apply the
+owner migration before starting the updated restricted runtime.
+
+Schema migration 45 speeds up controlled-inventory checks for posting times at
+or after the warehouse's latest physical movement. Successful checks use the
+protected current balance; earlier times and shortage warnings retain the full
+historical calculation. Draft checks use one database snapshot, and submission
+checks remain under the existing warehouse/stock locks. Stock and accounting
+still commit together. Run the owner migration before restarting a restricted
+runtime; no inventory or accounting history is rewritten.
+
+Schema migration 46 builds `app_stock_ledger_balance_cover_idx` concurrently on
+item/warehouse, including quantity and value deltas. The deferred stock-balance
+verification can use this covering index to reduce historical table-page reads;
+the full reconciliation and warehouse locks remain enforced. Index-only reads
+depend on PostgreSQL visibility information, so keep autovacuum enabled. The
+index uses additional disk space and adds maintenance work on new ledger rows.
+Build the updated image and run the owner migration before restarting a
+restricted runtime. The migration runs outside a transaction, verifies the
+index definition/readiness, retries an invalid interrupted build and refreshes
+item/warehouse statistics. It does not rewrite stock or accounting history.
+
 ## Performance operations
 
 Invoice stock previews use `POST /api/invoice-stock-balances` with up to 200 raw
@@ -157,6 +197,11 @@ Record invoice, payment, journal-line, and GL-row counts, the tested account's s
 ### General Ledger export workers
 
 General Ledger CSV, Excel, and PDF downloads run in separate, bounded Node processes. Workers read 500 rows at a time within a repeatable-read, read-only PostgreSQL transaction, retaining the report's access filters and running balances. CSV and Excel generation streams rows; PDF writes completed pages without buffering the whole document. Files are prepared in private temporary directories before the response begins, then streamed to the browser. Normal completion, cancellation, and worker errors remove the temporary files. The web process remains available while PDFs render. Abruptly terminating the web process can leave temporary `wm-ledger-export-*` directories; include the operating system's temporary-directory cleanup in operations.
+
+File workers omit source-voucher link-availability lookups, which are needed for
+interactive links but are absent from CSV/Excel/PDF columns. Export access,
+financial fields, narration and balances use the same filtered snapshot. Direct
+ledger-reader callers retain link checks by default.
 
 | Variable | Default | Behavior |
 | --- | --- | --- |
@@ -264,6 +309,15 @@ and stops only the benchmark database when its job exits. Inspect `status.json`,
 the job exit/OOM state and `summary.json` before claiming success; failures are
 retained and never automatically treated as passing. Start a new run after fixing
 a traffic failure. Existing fixtures and the working app are preserved.
+
+The 19 October report follow-up uses a separate cold copy of the completed full
+fixture, with its own private configuration, frozen image, containers and output.
+It reruns the mixed workload without seeding or modifying the original fixture.
+Use `python3 audits/erpnext-report-followup-2026-10-19/recheck.py status` for that
+follow-up; `control.py status` continues to describe the original baseline.
+Run only one benchmark workload at a time. Both deployments and their results
+remain retained until the user requests removal. The follow-up's monitor stops
+only its copy database when its job exits.
 
 ### Application release gate
 
@@ -571,8 +625,10 @@ on large databases. Insert/update/delete statement triggers maintain the derived
 balances in the same transaction as the detailed ledger. Truncation clears them.
 Sixteen voucher buckets reduce contention. Trial balance uses these daily totals;
 GL counts/totals use them for date/account/voucher filters and compatible HR/account
-access rules. Owner-scoped, party and free-text queries retain detailed-ledger
-aggregation. Detail rows and filtered running balances still use ledger entries.
+access rules. Ordinary owner-scoped pages use the additional ownership summaries
+described under migration 42 below. More restrictive owner-scoped pages, party
+and free-text queries retain detailed-ledger aggregation. Detail rows and filtered
+running balances still use ledger entries.
 Daily balances are included in normal PostgreSQL backups; do not modify them or
 disable their triggers. Website invoice validation batches references and items
 in two reads, with fresh stock validation retained in the posting transaction.
@@ -777,8 +833,9 @@ The [larger submission-only study](audits/invoice-submission-deep-study-2026-10-
 records 1,420 further submissions, balanced same/different-warehouse bursts and
 Admin/Standard HTTP timings on the retained synthetic VPS fixture. It identifies
 historical-availability document lookups as the next optimization target. Its
-read-only query prototype is not installed in the application; migration 38
-remains the current permanent submission fix.
+read-only query prototype was not installed at the time of that study. Later
+migrations 43–45 optimise availability checks; migration 46 adds the covering
+index for final stock-balance verification, as described above.
 
 The [Stock Ledger report investigation and mixed-workload retry](audits/stock-ledger-fix-2026-10-17/report.md)
 records the report query change, balance regression checks and synthetic VPS measurements.
@@ -824,12 +881,91 @@ reconciliation. Browsing and interactive-report p95 do not improve; restricted
 interactive GL execution and report admission remain performance constraints.
 This bounded comparison does not establish maximum concurrent-user capacity.
 
-Ownership-restricted interactive General Ledger pages without an Account filter
-now use permitted voucher lookups for totals and rows. Each page query reuses
-matching detailed history for its transactions and earlier balances, applying
-the existing To, party, search and account/access restrictions before
-materializing that history. No
-new index, schema migration, persisted result cache or report-concurrency change
-is required. Account-filtered and individual-voucher pages retain their direct
+Ownership-restricted interactive General Ledger pages that require detailed
+permission matching and have no Account filter
+use permitted voucher lookups for totals and rows. A single query reuses narrow
+matching balance history for opening totals, page selection and running balances,
+applying To, party, search and account/access restrictions before materializing
+that history. Descriptive fields and voucher-link checks are loaded for the
+selected page. Permitted voucher keys are ordered before indexed lookups to avoid
+random reads across the historical ledger. Schema migration 41 builds journal
+creator, posted-voucher, reversal-source and daily-balance covering indexes
+concurrently. Interrupted invalid index builds are retried; allow extra disk
+space and startup time for the builds on a large existing database. No persisted
+result cache or report-concurrency change is introduced. Account-filtered and individual-voucher pages retain their direct
 matching path. The [interactive GL validation](audits/interactive-ledger-2026-10-18/report.md)
 records execution plans, result-equivalence checks and the mixed-workload retry.
+
+Migration 42 adds `wm_gl_owned_entries`, a narrow indexed projection of non-HR
+ledger entries and their source ownership, and `wm_gl_owned_daily`, transactionally
+maintained daily totals grouped by ownership signatures, account, voucher type
+and contention bucket. A small `wm_gl_owned_scopes` registry resolves permitted
+signatures once per query; covering indexes retrieve those exact groups, and
+historical balances for the displayed accounts are accumulated together.
+Ordinary owner-scoped interactive GL pages use these for
+period rows, counts and opening/running balances. Overlapping creator, assigned
+invoicer and linked supplier-payment ownership is represented once per entry.
+Source ownership changes, payment relinking, backdated ledger edits, reversals,
+deletions and truncation update the derived records within the original transaction.
+Per-user permissions are evaluated on each read, not stored as financial result
+caches. Category/account access lists, HR grants, grouping, party/text filters and
+individual-voucher reports retain the existing detailed path; bulk exports are
+unchanged. Report admission limits and deadlines are unchanged.
+
+For this upgrade, stop application writers, build the updated image with
+`docker compose build invoice-app`, run `docker compose run --rm --no-deps
+--entrypoint node invoice-app scripts/migrate.js` using the existing schema-owner
+settings, then run `docker compose up -d --build invoice-app`. Migration 42 locks
+source voucher/payment tables and the GL against writes while backfilling both
+derived tables and their indexes. Allow a quiet maintenance period and additional
+disk/WAL space proportional to the ledger size. Existing GL readers can continue
+during backfill. The migration grants SELECT on the derived tables to existing
+non-superuser roles that can read the GL; trigger routines maintain them as the
+schema owner. Controlled-runtime provisioning grants these tables read-only
+access. Do not manually edit these tables or disable their triggers. Normal
+PostgreSQL backups include all three derived tables and their trigger definitions.
+
+The retained full-size follow-up for this change is controlled with
+`python3 -B audits/owned-ledger-balances-2026-10-20/recheck.py status`.
+Its fixture, frozen image, private configuration and output are separate from
+the original benchmark and the 19 October repeat; retain all of them until the
+user explicitly requests removal.
+
+Stock Ledger ownership checks now use indexed source-voucher probes instead of
+preloading all owned source IDs. Invoice warehouse/customer authorization reads
+only the relevant fields, and invoice detail hydration holds one connection and
+one repeatable-read snapshot for its header, lines and payments. These changes
+need no additional migration beyond the existing schema version 42 and do not
+change access rules, read admission limits or request deadlines.
+
+The [read-contention follow-up](audits/read-contention-2026-10-20/report.md)
+records this implementation and its verification. Its controller is
+`python3 -B audits/read-contention-2026-10-20/recheck.py` (prepare/start/status).
+Further repeats reuse the retained isolated copy and append uniquely identified
+traffic instead of making another full database copy. Every repeat has a new
+private output directory and frozen image; existing records, configurations and
+results are preserved. This measures a reusable warm fixture, not a fresh
+cold-cache run. The database/job CPU and memory caps, request deadlines and 6 GiB
+disk reserve remain unchanged. A passing short 50-user diagnostic on the same
+source is required before this controller starts the full 10/20/50 repeat.
+
+Invoice payment validation also narrows manual customer journals by indexed
+header and line references before calculating the remaining balance. It keeps
+the invoice lock, party matching, cancellation exclusions and linked-payment
+deduplication. No new index or migration is required.
+
+
+The large controlled-inventory mixed workload has a separate retained controller:
+`python3 -B audits/controlled-erp-mixed-2026-10-20/control.py status`.
+It uses a cold copy of the original synthetic full fixture, upgrades that copy,
+activates inventory controls and provisions a restricted runtime role before
+traffic, then checks integrity before and after the 10/20/50-user HTTP phases.
+App connection, report and export settings use the local app defaults;
+database/job CPU and memory limits remain explicit benchmark caps. The workload
+uses current Kampala document dates/times. The retained manifest records both
+database storage on the benchmark volume and a separate tablespace for summaries and temporary query files under
+`data/erp-benchmark/`; both must remain mounted for future use. The monitor retains
+results and stops completed benchmark containers. It enforces six GiB free on the
+benchmark volume and two GiB on the root volume. Private configuration stays in
+the retained run directory. Existing legacy fixtures, images, configurations and
+results remain untouched; this controller does not reseed or reset them.

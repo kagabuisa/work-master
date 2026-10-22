@@ -81,6 +81,15 @@ General Ledger CSV, Excel, and PDF downloads require General Ledger Read permiss
 
 When both HR payroll and employee-money ledger access are denied, HR entries remain excluded. Assigned HR employee or cost center restrictions do not block the user's permitted non-HR General Ledger rows; the existing ownership, assigned-invoicer, account, and party-category restrictions still apply.
 
+Ordinary owner-scoped General Ledger pages can use transactionally maintained
+ownership records and daily balances. These do not add grants: source ownership
+and assigned invoicer membership retain their existing meaning, overlapping
+membership does not duplicate entries, and cancellation entries retain source
+ownership. Category/account access lists and HR grants retain detailed permission
+matching. User access changes are evaluated on the next request. The controlled
+database runtime can read the new derived tables; their maintenance runs through
+schema-owner trigger routines rather than runtime table writes.
+
 
 ## HR permissions and visibility
 

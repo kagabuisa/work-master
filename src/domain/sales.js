@@ -1,4 +1,4 @@
-const { beginInventoryPosting } = require('../services/inventory-posting');
+const { beginInventoryPosting, inventoryMovements } = require('../services/inventory-posting');
 'use strict';
 // Sales domain: invoices, payments, debtor reports and invoice hydration.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
@@ -6,7 +6,7 @@ const { measurePosting, postingStage, runExpensiveRead } = require('../workload-
 const { shareRead, readSnapshot } = require('../read-cache');
 const { invoiceSearchSql, invoiceTextOnlyPattern } = require('./search-sql');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
-const { normalizePostingTime, storedPostingTime } = require('../posting-time');
+const { assertPostingDate, normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { recordAuditFields } = require('../audit');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
@@ -663,15 +663,15 @@ function postgresInvoiceListRow(row) {
 }
 
 async function findPostgresInvoice(id) {
-  const { rows } = await getPostgresPool().query(
-    'SELECT * FROM app_invoices WHERE id = $1',
-    [Number(id)],
-  );
-  if (!rows[0]) {
-    return null;
-  }
-  const invoices = await hydratePostgresInvoices(rows);
-  return invoices[0] || null;
+  return readSnapshot(getPostgresPool(), async client => {
+    const { rows } = await client.query(
+      'SELECT * FROM app_invoices WHERE id = $1',
+      [Number(id)],
+    );
+    if (!rows[0]) return null;
+    const invoices = await hydratePostgresInvoices(rows, client);
+    return invoices[0] || null;
+  });
 }
 
 async function createPostgresInvoice(payload) {
@@ -703,6 +703,38 @@ async function createPostgresInvoiceInTransaction(client, payload, invoiceData =
   await insertPostgresItems(client, id, invoiceNo, invoiceData.items);
   await insertPostgresPayments(client, id, invoiceData.payments);
   return id;
+}
+
+async function postInvoiceStock(client, invoice, itemRows) {
+  await beginInventoryPosting(client, 'invoice', Number(invoice.id), itemRows.map(item => item.warehouse));
+  const movements = itemRows.map(item => ({
+    posting_date: dateOnly(invoice.invoice_date), posting_time: invoice.posting_time,
+    item_code: item.item_code, item_name: item.item_name, warehouse: item.warehouse,
+    voucher_type: 'invoice', voucher_id: Number(invoice.id), voucher_no: invoice.invoice_no,
+    qty_change: -Math.abs(Number(item.quantity || 0)),
+  }));
+  if (movements.length) assertPostingDate(invoice.invoice_date);
+  const controlled = await postingStage('stock_batch', () => inventoryMovements(client, movements));
+  let totalCost = 0;
+  const lineCosts = [];
+  for (const [index,item] of itemRows.entries()) {
+    const movement = controlled ? controlled[index]
+      : await postingStage('stock', () => applyPostgresStockMovement(client, movements[index]));
+    const costRate = movement.outgoing_rate;
+    const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
+    totalCost += costAmount;
+    const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
+    lineCosts.push({ id: Number(item.id), cost_rate: costRate, cost_amount: costAmount,
+      gross_profit: grossProfit, stock_at_sale: movement.previous_quantity });
+  }
+
+  if (lineCosts.length) await postingStage('line_costs', () => client.query(`
+    UPDATE app_invoice_items item SET cost_rate = costs.cost_rate, cost_amount = costs.cost_amount,
+      gross_profit = costs.gross_profit, stock_at_sale = costs.stock_at_sale
+    FROM jsonb_to_recordset($1::jsonb) AS costs(id bigint, cost_rate numeric, cost_amount numeric,
+      gross_profit numeric, stock_at_sale numeric)
+    WHERE item.id = costs.id AND item.invoice_pk = $2`, [JSON.stringify(lineCosts), Number(invoice.id)]));
+  return totalCost;
 }
 
 async function createCashSaleInvoice(payload, payment) {
@@ -740,36 +772,7 @@ async function createCashSaleInvoice(payload, payment) {
       [id],
     );
 
-    await beginInventoryPosting(client, 'invoice', Number(id), itemRows.map(item => item.warehouse));
-    let totalCost = 0;
-    for (const item of itemRows) {
-      const movement = await applyPostgresStockMovement(client, {
-        posting_date: dateOnly(invoiceData.invoice_date),
-        posting_time: invoiceData.posting_time,
-        item_code: item.item_code,
-        item_name: item.item_name,
-        warehouse: item.warehouse,
-        voucher_type: 'invoice',
-        voucher_id: id,
-        voucher_no: invoiceNo,
-        qty_change: -Math.abs(Number(item.quantity || 0)),
-      });
-      const costRate = movement.outgoing_rate;
-      const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
-      totalCost += costAmount;
-      const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
-      await client.query(
-        `
-        UPDATE app_invoice_items
-        SET cost_rate = $1,
-          cost_amount = $2,
-          gross_profit = $3,
-          stock_at_sale = $4
-        WHERE id = $5
-        `,
-        [costRate, costAmount, grossProfit, movement.previous_quantity, Number(item.id)],
-      );
-    }
+    const totalCost = await postInvoiceStock(client, { ...invoiceData, id, invoice_no: invoiceNo }, itemRows);
 
     await setVoucherDocstatus(client, 'app_invoices', id, 'submitted');
     await syncPostgresInvoicePaymentTotals(client, id);
@@ -895,35 +898,7 @@ async function submitPostgresInvoiceInTransaction(client, id) {
     [Number(id)],
   );
 
-  await beginInventoryPosting(client, 'invoice', Number(id), itemRows.map(item => item.warehouse));
-  let totalCost = 0;
-  const lineCosts = [];
-  for (const item of itemRows) {
-    const movement = await postingStage('stock', () => applyPostgresStockMovement(client, {
-      posting_date: dateOnly(invoice.invoice_date),
-      posting_time: invoice.posting_time,
-      item_code: item.item_code,
-      item_name: item.item_name,
-      warehouse: item.warehouse,
-      voucher_type: 'invoice',
-      voucher_id: Number(id),
-      voucher_no: invoice.invoice_no,
-      qty_change: -Math.abs(Number(item.quantity || 0)),
-    }));
-    const costRate = movement.outgoing_rate;
-    const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
-    totalCost += costAmount;
-    const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
-    lineCosts.push({ id: Number(item.id), cost_rate: costRate, cost_amount: costAmount,
-      gross_profit: grossProfit, stock_at_sale: movement.previous_quantity });
-  }
-
-  if (lineCosts.length) await postingStage('line_costs', () => client.query(`
-    UPDATE app_invoice_items item SET cost_rate = costs.cost_rate, cost_amount = costs.cost_amount,
-      gross_profit = costs.gross_profit, stock_at_sale = costs.stock_at_sale
-    FROM jsonb_to_recordset($1::jsonb) AS costs(id bigint, cost_rate numeric, cost_amount numeric,
-      gross_profit numeric, stock_at_sale numeric)
-    WHERE item.id = costs.id AND item.invoice_pk = $2`, [JSON.stringify(lineCosts), Number(id)]));
+  const totalCost = await postInvoiceStock(client, invoice, itemRows);
   await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
   await postingStage('payment_totals', () => syncPostgresInvoicePaymentTotals(client, Number(id)));
   await postingStage('accounting', () => postSalesInvoiceGlEntry(client, {
@@ -974,36 +949,7 @@ async function submitCashSaleInvoice(id, payment) {
       [Number(id)],
     );
 
-    await beginInventoryPosting(client, 'invoice', Number(id), itemRows.map(item => item.warehouse));
-    let totalCost = 0;
-    for (const item of itemRows) {
-      const movement = await applyPostgresStockMovement(client, {
-        posting_date: dateOnly(invoice.invoice_date),
-        posting_time: invoice.posting_time,
-        item_code: item.item_code,
-        item_name: item.item_name,
-        warehouse: item.warehouse,
-        voucher_type: 'invoice',
-        voucher_id: Number(id),
-        voucher_no: invoice.invoice_no,
-        qty_change: -Math.abs(Number(item.quantity || 0)),
-      });
-      const costRate = movement.outgoing_rate;
-      const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
-      totalCost += costAmount;
-      const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
-      await client.query(
-        `
-        UPDATE app_invoice_items
-        SET cost_rate = $1,
-          cost_amount = $2,
-          gross_profit = $3,
-          stock_at_sale = $4
-        WHERE id = $5
-        `,
-        [costRate, costAmount, grossProfit, movement.previous_quantity, Number(item.id)],
-      );
-    }
+    const totalCost = await postInvoiceStock(client, invoice, itemRows);
 
     await client.query('UPDATE app_invoices SET is_cash_sale = true WHERE id = $1', [Number(id)]);
     await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
@@ -1155,10 +1101,20 @@ async function addPostgresInvoicePaymentInTransaction(client, id, payload) {
   const destination = payment.account_id ? await validateReceivingAccount(client, payment.account_id) : null;
   const { rows: journalTotals } = await client.query(
     `
+    WITH candidate_journals AS MATERIALIZED (
+      SELECT journal.id FROM app_journal_entries journal
+      WHERE journal.reference_no = $1 AND journal.docstatus = 'submitted'
+        AND journal.party_type = 'customer'
+        AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+      UNION
+      SELECT line.journal_entry_id AS id FROM app_journal_entry_lines line
+      WHERE line.reference_no IS NOT NULL AND line.reference_no <> '' AND line.reference_no = $1
+    )
     SELECT COALESCE(SUM(journal_payment.amount), 0)::float AS amount_paid
     FROM (
       SELECT journal.id, SUM(line.credit - line.debit) AS amount
-      FROM app_journal_entries journal
+      FROM candidate_journals candidate
+      JOIN app_journal_entries journal ON journal.id = candidate.id
       JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
       JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
         AND setting.account_id = line.account_id
@@ -1299,14 +1255,14 @@ async function postgresTopDebtors(limit = 10) {
   return rows;
 }
 
-async function hydratePostgresInvoices(invoiceRows) {
+async function hydratePostgresInvoices(invoiceRows, client = getPostgresPool()) {
   if (!invoiceRows.length) {
     return [];
   }
 
   const ids = invoiceRows.map((row) => Number(row.id));
-  const [itemResult, paymentResult, journalResult] = await Promise.all([
-    getPostgresPool().query(
+  const queries = [
+    () => client.query(
       `
       SELECT *
       FROM app_invoice_items
@@ -1315,7 +1271,7 @@ async function hydratePostgresInvoices(invoiceRows) {
       `,
       [ids],
     ),
-    getPostgresPool().query(
+    () => client.query(
       `
       SELECT payment.*, account.account_name
       FROM app_invoice_payments payment
@@ -1325,7 +1281,7 @@ async function hydratePostgresInvoices(invoiceRows) {
       `,
       [ids],
     ),
-    getPostgresPool().query(
+    () => client.query(
       `
       WITH requested_invoices AS MATERIALIZED (
         SELECT * FROM app_invoices WHERE id=ANY($1::bigint[])
@@ -1366,7 +1322,13 @@ async function hydratePostgresInvoices(invoiceRows) {
       `,
       [ids],
     ),
-  ]);
+  ];
+  // A transaction has one connection: run its child reads in order instead of
+  // queuing concurrent queries on the same pg client. Bulk callers keep pooling.
+  const results = [];
+  if (client === getPostgresPool()) results.push(...await Promise.all(queries.map(query => query())));
+  else for (const query of queries) results.push(await query());
+  const [itemResult, paymentResult, journalResult] = results;
 
   const itemsByInvoice = groupByInvoiceId(itemResult.rows);
   const paymentsByInvoice = groupByInvoiceId(paymentResult.rows);

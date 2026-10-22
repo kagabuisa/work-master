@@ -17,6 +17,30 @@ const response = () => {
   } });
   return res;
 };
+
+test('file exports omit unused link lookups while preserving rows, access and CSV bytes', {
+  skip:process.env.GL_EXPORT_TEST_POSTGRES!=='1',
+},async()=>{
+  const store=require('../src/store');
+  const {withGeneralLedgerExport}=require('../src/domain/ledger');
+  try {
+    await require('./helpers/golden-seed').seedGoldenData();
+    await store.getPostgresPool().query("UPDATE app_invoices SET created_by_user_id='file-owner'; UPDATE app_journal_entries SET created_by_user_id='file-owner'");
+    for(const access of [{},{ownerId:'file-owner'},{allowedAccounts:[]}]) {
+      const versions=[];
+      for(const resolveVoucherLinks of [true,false]) {
+        await withGeneralLedgerExport({from:'2026-01-01',to:'2026-12-31'},access,async report=>{
+          const rows=[];for await(const row of report.rows)rows.push(row);
+          const res=response();await sendGeneralLedgerExport(res,{...report,rows},'csv');
+          versions.push({rows,body:res.body});
+        },{resolveVoucherLinks});
+      }
+      assert.deepEqual(versions[1].rows,versions[0].rows.map(({voucher_exists,...row})=>row));
+      assert.equal(versions[1].body,versions[0].body);
+    }
+  } finally { await store.closeStore(); }
+});
+
 test('General Ledger CSV includes all entries, safe text, totals and numeric negatives', async () => {
   const res = response();
   await sendGeneralLedgerExport(res, report, 'csv');

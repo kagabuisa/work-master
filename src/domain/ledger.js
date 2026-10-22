@@ -3,6 +3,7 @@
 // balance, profit & loss, balance sheet and accounting backfill.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
 const { canSummarizeGl } = require('../gl-daily');
+const { canSummarizeOwnedGl } = require('../gl-owned');
 const { runHeavyReport, runExpensiveRead } = require('../workload-control');
 const { shareRead, readSnapshot } = require('../read-cache');
 const { journalSearchSql, textOnlyPattern } = require('./search-sql');
@@ -709,6 +710,7 @@ function addGeneralLedgerAccessFilter(where, params, access = {}, sourcePlan) {
     }
     sourcePlan.ctes = `visible_vouchers AS MATERIALIZED (
       ${sources.join('\nUNION\n')}
+      ORDER BY 1,2
     ), scoped_gl AS NOT MATERIALIZED (
       SELECT gl.* FROM visible_vouchers visible CROSS JOIN LATERAL (
         SELECT gl.* FROM app_gl_entries gl WHERE gl.voucher_type=visible.voucher_type
@@ -854,30 +856,53 @@ function generalLedgerHistory(whereSql) {
 
 // One grouped scan calculates opening history and period totals. Keep sums numeric
 // inside PostgreSQL until the final projection, including totals across accounts.
-async function generalLedgerOverview(client, query, useDaily) {
+function generalLedgerOverviewSql(query, useDaily, sourceOverride, sourceFiltered = Boolean(sourceOverride)) {
   const history = generalLedgerHistory(query.whereSql);
   const before = history.from ? `gl.posting_date < ${history.from}::date` : 'false';
   const period = history.from ? `gl.posting_date >= ${history.from}::date` : 'true';
-  const { rows } = await client.query(`WITH ${query.ownerCtes ? query.ownerCtes + ',' : ''} account_totals AS (
+  return `WITH ${query.ownedCtes ? query.ownedCtes+',' : !sourceOverride && query.ownerCtes ? query.ownerCtes + ',' : ''} account_totals AS (
     SELECT account.id, account.account_code, account.account_name,
       COALESCE(SUM(gl.debit-gl.credit) FILTER (WHERE ${before}),0) AS opening,
       COALESCE(SUM(${useDaily ? 'gl.entry_count' : '1'}) FILTER (WHERE ${period}),0) AS period_count,
       COALESCE(SUM(gl.debit) FILTER (WHERE ${period}),0) AS period_debit,
       COALESCE(SUM(gl.credit) FILTER (WHERE ${period}),0) AS period_credit
-    FROM ${query.ownerCtes ? 'scoped_gl' : useDaily ? '(SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily)' : 'app_gl_entries'} gl
-    JOIN app_accounts account ON account.id=gl.account_id ${history.whereSql}
+    FROM ${sourceOverride || (query.ownerCtes ? 'scoped_gl' : useDaily ? '(SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily)' : 'app_gl_entries')} gl
+    JOIN app_accounts account ON account.id=gl.account_id ${sourceFiltered ? '' : history.whereSql}
     GROUP BY account.id,account.account_code,account.account_name
   ) SELECT account_code,account_name,opening::float AS running_balance,
     SUM(period_count) OVER ()::int AS total,
     SUM(period_debit) OVER ()::float AS debit,
     SUM(period_credit) OVER ()::float AS credit
-    FROM account_totals ORDER BY account_code,id`, query.params);
+    FROM account_totals ORDER BY account_code,id`;
+}
+
+function generalLedgerOverviewRows(rows) {
   return {
     totals: rows.length ? { total: rows[0].total, debit: rows[0].debit, credit: rows[0].credit }
       : { total: 0, debit: 0, credit: 0 },
     openingRows: rows.map(({ account_code, account_name, running_balance }) =>
       ({ account_code, account_name, running_balance })),
   };
+}
+
+async function generalLedgerOverview(client, query, useDaily) {
+  const { rows } = await client.query(generalLedgerOverviewSql(query, useDaily), query.params);
+  return generalLedgerOverviewRows(rows);
+}
+
+async function scopedGeneralLedgerPage(client, query, params, grouped) {
+  const history=generalLedgerHistory(query.whereSql);
+  const { rows }=await client.query(`WITH ${query.ownerCtes}, page_history AS MATERIALIZED (
+    SELECT gl.id,gl.account_id,gl.posting_date,gl.debit,gl.credit
+    FROM scoped_gl gl JOIN app_accounts account ON account.id=gl.account_id ${history.whereSql}
+  ) SELECT
+    (SELECT COALESCE(jsonb_agg(overview),'[]'::jsonb) FROM (
+      ${generalLedgerOverviewSql(query,false,'page_history')}
+    ) overview) AS overview,
+    (SELECT COALESCE(jsonb_agg(detail ORDER BY ${grouped ? 'detail.account_code,' : ''}detail.posting_date,detail.id::bigint),'[]'::jsonb) FROM (
+      ${generalLedgerPageSql(query.whereSql,params.length-1,params.length,false,grouped,query.ownerCtes,true)}
+    ) detail) AS entries`,params);
+  return {...generalLedgerOverviewRows(rows[0].overview),rows:rows[0].entries};
 }
 
 async function generalLedgerReviewDetails(client, filters, access, query) {
@@ -936,15 +961,50 @@ async function generalLedgerReport(filters = {}, access = {}) {
   // An explicit account already narrows the account/date index efficiently;
   // building all permitted voucher keys would add work to that selective path.
   const voucherFirst = !access.exportAll && !String(filters.account || '').trim();
-  const query = generalLedgerQuery(filters, access, voucherFirst);
+  const owned = canSummarizeOwnedGl(filters, access);
+  const query = generalLedgerQuery(filters, owned ? {...access, ownerId:null} : access, voucherFirst);
+  if (owned) {
+    query.params.push(String(access.ownerId),String(access.ownerEmployeeId || ''));
+    // Resolve a small set of exact signatures once. Equality on the complete
+    // signature uses covering B-tree ranges instead of scattered GIN heap reads.
+    query.ownedCtes=`owned_scopes AS MATERIALIZED (
+      SELECT * FROM wm_gl_owned_scopes WHERE owner_ids @> ARRAY[$${query.params.length-1}]::text[]
+        OR employee_ids @> ARRAY[$${query.params.length}]::text[]
+    ), owned_daily AS MATERIALIZED (
+      SELECT gl.* FROM owned_scopes scope CROSS JOIN LATERAL (
+        SELECT gl.account_id,gl.posting_date,gl.voucher_type,gl.entry_count,gl.debit,gl.credit
+        FROM wm_gl_owned_daily gl JOIN app_accounts account ON account.id=gl.account_id
+        ${query.whereSql ? generalLedgerHistory(query.whereSql).whereSql+' AND' : 'WHERE'}
+          gl.owner_ids=scope.owner_ids AND gl.employee_ids=scope.employee_ids AND gl.entry_count>0 OFFSET 0
+      ) gl
+    ), owned_entries AS MATERIALIZED (
+      SELECT gl.* FROM owned_scopes scope CROSS JOIN LATERAL (
+        SELECT gl.id,gl.account_id,gl.posting_date,gl.voucher_type,gl.debit,gl.credit
+        FROM wm_gl_owned_entries gl JOIN app_accounts account ON account.id=gl.account_id
+        ${query.whereSql ? query.whereSql+' AND' : 'WHERE'}
+          gl.owner_ids=scope.owner_ids AND gl.employee_ids=scope.employee_ids OFFSET 0
+      ) gl
+    )`;
+  }
   const { params, whereSql } = query;
   const pool = getPostgresPool();
   const load = () => runHeavyReport(() => readSnapshot(pool, async client => {
-    const { totals: summary, openingRows } = await generalLedgerOverview(client, query, canSummarizeGl(filters, access));
     const pageParams = [...params, pagination.limit, pagination.offset];
-    const { rows } = await client.query(access.exportAll ? generalLedgerRowsSql(whereSql, false, filters.group_by === 'account')
-      : generalLedgerPageSql(whereSql, pageParams.length - 1, pageParams.length, canSummarizeGl(filters, access), filters.group_by === 'account', query.ownerCtes),
-    access.exportAll ? params : pageParams);
+    let summary,openingRows,rows;
+    if (owned) {
+      ({totals:summary,openingRows}=generalLedgerOverviewRows((await client.query(
+        generalLedgerOverviewSql(query,true,'owned_daily',true),params)).rows));
+      ({rows}=await client.query(generalLedgerPageSql(whereSql,pageParams.length-1,pageParams.length,
+        true,false,'',false,query.ownedCtes),pageParams));
+    } else if(query.ownerCtes&&!access.exportAll) {
+      const result=await scopedGeneralLedgerPage(client,query,pageParams,filters.group_by==='account');
+      summary=result.totals;openingRows=result.openingRows;rows=result.rows;
+    } else {
+      ({totals:summary,openingRows}=await generalLedgerOverview(client,query,canSummarizeGl(filters,access)));
+      ({rows}=await client.query(access.exportAll ? generalLedgerRowsSql(whereSql, false, filters.group_by === 'account')
+        : generalLedgerPageSql(whereSql, pageParams.length - 1, pageParams.length, canSummarizeGl(filters, access), filters.group_by === 'account', query.ownerCtes),
+      access.exportAll ? params : pageParams));
+    }
     return {
       filters: query.filters, rows,
       ...await generalLedgerReviewDetails(client, filters, access, query),
@@ -959,30 +1019,36 @@ async function generalLedgerReport(filters = {}, access = {}) {
     ['ledger', whereSql, params, query.filters, pagination.limit, pagination.offset, query.ownerCtes], load);
 }
 
-function generalLedgerPageSql(whereSql, limit, offset, useDaily = false, grouped = false, ownerCtes = '') {
-  const source = ownerCtes ? 'page_history' : 'app_gl_entries';
-  const historyWhere = generalLedgerHistory(whereSql).whereSql;
-  const priorWhere = historyWhere ? historyWhere.replace(/\bgl\./g, 'prior.') + ' AND' : 'WHERE';
+function generalLedgerPageSql(whereSql, limit, offset, useDaily = false, grouped = false, ownerCtes = '', sharedHistory = false, owned = false) {
+  const source = owned ? 'owned_entries' : ownerCtes ? 'page_history' : 'app_gl_entries';
+  const history = generalLedgerHistory(whereSql);
+  const historyWhere = history.whereSql;
+  const priorWhere = ownerCtes ? 'WHERE' : historyWhere ? historyWhere.replace(/\bgl\./g, 'prior.') + ' AND' : 'WHERE';
   // Reuse only matching permitted history for the page and its earlier balances.
   // Retain pre-From entries, but push To/account/party/access filters into the
   // indexed source before materializing; later reversals need not be gathered.
-  const scopedHistory = ownerCtes ? `${ownerCtes}, page_history AS MATERIALIZED (
-    SELECT gl.* FROM scoped_gl gl JOIN app_accounts account ON account.id=gl.account_id
+  const scopedHistory = ownerCtes && !sharedHistory ? `${ownerCtes}, page_history AS MATERIALIZED (
+    SELECT gl.id,gl.account_id,gl.posting_date,gl.debit,gl.credit
+    FROM scoped_gl gl JOIN app_accounts account ON account.id=gl.account_id
     ${historyWhere}
   ),` : '';
+  // Scoped history has already applied every restriction except From. Retain
+  // only numeric balance fields there; load narration/party data for the page.
+  const pageWhere = ownerCtes ? history.from ? `WHERE gl.posting_date>=${history.from}::date` : '' : whereSql;
   // Disjoint ranges retain all filters and access. OFFSET 0 keeps the same-day
   // date/id range inside its subquery: otherwise the planner can prefer the
   // account/date index and fetch every later same-day entry before filtering IDs.
   const priorBalanceSql = (boundary, source = 'app_gl_entries') => `SELECT SUM(prior.debit-prior.credit) AS balance
-    FROM ${source} prior JOIN app_accounts account ON account.id=prior.account_id
+    FROM ${source} prior ${ownerCtes ? '' : 'JOIN app_accounts account ON account.id=prior.account_id'}
     ${priorWhere} prior.account_id=b.balance_account_id AND ${boundary}`;
-  return `WITH ${scopedHistory} page AS MATERIALIZED (
-    ${generalLedgerRowsSql(whereSql, true, grouped, false, source, Boolean(ownerCtes))} LIMIT $${limit} OFFSET $${offset}
-  ), bounds AS (
-    SELECT DISTINCT ON (balance_account_id) balance_account_id, balance_posting_date, id
-    FROM page ORDER BY balance_account_id, balance_posting_date, id
-  ), opening AS MATERIALIZED (
-    SELECT b.balance_account_id, COALESCE((
+  const openingSql = owned ? `SELECT b.balance_account_id,COALESCE(d.balance,0)+COALESCE((
+      SELECT SUM(prior.debit-prior.credit) FROM owned_entries prior
+      WHERE prior.account_id=b.balance_account_id AND prior.posting_date=b.balance_posting_date AND prior.id<b.id
+    ),0) AS balance FROM bounds b LEFT JOIN (
+      SELECT prior.account_id,SUM(prior.debit-prior.credit) AS balance FROM owned_daily prior
+      JOIN bounds first ON first.balance_account_id=prior.account_id AND prior.posting_date<first.balance_posting_date
+      GROUP BY prior.account_id
+    ) d ON d.account_id=b.balance_account_id` : `SELECT b.balance_account_id, COALESCE((
       SELECT SUM(parts.balance) FROM (
         ${priorBalanceSql('prior.posting_date<b.balance_posting_date', useDaily
           ? '(SELECT *,NULL::bigint AS reversal_of_voucher_id FROM wm_gl_daily)' : source)}
@@ -990,19 +1056,47 @@ function generalLedgerPageSql(whereSql, limit, offset, useDaily = false, grouped
         ${priorBalanceSql('true', `(SELECT * FROM ${source}
           WHERE posting_date=b.balance_posting_date AND id<b.id OFFSET 0)`)}
       ) parts
-    ),0) AS balance FROM bounds b
+    ),0) AS balance FROM bounds b`;
+  return `WITH ${owned ? owned+',' : ''}${scopedHistory} page AS MATERIALIZED (
+    SELECT gl.id,gl.account_id AS balance_account_id,gl.posting_date AS balance_posting_date,
+      gl.debit-gl.credit AS balance_delta
+    FROM ${source} gl JOIN app_accounts account ON account.id=gl.account_id ${pageWhere}
+    ORDER BY ${grouped ? 'account.account_code, ' : ''}gl.posting_date,gl.id
+    LIMIT $${limit} OFFSET $${offset}
+  ), bounds AS (
+    SELECT DISTINCT ON (balance_account_id) balance_account_id, balance_posting_date, id
+    FROM page ORDER BY balance_account_id, balance_posting_date, id
+  ), opening AS MATERIALIZED (
+    ${openingSql}
   )
-  SELECT page.id, page.posting_date, page.account_code, page.account_name, page.account_type,
-    page.party_type, page.party_id, page.party_name, page.voucher_type, page.voucher_id,
-    page.voucher_no, page.voucher_exists, page.debit, page.credit, page.remarks,
+  SELECT gl.id::text AS id,gl.posting_date::text,account.account_code,account.account_name,account.account_type,
+    gl.party_type,gl.party_id,gl.party_name,gl.voucher_type,gl.voucher_id::text AS voucher_id,
+    gl.voucher_no,${generalLedgerVoucherExistsSql(Boolean(ownerCtes), true)} AS voucher_exists,
+    gl.debit::float,gl.credit::float,gl.remarks,
     (opening.balance + SUM(page.balance_delta) OVER (
       PARTITION BY page.balance_account_id ORDER BY page.balance_posting_date, page.id
     ))::float AS running_balance
   FROM page JOIN opening ON opening.balance_account_id=page.balance_account_id
-  ORDER BY ${grouped ? 'page.account_code, ' : ''}page.balance_posting_date, page.id`;
+  JOIN app_gl_entries gl ON gl.id=page.id JOIN app_accounts account ON account.id=gl.account_id
+  ORDER BY ${grouped ? 'account.account_code, ' : ''}page.balance_posting_date, page.id`;
 }
 
-function generalLedgerRowsSql(whereSql, page = false, grouped = false, useDaily = false, source = 'app_gl_entries', sourceExists = source === 'scoped_gl') {
+function generalLedgerVoucherExistsSql(sourceExists = false, page = false) {
+  // OFFSET 0 keeps page probes as indexed lookups. PostgreSQL may otherwise
+  // preload every source ID into a hash even when only 50 links are displayed.
+  const probe = page ? ' OFFSET 0' : '';
+  return `CASE
+    ${sourceExists ? 'WHEN gl.reversal_of_voucher_id IS NULL THEN true' : ''}
+    WHEN gl.voucher_type='sales_invoice' THEN EXISTS(SELECT 1 FROM app_invoices i WHERE i.id=gl.voucher_id${probe})
+    WHEN gl.voucher_type='purchase' THEN EXISTS(SELECT 1 FROM app_purchases p WHERE p.id=gl.voucher_id${probe})
+    WHEN gl.voucher_type='purchase_payment' THEN EXISTS(SELECT 1 FROM app_purchase_payments pp WHERE pp.id=gl.voucher_id${probe})
+    WHEN gl.voucher_type='customer_payment' THEN EXISTS(SELECT 1 FROM app_invoice_payments ip WHERE ip.id=gl.voucher_id${probe})
+    WHEN gl.voucher_type IN ('cash_receipt','payment_journal','journal_entry') THEN EXISTS(SELECT 1 FROM app_journal_entries j WHERE j.id=gl.voucher_id${probe})
+    WHEN gl.voucher_type LIKE 'stock_%' THEN EXISTS(SELECT 1 FROM app_stock_entries se WHERE se.id=gl.voucher_id${probe})
+    ELSE true END`;
+}
+
+function generalLedgerRowsSql(whereSql, page = false, grouped = false, useDaily = false, source = 'app_gl_entries', sourceExists = source === 'scoped_gl', resolveVoucherLinks = true) {
   const history = generalLedgerHistory(whereSql);
   const dailyOpening = !page && history.from && useDaily;
   const wrapPeriod = !page && history.from && !dailyOpening;
@@ -1029,16 +1123,7 @@ function generalLedgerRowsSql(whereSql, page = false, grouped = false, useDaily 
       gl.voucher_type,
       gl.voucher_id,
       gl.voucher_no,
-      CASE
-        ${sourceExists ? 'WHEN gl.reversal_of_voucher_id IS NULL THEN true' : ''}
-        WHEN gl.voucher_type = 'sales_invoice' THEN EXISTS (SELECT 1 FROM app_invoices i WHERE i.id = gl.voucher_id)
-        WHEN gl.voucher_type = 'purchase' THEN EXISTS (SELECT 1 FROM app_purchases p WHERE p.id = gl.voucher_id)
-        WHEN gl.voucher_type = 'purchase_payment' THEN EXISTS (SELECT 1 FROM app_purchase_payments pp WHERE pp.id = gl.voucher_id)
-        WHEN gl.voucher_type = 'customer_payment' THEN EXISTS (SELECT 1 FROM app_invoice_payments ip WHERE ip.id = gl.voucher_id)
-        WHEN gl.voucher_type IN ('cash_receipt', 'payment_journal', 'journal_entry') THEN EXISTS (SELECT 1 FROM app_journal_entries j WHERE j.id = gl.voucher_id)
-        WHEN gl.voucher_type LIKE 'stock_%' THEN EXISTS (SELECT 1 FROM app_stock_entries se WHERE se.id = gl.voucher_id)
-        ELSE true
-      END AS voucher_exists,
+      ${resolveVoucherLinks ? generalLedgerVoucherExistsSql(sourceExists, page) + ' AS voucher_exists,' : ''}
       gl.debit::float,
       gl.credit::float,
       gl.remarks,
@@ -1061,8 +1146,9 @@ function generalLedgerRowsSql(whereSql, page = false, grouped = false, useDaily 
 async function withGeneralLedgerExport(filters, access, consume, options = {}) {
   return runHeavyReport(() => executeGeneralLedgerExport(filters, access, consume, options), options);
 }
-async function executeGeneralLedgerExport(filters, access, consume, { signal, batchSize = 500 } = {}) {
+async function executeGeneralLedgerExport(filters, access, consume, { signal, batchSize = 500, resolveVoucherLinks = true } = {}) {
   if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 5000) throw new Error('Invalid export batch size.');
+  if (typeof resolveVoucherLinks !== 'boolean') throw new Error('Invalid voucher-link option.');
   const query = generalLedgerQuery(filters, access, true);
   const client = await getPostgresPool().connect();
   let failed;
@@ -1077,7 +1163,7 @@ async function executeGeneralLedgerExport(filters, access, consume, { signal, ba
     const { totals: summary, openingRows } = await generalLedgerOverview(client, query, useDaily);
     await client.query(`DECLARE ledger_export_cursor NO SCROLL CURSOR FOR
       ${query.ownerCtes ? 'WITH ' + query.ownerCtes : ''}
-      ${generalLedgerRowsSql(query.whereSql, false, filters.group_by === 'account', useDaily, query.ownerCtes ? 'scoped_gl' : 'app_gl_entries')}`, query.params);
+      ${generalLedgerRowsSql(query.whereSql, false, filters.group_by === 'account', useDaily, query.ownerCtes ? 'scoped_gl' : 'app_gl_entries', Boolean(query.ownerCtes), resolveVoucherLinks)}`, query.params);
     async function* entries() {
       while (true) {
         check();

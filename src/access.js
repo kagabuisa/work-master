@@ -1,4 +1,4 @@
-const { getPostgresPool, findInvoice } = require('./store');
+const { getPostgresPool } = require('./store');
 const { purchaseForPayment } = require('./purchases');
 const { voucherOwnedByUser } = require('./voucher-ownership');
 
@@ -190,8 +190,12 @@ async function voucherWarehousesAllowed(user, kind, id) {
   if (!namedListRestricted(user, 'warehouses')) return true;
   if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) return false;
   if (kind === 'sales') {
-    const invoice = await findInvoice(id);
-    return Boolean(invoice && (invoice.items || []).every((item) => !item.warehouse || warehouseAllowed(user, item.warehouse)));
+    // Authorization needs existence and warehouse membership, not financial
+    // hydration. Preserve empty-invoice and missing-invoice behavior separately.
+    const { rows } = await getPostgresPool().query(`SELECT invoice.id, item.warehouse
+      FROM app_invoices invoice LEFT JOIN app_invoice_items item ON item.invoice_pk = invoice.id
+      WHERE invoice.id = $1`, [Number(id)]);
+    return rows.length > 0 && rows.every(item => !item.warehouse || warehouseAllowed(user, item.warehouse));
   }
   const tables = { purchases: ['app_purchase_items', 'purchase_id'], 'purchase-orders': ['app_purchase_order_items', 'purchase_order_id'], stock: ['app_stock_entry_items', 'stock_entry_id'] };
   const [table, column] = tables[kind] || [];
@@ -299,8 +303,9 @@ async function masterRecordAllowed(user, kind, id) {
 
 async function invoiceAllowed(user, id) {
   if (!scopeRestricted(user, 'customers')) return true;
-  const invoice = await findInvoice(id);
-  return Boolean(invoice && await masterRecordAllowed(user, 'customers', invoice.customer_id));
+  if (!Number.isSafeInteger(Number(id)) || Number(id) < 1) return false;
+  const { rows } = await getPostgresPool().query('SELECT customer_id FROM app_invoices WHERE id = $1', [Number(id)]);
+  return Boolean(rows[0] && await masterRecordAllowed(user, 'customers', rows[0].customer_id));
 }
 
 async function purchaseAllowed(user, id) {

@@ -29,6 +29,9 @@ function addVoucherOwnerFilter(where, params, alias, ownerId, employeeId = null)
 
 function addStockLedgerOwnerFilter(where, params, alias, ownerId, employeeId = null) {
   if (ownerId === null || ownerId === undefined) return;
+  // Keep EXISTS as per-voucher primary-key probes. Otherwise PostgreSQL can
+  // hash every owned source ID even for a small, warehouse-filtered report.
+  // OFFSET 0 preserves membership while preventing that subquery pull-up.
   params.push(String(ownerId));
   const value = `$${params.length}`;
   let invoiceOwner = `owned_invoice.created_by_user_id = ${value}`;
@@ -40,14 +43,14 @@ function addStockLedgerOwnerFilter(where, params, alias, ownerId, employeeId = n
     (${alias}.voucher_type LIKE 'stock_%' AND EXISTS (
       SELECT 1 FROM app_stock_entries owned_stock
       WHERE owned_stock.id = COALESCE(${alias}.voucher_id, ${alias}.reversal_of_voucher_id)
-        AND owned_stock.created_by_user_id = ${value}))
-    OR (${alias}.voucher_type = 'inventory_correction' AND EXISTS (SELECT 1 FROM wm_inventory_corrections owned_correction WHERE owned_correction.id=${alias}.voucher_id AND owned_correction.prepared_by::text=${value}))
+        AND owned_stock.created_by_user_id = ${value} OFFSET 0))
+    OR (${alias}.voucher_type = 'inventory_correction' AND EXISTS (SELECT 1 FROM wm_inventory_corrections owned_correction WHERE owned_correction.id=${alias}.voucher_id AND owned_correction.prepared_by::text=${value} OFFSET 0))
     OR (${alias}.voucher_type = 'purchase' AND EXISTS (
       SELECT 1 FROM app_purchases owned_purchase
-      WHERE owned_purchase.id = ${alias}.voucher_id AND owned_purchase.created_by_user_id = ${value}))
+      WHERE owned_purchase.id = ${alias}.voucher_id AND owned_purchase.created_by_user_id = ${value} OFFSET 0))
     OR (${alias}.voucher_type = 'invoice' AND EXISTS (
       SELECT 1 FROM app_invoices owned_invoice
-      WHERE owned_invoice.id = ${alias}.voucher_id AND ${invoiceOwner}))
+      WHERE owned_invoice.id = ${alias}.voucher_id AND ${invoiceOwner} OFFSET 0))
   )`);
 }
 

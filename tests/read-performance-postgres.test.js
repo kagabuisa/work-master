@@ -16,8 +16,9 @@ test('optimized reads preserve filtered running balances, opening balances, sear
     assert.match((await pool.query('SELECT current_database() name')).rows[0].name, /_hr_test$/);
     const indexes=await pool.query(`SELECT c.relname,i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid
       WHERE c.relname=ANY($1::text[])`,[['app_invoices_search_trgm_idx','app_journals_search_trgm_idx',
-        'app_journals_sales_reference_idx','app_journals_customer_payments_idx','app_journal_lines_reference_idx','app_invoices_creator_id_idx','app_invoices_invoicer_id_idx','app_journals_payment_reference_idx','app_invoice_items_warehouse_lookup_idx']]);
-    assert.equal(indexes.rows.length,9);assert.ok(indexes.rows.every(index=>index.indisvalid));
+        'app_journals_sales_reference_idx','app_journals_customer_payments_idx','app_journal_lines_reference_idx','app_invoices_creator_id_idx','app_invoices_invoicer_id_idx','app_journals_payment_reference_idx','app_invoice_items_warehouse_lookup_idx',
+        'app_journals_creator_id_idx','app_gl_entries_posted_voucher_cover_idx','app_gl_entries_reversal_source_cover_idx','wm_gl_daily_account_date_cover_idx']]);
+    assert.equal(indexes.rows.length,13);assert.ok(indexes.rows.every(index=>index.indisvalid));
     await t.test('stock report pages match full-history balances after date, search and ownership filters', async () => {
       await pool.query(`INSERT INTO app_stock_ledger
         (posting_date,movement_at,item_code,item_name,warehouse,voucher_type,voucher_no,

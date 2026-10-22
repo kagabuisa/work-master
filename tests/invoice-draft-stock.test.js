@@ -7,6 +7,42 @@ const {buildInvoicePayload}=require('../src/services/sales-validation');
 const {currentPostingDate,currentPostingTime}=require('../src/posting-time');
 const {countAction,loadCount}=require('../src/inventory-counts');
 
+test('multi-item save checks keep each warehouse history, later minimum and repeated quantity separate', {
+ skip:process.env.RECONCILIATION_TEST_POSTGRES!=='1',
+},async()=>{
+ try{
+  await seedGoldenData();const pool=store.getPostgresPool();
+  const {validateInvoiceDraftStock}=require('../src/services/invoice-draft-validation');
+  const pairs=[{item_code:'PRECHECK-A',warehouse:'Precheck Main'},
+   {item_code:'PRECHECK-A',warehouse:'Precheck Other'},
+   {item_code:'PRECHECK-B',warehouse:'Precheck Main'}];
+  for(const [index,pair] of pairs.entries()){
+   const initial=[20,30,40][index],out=[15,21,28][index];
+   await pool.query(`INSERT INTO app_stock_balances(item_code,item_name,warehouse,quantity)
+    VALUES($1,$1,$2,$3)`,[pair.item_code,pair.warehouse,initial-out+100]);
+   for(const [date,quantity] of [['2026-01-10',initial],['2026-01-11',-out],['2026-01-12',100]])
+    await pool.query(`INSERT INTO app_stock_ledger(posting_date,item_code,item_name,warehouse,voucher_type,
+     qty_change,qty_after_transaction,stock_value_after_transaction,movement_at)
+     VALUES($1,$2,$2,$3,'precheck_fixture',$4,0,0,($1::date+TIME '09:00') AT TIME ZONE 'Africa/Kampala')`,[date,pair.item_code,pair.warehouse,quantity]);
+  }
+  const payload=quantities=>({invoice_date:'2026-01-10',posting_time:'12:00',items:pairs.flatMap((pair,index)=>[
+   {...pair,quantity:quantities[index]/2},{...pair,quantity:quantities[index]/2}])});
+  const before=(await pool.query('SELECT * FROM app_stock_balances ORDER BY item_code,warehouse')).rows;
+  await validateInvoiceDraftStock(pool,payload([5,9,12]));
+  for(let index=0;index<3;index++){
+   const quantities=[5,9,12];quantities[index]++;
+   await assert.rejects(validateInvoiceDraftStock(pool,payload(quantities)),error=>
+    error.code==='insufficient_stock'&&error.stockWarning.item_code===pairs[index].item_code
+     &&error.stockWarning.warehouse===pairs[index].warehouse&&error.stockWarning.available===[5,9,12][index]);
+  }
+  await assert.rejects(validateInvoiceDraftStock(pool,{invoice_date:'2026-01-09',posting_time:'12:00',items:[{...pairs[0],quantity:1}]}),error=>error.stockWarning.available===0);
+  await assert.rejects(validateInvoiceDraftStock(pool,{invoice_date:'2026-01-10',posting_time:'12:00',items:[{item_code:'MISSING',warehouse:'Precheck Main',quantity:1}]}),error=>error.stockWarning.available===0);
+  for(const pair of [{item_code:null,warehouse:'Precheck Main'},{item_code:'PRECHECK-A',warehouse:null}])
+   await assert.rejects(validateInvoiceDraftStock(pool,{invoice_date:'2026-01-10',posting_time:'12:00',items:[{...pair,quantity:1}]}),error=>error.stockWarning.available===0);
+  assert.deepEqual((await pool.query('SELECT * FROM app_stock_balances ORDER BY item_code,warehouse')).rows,before);
+ }finally{await store.closeStore();}
+});
+
 test('invoice saves reject historical/current shortages and closed dates, preserve failed edits, and do not reserve stock',{
  skip:process.env.RECONCILIATION_TEST_POSTGRES!=='1',
 },async()=>{

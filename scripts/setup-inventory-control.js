@@ -24,6 +24,8 @@ async function main(){
  await client.query(`REVOKE ALL ON wm_schema_version FROM ${role}; GRANT SELECT ON wm_schema_version TO ${role}`);
  for(const table of ['wm_inventory_policy','wm_inventory_control','wm_inventory_counts','wm_inventory_count_lines','wm_inventory_closures','wm_inventory_events','wm_inventory_count_audit','wm_inventory_corrections','wm_inventory_correction_audit','app_stock_ledger','app_stock_balances'])
   await client.query(`REVOKE ALL ON ${table} FROM ${role}; GRANT SELECT ON ${table} TO ${role}`);
+ for(const table of ['wm_gl_owned_entries','wm_gl_owned_daily','wm_gl_owned_scopes'])
+  await client.query(`REVOKE ALL ON ${table} FROM ${role}; GRANT SELECT ON ${table} TO ${role}`);
  for(const signature of ['wm_inventory_enabled()','wm_inventory_begin(text,bigint,boolean,text[])','wm_inventory_apply(jsonb)','wm_inventory_count_action(text,jsonb)','wm_inventory_correction_action(text,jsonb)'])
   await client.query(`GRANT EXECUTE ON FUNCTION ${signature} TO ${role}`);
  // Activation is one-way for runtime. Legacy reconciliations are deliberately not converted to closures.

@@ -4,7 +4,7 @@ const { normalizePostingTime } = require('../posting-time');
 
 // A save is an availability check, not a reservation. Read balances, historical
 // minima and closure boundaries in one snapshot; submission still checks under
-// warehouse locks. Keep the effective history aligned with migration 37's
+// warehouse locks. Keep the effective history aligned with migration 45's
 // wm_inventory_check_history (including prior backdated controlled issues).
 async function validateInvoiceDraftStock(client, payload) {
   if (!isValidIsoDate(payload.invoice_date)) {
@@ -29,6 +29,20 @@ async function validateInvoiceDraftStock(client, payload) {
       SELECT controlled,CASE WHEN entered_at=date_trunc('minute',entered_at)
         AND entered_at=date_trunc('minute',clock_timestamp()) THEN clock_timestamp() ELSE entered_at END AS posting_at
       FROM selected
+    ), current_checks AS MATERIALIZED (
+      -- After the last physical movement, only declining issues can have a
+      -- later effective time. Their minimum equals the current balance. Skip
+      -- history only on an unambiguously successful check; shortage warnings
+      -- still use the complete historical calculation below.
+      SELECT r.item_code,r.warehouse,
+        (b.controlled AND b.posting_at>=c.last_movement AND (c.closed_through IS NULL OR b.posting_at>c.closed_through)
+          AND r.requested<=stock.quantity) IS TRUE AS eligible
+      FROM requested r CROSS JOIN boundary b
+      LEFT JOIN app_stock_balances stock ON stock.item_code=r.item_code AND stock.warehouse=r.warehouse
+      LEFT JOIN wm_inventory_control c ON c.warehouse=r.warehouse
+    ), historical_requested AS (
+      SELECT r.* FROM requested r LEFT JOIN current_checks k
+        ON k.item_code=r.item_code AND k.warehouse=r.warehouse WHERE k.eligible IS NOT TRUE
     ), history AS (
       SELECT l.item_code,l.warehouse,l.id,l.qty_change,
         CASE WHEN l.posting_event_id IS NOT NULL AND NOT l.is_reversal AND l.qty_change<0
@@ -39,25 +53,35 @@ async function validateInvoiceDraftStock(client, payload) {
               WHEN l.voucher_type LIKE 'stock_%' THEN s.posting_date+s.posting_time END)
                 AT TIME ZONE 'Africa/Kampala',l.movement_at) END
           ELSE l.movement_at END AS effective_at
-      FROM requested r JOIN app_stock_ledger l ON l.item_code=r.item_code AND l.warehouse=r.warehouse
-      LEFT JOIN app_invoices i ON l.voucher_type='invoice' AND i.id=l.voucher_id
-      LEFT JOIN app_stock_entries s ON l.voucher_type LIKE 'stock_%' AND s.id=l.voucher_id
-    ), balances AS (
-      SELECT *,SUM(qty_change) OVER (PARTITION BY item_code,warehouse ORDER BY effective_at,id ROWS UNBOUNDED PRECEDING) AS quantity
-      FROM history
+      FROM historical_requested r JOIN app_stock_ledger l ON l.item_code=r.item_code AND l.warehouse=r.warehouse
+      -- Put eligibility in the lookup key. A separate join filter still lets
+      -- PostgreSQL probe both document indexes for every legacy ledger row.
+      LEFT JOIN app_invoices i ON i.id=CASE WHEN l.posting_event_id IS NOT NULL
+        AND NOT l.is_reversal AND l.qty_change<0 AND l.voucher_type='invoice' THEN l.voucher_id END
+      LEFT JOIN app_stock_entries s ON s.id=CASE WHEN l.posting_event_id IS NOT NULL
+        AND NOT l.is_reversal AND l.qty_change<0 AND l.voucher_type LIKE 'stock_%' THEN l.voucher_id END
+      WHERE EXISTS (SELECT 1 FROM historical_requested)
+    ), opening AS (
+      SELECT item_code,warehouse,SUM(qty_change) AS quantity
+      FROM history CROSS JOIN boundary WHERE effective_at<=posting_at GROUP BY item_code,warehouse
+    ), later_balances AS (
+      SELECT item_code,warehouse,SUM(qty_change) OVER (
+        PARTITION BY item_code,warehouse ORDER BY effective_at,id ROWS UNBOUNDED PRECEDING) AS delta
+      FROM history CROSS JOIN boundary WHERE effective_at>posting_at
+    ), later AS (
+      SELECT item_code,warehouse,MIN(delta) AS delta FROM later_balances GROUP BY item_code,warehouse
     )
     SELECT r.*,COALESCE(stock.quantity,0)::float AS current_quantity,
-      COALESCE(at_time.quantity,0)::float AS historical_quantity,
-      LEAST(COALESCE(at_time.quantity,0),COALESCE(later.quantity,at_time.quantity,0),COALESCE(stock.quantity,0))::float AS available_quantity,
+      CASE WHEN k.eligible THEN stock.quantity ELSE COALESCE(at_time.quantity,0) END::float AS historical_quantity,
+      CASE WHEN k.eligible THEN stock.quantity ELSE LEAST(COALESCE(at_time.quantity,0)+LEAST(0,COALESCE(later.delta,0)),COALESCE(stock.quantity,0)) END::float AS available_quantity,
       (b.controlled AND b.posting_at<=c.closed_through) IS TRUE AS closed,
       to_char(c.closed_through AT TIME ZONE 'Africa/Kampala','YYYY-MM-DD HH24:MI:SS.US') AS cut_off
     FROM requested r CROSS JOIN boundary b
+    LEFT JOIN current_checks k ON k.item_code=r.item_code AND k.warehouse=r.warehouse
     LEFT JOIN app_stock_balances stock ON stock.item_code=r.item_code AND stock.warehouse=r.warehouse
     LEFT JOIN wm_inventory_control c ON c.warehouse=r.warehouse
-    LEFT JOIN LATERAL (SELECT quantity FROM balances WHERE item_code=r.item_code AND warehouse=r.warehouse
-      AND effective_at<=b.posting_at ORDER BY effective_at DESC,id DESC LIMIT 1) at_time ON true
-    LEFT JOIN LATERAL (SELECT MIN(quantity) AS quantity FROM balances WHERE item_code=r.item_code AND warehouse=r.warehouse
-      AND effective_at>b.posting_at) later ON true
+    LEFT JOIN opening at_time ON at_time.item_code=r.item_code AND at_time.warehouse=r.warehouse
+    LEFT JOIN later ON later.item_code=r.item_code AND later.warehouse=r.warehouse
     ORDER BY r.warehouse,r.item_code`, [JSON.stringify(items),payload.invoice_date,time]);
   for (const row of rows) {
     if (row.closed) {

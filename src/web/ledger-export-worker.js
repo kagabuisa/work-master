@@ -9,7 +9,8 @@ process.once('disconnect', () => process.exit(1));
 process.once('message', async ({ filters, access, format, filename }) => {
   try {
     await withGeneralLedgerExport(filters, access,
-      report => writeGeneralLedgerExport(fs.createWriteStream(filename, { flags: 'wx', mode: 0o600 }), report, format));
+      report => writeGeneralLedgerExport(fs.createWriteStream(filename, { flags: 'wx', mode: 0o600 }), report, format),
+      { resolveVoucherLinks: false });
     await closeStore();
     process.send({ done: true }, () => process.exit(0));
   } catch (error) {
