@@ -398,6 +398,16 @@ test('count effects exclude blanks, count explicit zero and use posting valuatio
  assert.deepEqual(result,{total:3,counted:2,pending:1,valuationPending:0,qtyGained:1.125,qtyLost:2,qtyNet:-0.875,valueGained:12,valueLost:44,valueNet:-32});
 });
 
+test('count losses use book value proportions and clear all value at zero quantity', () => {
+ const effects = require('../public/count-effects');
+ const line = { book_qty: 3, book_value: 302, book_rate: 101, counted_qty: 0, valuation_rate: 101 };
+ assert.equal(effects.lineEffect(line).value, -302);
+ assert.equal(effects.lineEffect({ ...line, counted_qty: 2 }).value, -101);
+ assert.equal(effects.lineEffect({ book_qty: 0, book_value: 0, book_rate: 0, counted_qty: 1.005, valuation_rate: 100 }).value, 101);
+ assert.equal(effects.lineEffect({ book_qty: 0, book_value: 1, book_rate: 0, counted_qty: 0 }).value, -1);
+ assert.equal(effects.lineEffect({ book_qty: 0, book_value: -1, book_rate: 0, counted_qty: 0 }).value, 1);
+});
+
 test('count effects mark incomplete rates and invalid quantities without inventing stock losses',()=>{
  const effects=require('../public/count-effects');
  const result=effects.summarize([

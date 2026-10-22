@@ -21,6 +21,12 @@ const { validateReceivingAccount } = require('./ledger');
 const { findMasterItem, findMasterCustomer, findMasterSupplier } = require('./master-data');
 const { buildInvoiceData, buildPaymentData, buildInvoicePayments, isSubmitted, paymentAccountId, fallbackReceivingAccount, normalizeInvoiceTotals, normalizePayments, applyPaymentTotals, sumPayments, paymentStatus, buildCustomerStatement, filterStatementByDate, customerReportKey, customerMatchesSearch, agingBucket, emptyDebtorSummary, typeSort } = require('./normalization');
 
+function assertCashSalePayment(total, amount) {
+  if (Number(total) <= 0 || Number(amount) !== Number(total)) {
+    const error = new Error('Cash sale payment must equal the saved invoice total.'); error.status = 400; throw error;
+  }
+}
+
 async function allInvoices() {
   return allPostgresInvoices();
 }
@@ -721,7 +727,7 @@ async function postInvoiceStock(client, invoice, itemRows) {
     const movement = controlled ? controlled[index]
       : await postingStage('stock', () => applyPostgresStockMovement(client, movements[index]));
     const costRate = movement.outgoing_rate;
-    const costAmount = roundMoney(Math.abs(Number(item.quantity || 0)) * costRate);
+    const costAmount = -movement.stock_value_change;
     totalCost += costAmount;
     const grossProfit = roundMoney(Number(item.line_total || 0) - costAmount);
     lineCosts.push({ id: Number(item.id), cost_rate: costRate, cost_amount: costAmount,
@@ -786,6 +792,7 @@ async function createCashSaleInvoice(payload, payment) {
     await postSalesInvoiceGlEntry(client, invoice);
 
     const paymentData = buildPaymentData(payment, [], 1);
+    assertCashSalePayment(invoice.total, paymentData.amount);
     const destination = paymentData.account_id ? await validateReceivingAccount(client, paymentData.account_id) : null;
     const { rows: paymentRows } = await client.query(
       `
@@ -963,6 +970,7 @@ async function submitCashSaleInvoice(id, payment) {
     await postSalesInvoiceGlEntry(client, invoiceForGl);
 
     const paymentData = buildPaymentData(payment, [], 1);
+    assertCashSalePayment(invoice.total, paymentData.amount);
     const destination = paymentData.account_id ? await validateReceivingAccount(client, paymentData.account_id) : null;
     const { rows: paymentRows } = await client.query(
       `
@@ -1025,6 +1033,7 @@ async function cancelPostgresInvoice(id) {
         voucher_no: invoice.invoice_no,
         qty_change: -Number(row.qty_change),
         rate: Number(row.outgoing_rate || row.incoming_rate || 0),
+        reversal_of_ledger_id: row.id,
         is_reversal: true,
         reversal_of_voucher_id: Number(id),
         reversal_of_voucher_no: invoice.invoice_no,

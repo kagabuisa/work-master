@@ -55,7 +55,7 @@ function invoice(row, detail = false) {
     price_list: row.price_list || null, currency: 'UGX', subtotal: decimal(row.subtotal),
     tax_amount: decimal(row.tax_amount), discount_amount: decimal(row.discount_amount),
     total: decimal(row.total), amount_paid: decimal(row.amount_paid),
-    balance_due: decimal(roundMoney(Number(row.total) - Number(row.amount_paid))),
+    balance_due: decimal(roundMoney(Number(row.total ?? 0) - Number(row.amount_paid ?? 0))),
     payment_status: row.status, created_at: row.created_at, updated_at: row.updated_at };
   if (detail) Object.assign(result, { ...displayAudit(row), customer_phone: row.customer_phone || '', is_cash_sale: Boolean(row.is_cash_sale),
     submitted_by: row.submitted_by || null, submitted_at: displayAudit({ created_at: row.submitted_at }).created_at,

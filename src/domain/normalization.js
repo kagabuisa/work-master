@@ -44,7 +44,7 @@ function buildInvoiceData(payload) {
         item_name: String(item.item_name || '').trim(),
         warehouse: String(item.warehouse || '').trim() || null,
         quantity: normalizeQuantity(item.quantity),
-        unit_price: roundMoney(item.unit_price),
+        unit_price: invoiceMath.rateValue(item.unit_price),
         stock_at_sale: item.stock_at_sale === '' || item.stock_at_sale == null
           ? null
           : Number(item.stock_at_sale),
@@ -58,15 +58,17 @@ function buildInvoiceData(payload) {
     throw err;
   }
 
-  const subtotal = items.reduce((sum, item, index) => {
+  items.forEach((item, index) => {
     item.id = index + 1;
     item.line_no = index + 1;
-    item.line_total = roundMoney(item.quantity * item.unit_price);
-    return sum + item.line_total;
-  }, 0);
-  const discount = Math.max(0, Number(payload.discount_amount || 0));
-  const tax = Math.max(0, Number(payload.tax_amount || 0));
-  const total = roundMoney(Math.max(0, subtotal - discount + tax));
+    item.line_total = invoiceMath.lineTotal(item);
+  });
+  const { subtotal, discount_amount: discount, tax_amount: tax, total } = invoiceMath.invoiceTotals(
+    items, payload.discount_amount, payload.tax_amount);
+  if (items.some(item => item.line_total > 999999999999)
+      || [subtotal, discount, tax, total].some(amount => amount > 999999999999)) {
+    const error = new Error('Invoice amounts exceed supported storage bounds.'); error.status = 400; throw error;
+  }
   const payments = buildInvoicePayments(payload, total);
   const amountPaid = sumPayments(payments);
   const status = paymentStatus(total, amountPaid);
@@ -375,23 +377,23 @@ function normalizeInvoiceTotals(invoice) {
   const hasItems = Array.isArray(invoice.items) && invoice.items.length > 0;
   const items = (invoice.items || []).map((item, index) => {
     const quantity = normalizeQuantity(item.quantity);
-    const unitPrice = roundMoney(item.unit_price);
+    const unitPrice = invoiceMath.storedRateValue(item.unit_price);
     return {
       ...item,
       id: Number(item.id || index + 1),
       quantity,
       unit_price: unitPrice,
-      line_total: roundMoney(quantity * unitPrice),
+      line_total: item.line_total == null ? invoiceMath.multiplyMoney(quantity, unitPrice) : roundMoney(item.line_total),
     };
   });
-  const subtotal = hasItems
-    ? items.reduce((sum, item) => sum + Number(item.line_total || 0), 0)
-    : roundMoney(invoice.subtotal);
+  // Reads preserve saved amounts, including historical invoices calculated by
+  // older policies. Only an explicit edit recalculates an invoice.
+  const subtotal = invoice.subtotal == null && hasItems
+    ? items.reduce((sum, item) => sum + item.line_total, 0) : roundMoney(invoice.subtotal);
   const discount = roundMoney(invoice.discount_amount);
   const tax = roundMoney(invoice.tax_amount);
-  const total = hasItems
-    ? roundMoney(Math.max(0, subtotal - discount + tax))
-    : roundMoney(invoice.total);
+  const total = invoice.total == null
+    ? roundMoney(Math.max(0, subtotal - discount) + tax) : roundMoney(invoice.total);
   const docstatus = invoice.docstatus || 'submitted';
   const payments = docstatus === 'draft' ? [] : normalizePayments(invoice);
   const amountPaid = docstatus === 'draft' ? 0 : sumPayments(payments);

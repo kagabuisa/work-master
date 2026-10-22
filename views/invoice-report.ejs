@@ -82,6 +82,8 @@
                       <a href="/invoices/<%= row.invoice_id %>" data-voucher-drawer="/invoices/<%= row.invoice_id %>/drawer"><%= value || '—' %></a>
                     <% } else if (value === null || value === undefined || value === '') { %>
                       —
+                    <% } else if (column.type === 'rate') { %>
+                      <%= rateMoney(value) %>
                     <% } else if (column.type === 'money') { %>
                       <%= money(value) %>
                     <% } else if (column.type === 'number') { %>

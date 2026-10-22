@@ -2,130 +2,27 @@ const express = require('express');
 const { assertSecureTransportConfiguration } = require('./src/transport-security');
 const compression = require('compression');
 const path = require('path');
-const { listDirectory, downloadableFile, saveUploads } = require('./src/project-files');
-const {
-  initStore,
-  getCompanyInformation,
-  saveCompanyInformation,
-  getDateTimeSettings,
-  saveDateTimeSettings,
-  allInvoices,
-  paginatedInvoices,
-  invoiceWarehouses,
-  findInvoice,
-  invoiceForPayment,
-  createInvoice,
-  createCashSaleInvoice,
-  submitCashSaleInvoice,
-  updateInvoice,
-  submitInvoice,
-  cancelInvoice,
-  deleteDraftVoucher,
-  updateVoucherPostingTime,
-  updateInvoiceNonSystemNumber,
-  addInvoicePayment,
-  cancelInvoicePayment,
-  invoiceSummary,
-  topDebtors,
-  debtorReport,
-  stockSummary,
-  stockBalances,
-  localStockQuantity,
-  masterItemsWithStock,
-  invoiceItemPrices,
-  masterItems,
-  masterCustomers,
-  masterSuppliers,
-  masterWarehouses,
-  masterEmployees,
-  masterCostCenters,
-  masterOptions,
-  masterPriceLists,
-  masterItemPrices,
-  itemPriceListFilters,
-  itemPriceCodeSuggestions,
-  findMasterRecord,
-  priceListNeighbors,
-  masterRecordNeighbors,
-  findMasterItem,
-  findMasterCustomer,
-  findMasterSupplier,
-  findMasterEmployee,
-  createMasterRecord,
-  updateMasterRecord,
-  setPriceListActive,
-  setMasterRecordActive,
-  deletePriceList,
-  deleteMasterRecord,
-  createStockEntry,
-  loadStockEntry,
-  stockEntryCancelTemplate,
-  searchStockEntriesForCancel,
-  updateStockEntry,
-  cancelStockEntry,
-  updateStockEntrySupplierInfo,
-  stockLedgerReport,
-  stockLedgerVoucherDetails,
-  stockMovementReport,
-  stockMovementDetails,
-  grossProfitReport,
-  generalLedgerReport,
-  generalLedgerFilterOptions,
-  generalLedgerAccountOptions,
-  generalLedgerPartyOptions,
-  journalReferenceOptions,
-  trialBalanceReport,
-  profitAndLossReport,
-  balanceSheetReport,
-  accountingAccounts,
-  postableAccountingAccounts,
-  receivingAccounts,
-  findAccountingAccount,
-  createAccountingAccount,
-  updateAccountingAccount,
-  journalEntries,
-  findJournalEntry,
-  createJournalEntry,
-  updateJournalEntry,
-  submitJournalEntry,
-  cancelJournalEntry,
-  getPostgresPool,
-} = require('./src/store');
-const { ACCOUNT_DETAIL_TYPES } = require('./src/account-detail-types');
+
+const { initStore, getDateTimeSettings, receivingAccounts, getPostgresPool } = require('./src/store');
+
 const { currentPostingDate, currentPostingTime } = require('./src/posting-time');
 const { formatDate, formatTime, formatDateTime, formatTimestamp } = require('./src/date-time-format');
 const { installAuth } = require('./src/auth-http');
-const { invoiceFormState, duplicateInvoiceFormState } = require('./src/invoice-form-state');
-const { selectedCategories, allowedInvoicePriceLists, requireInvoicePriceList,
-  namedPriceListsForActions, warehouseAllowed, allowedNamedListValues,
-  accountAllowed, purchaseOrderAllowed, voucherWarehousesAllowed,
-  deniedNamedListValues, assignedMasterRecordAllowed } = require('./src/access');
-const { money, purchaseMoney, paymentReturnPath, todayString } = require('./src/web/format');
+
+const { assignedMasterRecordAllowed } = require('./src/access');
+
 const reportsRouter = require('./src/web/routes/reports');
 const stockRouter = require('./src/web/routes/stock');
 const purchasingRouter = require('./src/web/routes/purchasing');
 const ledgerRouter = require('./src/web/routes/ledger');
 const settingsRouter = require('./src/web/routes/settings');
 const salesRouter = require('./src/web/routes/sales');
-const { cachedInvoiceList, clearInvoiceCaches } = require('./src/web/cache');
+
 const { homeSections } = require('./src/web/home-navigation');
-const { warehouseAccessOptions, accountAccessOptions } = require('./src/web/helpers');
+const { accountAccessOptions } = require('./src/web/helpers');
 const { scriptJson } = require('./src/web/script-json');
 const apiRouter = require('./src/web/routes/api');
 
-const {
-  createPurchase,
-  updatePurchase,
-  listPurchases,
-  loadPurchase,
-  purchaseForPayment,
-  submitPurchase,
-  cancelPurchase,
-  addPurchasePayment,
-  cancelPurchasePayment,
-} = require('./src/purchases');
-const { createPurchaseOrder, updatePurchaseOrder, listPurchaseOrders, loadPurchaseOrder,
-  listReceivablePurchaseOrders, submitPurchaseOrder, cancelPurchaseOrder, deleteDraftPurchaseOrder } = require('./src/purchase-orders');
 require('dotenv').config({ quiet: true });
 
 const app = express();
@@ -134,7 +31,6 @@ const STATIC_MAX_AGE = process.env.STATIC_MAX_AGE || '3600';
 const SLOW_REQUEST_MS = Number(process.env.SLOW_REQUEST_MS || 300);
 let storeReady = false;
 let storeInitPromise = null;
-
 
 app.set('view engine', 'ejs');
 // Cache compiled templates, never rendered pages or request/permission data.
@@ -306,88 +202,6 @@ app.use('/hr', require('./src/web/routes/hr'));
 app.use(salesRouter);
 
 app.use('/api', apiRouter);
-
-function sqlCandidatePattern(value) {
-  const pattern = String(value || '').trim();
-  if (!pattern) {
-    return '%';
-  }
-  if (!pattern.includes('%')) {
-    return `%${pattern}%`;
-  }
-  return '%';
-}
-
-function matchesSearchPattern(value, pattern) {
-  const text = normalizeSearchText(value);
-  const search = normalizeSearchPattern(pattern);
-  if (!search) {
-    return true;
-  }
-  if (!search.includes('%')) {
-    return text.includes(search);
-  }
-  return orderedWildcardMatch(text, search);
-}
-
-function matchesSearchFields(values, pattern) {
-  const search = String(pattern || '').trim();
-  if (!search) {
-    return true;
-  }
-  const combined = normalizeSearchText(values.filter(Boolean).join(' '));
-  return matchesSearchPattern(combined, search)
-    || values.some((value) => matchesSearchPattern(value, search));
-}
-
-function normalizeSearchText(value) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9%]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeSearchPattern(value) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9%]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function wildcardRegex(pattern) {
-  const search = String(pattern);
-  const source = search
-    .split('%')
-    .map(escapeRegex)
-    .join('.*');
-  return new RegExp(`${search.startsWith('%') ? '' : '^'}${source}`, 'i');
-}
-
-function orderedWildcardMatch(text, pattern) {
-  const startsAtBeginning = !pattern.startsWith('%');
-  const terms = pattern.split('%').filter(Boolean);
-  if (!terms.length) {
-    return true;
-  }
-  let position = 0;
-  for (let index = 0; index < terms.length; index += 1) {
-    const found = text.indexOf(terms[index], position);
-    if (found === -1) {
-      return false;
-    }
-    if (index === 0 && startsAtBeginning && found !== 0) {
-      return false;
-    }
-    position = found + terms[index].length;
-  }
-  return true;
-}
-
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 app.use(require('./src/api/errors').apiErrors);
 

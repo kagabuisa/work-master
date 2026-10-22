@@ -503,6 +503,7 @@ async function cancelPurchase(id) {
         voucher_no: purchase.purchase_no,
         qty_change: -Number(row.qty_change),
         force_outgoing_rate: Number(row.incoming_rate || row.outgoing_rate || 0),
+        reversal_of_ledger_id: row.id,
         is_reversal: true,
         reversal_of_voucher_id: purchaseId,
         reversal_of_voucher_no: purchase.purchase_no,

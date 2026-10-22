@@ -1,8 +1,8 @@
 'use strict';
-// Money helpers. UGX is a zero-decimal currency, so money is rounded to whole
-// units everywhere — this single source of truth keeps that consistent.
+// UGX amounts round to whole units. Selling rates retain six decimal places;
+// quantity × rate and stock-value proportions round only after exact arithmetic.
 // roundMoney is shared with the browser via src/shared/invoice-math.js.
-const { roundMoney } = require('../shared/invoice-math');
+const { roundMoney, multiplyMoney, prorateMoney, rateValue, storedRateValue } = require('../shared/invoice-math');
 
 function numberValue(value) {
   return Number(value || 0);
@@ -30,4 +30,4 @@ function roundReportMoney(row) {
   return row;
 }
 
-module.exports = { roundMoney, numberValue, roundReportMoney };
+module.exports = { roundMoney, multiplyMoney, prorateMoney, rateValue, storedRateValue, numberValue, roundReportMoney };

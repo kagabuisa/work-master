@@ -52,7 +52,7 @@
             <td class="row-number"><%= index + 1 %></td>
             <td class="item-code-col"><%= item.item_code %></td>
             <td><%= Number(item.quantity).toLocaleString() %></td>
-            <td><%= money(item.unit_price) %></td>
+            <td><%= rateMoney(item.unit_price) %></td>
             <td><%= money(item.line_total) %></td>
           </tr>
         <% }) %>

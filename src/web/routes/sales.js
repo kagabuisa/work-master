@@ -2,7 +2,7 @@
 const { measurePosting, postingStage } = require('../../workload-control');
 // /invoices routes and their helpers. Mounted at the app root (full paths).
 const express = require('express');
-const { money, paymentReturnPath } = require('../format');
+const { money, rateMoney, paymentReturnPath } = require('../format');
 const invoiceMath = require('../../shared/invoice-math');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { invoiceFormState, duplicateInvoiceFormState } = require('../../invoice-form-state');
@@ -18,6 +18,7 @@ const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership')
 const { requireReceiptAccount, validateDbItems, buildInvoicePayload, normalizeStockQuantity } = require('../../services/sales-validation');
 
 const router = express.Router();
+router.use((_req, res, next) => { res.locals.rateMoney = rateMoney; next(); });
 
 
 async function defaultSalesPriceList(user) {

@@ -8,7 +8,7 @@ const { getPostgresPool } = require('../core');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS, STOCK_TRANSFER_TYPES } = require('../constants');
 const { auditActor, recordAuditFields } = require('../audit');
 const { assertPostingDate, currentPostingTime, storedPostingTime } = require('../posting-time');
-const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
+const { roundMoney, multiplyMoney, prorateMoney, storedRateValue, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
 const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
@@ -602,7 +602,7 @@ function postgresItemToInvoiceItem(row) {
     cost: Number(row.cost || 0),
     warehouse: row.warehouse,
     quantity: Number(row.quantity || 0),
-    unit_price: Number(row.unit_price || 0),
+    unit_price: storedRateValue(row.unit_price),
     stock_at_sale: row.stock_at_sale == null ? null : Number(row.stock_at_sale),
     line_total: Number(row.line_total || 0),
     cost_rate: Number(row.cost_rate || 0),
@@ -799,6 +799,7 @@ async function postStockEntryMovements(client, { id, entryNo, entryType, posting
         voucher_no: entryNo,
         qty_change: Math.abs(item.quantity),
         rate: outgoing.outgoing_rate,
+        value_source_id: outgoing.ledger_id,
       });
     } else if (entryType === 'reconciliation') {
       const movement = await applyPostgresStockMovement(client, {
@@ -892,9 +893,20 @@ async function applyPostgresStockMovement(client, movement) {
   let incomingRate = 0;
   let outgoingRate = 0;
   let valueChange = 0;
+  let valueSource;
+  if (movement.is_reversal || movement.value_source_id) {
+    const sourceId = movement.is_reversal ? movement.reversal_of_ledger_id : movement.value_source_id;
+    const source = (await client.query('SELECT * FROM app_stock_ledger WHERE id=$1 FOR SHARE', [sourceId])).rows[0];
+    const valid = source && source.item_code === itemCode && source.voucher_type === movement.voucher_type
+      && Number(source.voucher_id) === Number(movement.voucher_id) && !source.is_reversal
+      && Number(source.qty_change) === -qtyChange
+      && (movement.is_reversal ? source.warehouse === warehouse : source.warehouse !== warehouse && Number(source.qty_change) < 0);
+    if (!valid) { const error = new Error('Stock movement requires its original value source.'); error.status = 400; throw error; }
+    valueSource = -roundMoney(source.stock_value_change);
+  }
   if (qtyChange > 0) {
     incomingRate = roundMoney(Number(movement.rate || previousRate || 0));
-    valueChange = roundMoney(qtyChange * incomingRate);
+    valueChange = valueSource ?? multiplyMoney(qtyChange, incomingRate);
   } else if (qtyChange < 0) {
     if (previousQuantity + qtyChange < -0.0005) {
       const err = new Error(`Insufficient stock for ${itemName} in ${warehouse}.`);
@@ -910,12 +922,16 @@ async function applyPostgresStockMovement(client, movement) {
       throw err;
     }
     outgoingRate = roundMoney(Number(movement.force_outgoing_rate || previousRate));
-    valueChange = -roundMoney(Math.abs(qtyChange) * outgoingRate);
+    valueChange = valueSource ?? -prorateMoney(balance.stock_value, Math.abs(qtyChange), balance.quantity);
   }
 
+  if (hasTarget && Number(movement.target_quantity) === 0) valueChange = -previousValue;
   const newQuantity = Number((previousQuantity + qtyChange).toFixed(3));
   const newValue = roundMoney(previousValue + valueChange);
-  const newRate = newQuantity > 0 ? roundMoney(newValue / newQuantity) : 0;
+  if ((previousValue < 0 && qtyChange < 0 && !hasTarget) || newValue < 0 || (newQuantity === 0 && newValue !== 0)) {
+    const error = new Error('This movement leaves invalid stock value; use an approved correction.'); error.status = 400; throw error;
+  }
+  const newRate = newQuantity > 0 ? prorateMoney(newValue, 1, newQuantity) : 0;
 
   // Retain the count on the voucher, but do not post a movement for a matching item.
   if (movement.voucher_type === 'stock_reconciliation' && qtyChange === 0 && valueChange === 0) {
@@ -938,15 +954,16 @@ async function applyPostgresStockMovement(client, movement) {
     `,
     [itemName, newQuantity, newValue, newRate, itemCode, warehouse],
   );
-  await client.query(
+  const ledgerResult = await client.query(
     `
     INSERT INTO app_stock_ledger (
       posting_date, item_code, item_name, warehouse, voucher_type, voucher_id, voucher_no,
       qty_change, incoming_rate, outgoing_rate, stock_value_change,
       qty_after_transaction, stock_value_after_transaction, is_reversal,
-      reversal_of_voucher_id, reversal_of_voucher_no, remarks
+      reversal_of_voucher_id, reversal_of_voucher_no, remarks, reversal_of_ledger_id
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    RETURNING id
     `,
     [
       movement.posting_date,
@@ -966,10 +983,12 @@ async function applyPostgresStockMovement(client, movement) {
       movement.reversal_of_voucher_id || null,
       movement.reversal_of_voucher_no || null,
       movement.remarks || null,
+      movement.is_reversal ? movement.reversal_of_ledger_id : null,
     ],
   );
 
   return {
+    ledger_id: ledgerResult.rows[0] ? Number(ledgerResult.rows[0].id) : null,
     qty_change: qtyChange,
     previous_quantity: previousQuantity,
     quantity: newQuantity,

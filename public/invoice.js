@@ -459,7 +459,7 @@ function renderItemResults(rows) {
       </div>
       <div class="item-result-price">
         <span class="item-result-label">Unit price</span>
-        <strong>${formatMoney(item.unit_price || 0)}</strong>
+        <strong>${formatRate(item.unit_price)}</strong>
       </div>
       <label class="item-result-quantity">
         <span class="item-result-label">Qty</span>
@@ -623,9 +623,9 @@ async function updateInvoiceItemPrices(force = false) {
     const prices = await response.json();
     const byCode = new Map(prices.map((row) => [row.item_code, row]));
     if (items.some((item) => !byCode.has(item.item_code))) throw new Error('An item price is missing.');
-    const changed = items.filter((item) => item.unit_price !== roundMoney(byCode.get(item.item_code).unit_price)).length;
+    const changed = items.filter((item) => item.unit_price !== InvoiceMath.rateValue(byCode.get(item.item_code).unit_price)).length;
     const missing = items.filter((item) => !byCode.get(item.item_code).has_list_price).map((item) => item.item_code);
-    for (const item of items) item.unit_price = roundMoney(byCode.get(item.item_code).unit_price);
+    for (const item of items) item.unit_price = InvoiceMath.rateValue(byCode.get(item.item_code).unit_price);
     activePriceList = nextPriceList;
     renderItems();
     clearFormError();
@@ -757,7 +757,7 @@ function addItem(source, quantity = 1) {
       cost: Number(source.cost || 0),
       warehouse: source.warehouse || '',
       quantity,
-      unit_price: roundMoney(source.unit_price),
+      unit_price: InvoiceMath.rateValue(source.unit_price),
       stock_at_sale: normalizeQuantity(source.stock_balance),
     });
   }
@@ -782,7 +782,7 @@ function initializeInvoiceForm() {
       cost: Number(item.cost || 0),
       warehouse: item.warehouse || '',
       quantity: normalizeQuantity(item.quantity),
-      unit_price: roundMoney(item.unit_price),
+      unit_price: editableRate(item.unit_price),
       stock_at_sale: item.stock_at_sale == null ? null : normalizeQuantity(item.stock_at_sale),
     });
   });
@@ -834,15 +834,16 @@ function renderItems() {
 
   tbody.innerHTML = items.map((item, index) => {
     const quantity = normalizeQuantity(item.quantity);
-    const total = quantity * item.unit_price;
+    let total;
+    try { total = InvoiceMath.lineTotal(item); } catch { total = null; }
     return `
       <tr>
         <td class="row-number" data-label="Item">${index + 1}</td>
         <td class="item-code-col" data-label="Item Code"><strong>${escapeHtml(item.item_code)}</strong></td>
         <td data-label="Stock as of posting" data-stock-index="${index}"></td>
         <td data-label="Qty"><input aria-label="Quantity" type="text" inputmode="decimal" value="${formatQuantity(quantity)}" data-index="${index}" data-field="quantity"></td>
-        <td data-label="Unit Price"><input aria-label="Unit price" type="number" min="0" step="1" value="${roundMoney(item.unit_price)}" data-index="${index}" data-field="unit_price"></td>
-        <td data-label="Total" data-line-total="${index}">${formatMoney(total || 0)}</td>
+        <td data-label="Unit Price"><input aria-label="Unit price" type="number" min="0" step="0.000001" value="${escapeHtml(editableRate(item.unit_price))}" data-index="${index}" data-field="unit_price"></td>
+        <td data-label="Total" data-line-total="${index}">${total == null ? '—' : formatMoney(total)}</td>
         <td class="entry-row-actions"><button type="button" class="icon" data-remove="${index}">Remove</button></td>
       </tr>
     `;
@@ -850,11 +851,16 @@ function renderItems() {
 
   updateStockCells();
   tbody.querySelectorAll('input').forEach((input) => {
+    if (input.dataset.field === 'unit_price') {
+      try { InvoiceMath.rateValue(input.value); } catch (error) { input.setCustomValidity(error.message); }
+    }
     input.addEventListener('input', () => {
       const index = Number(input.dataset.index);
       if (input.dataset.field === 'unit_price') {
-        items[index].unit_price = roundMoney(input.value);
-        input.value = items[index].unit_price;
+        try {
+          items[index].unit_price = InvoiceMath.rateValue(input.value);
+          input.setCustomValidity('');
+        } catch (error) { input.setCustomValidity(error.message); return; }
       } else {
         items[index][input.dataset.field] = normalizeQuantity(input.value);
       }
@@ -864,7 +870,7 @@ function renderItems() {
     });
     input.addEventListener('blur', () => {
       if (input.dataset.field === 'unit_price') {
-        input.value = roundMoney(input.value);
+        try { input.value = InvoiceMath.rateValue(input.value); } catch (error) { input.setCustomValidity(error.message); }
       }
       if (input.dataset.field === 'quantity') {
         input.value = formatQuantity(input.value);
@@ -1021,11 +1027,16 @@ function updateLineTotal(index) {
     return;
   }
   const item = items[index];
-  totalCell.textContent = formatMoney((item.quantity * item.unit_price) || 0);
+  totalCell.textContent = formatMoney(InvoiceMath.lineTotal(item));
 }
 
 function renderTotals() {
-  const total = calculateGrandTotal();
+  let total;
+  try { total = calculateGrandTotal(); } catch (error) {
+    grandTotal.textContent = '—';
+    showFormError(error.message);
+    return;
+  }
   const paid = calculatePaidTotal();
   grandTotal.textContent = formatMoney(total);
   paidTotal.textContent = formatMoney(paid);
@@ -1060,7 +1071,7 @@ function invoiceState() {
       cost: item.cost,
       warehouse: item.warehouse,
       quantity: normalizeQuantity(item.quantity),
-      unit_price: roundMoney(item.unit_price),
+      unit_price: editableRate(item.unit_price),
     })),
     payments: payments.map((payment) => ({
       id: payment.id || 0,
@@ -1251,3 +1262,12 @@ function enableLookupKeyboard(input, panel, selector) {
 
 enableLookupKeyboard(itemSearch, itemResults, '[data-item]');
 enableLookupKeyboard(customerSearch, customerResults, '[data-id]');
+
+function formatRate(value) {
+  const [whole, decimal] = String(InvoiceMath.rateValue(value)).split('.');
+  return `Ugx ${Number(whole).toLocaleString('en-UG')}${decimal ? '.' + decimal : ''}`;
+}
+
+function editableRate(value) {
+  try { return InvoiceMath.rateValue(value); } catch { return String(value ?? ''); }
+}

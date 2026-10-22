@@ -93,6 +93,12 @@ docker compose restart
 
 The Docker image includes the operational scripts, tests, and app documentation. Run supported imports and accounting utilities with `docker compose exec invoice-app npm run <command>`. Release checks still require a dedicated test database as described below.
 
+Migration 47 widens sales invoice selling rates to `numeric(18,6)` and installs exact stock-value depletion, transfer and reversal rules. It preserves posted invoice amounts, stock balances, ledger history and inventory function privileges. Owner-mode startup applies the migration; installations using runtime database credentials must run `npm run db:migrate` with owner credentials before restarting. New invoice calculations use rounded line amounts and adjustments consistently across browser and server; see [the app guide](docs/app-guide.md#vouchers).
+
+After upgrading, run `docker compose exec invoice-app npm run audit:money` to count historical zero-quantity balances carrying value, negative stock values, inconsistent submitted invoice headers/lines, and unbalanced GL vouchers. This audit uses a read-only snapshot and changes no records. It cannot reconstruct precision already lost from historical selling rates; compare source documents when reviewing affected transactions. Resolve approved discrepancies through correction vouchers rather than rewriting posted history. A reversal that would create value without quantity is blocked pending correction.
+
+`src/migrate.js` owns versioned schema changes. Keep historical migrations and the existing bootstrap stable; add new changes in the next numbered migration instead of duplicating current DDL in `src/domain/schema.js`. Fresh installations run that bootstrap followed by the same migration sequence as upgrades. Migration tests cover repeat startup, retained financial records, and guarded function identities/privileges.
+
 Docker stores application records in the `postgres-data` volume and uploaded project files in the `invoice-data` volume. Both survive image rebuilds and container restarts.
 
 Schema migration 39 adds indexed Stock Entry delivery metadata and per-user read-only shares. Existing entries start with no delivery status or shares. Operational delivery metadata is stored separately so it can change after inventory closure without rewriting posted documents or ledger history. Owner-mode startup applies it automatically. With controlled-inventory runtime credentials, run `npm run db:migrate` with owner credentials before restarting; migration 39 grants the existing database-specific runtime role access to the two new tables. Transaction resets remove these dependent records with their stock entries.
@@ -378,6 +384,7 @@ docker run --rm --name wm-skipped-runner --network wm-skipped-tests \
 ```
 
 The API cleanup script also respects an explicitly configured `*_hr_test` database and skips the application `.env` in that environment.
+The full-suite and accounting test runners also skip the application `.env` for an explicitly configured `*_hr_test` database, preserving the isolated runner's credentials.
 
 The runner checks the dedicated database name and schema ownership, enables all
 database test flags, and runs files sequentially to avoid conflicting schema

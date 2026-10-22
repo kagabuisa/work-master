@@ -61,7 +61,7 @@ function invoiceCreate(body) {
     return { item_code: text(item.item_code, 'item_code', 200),
       ...(item.warehouse === undefined ? {} : { warehouse: text(item.warehouse, 'warehouse', 200) }),
       quantity: decimal(item.quantity, 'quantity', 3, 99999999999.999, { positive: true }),
-      unit_price: decimal(item.unit_price, 'unit_price', 2, 999999999999) };
+      unit_price: decimal(item.unit_price, 'unit_price', 6, 999999999999) };
   });
   return payload;
 }

@@ -5,7 +5,7 @@ const access = require('../access');
 const { enabled: inventoryEnabled } = require('./inventory-posting');
 const { apiError } = require('../api/errors');
 const { normalizeQuantity } = require('../lib/quantity');
-const { roundMoney } = require('../lib/money');
+const { roundMoney, rateValue, multiplyMoney } = require('../lib/money');
 const { normalizeStockQuantity } = require('./sales-validation');
 
 async function lockReferences(client, actor, payload, { creating = false } = {}) {
@@ -52,7 +52,7 @@ async function lockReferences(client, actor, payload, { creating = false } = {})
     const quantity = Number(item.quantity), rate = Number(item.unit_price);
     if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(rate) || rate < 0
       || normalizeQuantity(quantity) <= 0 || quantity > 99999999999.999
-      || roundMoney(rate) > 999999999999 || roundMoney(quantity * rate) > 999999999999) {
+      || Number(rateValue(item.unit_price)) > 999999999999 || multiplyMoney(quantity, item.unit_price) > 999999999999) {
       throw apiError(422, 'validation_failed', 'Invoice quantities and rates must be valid finite values.');
     }
     return { ...item, item_code: String(item.item_code).trim(), item_name: byCode.get(String(item.item_code).trim()).item_name,
@@ -61,7 +61,7 @@ async function lockReferences(client, actor, payload, { creating = false } = {})
   });
   const amounts = ['tax_amount', 'discount_amount'].map(field => Number(payload[field] ?? 0));
   if (amounts.some(amount => !Number.isFinite(amount) || amount < 0 || roundMoney(amount) > 999999999999)
-    || normalized.reduce((total, item) => total + roundMoney(item.quantity * roundMoney(item.unit_price)), 0) + roundMoney(amounts[0]) > 999999999999) {
+    || normalized.reduce((total, item) => total + multiplyMoney(item.quantity, item.unit_price), 0) + roundMoney(payload.tax_amount) > 999999999999) {
     throw apiError(422, 'validation_failed', 'Invoice amounts exceed supported storage bounds.');
   }
   return { ...payload, customer_name: customer.customer_name, customer_phone: customer.phone || null, invoicer: employee.employee_name, items: normalized };

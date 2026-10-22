@@ -14,3 +14,9 @@ test('financial display retains whole-shilling grouping and does not round store
  assert.match(money(12345.67),/12,346/);assert.equal(purchaseMoney(-12345.67),'Ugx -12,346');
  const input={amount:12345.67};money(input.amount);assert.equal(input.amount,12345.67);
 });
+test('selling-rate display preserves six decimal places without converting the fraction to float', () => {
+ const {rateMoney}=require('../src/web/format');
+ assert.equal(rateMoney('1.234567'),'Ugx 1.234567');
+ assert.equal(rateMoney('999999999998.999999'),'Ugx 999,999,999,998.999999');
+ assert.equal(rateMoney('100.000000'),'Ugx 100');
+});

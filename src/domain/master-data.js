@@ -3,7 +3,7 @@
 // cost centres, options, price lists and item prices. Extracted from store.js.
 const { getPostgresPool } = require('../core');
 const pricing = require('../pricing');
-const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
+const { roundMoney, storedRateValue, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
 const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
@@ -167,10 +167,10 @@ async function applySelectedItemPrices(rows, priceList) {
   if (!selected || !rows.length) return;
   const codes = rows.map((row) => row.item_code);
   const { rows: prices } = await getPostgresPool().query(`
-    SELECT item_code, price_list_rate::float FROM app_master_item_prices
+    SELECT item_code, price_list_rate::text FROM app_master_item_prices
     WHERE price_list = $1 AND item_code = ANY($2::text[]) AND active = 1
   `, [selected, codes]);
-  const byCode = new Map(prices.map((row) => [row.item_code, row.price_list_rate]));
+  const byCode = new Map(prices.map((row) => [row.item_code, storedRateValue(row.price_list_rate)]));
   for (const row of rows) {
     if (!byCode.has(row.item_code)) continue;
     row.unit_price = byCode.get(row.item_code);
@@ -181,14 +181,14 @@ async function applySelectedItemPrices(rows, priceList) {
 async function invoiceItemPrices(itemCodes, priceList) {
   const { rows } = await getPostgresPool().query(`
     SELECT item.item_code,
-      COALESCE(price.price_list_rate, item.default_rate, 0)::float AS unit_price,
+      COALESCE(price.price_list_rate, item.default_rate, 0)::text AS unit_price,
       price.id IS NOT NULL AS has_list_price
     FROM app_master_items item
     LEFT JOIN app_master_item_prices price
       ON price.item_code = item.item_code AND price.price_list = $2 AND price.active = 1
     WHERE item.item_code = ANY($1::text[])
   `, [itemCodes, priceList]);
-  return rows;
+  return rows.map(row => ({ ...row, unit_price: storedRateValue(row.unit_price) }));
 }
 
 async function masterCustomers(options = {}) {

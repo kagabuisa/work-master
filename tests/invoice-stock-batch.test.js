@@ -132,10 +132,11 @@ test('removing a line cancels the old batch and schedules fresh stock for the re
   const h = browserHarness([pair(), pair('B')]);
   const source = fs.readFileSync(path.join(__dirname, '../public/invoice.js'), 'utf8');
   const remove = { dataset: { remove: '0' }, addEventListener(_, handler) { this.click = handler; } };
-  Object.assign(h.context, { normalizeQuantity: Number, roundMoney: Number, escapeHtml: String,
+  Object.assign(h.context, { InvoiceMath: require('../src/shared/invoice-math'), normalizeQuantity: Number, roundMoney: Number, escapeHtml: String,
     formatMoney: String, renderTotals() {} });
   h.context.tbody.querySelectorAll = selector => selector === '[data-remove]' ? [remove]
     : selector === 'input' ? [] : h.cells;
+  vm.runInContext(source.slice(source.indexOf('function editableRate(value) {')), h.context);
   vm.runInContext(source.slice(source.indexOf('function renderItems() {'), source.indexOf('function addPaymentFromForm() {')), h.context);
   vm.runInContext('renderItems()', h.context);
   const old = h.refresh(); remove.click();

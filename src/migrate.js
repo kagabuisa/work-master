@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 46;
+const SCHEMA_VERSION = 47;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -218,6 +218,9 @@ const MIGRATIONS = [
   } },
   { version:46, name:'inventory_balance_covering_index', transactional:false,
     up:()=>require('./inventory-indexes').createStockBalanceCoverIndex(getPostgresPool()) },
+  { version:47, name:'exact_invoice_and_stock_values', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/exact-invoice-stock-values.sql'),'utf8'));
+  } },
 ];
 
 async function ensureSchema(pool) {

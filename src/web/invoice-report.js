@@ -29,7 +29,7 @@ const columns = [
   { key: 'source', label: 'Item Source' },
   { key: 'quantity', label: 'Quantity', type: 'number' },
   { key: 'stock_at_sale', label: 'Stock at Sale', type: 'number' },
-  { key: 'unit_price', label: 'Unit Price', type: 'money' },
+  { key: 'unit_price', label: 'Unit Price', type: 'rate' },
   { key: 'line_total', label: 'Line Total', type: 'money' },
   { key: 'item_cost', label: 'Item Cost', type: 'money' },
   { key: 'cost_rate', label: 'Cost Rate', type: 'money' },
@@ -201,7 +201,7 @@ const params = [];
         coalesce(nullif(master.category, ''), line.item_category) AS item_category,
         line.item_category AS item_category_at_sale, line.source,
         line.warehouse, line.quantity::float, line.stock_at_sale::float,
-        line.unit_price::float, line.line_total::float, line.cost::float AS item_cost,
+        line.unit_price::text, line.line_total::float, line.cost::float AS item_cost,
         line.cost_rate::float, line.cost_amount::float, line.gross_profit::float,
         CASE WHEN invoice.docstatus = 'draft' THEN 0
           ELSE payment_total.amount_paid END::float AS amount_paid,

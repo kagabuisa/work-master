@@ -11,6 +11,7 @@ const receipt = (account, reference, overrides = {}) => ({ payment_date: '2026-1
 
 test('financial input rejects lossy decimals, invalid dates, unbounded and undocumented fields', () => {
   assert.deepEqual(invoiceCreate(draft()), draft());
+  assert.equal(invoiceCreate(draft({ items: [{ item_code: 'I1', quantity: '1', unit_price: '1.234567' }] })).items[0].unit_price, '1.234567');
   for (const value of [1, true, null, '', 'NaN', 'Infinity', '1e2', '-1', '01', ' 1', '1.0001', '100000000000']) {
     assert.throws(() => invoiceCreate(draft({ items: [{ item_code: 'I1', quantity: value, unit_price: '10' }] })), { status: 400 });
   }
@@ -20,7 +21,7 @@ test('financial input rejects lossy decimals, invalid dates, unbounded and undoc
   for (const extra of [{ customer_name: 'Forged' }, { payments: [] }, { amount_paid: '1' }, { total: '1' },
     { is_cash_sale: true }, { check_stock:'true' }, { notes: 'x'.repeat(4001) }, { notes: '\0' }, { items: [] },
     { items: Array(201).fill(draft().items[0]) }, { items: [{ ...draft().items[0], warehouse: '' }] },
-    { items: [{ ...draft().items[0], unit_price: '1.001' }] }]) assert.throws(() => invoiceCreate(draft(extra)), { status: 400 });
+    { items: [{ ...draft().items[0], unit_price: '1.0000001' }] }]) assert.throws(() => invoiceCreate(draft(extra)), { status: 400 });
   assert.equal(invoiceCreate(draft({ items: Array(200).fill(draft().items[0]) })).items.length, 200);
   for (const extra of [{ method: 'bank' }, { invoice_id: '1' }, { reference: 'unprotected' },
     { account_id: '9007199254740992' }, { amount: '0' }, { external_reference: '' }, { external_source: ' provider' }]) {
@@ -149,12 +150,12 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       const results = await Promise.all([create('main-create', body), create('main-create', body)]);
       assert.deepEqual(results.map(r => r.status), [201, 201]); assert.deepEqual(results[0].body, results[1].body);
       main = results[0].body.data.id;
-      assert.equal(Number(results[0].body.data.total), 119);
+      assert.equal(Number(results[0].body.data.total), 118);
       assert.equal(results[0].body.data.docstatus, 'draft');
       assert.equal(results[0].headers.get('cache-control'), 'no-store');
       const saved = await store.findInvoice(main);
       assert.equal(saved.customer_name, 'Authoritative Customer'); assert.equal(saved.invoicer, 'Authoritative Invoicer');
-      assert.equal(saved.items[0].item_name, 'First Item'); assert.equal(saved.items[0].unit_price, 101);
+      assert.equal(saved.items[0].item_name, 'First Item'); assert.equal(saved.items[0].unit_price, '100.5');
       assert.equal(saved.items[0].quantity, 1.125); assert.equal(saved.created_by_user_id, String(user.id));
       assert.equal(saved.posting_time, '09:30'); assert.equal(saved.amount_paid, 0);
       const updatedPage = await cachedInvoiceList({});
@@ -167,7 +168,20 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       await pool.query("UPDATE app_master_customers SET disabled=false WHERE customer_id='C1'");
       assert.equal((await create('main-create', { ...body, tax_amount: '8' })).body.error.code, 'idempotency_conflict');
       const detail = await request('/invoices/' + main, { method: 'GET' }); assert.equal(detail.status, 200);
-      assert.equal(Number(detail.body.data.total), 119); assert.equal('created_by_user_id' in detail.body.data, false);
+      assert.equal(Number(detail.body.data.total), 118); assert.equal('created_by_user_id' in detail.body.data, false);
+    });
+
+    await t.test('six-decimal rates survive HTTP creation, storage and authorized detail reads', async () => {
+      for (const [rate, quantity, expected] of [['1.234567', '10', 12], ['999999999998.999999', '0.001', 1000000000]]) {
+        const made = await create('precise-rate-' + rate, draft({ items: [{ item_code: 'I1', quantity, unit_price: rate }], discount_amount: '0.49', tax_amount: '0.50' }));
+        assert.equal(made.status, 201);
+        assert.equal(Number(made.body.data.subtotal), expected);
+        assert.equal(Number(made.body.data.total), expected + 1);
+        const detail = await request('/invoices/' + made.body.data.id, { method: 'GET' });
+        assert.equal(detail.status, 200);
+        assert.equal(detail.body.data.items[0].unit_price, rate);
+        assert.equal(Number(detail.body.data.items[0].line_total), expected);
+      }
     });
 
     await t.test('draft creation enforces all reference restrictions and current permissions, including replay resource visibility', async () => {
@@ -191,7 +205,7 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       const cached = await cachedInvoiceList({});
       const results = await Promise.all([submit(main, 'main-submit'), submit(main, 'main-submit')]);
       assert.deepEqual(results.map(r => r.status), [200, 200]); assert.deepEqual(results[0].body, results[1].body);
-      assert.equal(results[0].body.data.docstatus, 'submitted'); assert.equal(Number(results[0].body.data.total), 119);
+      assert.equal(results[0].body.data.docstatus, 'submitted'); assert.equal(Number(results[0].body.data.total), 118);
       assert.equal((await pool.query("SELECT 1 FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [main])).rowCount, 1);
       assert.equal((await submit(main, 'second-submit')).body.error.code, 'state_conflict');
       assert.equal((await cachedInvoiceList({})).rows.find(row => String(row.id) === main).docstatus, 'submitted');
@@ -359,10 +373,19 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
         const gl = (await pool.query(`SELECT account_id,debit::text,credit::text FROM app_gl_entries
           WHERE (voucher_type='sales_invoice' AND voucher_id=$1) OR (voucher_type='payment_journal' AND voucher_id=$2)
           ORDER BY voucher_type,line_no`, [invoiceId, p.journal_entry_id])).rows;
-        const stock = (await pool.query("SELECT qty_change::text,outgoing_rate::text FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [invoiceId])).rows;
+        const movements = (await pool.query("SELECT qty_change::text,outgoing_rate::text,stock_value_change FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [invoiceId])).rows;
+        const inventory = (await pool.query("SELECT account_id FROM app_accounting_settings WHERE setting_key='inventory'")).rows[0].account_id;
+        const cogs = (await pool.query("SELECT account_id FROM app_accounting_settings WHERE setting_key='cost_of_goods_sold'")).rows[0].account_id;
+        const cost = -movements.reduce((sum, row) => sum + Number(row.stock_value_change), 0);
+        for (const row of gl.filter(row => [inventory, cogs].includes(row.account_id))) {
+          assert.equal(Number(row.debit) + Number(row.credit), cost);
+        }
+        // Sequential sales see different remaining values after rounded issues.
+        // Compare sales/receipt behavior and verify each cost against its own movement.
+        const stock = movements.map(({ qty_change, outgoing_rate }) => ({ qty_change, outgoing_rate }));
         return { subtotal: invoice.subtotal, total: invoice.total, amount_paid: invoice.amount_paid, status: invoice.status,
           item: { quantity: invoice.items[0].quantity, rate: invoice.items[0].unit_price, total: invoice.items[0].line_total },
-          payment: { amount: p.amount, method: p.method }, gl, stock };
+          payment: { amount: p.amount, method: p.method }, gl: gl.filter(row => ![inventory, cogs].includes(row.account_id)), stock };
       };
       assert.deepEqual(await summarize(id), await summarize(web));
       assert.equal((await summarize(id)).amount_paid, 36); assert.equal((await summarize(id)).payment.method, 'bank');

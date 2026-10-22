@@ -3271,8 +3271,8 @@
           "unit_price": {
             "type": "string",
             "maxLength": 20,
-            "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$",
-            "description": "Nonnegative decimal, maximum 999999999999; existing whole-UGX rounding applies."
+            "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,6})?$",
+            "description": "Nonnegative decimal, maximum 999999999999, up to six decimal places. Rates retain precision; each quantity \u00d7 rate line amount rounds to whole UGX, half away from zero."
           },
           "warehouse": {
             "type": "string",

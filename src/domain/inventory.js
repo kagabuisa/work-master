@@ -688,6 +688,7 @@ async function cancelStockEntry(id, payload = {}) {
         qty_change: qtyChange,
         rate,
         force_outgoing_rate: forceOutgoingRate,
+        reversal_of_ledger_id: row.id,
         is_reversal: true,
         reversal_of_voucher_id: stockEntryId,
         reversal_of_voucher_no: entry.entry_no,
@@ -881,7 +882,7 @@ async function stockLedgerVoucherDetails(voucherType, voucherId) {
     const purchase = rows[0];
     if (!purchase) return null;
     const { rows: items } = await getPostgresPool().query(`
-      SELECT item_code, warehouse, quantity::float, unit_price::float, line_total::float
+      SELECT item_code, warehouse, quantity::float, unit_price::text, line_total::float
       FROM app_purchase_items WHERE purchase_id = $1 ORDER BY line_no
     `, [id]);
     return {

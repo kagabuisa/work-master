@@ -44,7 +44,7 @@
           <td class="item-code-col"><strong><%= item.item_code %></strong></td>
           <td class="warehouse-col"><%= item.warehouse || '' %></td>
           <td class="invoice-number-cell"><%= Number(item.quantity).toLocaleString() %></td>
-          <td class="invoice-number-cell"><%= money(item.unit_price) %></td>
+          <td class="invoice-number-cell"><%= rateMoney(item.unit_price) %></td>
           <td class="invoice-number-cell"><%= money(item.line_total) %></td>
           <td class="tracking-info"><%= item.created_by || 'Unknown' %><% if (lineAuditTime(item.created_at)) { %> <small><%= lineAuditTime(item.created_at) %></small><% } %></td>
           <td class="tracking-info"><%= item.updated_by || 'Unknown' %><% if (lineAuditTime(item.updated_at)) { %> <small><%= lineAuditTime(item.updated_at) %></small><% } %></td>

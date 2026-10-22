@@ -4,7 +4,7 @@
   const dashboard=document.querySelector('#count-effect-dashboard');
   function refreshEffects(){
     const lines=[...form.querySelectorAll('#count-item-rows tr')].map(row=>{
-      const line={book_qty:row.dataset.bookQty,book_rate:row.dataset.bookRate,counted_qty:row.querySelector('[name="counted_qty"]').value,valuation_rate:row.querySelector('[name="valuation_rate"]').value};
+      const line={book_qty:row.dataset.bookQty,book_value:row.dataset.bookValue,book_rate:row.dataset.bookRate,counted_qty:row.querySelector('[name="counted_qty"]').value,valuation_rate:row.querySelector('[name="valuation_rate"]').value};
       const effect=CountEffects.lineEffect(line);
       const qty=row.querySelector('[data-line-effect="quantity"]'),value=row.querySelector('[data-line-effect="value"]');
       if(qty)qty.textContent=effect.counted?CountEffects.formatQuantity(effect.quantity):'Not counted';
@@ -96,7 +96,7 @@
       if(!response.ok)throw new Error(data.error||'Could not add the item.');
       const line=data.line;
       const row=document.createElement('tr');
-      row.dataset.bookQty=line.book_qty;row.dataset.bookRate=line.book_rate;
+      row.dataset.bookQty=line.book_qty;row.dataset.bookValue=line.book_value;row.dataset.bookRate=line.book_rate;
       const cell=text=>{const td=document.createElement('td');td.textContent=String(text);row.appendChild(td);return td;};
       const field=(td,name,value,type,label)=>{const element=document.createElement('input');element.name=name;element.value=value;element.type=type;if(type!=='hidden'){element.setAttribute('aria-label',`${label} for ${line.item_code}`);if(type==='number'){element.min='0';element.step=name==='counted_qty'?'0.001':'1';}}td.appendChild(element);};
       field(cell(line.item_code),'item_code',line.item_code,'hidden');

@@ -179,8 +179,8 @@
       "reference_no": "INV-000001",
       "remarks": "Sales invoice INV-000001",
       "cost_center": null,
-      "total_debit": 753,
-      "total_credit": 753,
+      "total_debit": 754,
+      "total_credit": 754,
       "created_at": "<volatile>"
     }
   ],
@@ -234,8 +234,8 @@
         "opening_debit": 0,
         "opening_credit": 0,
         "period_debit": 910,
-        "period_credit": 269,
-        "closing_debit": 641,
+        "period_credit": 270,
+        "closing_debit": 640,
         "closing_credit": 0
       },
       {
@@ -305,9 +305,9 @@
         "normal_balance": "debit",
         "opening_debit": 0,
         "opening_credit": 0,
-        "period_debit": 159,
+        "period_debit": 160,
         "period_credit": 0,
-        "closing_debit": 159,
+        "closing_debit": 160,
         "closing_credit": 0
       },
       {
@@ -326,8 +326,8 @@
     "summary": {
       "opening_debit": 0,
       "opening_credit": 0,
-      "period_debit": 2048,
-      "period_credit": 2048,
+      "period_debit": 2049,
+      "period_credit": 2049,
       "closing_debit": 1579,
       "closing_credit": 1579
     },
@@ -361,9 +361,9 @@
         "account_code": "5000",
         "account_name": "Cost of Goods Sold",
         "account_type": "expense",
-        "debit": 159,
+        "debit": 160,
         "credit": 0,
-        "amount": 159
+        "amount": 160
       },
       {
         "account_code": "5100",
@@ -376,10 +376,10 @@
     ],
     "summary": {
       "total_income": 650,
-      "cost_of_goods_sold": 159,
-      "gross_profit": 491,
-      "total_expenses": 269,
-      "net_profit": 381
+      "cost_of_goods_sold": 160,
+      "gross_profit": 490,
+      "total_expenses": 270,
+      "net_profit": 380
     }
   },
   "balanceSheet": {
@@ -416,8 +416,8 @@
         "account_name": "Inventory",
         "account_type": "asset",
         "debit": 910,
-        "credit": 269,
-        "amount": 641
+        "credit": 270,
+        "amount": 640
       }
     ],
     "liabilities": [
@@ -453,14 +453,14 @@
         "account_type": "equity",
         "debit": 0,
         "credit": 0,
-        "amount": 381
+        "amount": 380
       }
     ],
     "summary": {
-      "total_assets": 1310,
+      "total_assets": 1309,
       "total_liabilities": 354,
-      "total_equity": 956,
-      "liabilities_plus_equity": 1310,
+      "total_equity": 955,
+      "liabilities_plus_equity": 1309,
       "difference": 0,
       "is_balanced": true
     }
@@ -686,10 +686,10 @@
         "voucher_id": "1",
         "voucher_no": "INV-000001",
         "voucher_exists": true,
-        "debit": 159,
+        "debit": 160,
         "credit": 0,
         "remarks": "Cost of goods sold",
-        "running_balance": 159
+        "running_balance": 160
       },
       {
         "id": "13",
@@ -705,9 +705,9 @@
         "voucher_no": "INV-000001",
         "voucher_exists": true,
         "debit": 0,
-        "credit": 159,
+        "credit": 160,
         "remarks": "Inventory sold",
-        "running_balance": 641
+        "running_balance": 640
       },
       {
         "id": "14",
@@ -792,8 +792,8 @@
       "end": 17
     },
     "summary": {
-      "debit": 2048,
-      "credit": 2048,
+      "debit": 2049,
+      "credit": 2049,
       "balance": 0
     },
     "opening_rows": [
@@ -970,9 +970,9 @@
         "qty_change": -3,
         "incoming_rate": 0,
         "outgoing_rate": 53,
-        "stock_value_change": -159,
+        "stock_value_change": -160,
         "qty_after_transaction": 12,
-        "stock_value_after_transaction": 641
+        "stock_value_after_transaction": 640
       }
     ],
     "pagination": {
@@ -1003,9 +1003,9 @@
         "opening_value": 0,
         "in_qty": 17,
         "out_qty": 5,
-        "value_change": 641,
+        "value_change": 640,
         "closing_qty": 12,
-        "closing_value": 641
+        "closing_value": 640
       }
     ],
     "summary": {
@@ -1014,8 +1014,8 @@
       "out_qty": 5,
       "closing_qty": 12,
       "opening_value": 0,
-      "value_change": 641,
-      "closing_value": 641
+      "value_change": 640,
+      "closing_value": 640
     },
     "pagination": {
       "page": 1,
@@ -1047,14 +1047,14 @@
         "warehouse": "Golden Warehouse",
         "quantity": 3,
         "sales_amount": 540,
-        "cost_amount": 159,
-        "gross_profit": 381
+        "cost_amount": 160,
+        "gross_profit": 380
       }
     ],
     "summary": {
       "sales_amount": 540,
-      "cost_amount": 159,
-      "gross_profit": 381,
+      "cost_amount": 160,
+      "gross_profit": 380,
       "invoice_total": 0,
       "paid_total": 0,
       "balance_due": 0,

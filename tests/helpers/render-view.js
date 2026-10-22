@@ -9,6 +9,7 @@ const { DEFAULT_DATE_TIME_SETTINGS, formatDate, formatTime, formatDateTime, form
 function renderView(file, locals = {}) {
   const settings = locals.dateTimeSettings || { ...DEFAULT_DATE_TIME_SETTINGS };
   return ejs.renderFile(file, {
+    rateMoney: require('../../src/web/format').rateMoney,
     countEffects: require('../../public/count-effects'),
     stockEntryChoices: require('../../src/constants').STOCK_ENTRY_CHOICES,
     stockEntryTypeLabels: require('../../src/constants').STOCK_ENTRY_TYPE_LABELS,

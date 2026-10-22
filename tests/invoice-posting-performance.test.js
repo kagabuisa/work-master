@@ -18,8 +18,9 @@ test('batched invoice costs preserve repeated-item valuation, rollback and concu
     const id = await create([2,3]); await store.submitInvoice(id);
     const lines = (await pool.query('SELECT * FROM app_invoice_items WHERE invoice_pk=$1 ORDER BY line_no',[id])).rows;
     assert.deepEqual(lines.map(r => Number(r.stock_at_sale)), [Number(initial.quantity),Number(initial.quantity)-2]);
+    const movements = (await pool.query("SELECT stock_value_change FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1 ORDER BY id", [id])).rows;
     for (const line of lines) {
-      assert.equal(Number(line.cost_amount),Number(line.quantity)*Number(line.cost_rate));
+      assert.equal(Number(line.cost_amount), -Number(movements[Number(line.line_no) - 1].stock_value_change));
       assert.equal(Number(line.gross_profit),Number(line.line_total)-Number(line.cost_amount));
     }
     const beforeFailure = await balance();
@@ -62,8 +63,8 @@ test('batch creation preserves 100 line snapshots, rounding and per-row audit id
     rows.forEach((row, index) => {
       assert.equal(Number(row.line_no), index + 1);
       assert.equal(Number(row.quantity), items[index].quantity);
-      assert.equal(Number(row.unit_price), 180);
-      assert.equal(Number(row.line_total), Math.round(items[index].quantity * 180));
+      assert.equal(Number(row.unit_price), 180.25);
+      assert.equal(Number(row.line_total), require('../src/shared/invoice-math').multiplyMoney(items[index].quantity, '180.25'));
       assert.equal(Number(row.stock_at_sale), 500);
       assert.equal(row.item_category, 'Batch category'); assert.equal(row.source, 'Batch source');
       assert.equal(Number(row.cost), 42.25);
