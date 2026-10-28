@@ -118,6 +118,6 @@ router.get('/payroll/:id/export',handle(async(req,res)=>{
 router.get('/payroll/:id/payslips/:slipId',handle(async(req,res)=>{
   const data=await hr.payrollDetails(req.params.id,req.currentUser);
   const slip=data.slips.find(s=>String(s.id)===req.params.slipId);if(!slip)fail('Payslip not found.',404);
-  return render(req,res,'payslip',`Payslip — ${slip.employee_name}`,{run:data.run,slip});
+  return render(req,res,'payslip',`Payslip — ${slip.employee_name}`,await hr.payslipDetails(slip.id,req.currentUser));
 }));
 module.exports=router;

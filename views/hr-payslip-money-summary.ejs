@@ -1,0 +1,23 @@
+<% if(typeof employeeMoneySummary!=='undefined' && employeeMoneySummary){ const summary=employeeMoneySummary; %>
+<section aria-label="Employee money summary">
+<%- include('ui-section-heading',{heading:{title:'Employee Money summary',help:'Loan, advance, and charge recoveries are already included in salary deductions above. This summary explains the employee balances and does not deduct them again. Reimbursements are amounts owed to the employee and are shown separately.'}}) %>
+<% if(summary.status==='unavailable'){ %>
+<p class="muted">Historical employee money balances were not saved for this payslip.</p>
+<% }else{ %>
+<p><%= summary.status==='provisional'?'PROVISIONAL — projected balances; payroll is not posted.':summary.status==='cancelled'?'CANCELLED — original balances retained for reference; recoveries from this payroll have been reversed.':'Balances frozen when payroll was posted.' %> Transactions through <%= formatDate(summary.as_of_date) %>.</p>
+<p class="muted">Only employee balances within your permitted records are included.</p>
+<% if(summary.invalid_recovery){ %><p class="notice warning" role="alert">A recovery exceeds its available balance. Review the draft before posting.</p><% } %>
+<div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Employee money</th><th>Balance before<br>payroll</th><th>Recovered this<br>payslip</th><th>Balance<br>remaining</th></tr></thead><tbody>
+<% const kindLabels={loan:'Loan',advance:'Salary advance',recovery:'Recovery / charge'}; summary.debts.forEach(row=>{ %>
+<tr><td class="ui-wrap-text"><div><%= kindLabels[row.kind] %> · HRM-<%= row.money_id %></div><div class="muted"><%= row.reason %></div></td><td class="ui-amount"><%= money(row.balance_before) %></td><td class="ui-amount"><%= money(row.recovered) %></td><td class="ui-amount"><%= money(row.balance_remaining) %></td></tr>
+<% }); if(!summary.debts.length){ %><tr><td colspan="4">No employee debts available in your permitted records.</td></tr><% } %>
+</tbody><tfoot><tr><th>Total owed by employee</th><td class="ui-amount"><%= money(summary.totals.balance_before) %></td><td class="ui-amount"><%= money(summary.totals.recovered) %></td><td class="ui-amount"><%= money(summary.totals.balance_remaining) %></td></tr></tfoot></table></div>
+<% if(summary.reimbursements.length){ %>
+<%- include('ui-section-heading',{heading:{title:'Reimbursements owed to employee'}}) %>
+<div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Reference</th><th>Reason</th><th>Outstanding reimbursement</th></tr></thead><tbody>
+<% summary.reimbursements.forEach(row=>{ %><tr><td>HRM-<%= row.money_id %></td><td class="ui-wrap-text"><%= row.reason %></td><td class="ui-amount"><%= money(row.balance_remaining) %></td></tr><% }); %>
+</tbody><tfoot><tr><th colspan="2">Total owed to employee</th><td class="ui-amount"><%= money(summary.reimbursement_total) %></td></tr></tfoot></table></div>
+<% } %>
+<% } %>
+</section>
+<% } %>

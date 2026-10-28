@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 47;
+const SCHEMA_VERSION = 48;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -220,6 +220,10 @@ const MIGRATIONS = [
     up:()=>require('./inventory-indexes').createStockBalanceCoverIndex(getPostgresPool()) },
   { version:47, name:'exact_invoice_and_stock_values', up:async client => {
     await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/exact-invoice-stock-values.sql'),'utf8'));
+  } },
+  { version:48, name:'payslip_employee_money_snapshot', up:async client => {
+    await client.query('ALTER TABLE app_hr_slips ADD COLUMN IF NOT EXISTS employee_money_snapshot JSONB');
+    await client.query('CREATE INDEX IF NOT EXISTS app_hr_money_employee_date_idx ON app_hr_money(employee_id,posting_date,id)');
   } },
 ];
 

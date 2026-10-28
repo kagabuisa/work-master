@@ -39,13 +39,15 @@ Master directories use `ui-list-compact` on the page shell. Reuse this density m
 
 Use one primary button per action group. Use `button-light` for secondary navigation and reset actions. Keep cancellation labels explicit. Table amounts align right with tabular numerals; badges convey status through text as well as color. Empty states explain that no records match the current view.
 
+Use `ui-wrap-text` on read-only table cells containing long narrative text or references. It preserves the complete text and permits wrapping inside long words, including in printed payslip summaries; monetary cells retain `ui-amount` alignment and formatting.
+
 For a compact mini dashboard, add `ui-metrics-compact` to `ui-report-metrics`. Each label and figure share one row: label on the left, full figure on the right. Figures use responsive 10–12-pixel text; cards have a 240-pixel preferred minimum width and rearrange rather than squeezing their contents. Debtors is the reference. Keep values inside card boundaries without truncating them, and verify large and negative amounts at desktop and mobile widths.
 
 ## Verification
 
 Check real rendered templates at desktop and mobile widths, including empty results, long labels, disabled controls, helper disclosure, and horizontal table scrolling. Confirm field names, action URLs, permissions, and pagination parameters remain correct. Run the relevant tests and rebuild the app as required by `AGENTS.md`.
 
-Use `ui-download-menu.ejs` inside a report filter form for a single Download disclosure with CSV, Excel, and PDF submit options. It uses the shared filter panel styling and `filter-row.js` top-layer positioning so options remain visible above scrolling filter bars. The native disclosure supports keyboard opening; Escape and outside clicks close the floating panel.
+Use `ui-download-menu.ejs` inside a report filter form for a single Download disclosure with CSV, Excel, and PDF submit options. Pass optional `formats` (for example, `['xlsx', 'pdf']`) and `downloadAction` to restrict available formats and submit to a separate export route. It uses the shared filter panel styling and `filter-row.js` top-layer positioning so options remain visible above scrolling filter bars. The native disclosure supports keyboard opening; Escape and outside clicks close the floating panel.
 
 
 Use `ui-party-balance-strip.ejs` with a `strip` object (`title`, `rows`, `partyLabel`, `positiveLabel`, `negativeLabel`, `help`) for matching customer/supplier positions. It reuses `ui-summary-line`, the shared section heading, and three evenly distributed labelled fields: party, Payment position, and Balance (UGX). The amount aligns right and payment position is centred. At 800px and below, the name moves above position and amount. Full values remain visible; zero balances show Settled.
@@ -65,3 +67,5 @@ Use `ui-metrics-three` with compact report metrics for three columns of related 
 Stock entry preview metadata uses `ui-voucher-attributes ui-attributes-compact ui-attributes-inline` for one compact horizontal row in full and drawer previews. Use a direct `form.ui-attribute-control` child for an editable attribute with an adjacent save button; its controls stay inline and share the strip's dividers and padding. The inline modifier sizes text attributes to their contents so the row fits drawers; the strip scrolls horizontally on narrow screens without wrapping fields or controls. Fixed outline labels remain enabled for these form fields.
 
 Use the shared `ui-access-panel`, `ui-access-invite`, and `ui-access-list` components for record sharing. Show one identity and one access selector per person, with a small labelled remove control. Keep timestamps secondary, reserve a quiet feedback line for save/error messages, and keep the invite action separate from existing people. Invite fields retain fixed outline labels; list selectors use explicit accessible names and `data-standard-labels`. On small screens, move row controls below the identity without truncating names. Changes save in place and restore focus; a visible Save button remains available without JavaScript.
+
+Use `ui-multi-select.ejs` for checkbox-based multiple selection in report filter bars. Pass a `picker` with `label`, `name`, `options`, and `selected`. Include `ui-multi-select.js` for search, selected counts, Select all shown, and Clear all; the shared `filter-row.js` positions its disclosure panel above scrolling toolbars. Checkbox labels remain standard labels. ERPNext Stock Balance is the reference.

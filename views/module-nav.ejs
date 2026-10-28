@@ -65,6 +65,7 @@
         <% if (can('vouchers.stock.view') && !supplierScoped) { %><a href="/stock/entries">Stock Entries</a><% } %>
         <% if ((can('vouchers.stock.view') || can('inventory.count.view') || can('inventory.correction.view')) && !supplierScoped) { %><a href="<%= can('vouchers.stock.view') ? '/stock/reconciliations' : can('inventory.count.view') ? '/stock/reconciliations/counts' : '/stock/reconciliations/corrections' %>">Stock Reconciliation</a><% } %>
         <% if (can('vouchers.stock.view')) { %><a href="/stock">Stock Balance</a><% } %>
+        <% if (can('vouchers.stock.view')) { %><a href="/stock/erpnext">Stock Balance · ERPNext</a><% } %>
         <% if (can('reports.stock-ledger.view') && !scoped) { %><a href="/reports/stock-ledger">Stock Ledger</a><% } %>
         <% if (can('reports.stock-movement.view') && !scoped) { %><a href="/reports/stock-movement">Stock Movement</a><% } %>
       </div>

@@ -27,6 +27,7 @@ function homeSections(user, locals) {
   add('Stocks', 'Entries, balances and physical counts.', [
     ...(!supplierScoped ? link('vouchers.stock.view', 'Stock Entries', '/stock/entries') : []),
     ...link('vouchers.stock.view', 'Stock Balance', '/stock'),
+    ...link('vouchers.stock.view', 'Stock Balance · ERPNext', '/stock/erpnext'),
     ...(!supplierScoped ? link('vouchers.stock.create', 'New Stock Entry', '/stock/entries/new') : []),
     ...(!supplierScoped && (can('vouchers.stock.view') || can('inventory.count.view') || can('inventory.correction.view'))
       ? [{label:'Stock Reconciliation',href:can('vouchers.stock.view')?'/stock/reconciliations':can('inventory.count.view')?'/stock/reconciliations/counts':'/stock/reconciliations/corrections'}] : []),

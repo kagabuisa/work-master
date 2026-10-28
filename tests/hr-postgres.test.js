@@ -9,6 +9,179 @@ const admin={role:'admin',id:1,username:'HR Admin'};
 const restrictedUserFor=employeeId=>({role:'finance',record_access:{employee_id:employeeId},permissions:['hr.payroll.view']});
 const author={role:'finance',id:2,username:'Author',permissions:[]};
 
+test('payslip Employee Money balances are dated, frozen, scoped and independent of salary totals',{
+  skip:process.env.HR_TEST_POSTGRES!=='1',
+},async()=>{
+  const pool=store.getPostgresPool();
+  try{
+    assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name,/_hr_test$/);
+    await pool.query('DROP SCHEMA public CASCADE');await pool.query('CREATE SCHEMA public');await store.initStore();
+    await pool.query("INSERT INTO app_master_employees(employee_id,employee_name,company,status) VALUES('SUM-E1','Summary employee','Summary Company','Active'),('SUM-E2','Other employee','Summary Company','Active')");
+    await pool.query("INSERT INTO app_master_cost_centers(cost_center,cost_center_name) VALUES('SUM Shop','Summary shop'),('SUM Other','Other shop')");
+    const ids={};
+    for(const [name,type,detail] of [['salary','expense','Expense Account'],['offset','expense','Expense Account'],['payable','liability','Payable'],['loan','asset','Receivable'],['advance','asset','Receivable'],['charge','asset','Receivable'],['bank','asset','Bank']])
+      ids[name]=(await pool.query('INSERT INTO app_accounts(account_code,account_name,account_type,account_detail_type,normal_balance) VALUES($1,$1,$2,$3,$4) RETURNING id',[`SUM-${name}`,type,detail,['asset','expense'].includes(type)?'debit':'credit'])).rows[0].id;
+    await runWithAuditUser(admin,async()=>{
+      await hr.saveProfile('SUM-E1',{joining_date:'2026-01-01',cost_center:'SUM Shop'},admin);
+      await hr.saveSettings({action:'accounts',salary_payable_account_id:ids.payable},admin);
+      const components=[{label:'Salary',kind:'earning',amount:200000,account_id:ids.salary}];
+      await hr.savePayPlan('SUM-E1',{effective_from:'2026-01-01',components},admin);
+      const create=async(kind,amount,posting_date,reason,extra={})=>{
+        const id=await hr.createMoney({employee_id:'SUM-E1',kind,amount,posting_date,reason,
+          account_id:ids[kind==='recovery'?'charge':kind==='reimbursement'?'payable':kind],
+          offset_account_id:['recovery','reimbursement'].includes(kind)?ids.offset:undefined,...extra},admin);
+        await hr.moneyAction(id,'submit',admin);return id;
+      };
+      const pay=(id,amount,posting_date,direction='payout')=>hr.payMoney(id,{amount,posting_date,bank_account_id:ids.bank,reference:'Summary test'},admin,direction);
+      const loan=await create('loan',100000,'2026-01-01','Original loan');await pay(loan,100000,'2026-01-01');
+      const returned=await pay(loan,2000,'2026-01-10','return');
+      await hr.cancelPayment('money',loan,returned,{posting_date:'2026-02-02'},admin);
+      await pay(loan,3000,'2026-02-05','return');
+      const advance=await create('advance',30000,'2026-01-02','Advance');await pay(advance,20000,'2026-01-02');await pay(advance,10000,'2026-02-01');
+      const charge=await create('recovery',30000,'2026-01-03','Approved charge');
+      const reimbursement=await create('reimbursement',5000,'2026-01-04','Transport');
+      const reimbursementPayment=await pay(reimbursement,1000,'2026-01-06');
+      await hr.cancelPayment('money',reimbursement,reimbursementPayment,{posting_date:'2026-02-02'},admin);
+      await create('loan',9000,'2026-01-05','Unfunded loan');
+      const otherScope=await create('loan',7000,'2026-01-05','Other cost center',{cost_center:'SUM Other'});await pay(otherScope,7000,'2026-01-05');
+      const future=await create('loan',40000,'2026-02-01','Future loan');await pay(future,40000,'2026-02-01');
+      const otherEmployee=await create('loan',88888,'2026-01-01','Unrelated employee',{employee_id:'SUM-E2'});await pay(otherEmployee,88888,'2026-01-01');
+      const newRun=async(period,posting_date)=>{
+        const id=await hr.createPayroll({company:'Summary Company',period,posting_date,employee_ids:['SUM-E1']},admin);
+        return {id,slip:(await hr.payrollDetails(id,admin)).slips[0]};
+      };
+      // A future-dated posted recovery must not reduce January's opening balance.
+      const feb=await newRun('2026-02','2026-02-28');
+      await hr.updateSlip(feb.id,feb.slip.id,{paid_days:28,input_note:'February loan recovery',components,recoveries:[{money_id:loan,amount:5000}]},admin);
+      await hr.payrollAction(feb.id,'submit',admin);
+      const jan=await newRun('2026-01','2026-01-31');
+      await hr.updateSlip(jan.id,jan.slip.id,{paid_days:31,input_note:'January recoveries',components,recoveries:[
+        {money_id:loan,amount:10000},{money_id:advance,amount:5000},{money_id:charge,amount:30000},
+      ]},admin);
+      const before=await hr.payslipDetails(jan.slip.id,admin);
+      assert.equal(before.employeeMoneySummary.status,'provisional');
+      assert.equal(Number(before.slip.net_pay),155000);
+      const loanRow=before.employeeMoneySummary.debts.find(row=>String(row.money_id)===String(loan));
+      assert.deepEqual([loanRow.balance_before,loanRow.recovered,loanRow.balance_remaining],[98000,10000,88000]);
+      assert.equal(before.employeeMoneySummary.reimbursement_total,4000,'dated reimbursement reversal is excluded from January');
+      assert.equal(before.employeeMoneySummary.debts.length,4,'includes outstanding permitted scopes, omits unfunded/future/other employees');
+      assert.deepEqual(before.employeeMoneySummary.totals,{balance_before:155000,recovered:45000,balance_remaining:110000});
+      assert.equal((await pool.query('SELECT employee_money_snapshot FROM app_hr_slips WHERE id=$1',[jan.slip.id])).rows[0].employee_money_snapshot,null);
+      const payrollOnly={role:'finance',permissions:['hr.payroll.view'],record_access:{employee_id:'SUM-E1'}};
+      assert.equal((await hr.payslipDetails(jan.slip.id,payrollOnly)).employeeMoneySummary,null);
+      await pool.query(`CREATE FUNCTION fail_summary_posting() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.voucher_type='hr_payroll' THEN RAISE EXCEPTION 'forced summary posting rollback'; END IF; RETURN NEW; END $$;
+        CREATE TRIGGER fail_summary_posting BEFORE INSERT ON app_gl_entries FOR EACH ROW EXECUTE FUNCTION fail_summary_posting()`);
+      await assert.rejects(()=>hr.payrollAction(jan.id,'submit',admin),/forced summary posting rollback/);
+      assert.equal((await pool.query('SELECT employee_money_snapshot FROM app_hr_slips WHERE id=$1',[jan.slip.id])).rows[0].employee_money_snapshot,null,'a failed ledger posting cannot leave a frozen summary');
+      await pool.query('DROP TRIGGER fail_summary_posting ON app_gl_entries; DROP FUNCTION fail_summary_posting()');
+      const reviewer={role:'finance',id:99,permissions:['hr.payroll.view','hr.payroll.submit']};
+      await runWithAuditUser(reviewer,()=>hr.payrollAction(jan.id,'submit',reviewer));
+      const frozen=await hr.payslipDetails(jan.slip.id,admin);
+      assert.equal(frozen.employeeMoneySummary.status,'frozen');
+      assert.deepEqual(frozen.employeeMoneySummary.debts,before.employeeMoneySummary.debts);
+      assert.equal(frozen.employeeMoneySummary.debts.find(row=>String(row.money_id)===String(charge)).balance_remaining,0,'final recovery stays on the issued payslip');
+      assert.ok(!Object.hasOwn(frozen.slip,'employee_money_snapshot'));
+      assert.ok(!(await hr.payslipList(payrollOnly)).some(s=>Object.hasOwn(s,'employee_money_snapshot')));
+      assert.ok(!(await hr.payrollDetails(jan.id,payrollOnly)).slips.some(s=>Object.hasOwn(s,'employee_money_snapshot')));
+      const scoped={...payrollOnly,permissions:['hr.payroll.view','hr.money.view'],record_access:{employee_id:'SUM-E1',cost_center:'SUM Shop'},permission_denials:[`account.view:${ids.offset}`]};
+      const visible=(await hr.payslipDetails(jan.slip.id,scoped)).employeeMoneySummary;
+      assert.deepEqual(visible.totals,{balance_before:118000,recovered:15000,balance_remaining:103000});
+      assert.equal(visible.reimbursements.length,0);
+      await pay(loan,10000,'2026-03-01','return');
+      await pay(reimbursement,5000,'2026-03-01');
+      assert.deepEqual((await hr.payslipDetails(jan.slip.id,admin)).employeeMoneySummary,frozen.employeeMoneySummary);
+      await hr.payrollAction(jan.id,'cancel',admin,{posting_date:'2026-03-05',reason:'Cancelled summary stays historical'});
+      const cancelled=(await hr.payslipDetails(jan.slip.id,admin)).employeeMoneySummary;
+      assert.equal(cancelled.status,'cancelled');assert.deepEqual(cancelled.debts,frozen.employeeMoneySummary.debts);
+      const march=await newRun('2026-03','2026-03-31');
+      const marchLoan=async()=> (await hr.payslipDetails(march.slip.id,admin)).employeeMoneySummary.debts.find(row=>String(row.money_id)===String(loan));
+      assert.equal((await marchLoan()).balance_before,82000,'January cancellation restores its recovery; February still applies');
+      await hr.payrollAction(feb.id,'cancel',admin,{posting_date:'2026-03-06',reason:'Restore February recovery'});
+      assert.equal((await marchLoan()).balance_before,87000,'a dated payroll reversal restores the loan balance');
+      await store.initStore();assert.deepEqual((await hr.payslipDetails(jan.slip.id,admin)).employeeMoneySummary,cancelled);
+      await pool.query('UPDATE app_hr_slips SET employee_money_snapshot=NULL WHERE id=$1',[jan.slip.id]);
+      assert.deepEqual((await hr.payslipDetails(jan.slip.id,admin)).employeeMoneySummary,{status:'unavailable'},'legacy payslips never substitute current balances');
+    });
+  }finally{await store.closeStore();}
+});
+
+test('salary deductions enforce the expense restriction through payroll posting and reversal',{
+  skip:process.env.HR_TEST_POSTGRES!=='1',
+},async()=>{
+  const pool=store.getPostgresPool();
+  try{
+    assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name,/_hr_test$/);
+    await pool.query('DROP SCHEMA public CASCADE');await pool.query('CREATE SCHEMA public');await store.initStore();
+    await pool.query("INSERT INTO app_master_employees(employee_id,employee_name,company,status) VALUES('DEDUCT-E1','Deduction employee','Deduction Company','Active')");
+    const ids={};
+    for(const [code,name,type,detail] of [
+      ['5236','Salary - SACL','expense','Expense Account'],['6000','Deductions','expense','Expense Account'],
+      ['2101','Deduction tax payable','liability','Tax'],['2102','Deduction salary payable','liability','Payable'],
+      ['1501','Deduction employee loans','asset','Receivable'],['1401','Deduction bank','asset','Bank'],
+    ])ids[code]=(await pool.query(`INSERT INTO app_accounts(account_code,account_name,account_type,account_detail_type,normal_balance)
+      VALUES($1,$2,$3,$4,$5) RETURNING id`,[code,name,type,detail,['asset','expense'].includes(type)?'debit':'credit'])).rows[0].id;
+    const components=[
+      {label:'Salary',kind:'earning',amount:100000,account_id:ids['5236']},
+      {label:'Salary reduction',kind:'deduction',amount:10000,account_id:ids['5236']},
+      {label:'Tax',kind:'deduction',amount:5000,account_id:ids['2101']},
+    ];
+    const plan={effective_from:'2026-01-01',components};
+    const payroll={company:'Deduction Company',period:'2026-01',posting_date:'2026-01-31',employee_ids:['DEDUCT-E1']};
+    const error=/Deductions require a liability account or Salary - SACL/;
+    await runWithAuditUser(admin,async()=>{
+      await hr.saveSettings({action:'accounts',salary_payable_account_id:ids['2102']},admin);
+      for(const invalidId of [ids['6000'],ids['1501']])await assert.rejects(()=>hr.savePayPlan('DEDUCT-E1',{
+        ...plan,components:components.map((c,i)=>i===1?{...c,account_id:invalidId}:c),
+      },admin),error);
+      await hr.savePayPlan('DEDUCT-E1',plan,admin);
+      const opts=await hr.options(admin);
+      assert.ok(opts.accounts.find(a=>a.id===ids['5236']).payroll_component_kinds.includes('deduction'));
+      assert.ok(!opts.accounts.find(a=>a.id===ids['6000']).payroll_component_kinds.includes('deduction'));
+      const badComponents=components.map((c,i)=>i===1?{...c,account_id:ids['6000']}:c);
+      // Saved plans and drafts must be rechecked even if changed outside the form.
+      await pool.query('UPDATE app_hr_pay_plans SET components=$1 WHERE employee_id=$2',[JSON.stringify(badComponents),'DEDUCT-E1']);
+      await assert.rejects(()=>hr.createPayroll(payroll,admin),error);
+      await hr.savePayPlan('DEDUCT-E1',plan,admin);
+      await pool.query('UPDATE app_accounts SET is_active=false WHERE id=$1',[ids['5236']]);
+      await assert.rejects(()=>hr.createPayroll(payroll,admin),/active posting account/);
+      await pool.query('UPDATE app_accounts SET is_active=true,is_group=true WHERE id=$1',[ids['5236']]);
+      await assert.rejects(()=>hr.savePayPlan('DEDUCT-E1',plan,admin),/active posting account/);
+      await pool.query("UPDATE app_accounts SET is_group=false,account_name='Renamed salary expense' WHERE id=$1",[ids['5236']]);
+      await assert.rejects(()=>hr.createPayroll(payroll,{role:'finance',permission_denials:[`account.view:${ids['5236']}`]}),e=>e.status===403);
+      const loan=await hr.createMoney({employee_id:'DEDUCT-E1',kind:'loan',posting_date:'2026-01-01',amount:100000,account_id:ids['1501'],reason:'Monthly loan'},admin);
+      await hr.moneyAction(loan,'submit',admin);
+      await hr.payMoney(loan,{amount:100000,posting_date:'2026-01-01',bank_account_id:ids['1401'],reference:'Loan disbursement'},admin);
+      const runId=await hr.createPayroll(payroll,admin);
+      const slip=(await hr.payrollDetails(runId,admin)).slips[0];
+      const inputs={paid_days:31,input_note:'Salary reduction, tax and monthly loan recovery reviewed',components,recoveries:[{money_id:loan,amount:10000}]};
+      await assert.rejects(()=>hr.updateSlip(runId,slip.id,{...inputs,components:badComponents},admin),error);
+      await hr.updateSlip(runId,slip.id,inputs,admin);
+      const reviewed=(await hr.payrollDetails(runId,admin)).slips[0];
+      assert.equal(Number(reviewed.net_pay),75000);
+      assert.equal((await hr.moneyList(admin))[0].balance,100000,'draft recovery does not reduce the loan');
+      await pool.query('UPDATE app_hr_slips SET components=$1 WHERE id=$2',[JSON.stringify(badComponents),slip.id]);
+      await assert.rejects(()=>hr.payrollAction(runId,'submit',admin),error);
+      assert.equal((await pool.query("SELECT count(*)::int n FROM app_gl_entries WHERE voucher_type='hr_payroll' AND voucher_id=$1",[runId])).rows[0].n,0);
+      await pool.query('UPDATE app_hr_slips SET components=$1 WHERE id=$2',[JSON.stringify(reviewed.components),slip.id]);
+      await pool.query('UPDATE app_accounts SET is_active=false WHERE id=$1',[ids['5236']]);
+      await assert.rejects(()=>hr.payrollAction(runId,'submit',admin),/active posting account/);
+      await pool.query('UPDATE app_accounts SET is_active=true WHERE id=$1',[ids['5236']]);
+      await hr.payrollAction(runId,'submit',admin);
+      const lines=(await pool.query("SELECT account_id,sum(debit)::float debit,sum(credit)::float credit FROM app_gl_entries WHERE voucher_type='hr_payroll' AND voucher_id=$1 GROUP BY account_id",[runId])).rows;
+      const salary=lines.find(l=>l.account_id===ids['5236']);assert.deepEqual([salary.debit,salary.credit],[100000,10000]);
+      assert.equal(lines.find(l=>l.account_id===ids['2102']).credit,75000);
+      assert.equal(lines.find(l=>l.account_id===ids['1501']).credit,10000);
+      assert.equal(lines.reduce((n,l)=>n+l.debit-l.credit,0),0);
+      assert.equal((await hr.moneyList(admin))[0].balance,90000);
+      await hr.payrollAction(runId,'cancel',admin,{posting_date:'2026-02-01',reason:'Verify salary deduction reversal'});
+      assert.equal((await hr.moneyList(admin))[0].balance,100000);
+      const net=(await pool.query("SELECT sum(debit-credit)::float net FROM app_gl_entries WHERE voucher_type IN('hr_payroll','hr_payroll_cancellation') AND account_id=$1",[ids['5236']])).rows[0].net;
+      assert.equal(net,0);
+    });
+  }finally{await store.closeStore();}
+});
+
 test('HR integrates leave, advances, payroll accrual, partial payments and reversible allocations',{
   skip:process.env.HR_TEST_POSTGRES!=='1',
 },async()=>{
@@ -154,7 +327,7 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
     app.locals.dateTimeSettings={date_format:'YYYY-MM-DD',time_format:'24h'};
     app.use(express.urlencoded({extended:true}));
     app.use((req,res,next)=>{
-      const user=req.get('x-test-user')==='scoped'?restrictedUserFor('HR-E2'):req.get('x-test-user')==='ordinary'?{role:'standard',permissions:['masters.employees.view']}:req.get('x-test-user')==='profile-reader'?{role:'finance',permissions:['hr.employees.view']}:req.get('x-test-user')==='profile-scoped'?{role:'finance',permissions:['hr.employees.view'],record_access:{employee_id:'HR-E2'}}:admin;
+      const user=req.get('x-test-user')==='payroll-reader'?restrictedUserFor('HR-E1'):req.get('x-test-user')==='scoped'?restrictedUserFor('HR-E2'):req.get('x-test-user')==='ordinary'?{role:'standard',permissions:['masters.employees.view']}:req.get('x-test-user')==='profile-reader'?{role:'finance',permissions:['hr.employees.view']}:req.get('x-test-user')==='profile-scoped'?{role:'finance',permissions:['hr.employees.view'],record_access:{employee_id:'HR-E2'}}:admin;
       user.username=user.username||'Test user';req.currentUser=user;res.locals.currentUser=user;res.locals.can=p=>require('../src/authorize').can(user,p);
       res.locals.availableReports=[];res.locals.formatDate=require('../src/date-time-format').formatDate;
       res.locals.formatTimestamp=v=>String(v||'');
@@ -182,6 +355,10 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
         const response=await fetch(base+url);const html=await response.text();assert.equal(response.status,200,`${url}: ${html.slice(0,400)}`);assert.match(html,url==='/hr/employees'?/Employees/:/Human Resources/);
       }
       const denied=await fetch(base+'/hr/payroll',{headers:{'x-test-user':'ordinary'}});assert.equal(denied.status,403);
+      for(const url of [`/hr/payslips/${slip.id}`,`/hr/payroll/${runId}/payslips/${slip.id}`]){
+        assert.match(await (await fetch(base+url)).text(),/Employee Money summary/);
+        assert.ok(!(await (await fetch(base+url,{headers:{'x-test-user':'payroll-reader'}})).text()).includes('Employee Money summary'));
+      }
       const employeeHtml=await (await fetch(base+'/hr/employees/HR-E1')).text();
       const listRedirect=await fetch(base+'/hr/employees?q=HR-E1&page=1',{redirect:'manual'});
       assert.equal(listRedirect.headers.get('location'),'/settings/employees?q=HR-E1&page=1');

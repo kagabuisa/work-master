@@ -42,6 +42,11 @@ function assertEmployee(user, employeeId, costCenter) {
 function assertAccount(user, id) {
   if (!accountAllowed(user, String(id))) fail('This account is outside your permitted accounts.', 403);
 }
+function payrollComponentAccountAllowed(account, kind) {
+  if (kind === 'deduction') return account.account_type === 'liability'
+    || account.account_type === 'expense' && account.account_code === '5236'; // Salary - SACL
+  return ['earning', 'employer'].includes(kind) && account.account_type === 'expense';
+}
 function calculatePay(components, paidDays, calendarDays) {
   if (!Array.isArray(components) || !components.length || components.length > 50) fail('Add between one and fifty pay components.');
   const paid = amount(paidDays, 'Paid days'); const days = amount(calendarDays, 'Calendar days', false);
@@ -91,4 +96,4 @@ function permissionForHr(path, method) {
   return null;
 }
 
-module.exports = { HR_AREAS, fail, date, amount, cents, monthPeriod, assertEmployee, employeeAllowed, assertAccount, calculatePay, permissionForHr };
+module.exports = { HR_AREAS, fail, date, amount, cents, monthPeriod, assertEmployee, employeeAllowed, assertAccount, payrollComponentAccountAllowed, calculatePay, permissionForHr };

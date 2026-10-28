@@ -16,6 +16,8 @@ const { warehouseAllowed } = require('../../access');
 const { warehouseAccessOptions } = require('../helpers');
 const { voucherOwnerId } = require('../../voucher-ownership');
 const { csvLine } = require('../invoice-report');
+const { erpnextStockBalance } = require('../erpnext-stock-balance');
+const { sendStockBalanceDownload } = require('../stock-balance-download');
 const {
   stockSummary,
   stockBalances,
@@ -378,6 +380,35 @@ router.post('/reconciliations/:id/cancel', async (req, res, next) => {
   }
 });
 
+router.get('/erpnext', async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  try {
+    const report = await erpnextStockBalance(req.query, req.currentUser);
+    res.render('erpnext-stock-balance', { report, money });
+  } catch (err) {
+    if (err.code === 'ERPNEXT_STOCK_UNAVAILABLE') {
+      return res.status(503).render('error', { status: 503, message: err.message });
+    }
+    next(err);
+  }
+});
+
+router.get('/erpnext/export', async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  try {
+    if (!['xlsx', 'pdf'].includes(req.query.format)) {
+      return res.status(400).send('Choose Excel or PDF.');
+    }
+    const report = await erpnextStockBalance(req.query, req.currentUser, { allRows: true });
+    await sendStockBalanceDownload(res, report, req.query.format);
+  } catch (err) {
+    if (err.code === 'ERPNEXT_STOCK_UNAVAILABLE') {
+      return res.status(503).render('error', { status: 503, message: err.message });
+    }
+    next(err);
+  }
+});
+
 router.get('/export', async (req, res, next) => {
   try {
     const options = { search: req.query.q, warehouse: req.query.warehouse, page_size: 200 };
@@ -641,7 +672,7 @@ router.post('/entries/:id', async (req, res, next) => {
       ? await reconciliationPayload(req.body, req.currentUser, current.items) : parseStockEntryPayload(req.body);
     const id = await updateStockEntry(req.params.id, payload, { deliveryUser: req.currentUser, sharedWrite: Boolean(req.stockEntrySharedWrite) });
     res.redirect(303, payload.entry_type === 'reconciliation'
-      ? `/stock/reconciliations/${id}` : req.stockEntrySharedWrite ? `/stock/entries/${id}` : '/stock/entries');
+      ? `/stock/reconciliations/${id}` : payload.action === 'save_draft' ? `/stock/entries/${id}/edit` : '/stock/entries');
   } catch (err) {
     try {
       const data = await loadStockEntry(req.params.id);

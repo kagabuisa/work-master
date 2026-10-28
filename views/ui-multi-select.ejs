@@ -1,0 +1,16 @@
+<details class="ui-multi-select" data-multi-select data-standard-labels>
+  <summary class="button button-light"><%= picker.label %> <span data-multi-select-count><%= picker.selected.length %> selected</span></summary>
+  <div class="ui-filter-panel" role="group" aria-label="<%= picker.label %>">
+    <label>Search <%= picker.label.toLowerCase() %><input type="search" autocomplete="off" data-multi-select-search></label>
+    <div class="ui-multi-select-actions">
+      <button type="button" class="button-light" data-multi-select-all>Select all shown</button>
+      <button type="button" class="button-light" data-multi-select-clear>Clear all</button>
+    </div>
+    <div class="ui-multi-select-options">
+      <% picker.options.forEach(value => { %>
+        <label><input type="checkbox" name="<%= picker.name %>" value="<%= value %>" <%= picker.selected.includes(value) ? 'checked' : '' %>><span><%= value %></span></label>
+      <% }) %>
+      <p class="muted" data-multi-select-empty <%= picker.options.length ? 'hidden' : '' %>>No matching options.</p>
+    </div>
+  </div>
+</details>

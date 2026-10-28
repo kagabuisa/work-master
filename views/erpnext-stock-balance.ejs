@@ -1,0 +1,62 @@
+<!doctype html>
+<% const stockRate = value => `Ugx ${Number(value).toLocaleString('en-UG', { maximumFractionDigits: 6 })}`; %>
+<html lang="en">
+<head>
+  <title>Stock Balance · ERPNext</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell ui-page ui-page-report">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Inventory · ERPNext</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Balance' }] }) %>
+      </div>
+      <nav><%- include('module-nav', { activeModule: 'stock' }) %></nav>
+    </header>
+    <%- include('stock-balance-tabs', { activeStockBalanceTab: 'erpnext' }) %>
+
+    <form class="report-filters ui-toolbar ui-filter-row" method="get" action="/stock/erpnext">
+      <%- include('ui-multi-select', { picker: { label: 'Warehouses', name: 'warehouse', options: report.warehouses, selected: report.filters.warehouses } }) %>
+      <label>Item<input name="q" value="<%= report.filters.search %>" placeholder="Search item code"></label>
+      <div class="report-filter-actions">
+        <button type="submit" data-multi-select-submit>Generate stock balance</button>
+        <%- include('ui-download-menu', { formats: ['xlsx', 'pdf'], downloadAction: '/stock/erpnext/export', downloadRequiresSelection: true }) %>
+        <a class="button button-light" href="/stock/erpnext">Reset</a>
+      </div>
+    </form>
+    <script src="/ui-multi-select.js" defer></script>
+    <p class="muted">Tick one or more warehouses, then choose Generate stock balance. Items are grouped by item code, with quantities and stock values combined across the selected warehouses.</p>
+
+    <section class="metrics ui-report-metrics" aria-label="Selected warehouse totals">
+      <article><span>Items</span><strong><%= report.summary.total.toLocaleString() %></strong></article>
+      <article><span>Qty</span><strong><%= report.summary.quantity.toLocaleString('en-UG', { maximumFractionDigits: 6 }) %></strong></article>
+      <article><span>Stock value</span><strong><%= money(report.summary.stock_value) %></strong></article>
+    </section>
+
+    <section class="invoice-card report-section ui-surface ui-results">
+      <%- include('ui-section-heading', { heading: { title: 'Stock balances grouped by item', meta: `${report.filters.warehouses.length} warehouses · ${report.pagination.start}–${report.pagination.end} of ${report.summary.total}`, help: 'Current non-zero ERPNext stock balances combined by item for the selected warehouses. Cost is the ERPNext item cost (last purchase rate when unset). Valuation rate is combined stock value divided by quantity; a zero combined quantity has no rate. Amounts use the company currency, UGX.' } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="ERPNext stock balance table" tabindex="0">
+        <table class="ui-table">
+          <thead><tr><th>Item</th><th class="ui-amount">Qty</th><th class="ui-amount">Cost</th><th class="ui-amount">Valuation rate</th><th class="ui-amount">Stock value</th></tr></thead>
+          <tbody>
+            <% if (!report.rows.length) { %>
+              <tr><td colspan="5" class="empty"><%= !report.warehouses.length ? 'No permitted ERPNext warehouses are available.' : !report.filters.warehouses.length ? 'Choose one or more warehouses and generate the stock balance table.' : 'No non-zero ERPNext stock balances match the selected warehouses and item.' %></td></tr>
+            <% } %>
+            <% report.rows.forEach(row => { %>
+              <tr>
+                <td class="ui-wrap-text"><strong><%= row.item_code %></strong></td>
+                <td class="ui-amount"><%= row.quantity.toLocaleString('en-UG', { maximumFractionDigits: 6 }) %></td>
+                <td class="ui-amount"><%= row.cost == null ? '—' : stockRate(row.cost) %></td>
+                <td class="ui-amount"><%= row.valuation_rate == null ? '—' : stockRate(row.valuation_rate) %></td>
+                <td class="ui-amount"><%= money(row.stock_value) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <%- include('pagination', { pagination: report.pagination, query: report.query, basePath: '/stock/erpnext' }) %>
+    </section>
+  </main>
+</body>
+</html>

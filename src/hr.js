@@ -7,7 +7,8 @@ const { employeeDetailFields } = require('./hr-employee-fields');
 const { postGlEntry, reverseVoucherGlEntries } = require('./domain/posting');
 const { validateCostCenter } = require('./cost-centers');
 const { accountAllowed, assignedMasterRecordAllowed } = require('./access');
-const { fail, date, amount, cents, monthPeriod, assertEmployee, employeeAllowed, assertAccount, calculatePay } = require('./hr-policy');
+const { buildMoneySnapshot, payslipMoneySummary, withoutMoneySnapshot } = require('./hr-money-summary');
+const { fail, date, amount, cents, monthPeriod, assertEmployee, employeeAllowed, assertAccount, payrollComponentAccountAllowed, calculatePay } = require('./hr-policy');
 
 const key = (value) => { const n=Number(value); if (!Number.isSafeInteger(n) || n<1) fail('Record not found.',404); return n; };
 const text = (value, required=false) => { const s=String(value || '').trim(); if(s.length>2000 || required && !s) fail('Enter a description (up to 2,000 characters).'); return s; };
@@ -30,6 +31,13 @@ async function account(client,id,user,types, bank=false, allowInactive=false) {
       || bank && !['Bank','Cash'].includes(a.account_detail_type)) fail(bank ? 'Choose an active cash or bank account.' : 'Choose an active posting account of the appropriate type.');
   return a;
 }
+async function componentAccount(client,id,user,kind,recovery=false) {
+  const a=await account(client,id,user,recovery?['asset']:null);
+  if(!recovery && !payrollComponentAccountAllowed(a,kind)) fail(kind==='deduction'
+    ? 'Deductions require a liability account or Salary - SACL (5236). Other expense accounts cannot receive salary deductions.'
+    : 'Earnings and employer contributions require an expense account.');
+  return a;
+}
 async function costCenter(client,value,user) {
   const cc=await validateCostCenter(client,value);
   if(cc && !assignedMasterRecordAllowed(user,'cost-centers',cc)) fail('This cost center is outside your permitted records.',403);
@@ -47,12 +55,13 @@ async function options(user) {
   const [employees,accounts,centers,types,holidays]=await Promise.all([
     pool.query(`SELECT e.employee_id,e.employee_name,e.company,e.status,e.disabled,p.cost_center,p.joining_date::text,p.leaving_date::text,
       p.manager_id,p.branch,p.employment_type FROM app_master_employees e LEFT JOIN app_hr_profiles p USING(employee_id) ORDER BY e.employee_name`),
-    pool.query('SELECT id,account_name,account_type,account_detail_type FROM app_accounts WHERE is_active AND NOT is_group ORDER BY account_name'),
+    pool.query('SELECT id,account_code,account_name,account_type,account_detail_type FROM app_accounts WHERE is_active AND NOT is_group ORDER BY account_name'),
     pool.query('SELECT cost_center,cost_center_name FROM app_master_cost_centers WHERE NOT disabled AND NOT is_group ORDER BY cost_center'),
     pool.query('SELECT * FROM app_hr_leave_types ORDER BY name'), pool.query('SELECT holiday_date::text,description FROM app_hr_holidays ORDER BY holiday_date DESC'),
   ]);
   return {employees:employees.rows.filter(e=>employeeAllowed(user,e.employee_id,e.cost_center)),
-    accounts:accounts.rows.filter(a=>accountAllowed(user,String(a.id))),
+    accounts:accounts.rows.filter(a=>accountAllowed(user,String(a.id))).map(a=>({...a,
+      payroll_component_kinds:['earning','deduction','employer'].filter(kind=>payrollComponentAccountAllowed(a,kind))})),
     centers:centers.rows.filter(c=>assignedMasterRecordAllowed(user,'cost-centers',c.cost_center)),
     leaveTypes:types.rows,holidays:holidays.rows};
 }
@@ -165,7 +174,7 @@ async function normalizeComponents(client,input,user) {
   for(const row of input) {
     if(!String(row.label||'').trim() && !row.amount) continue;
     if(!['earning','deduction','employer'].includes(row.kind)) fail('Choose a component type.');
-    const a=await account(client,row.account_id,user,row.kind==='deduction'?['liability']:['expense']);
+    const a=await componentAccount(client,row.account_id,user,row.kind);
     const component={label:text(row.label,true),kind:row.kind,amount:amount(row.amount),prorate:row.prorate===true||row.prorate==='1',account_id:Number(a.id)};
     if(row.kind==='employer') component.payable_account_id=Number((await account(client,row.payable_account_id,user,['liability'])).id);
     out.push(component);
@@ -386,7 +395,7 @@ async function payMoney(id,payload,user,direction='payout') {
 
 async function runSlips(client,id) {
   return (await client.query(`SELECT s.*,COALESCE((SELECT sum(p.amount) FROM app_hr_payments p WHERE p.slip_id=s.id AND p.docstatus='submitted'),0) AS paid_amount
-    FROM app_hr_slips s WHERE run_id=$1 ORDER BY employee_id`,[id])).rows;
+    FROM app_hr_slips s WHERE run_id=$1 ORDER BY employee_id`,[id])).rows.map(withoutMoneySnapshot);
 }
 function assertSlipAccounts(user,s) {
   assertEmployee(user,s.employee_id,s.cost_center);
@@ -443,7 +452,7 @@ async function createPayroll(payload,user) {
     const run=(await client.query('INSERT INTO app_hr_runs(company,period,posting_date,payable_account_id) VALUES($1,$2,$3,$4) RETURNING id',[company,payload.period,posting,payable])).rows[0];
     for(const {e,plan,days} of profiles) {
       for(const c of plan.components) {
-        await account(client,c.account_id,user,c.kind==='deduction'?['liability']:['expense']);
+        await componentAccount(client,c.account_id,user,c.kind);
         if(c.kind==='employer') await account(client,c.payable_account_id,user,['liability']);
       }
       const pay=calculatePay(plan.components,days,period.days);
@@ -468,17 +477,21 @@ async function payslipList(user) {
     r.payable_account_id,COALESCE((SELECT sum(p.amount) FROM app_hr_payments p WHERE p.slip_id=s.id AND p.docstatus='submitted'),0) AS paid_amount
     FROM app_hr_slips s JOIN app_hr_runs r ON r.id=s.run_id ORDER BY s.period DESC,s.id DESC LIMIT 1000`)).rows;
   const opts=await options(user);const employees=new Set(opts.employees.map(e=>e.employee_id));
-  return rows.filter(s=>employees.has(s.employee_id)&&employeeAllowed(user,s.employee_id,s.cost_center)&&accountAllowed(user,String(s.payable_account_id))&&s.components.every(c=>accountAllowed(user,String(c.account_id))&&(!c.payable_account_id||accountAllowed(user,String(c.payable_account_id)))));
+  return rows.filter(s=>employees.has(s.employee_id)&&employeeAllowed(user,s.employee_id,s.cost_center)&&accountAllowed(user,String(s.payable_account_id))&&s.components.every(c=>accountAllowed(user,String(c.account_id))&&(!c.payable_account_id||accountAllowed(user,String(c.payable_account_id))))).map(withoutMoneySnapshot);
 }
 async function payslipDetails(id,user) {
   return withPostgresTransaction(async client=>{
+    const identity=(await client.query('SELECT employee_id FROM app_hr_slips WHERE id=$1',[key(id)])).rows[0];
+    if(!identity)fail('Payslip not found.',404);
+    await employee(client,identity.employee_id,user);
     const s=(await client.query(`SELECT s.*,COALESCE((SELECT sum(p.amount) FROM app_hr_payments p WHERE p.slip_id=s.id AND p.docstatus='submitted'),0) AS paid_amount
       FROM app_hr_slips s WHERE id=$1`,[key(id)])).rows[0];
     if(!s)fail('Payslip not found.',404);
-    await employee(client,s.employee_id,user);assertSlipAccounts(user,s);
+    assertSlipAccounts(user,s);
     const run=(await client.query('SELECT *,posting_date::text FROM app_hr_runs WHERE id=$1',[s.run_id])).rows[0];
     assertAccount(user,run.payable_account_id);
-    return {run,slip:s};
+    const employeeMoneySummary=await payslipMoneySummary(client,s,run,user,s.employee_money_snapshot);
+    return {run,slip:withoutMoneySnapshot(s),employeeMoneySummary};
   });
 }
 
@@ -540,12 +553,15 @@ async function payrollAction(id,action,user,payload={}) {
         const pay=calculatePay(s.components,s.paid_days,s.calendar_days);
         const party={party_type:'employee',party_id:s.employee_id,party_name:s.employee_name,cost_center:s.cost_center};
         for(const c of pay.components) {
-          await account(client,c.account_id,user,c.money_id?['asset']:c.kind==='deduction'?['liability']:['expense']);
+          await componentAccount(client,c.account_id,user,c.kind,Boolean(c.money_id));
           const value=c.calculated_amount;
           lines.push({...party,account_id:c.account_id,debit:c.kind==='deduction'?0:value,credit:c.kind==='deduction'?value:0});
           if(c.kind==='employer') { await account(client,c.payable_account_id,user,['liability']);lines.push({...party,account_id:c.payable_account_id,debit:0,credit:value}); }
         }
         lines.push({...party,account_id:run.payable_account_id,debit:0,credit:pay.net_pay});
+        const moneySnapshot=await buildMoneySnapshot(client,s,run);
+        if(moneySnapshot.rows.some(row=>row.balance_remaining<0)) fail('An employee balance changed. Review recovery allocations before posting.');
+        await client.query('UPDATE app_hr_slips SET employee_money_snapshot=$2 WHERE id=$1',[s.id,JSON.stringify(moneySnapshot)]);
       }
       await postGlEntry(client,{posting_date:run.posting_date,voucher_type:'hr_payroll',voucher_id:run.id,voucher_no:`PAY-${run.id}`,remarks:`Payroll ${run.period}`,lines});
       await client.query("UPDATE app_hr_runs SET docstatus='submitted',submitted_by_id=$2,submitted_at=now() WHERE id=$1",[id,auditActor().id]);

@@ -65,6 +65,8 @@ Assigning an employee also prefills that employee as the invoicer on a new sales
 
 Downloading Stock Balance CSV requires Stock Entry Read (`vouchers.stock.view`), the same permission used to open Stock Balance.
 
+The ERPNext Stock Balance tab (`GET /stock/erpnext`) and its Excel/PDF downloads (`GET /stock/erpnext/export`) also require Stock Entry Read. Downloads require at least one selected warehouse and apply the same warehouse checks and item filter to all exported rows. Warehouse assignments, named grants, scopes, and denials filter the ERPNext warehouse selector. Every selected warehouse is checked before reading balances; an unpermitted warehouse returns HTTP 403. This read-only tab uses the configured ERPNext service user's Read access to Warehouse, Bin, and Item, and does not grant stock posting or editing rights. Sharing an individual stock entry does not grant access to this tab.
+
 ## Journal invoice allocations
 
 Journal purchase invoice row references use the selected supplier and the same voucher ownership restrictions as the journal reference picker. An inaccessible invoice cannot be allocated by entering its number manually or by submitting an older draft.
@@ -109,6 +111,8 @@ HR has independent permission types under the **HR** group in role and user perm
 Employee details PDFs require HR Employees Read and access to the employee. Pay-plan history is included only with Payroll Read and uses the same account visibility restrictions as the profile.
 
 Give users Read alongside the actions needed for a workspace. Pay-plan editing from an employee page also needs HR Employees Read and Payroll Read. Recovery selection needs Employee Money Read. Salary and account/payment permissions remain separate even when one user performs several roles.
+
+Payslip **Employee Money summaries**, including browser print/PDF output, require Employee Money Read in addition to access to the payslip. Payroll Read alone does not expose extra employee balances. Each loan, advance, charge, or reimbursement row must pass employee, balance-account, offset-account, and cost-center checks against both its captured scopes and the current transaction scopes. Totals include only visible rows. Raw saved summaries are excluded from payroll registers, lists, and payslip data; only the permitted summary is supplied to the payslip screen. Posting saves all eligible balances for the employee independently of the submitter's Employee Money Read permission, without granting that submitter read access to them.
 
 HR applies existing employee and cost-center assignments/named grants and denials, and account scopes. It checks both current employee scope and stored voucher cost centers where applicable. A whole payroll run and its export require access to every employee and every component/payable account; an individual payslip requires only that slip's employee and accounts. Assign an employee in Settings → Users and grant Payroll Read for restricted payslip access. A user's employee assignment is configured by an administrator, not inferred from ERPNext names or logins.
 

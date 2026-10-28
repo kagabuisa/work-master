@@ -212,6 +212,8 @@ function permissionCheck(req) {
     const prefix = 'vouchers.stock.';
     if (parts[1] === 'shared') return parts.length === 2 && method === 'GET';
     if (parts.length === 1) return has(prefix + 'view');
+    if (parts[1] === 'erpnext') return (parts.length === 2 || parts.length === 3 && parts[2] === 'export')
+      && method === 'GET' && has(prefix + 'view');
     if (parts[1] === 'export') return parts.length === 2 && method === 'GET' && has(prefix + 'view');
     if (parts[1] === 'reconciliations') {
       if (parts[2] === 'count-sheet-template') return parts.length === 3 && method === 'GET' && canAny(user,

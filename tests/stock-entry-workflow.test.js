@@ -229,7 +229,12 @@ test('stock delivery and sharing persist, reject unauthorized changes, and enfor
     const editResponse = await request(`/stock/entries/${id}`, { method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: editBody.toString() });
     assert.equal(editResponse.status, 303);
-    assert.equal(editResponse.headers.get('location'), `/stock/entries/${id}`);
+    assert.equal(editResponse.headers.get('location'), `/stock/entries/${id}/edit`);
+    const savedEditor = await request(editResponse.headers.get('location'));
+    assert.equal(savedEditor.status, 200);
+    const savedEditorBody = await savedEditor.json();
+    assert.equal(savedEditorBody.entry.docstatus, 'draft');
+    assert.equal(savedEditorBody.sharedWriteAccess, true);
     assert.equal((await store.loadStockEntry(id)).entry.remarks, 'Edited through write sharing');
     for (const action of ['share', 'submit', 'cancel', 'delete']) {
       assert.equal((await request(`/stock/entries/${id}/${action}`, { method: 'POST' })).status, 403);

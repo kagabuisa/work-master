@@ -50,12 +50,13 @@
 .ui-page .ui-toolbar .employee-list-search { margin-top: 8px; }
 .ui-page .ui-toolbar .employee-list-status-filter { height: var(--ui-control-height); }
 .ui-page .ui-table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; }
-.ui-page .ui-table { width: 100%; margin: 0; border-collapse: collapse; }
+.ui-page .ui-table { display: table; width: 100%; margin: 0; border-collapse: collapse; }
 .ui-page .ui-table th { background: #f5f7f9; color: #52606d; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; white-space: nowrap; }
 .ui-page .ui-table th, .ui-page .ui-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .ui-page .ui-table tbody tr:last-child td { border-bottom: 0; }
 .ui-page .ui-table tbody tr:hover { background: #f2f8f7; }
 .ui-page .ui-table .empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+.ui-page .ui-table .ui-wrap-text { white-space: normal; overflow-wrap: anywhere; }
 .ui-page .ui-table .daily-activity-amount, .ui-page .ui-table .ui-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ui-page .ui-form-section { padding: 14px; margin-bottom: var(--ui-space-4); border: 1px solid var(--line); border-radius: var(--ui-radius); }
 .ui-page .ui-form-section legend { padding: 0 8px; font-size: 13px; font-weight: 600; color: var(--heading); }
@@ -257,8 +258,10 @@
   align-self: end;
 }
 .ui-page .ui-filter-row.ui-toolbar > label:has(input[name="q"], input[type="search"]) { min-width: 160px; }
+.ui-page .ui-filter-row.ui-toolbar > label:has(select[multiple]) { min-width: 240px; }
 .ui-page .ui-filter-row.ui-toolbar input:not([type="checkbox"]):not([type="hidden"]),
 .ui-page .ui-filter-row.ui-toolbar select { width: 100%; box-sizing: border-box; }
+.ui-page .ui-filter-row.ui-toolbar select[multiple] { height: 110px; padding: 6px; }
 .ui-page .ui-filter-row.ui-toolbar > div,
 .ui-page .ui-filter-row.ui-toolbar > button,
 .ui-page .ui-filter-row.ui-toolbar > .button { flex: 0 0 auto; margin: 0; }
@@ -320,6 +323,19 @@
   box-shadow: 0 6px 18px #00000012;
 }
 .ui-page .ui-filter-row .ui-filter-panel[popover]:not(:popover-open) { display: none; }
+
+/* Checkbox multi-selects reuse the report disclosure and floating filter panel. */
+.ui-page .ui-filter-row > .ui-multi-select { flex: 1 0 240px; margin: 0; position: relative; }
+.ui-multi-select > summary { display: flex; justify-content: space-between; gap: 12px; }
+.ui-multi-select > summary span { color: var(--muted); }
+.ui-multi-select:not([open]) > .ui-filter-panel { display: none; }
+.ui-multi-select > .ui-filter-panel { width: 360px; max-width: calc(100vw - 24px); }
+.ui-multi-select-actions { display: flex; gap: 8px; margin: 8px 0; }
+.ui-multi-select-options { display: grid; max-height: 240px; overflow-y: auto; }
+.ui-multi-select-options label { display: flex; align-items: center; gap: 8px; min-height: 36px; margin: 0; cursor: pointer; }
+.ui-multi-select-options label[hidden] { display: none; }
+.ui-multi-select-options input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; }
+.ui-multi-select-options span { overflow-wrap: anywhere; }
 
 /* Shared account disclosure: a compact icon with a right-aligned panel. */
 .ui-account-menu { position: relative; flex: 0 0 auto; margin-left: auto; }
