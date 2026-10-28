@@ -139,7 +139,7 @@ test('API authentication, transactional retries and website payment parity', {
       assert.equal((await request('/api/v1/me', { token: integration.token })).status, 200);
       await users.resetUserPassword('api-service', 'ServicePassword123!');
       assert.equal(await users.authenticate('api-service', 'ServicePassword123!'), null);
-      assert.equal(await users.sessionUser(await users.createSession(integration.user_id)), null);
+      await assert.rejects(users.createSession(integration.user_id), { status: 401 });
       // Reset implies a password-change restriction; administrators must deliberately
       // clear it before continuing credential use. The account remains noninteractive.
       assert.equal((await request('/api/v1/me', { token: integration.token })).status, 401);

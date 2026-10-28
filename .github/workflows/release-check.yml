@@ -35,5 +35,4 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm run test:postgres
-      - run: npm run test:accounting
+      - run: npm run release:check

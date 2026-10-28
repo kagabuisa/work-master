@@ -4,6 +4,7 @@ const { DELIVERY_STATUSES, saveStockEntryDelivery, validateSharedStockEntryEdit 
 // Inventory domain: stock balances, stock entries, stock ledger/movement and
 // gross profit. Extracted from store.js.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
+const { checkWarehouseFilter, addWarehouseRowFilter, addDocumentWarehouseFilter } = require('../warehouse-scope');
 const { STOCK_ENTRY_TYPES } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
@@ -760,6 +761,7 @@ async function validateStockEntryCancellation(client, ledgerRows) {
 }
 
 async function stockLedgerReport(filters = {}) {
+  checkWarehouseFilter(filters);
   if (String(filters.status || 'posted').trim() === 'draft') {
     return stockEntryDraftReport(filters);
   }
@@ -767,6 +769,7 @@ async function stockLedgerReport(filters = {}) {
   const params = [];
   const where = [];
   addReportFilters(where, params, filters);
+  addWarehouseRowFilter(where, params, 'l.warehouse', filters);
   addStockLedgerOwnerFilter(where, params, 'l', filters.ownerId, filters.ownerEmployeeId);
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const countResult = await getPostgresPool().query(
@@ -1015,10 +1018,13 @@ async function stockLedgerVoucherDetails(voucherType, voucherId) {
 }
 
 async function stockEntryDraftReport(filters = {}) {
+  checkWarehouseFilter(filters);
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
   addVoucherOwnerFilter(where, params, 'se', filters.ownerId);
+  addDocumentWarehouseFilter(where, params,
+    'app_stock_entry_items', 'stock_entry_id', 'se.id', filters, { target: true });
   const status = String(filters.status || 'draft').trim();
   const entryType = String(filters.entry_type || '').trim();
   const warehouse = String(filters.warehouse || '').trim();
@@ -1112,6 +1118,7 @@ async function stockMovementReport(filters = {}) {
   const pagination = paginationOptions(filters, 50, 200);
   const params = [];
   const where = [];
+  addWarehouseRowFilter(where, params, 'warehouse', filters);
   addStockLedgerOwnerFilter(where, params, 'app_stock_ledger', filters.ownerId, filters.ownerEmployeeId);
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
@@ -1237,6 +1244,7 @@ async function stockMovementDetails(filters = {}) {
   }
   const params = [itemCode, warehouse];
   const where = ['item_code = $1', 'warehouse = $2'];
+  addWarehouseRowFilter(where, params, 'warehouse', filters);
   addStockLedgerOwnerFilter(where, params, 'app_stock_ledger', filters.ownerId, filters.ownerEmployeeId);
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();

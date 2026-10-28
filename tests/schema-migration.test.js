@@ -187,7 +187,7 @@ test('version 17 API upgrade preserves existing financial rows and ordinary user
     await pool.query(`DROP TABLE wm_api_refresh_tokens,wm_api_sessions,wm_api_credentials,
       wm_api_audit,wm_api_idempotency,wm_api_payment_references,wm_api_rate_limits;
       ALTER TABLE app_users DROP COLUMN api_service_account;
-      DELETE FROM wm_schema_version WHERE version IN (18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)`);
+      DELETE FROM wm_schema_version WHERE version IN (18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50)`);
     await store.initStore();
     assert.deepEqual(await snapshot(), before);
     assert.equal((await pool.query('SELECT api_service_account FROM app_users WHERE id=$1', [user.id])).rows[0].api_service_account, false);
@@ -207,7 +207,7 @@ test('version 1 upgrades once without duplicating accounting postings', {
       SELECT (SELECT count(*)::int FROM app_gl_entries) AS gl,
         (SELECT count(*)::int FROM app_journal_entries) AS journals
     `)).rows[0];
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50)');
     await pool.query("INSERT INTO wm_schema_version (version, name) VALUES (1, 'baseline')");
 
     await store.initStore();
@@ -266,7 +266,7 @@ test('version 4 databases gain missing invoice item snapshot columns', {
     for (const column of ['item_category', 'source', 'cost']) {
       await pool.query(`ALTER TABLE app_invoice_items DROP COLUMN ${column}`);
     }
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50)');
 
     await store.initStore();
     const snapshot = await pool.query(`SELECT item_category, source, cost::float
@@ -290,7 +290,7 @@ test('version 8 databases gain the session activity column', {
     await seedGoldenData();
     const pool = store.getPostgresPool();
     await pool.query('ALTER TABLE app_user_sessions DROP COLUMN IF EXISTS last_activity_at');
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50)');
 
     await store.initStore();
 
@@ -335,7 +335,7 @@ test('version 15 employee statuses reconcile legacy flags', {
     const pool=store.getPostgresPool();
     assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name, /_hr_test$/);
     await pool.query("INSERT INTO app_master_employees(employee_id,employee_name,status,disabled) VALUES ('STATUS-A','A','Active',true),('STATUS-L','L','Left',false),('STATUS-OLD','Old',NULL,true),('STATUS-BLANK','Blank',NULL,false)");
-    await pool.query('DELETE FROM wm_schema_version WHERE version IN (16,17,18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48)');
+    await pool.query('DELETE FROM wm_schema_version WHERE version IN (16,17,18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50)');
     await store.initStore();
     const rows=(await pool.query("SELECT employee_id,status,disabled FROM app_master_employees WHERE employee_id LIKE 'STATUS-%' ORDER BY employee_id")).rows;
     assert.deepEqual(rows,[{employee_id:'STATUS-A',status:'Active',disabled:false},{employee_id:'STATUS-BLANK',status:null,disabled:false},{employee_id:'STATUS-L',status:'Left',disabled:true},{employee_id:'STATUS-OLD',status:'Left',disabled:true}]);

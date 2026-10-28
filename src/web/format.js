@@ -5,11 +5,15 @@ const currencyFormat = new Intl.NumberFormat('en-UG', {
   style: 'currency', currency: 'UGX', currencyDisplay: 'code', maximumFractionDigits: 0,
 });
 const numberFormat = new Intl.NumberFormat('en-UG', { maximumFractionDigits: 0 });
+const financialFormat = new Intl.NumberFormat('en-UG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function money(value) {
   return currencyFormat.format(Number(value || 0)).replace('UGX', 'Ugx');
 }
 function purchaseMoney(value) {
   return `Ugx ${numberFormat.format(Number(value || 0))}`;
+}
+function financialMoney(value) {
+  return `Ugx ${financialFormat.format(Number(value || 0))}`;
 }
 
 function rateMoney(value) {
@@ -29,4 +33,4 @@ function todayString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-module.exports = { money, rateMoney, purchaseMoney, paymentReturnPath, todayString };
+module.exports = { money, rateMoney, purchaseMoney, financialMoney, paymentReturnPath, todayString };

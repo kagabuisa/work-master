@@ -15,8 +15,7 @@ const { invoicePriceListAllowed, priceListActionAllowed, anyNamedPriceListAction
 const {
   SESSION_DAYS,
   userCount,
-  authenticate,
-  createSession,
+  authenticateSession,
   sessionUser,
   deleteSession,
   changePassword,
@@ -211,15 +210,16 @@ function installAuth(app) {
       // prevent username/IP rotation and concurrent workers bypassing limits.
       await rateLimit(req, res, 'browser-login-ip', req.ip, LOGIN_IP_LIMIT, LOGIN_WINDOW_SECONDS);
       await rateLimit(req, res, LOGIN_USERNAME_CATEGORY, username, LOGIN_USERNAME_LIMIT, LOGIN_WINDOW_SECONDS);
-      const user = await authenticate(username, password);
-      if (!user) {
+      const session = await authenticateSession(username, password);
+      if (!session) {
         res.status(401).render('login', { error: 'Invalid username or password.', username, nextPath, setupNeeded: await userCount() === 0 });
         return;
       }
+      const { user } = session;
       // A valid account cannot erase the IP budget used by other attempts.
       await getPostgresPool().query('DELETE FROM wm_api_rate_limits WHERE key=$1',
         [hash(`${LOGIN_USERNAME_CATEGORY}:${username}`)]);
-      setSessionCookie(req, res, await runWithAuditUser(user, () => createSession(user.id)));
+      setSessionCookie(req, res, session.token);
       res.redirect(303, user.must_change_password ? '/account/password' : nextPath);
     } catch (error) {
       if (error.code === 'rate_limited') {
@@ -290,8 +290,8 @@ function installAuth(app) {
       return;
     }
     try {
-      await changePassword(req.currentUser.id, currentPassword, newPassword);
-      setSessionCookie(req, res, await createSession(req.currentUser.id));
+      const token = await changePassword(req.currentUser.id, currentPassword, newPassword);
+      setSessionCookie(req, res, token);
       res.redirect(303, '/');
     } catch (error) {
       if (error.status === 400) {

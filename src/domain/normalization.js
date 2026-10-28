@@ -220,19 +220,20 @@ function normalizeAccountingAccountPayload(payload) {
 }
 
 function formatTrialBalanceRow(row) {
-  const opening = Number(row.opening_balance || 0);
-  const closing = Number(row.closing_balance || 0);
+  const { reportMoney } = require('../lib/financial-money');
+  const opening = reportMoney(row.opening_balance);
+  const closing = reportMoney(row.closing_balance);
   return {
     account_code: row.account_code,
     account_name: row.account_name,
     account_type: row.account_type,
     normal_balance: row.normal_balance,
-    opening_debit: opening > 0 ? roundMoney(opening) : 0,
-    opening_credit: opening < 0 ? roundMoney(Math.abs(opening)) : 0,
-    period_debit: roundMoney(row.period_debit),
-    period_credit: roundMoney(row.period_credit),
-    closing_debit: closing > 0 ? roundMoney(closing) : 0,
-    closing_credit: closing < 0 ? roundMoney(Math.abs(closing)) : 0,
+    opening_debit: opening > 0 ? opening : 0,
+    opening_credit: opening < 0 ? Math.abs(opening) : 0,
+    period_debit: reportMoney(row.period_debit),
+    period_credit: reportMoney(row.period_credit),
+    closing_debit: closing > 0 ? closing : 0,
+    closing_credit: closing < 0 ? Math.abs(closing) : 0,
   };
 }
 

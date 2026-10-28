@@ -44,6 +44,16 @@
     return roundedRatio.apply(null, fraction(value));
   }
 
+  function decimalValue(value, places, maximum) {
+    const parts = fraction(value), scale = 10n ** BigInt(places);
+    const bound = fraction(maximum);
+    if (parts[0] < 0n || parts[0] * scale % parts[1] !== 0n
+      || parts[0] * bound[1] > bound[0] * parts[1]) throw invalidAmount();
+    const scaled = parts[0] * scale / parts[1];
+    const decimal = String(scaled % scale).padStart(places, '0').replace(/0+$/, '');
+    return `${scaled / scale}${decimal ? '.' + decimal : ''}`;
+  }
+
   function multiplyMoney(left, right) {
     const a = fraction(left), b = fraction(right);
     return roundedRatio(a[0] * b[0], a[1] * b[1]);
@@ -117,6 +127,6 @@
     return paid >= invoiceTotal ? 'paid' : 'partial';
   }
 
-  return { roundMoney, multiplyMoney, prorateMoney, rateValue, storedRateValue, lineTotal, subtotal, invoiceTotals,
+  return { roundMoney, multiplyMoney, prorateMoney, rateValue, storedRateValue, decimalValue, lineTotal, subtotal, invoiceTotals,
     grandTotal, paidTotal, paymentStatus };
 }));

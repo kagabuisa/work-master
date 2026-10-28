@@ -106,9 +106,10 @@ function updateTotals() {
   let total = 0;
   [...purchaseRows.rows].forEach((row, index) => {
     row.querySelector('.row-number').textContent = index + 1;
-    const qty = Number(row.querySelector('[name="quantity"]').value || 0);
-    const rate = Number(row.querySelector('[name="unit_price"]').value || 0);
-    const lineTotal = Math.round(qty * rate * 100) / 100;
+    const qty = row.querySelector('[name="quantity"]').value || '0';
+    const rate = row.querySelector('[name="unit_price"]').value || '0';
+    let lineTotal = 0;
+    try { lineTotal = InvoiceMath.multiplyMoney(qty, rate); } catch { /* Incomplete inputs are validated on save. */ }
     row.querySelector('.purchase-line-total').textContent = formatMoney(lineTotal);
     total += lineTotal;
   });

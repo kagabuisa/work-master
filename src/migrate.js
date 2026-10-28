@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 48;
+const SCHEMA_VERSION = 50;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -224,6 +224,14 @@ const MIGRATIONS = [
   { version:48, name:'payslip_employee_money_snapshot', up:async client => {
     await client.query('ALTER TABLE app_hr_slips ADD COLUMN IF NOT EXISTS employee_money_snapshot JSONB');
     await client.query('CREATE INDEX IF NOT EXISTS app_hr_money_employee_date_idx ON app_hr_money(employee_id,posting_date,id)');
+  } },
+  { version:49, name:'fractional_purchase_stock_values', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/fractional-purchase-stock-values.sql'),'utf8'));
+  } },
+  { version:50, name:'browser_session_password_version', up:async client => {
+    await client.query('ALTER TABLE app_user_sessions ADD COLUMN IF NOT EXISTS password_version TEXT');
+    // Old sessions have no verified credential version; require a fresh login.
+    await client.query('DELETE FROM app_user_sessions WHERE password_version IS NULL');
   } },
 ];
 

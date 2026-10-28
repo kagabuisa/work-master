@@ -28,7 +28,7 @@ npm run user:create -- admin
 
 The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after five minutes of inactivity, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL.
 
-The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Each report, including Debtors, Stock Ledger, Stock Movement, Gross Profit, General Ledger, Trial Balance, Profit & Loss, and Balance Sheet, has its own Read permission row. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Existing roles with the old Reports grant receive all individual report permissions during migration.
+The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Daily Activity, Debtors, Stock Ledger, Stock Movement, and General Ledger have their own Read permission rows. Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are Admin-only; saved role permissions and individual grants cannot grant them to non-admin users. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Legacy report grants do not override the Admin-only financial report rule.
 
 See [Permissions and voucher visibility](docs/permissions.md) for role inheritance, user overrides, permitted records, and Standard users' voucher ownership rules.
 
@@ -341,32 +341,46 @@ only its copy database when its job exits.
 
 ### Application release gate
 
-Run `npm run release:check` before deploying. It runs the unit suite, upgrades a
-version-1 test schema, compares accounting reports with the golden snapshot, and
-checks invoice, cash sale, payment, stock, and journal postings. GitHub Actions
-runs the complete `npm run test:postgres` suite followed by `npm run test:accounting`
-on pushes and pull requests, using an isolated `work_master_hr_test` database.
-This enables the HR, browser-access, API, and other PostgreSQL integration checks
-that the standard unit command otherwise skips.
+Run `npm run release:check` before deploying. It runs `npm audit --omit=dev`
+and the complete `npm run test:postgres` suite, including all PostgreSQL integration
+flags, migration upgrades, golden accounting, HR, browser access, and API checks.
+GitHub Actions runs the same release command on pushes and pull requests.
 
-Point the command at a dedicated Postgres database whose name ends in `_test` or
-`_golden`, owned by the test database user. The accounting tests **drop and recreate
-its public schema**. The test user must also own `public` and have CREATE on the
-test database. On PostgreSQL 14, a database administrator may need to run
-`ALTER SCHEMA public OWNER TO invoice_user` while connected to the test database.
-The runner checks these permissions and refuses to reset another database. For
-example, with an existing `work_master_test` database:
+Use a dedicated database ending in `_hr_test`, owned by the test database user.
+Both full-suite and focused accounting runners require that suffix and check the
+actual connected database and schema ownership before tests. Tests **drop and
+recreate the public schema**; the user must own `public` and have CREATE on the
+test database. For example, with an existing isolated database:
 
 ```bash
-POSTGRES_DB=work_master_test npm run release:check
+POSTGRES_DB=work_master_hr_test npm run release:check
 ```
 
-To run the complete suite, including every PostgreSQL integration check, use
-`POSTGRES_DB=work_master_hr_test npm run test:postgres` with a dedicated database
-whose name ends in `_hr_test`. This command enables all database test flags and
-runs test files sequentially because several reset the public schema. It checks
-the database name and schema ownership before running any tests. Set the database
-connection URL to that test database too if a URL is configured.
+If a connection URL is configured, point it at the same test database. An explicit
+`*_hr_test` configuration skips the application `.env`; the Docker procedure below
+supplies isolated credentials. Use `npm run test:postgres` for offline database
+verification or `npm run test:accounting` for focused accounting checks. The audit
+step in `release:check` requires access to the npm registry.
+
+ExcelJS retains its current major version. Its `uuid` dependency is overridden to
+patched version 11.x, which preserves the CommonJS `v4` API used by ExcelJS.
+Re-run workbook import/export tests when changing that override.
+
+Schema versions 49 and 50 upgrade fractional controlled receipt valuation and
+browser session credential binding. They preserve posted accounting/stock history.
+Existing browser sessions without a credential version are invalidated on upgrade;
+users must sign in again. With restricted runtime credentials, build the image,
+then apply these migrations with the configured owner credentials before restarting:
+
+```bash
+docker compose build invoice-app
+docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js
+docker compose up -d --build invoice-app
+```
+
+The migration command clears runtime-only connection settings and uses the
+configured owner connection. Integration-account creation supports
+`POSTGRES_POOL_MAX=1` and reuses its transaction connection for role validation.
 
 ### Local Docker integration tests
 

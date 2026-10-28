@@ -12,6 +12,28 @@ The browser invoice stock-preview batch (`POST /api/invoice-stock-balances`) use
 
 **Settings → Maintenance is Admin-only.** Backup creation/download and reset routes cannot be granted through custom role permissions. The backend checks that the administrator is active, is not an API service account, and is not awaiting a password change. Backups belong to their creating administrator and selected scope. Reset requires the current administrator password, a session-bound confirmation token, the exact phrase `RESET TRANSACTIONS`, and a fresh verified backup. Password attempts are limited to five per 15 minutes. Resetting ends website/mobile sessions and revokes integration tokens while retaining users, roles, permissions, and existing API audit history.
 
+## Financial summary reports
+
+Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are **Admin-only**.
+Non-admin roles, including Finance, Management, Privileged, Standard, and custom
+roles, cannot open them even with saved report permissions or individual grants.
+They are hidden from navigation and are not assignable in role report controls.
+Direct requests, including report subpaths, return HTTP 403. General Ledger
+retains its separate report permission and account/ownership restrictions.
+
+Purchase and purchase-order lists exclude a document if any nonempty line
+warehouse is outside the user's effective warehouse access. Filtering happens
+before counts and pagination. Purchase payment links and drawers enforce the
+parent purchase's ownership, supplier scope, and all line warehouses for every
+non-admin role.
+
+Stock Ledger, Stock Movement, and movement details filter warehouse data before
+counts, opening balances, and totals. Explicit forbidden warehouse filters return
+HTTP 403. Draft stock reports exclude documents with a restricted source or target
+warehouse. Source voucher JSON checks the whole voucher's ownership, supplier or
+customer scope, and warehouses; a permitted report row does not grant access to
+other warehouses on its source document.
+
 ## Browser sign-in protection
 
 Browser sign-in is independently throttled using PostgreSQL-backed, hashed IP and
@@ -22,6 +44,10 @@ instances. Successful sign-in clears only that username's counter. Blocked login
 return HTTP 429 with `Retry-After` and issue no session. Limits survive app restarts;
 expired rows are eligible for the existing rate-window cleanup. Browser and API
 login counters use separate namespaces and grant no additional record permissions.
+Session creation rechecks current credentials while holding the user lock and
+stores the verified password version. Password changes revoke old sessions and
+issue the replacement session in the same transaction. Password resets revoke
+sessions; a pending old-password login cannot create a valid replacement.
 
 ## Versioned API access
 
@@ -58,7 +84,7 @@ Role permissions are defined in [`src/auth.js`](../src/auth.js). User record ass
 
 Standard users can see a voucher when its `created_by_user_id` matches their login. For a **sales invoice**, they can also see it when `invoicer_id` matches the employee assigned to their user. These are alternative ways to qualify: a Standard user can see an invoice they created or one assigned to their permitted employee. Purchases, purchase orders, stock entries, stock reconciliations, and journals use the creator login because they have no employee assignee field. The Purchase Invoice purchase-order selector applies ownership, supplier-category, and warehouse restrictions before selecting its newest 100 receivable orders. Every nonempty line warehouse must be permitted, including lines already received; access is checked again when an order is used.
 
-The rule applies to voucher lists, voucher reports and CSV exports, direct detail/edit/action URLs, linked payment pages, stock entry cancellation lookups, stock ledger and movement details, gross profit, and journal reference suggestions. Other roles keep their existing role permissions and record scopes.
+The rule applies to voucher lists, voucher reports and CSV exports, direct detail/edit/action URLs, linked payment pages, stock entry cancellation lookups, stock ledger and movement details, and journal reference suggestions. Other roles keep their existing role permissions and record scopes.
 
 The Sales Invoices browser list applies warehouse assignments, selected warehouse scopes, and named warehouse denials before pagination and counts. Every nonempty line warehouse must be permitted; a mixed-warehouse invoice is hidden if any line is restricted. Payment links and drawers resolve their parent invoice and enforce its creator/assigned-employee ownership, customer-category scope, and warehouse restrictions for every non-admin role. Knowing a payment ID does not grant access to a hidden parent invoice. Admin retains full record access.
 
@@ -66,7 +92,7 @@ The Journals list, report, detail, and drawer require Account Read access to eve
 
 Voucher ownership comes from the record audit fields, which stamp `created_by_user_id` when the voucher is created. A historical voucher with no creator user ID is not treated as owned by a Standard user. A historical sales invoice can still be visible if its `invoicer_id` matches the user's assigned employee. Editing a voucher does not change its creator. The rule is implemented in [`src/voucher-ownership.js`](../src/voucher-ownership.js).
 
-Daily Activity retains its existing restriction for Standard users, including its ERPNext reference view. Debtors remains unavailable to Standard users because it does not reliably map every displayed voucher to an owner. A Standard user with General Ledger Read can open General Ledger, but sees entries only from their own vouchers (or sales invoices assigned to their employee) and permitted accounts. Payment entries follow the ownership of their parent invoice or purchase. Historical entries without a verifiable owner are excluded. If customer or supplier categories are selected for the user, the ledger also filters sales and purchase entries to those categories and omits journal and stock entries. The scoped sales, purchase, purchase order, journal, stock ledger, stock movement, and gross profit reports remain available when the user's action permissions allow them.
+Daily Activity retains its existing restriction for Standard users, including its ERPNext reference view. Debtors remains unavailable to Standard users because it does not reliably map every displayed voucher to an owner. A Standard user with General Ledger Read can open General Ledger, but sees entries only from their own vouchers (or sales invoices assigned to their employee) and permitted accounts. Payment entries follow the ownership of their parent invoice or purchase. Historical entries without a verifiable owner are excluded. If customer or supplier categories are selected for the user, the ledger also filters sales and purchase entries to those categories and omits journal and stock entries. The scoped sales, purchase, purchase order, journal, stock ledger and stock movement reports remain available when the user's action permissions allow them.
 
 ## Example
 

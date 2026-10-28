@@ -3,6 +3,7 @@ const { normalizePurchase, resolvePurchaseMasters } = require('./purchases');
 const { storedPostingTime } = require('./posting-time');
 const { auditActor } = require('./audit');
 const { addVoucherOwnerFilter } = require('./voucher-ownership');
+const { addDocumentWarehouseFilter } = require('./warehouse-scope');
 
 function receiptStatus(docstatus, hasReceipts, fullyReceived) {
   if (docstatus !== 'submitted') return { status_label: docstatus === 'cancelled' ? 'Cancelled' : 'Draft', status_class: docstatus };
@@ -87,6 +88,7 @@ async function listPurchaseOrders(filters = {}) {
   const params = [];
   const where = [];
   addVoucherOwnerFilter(where, params, 'o', filters.ownerId);
+  addDocumentWarehouseFilter(where, params, 'app_purchase_order_items', 'purchase_order_id', 'o.id', filters);
   if (Array.isArray(filters.allowedTypes)) {
     params.push(filters.allowedTypes);
     where.push(`EXISTS (SELECT 1 FROM app_master_suppliers s WHERE s.supplier_id = o.supplier_id

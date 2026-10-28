@@ -20,6 +20,7 @@ const { normalizeJournalEntryPayload, validateJournalAccountSides, normalizeAcco
 const { validateCostCenter } = require('../cost-centers');
 const { validatePurchaseAllocations, postPurchaseAllocations, cancelPurchaseAllocations } = require('../journal-purchase-allocations');
 const { addVoucherOwnerFilter } = require('../voucher-ownership');
+const { reportMoney, subtractMoney, sumMoney, minor } = require('../lib/financial-money');
 
 async function accountingAccounts(options = {}) {
   const params = [];
@@ -1474,38 +1475,24 @@ async function trialBalanceReport(filters = {}) {
     FROM wm_gl_daily WHERE $2::date IS NULL OR posting_date <= $2::date GROUP BY account_id
   )
   SELECT account.account_code, account.account_name, account.account_type, account.normal_balance,
-    COALESCE(b.opening_balance,0)::float AS opening_balance,
-    COALESCE(b.period_debit,0)::float AS period_debit,
-    COALESCE(b.period_credit,0)::float AS period_credit,
-    COALESCE(b.closing_balance,0)::float AS closing_balance
+    COALESCE(b.opening_balance,0)::text AS opening_balance,
+    COALESCE(b.period_debit,0)::text AS period_debit,
+    COALESCE(b.period_credit,0)::text AS period_credit,
+    COALESCE(b.closing_balance,0)::text AS closing_balance
   FROM app_accounts account LEFT JOIN balances b ON b.account_id=account.id
-  WHERE NOT account.is_group AND account.is_active
+  WHERE NOT account.is_group
     AND (COALESCE(b.opening_balance,0)<>0 OR COALESCE(b.period_debit,0)<>0
       OR COALESCE(b.period_credit,0)<>0 OR COALESCE(b.closing_balance,0)<>0)
   ORDER BY account.account_code, account.account_name`, params);
   const normalizedRows = rows.map((row) => formatTrialBalanceRow(row));
-  const summary = normalizedRows.reduce((total, row) => {
-    total.opening_debit += row.opening_debit;
-    total.opening_credit += row.opening_credit;
-    total.period_debit += row.period_debit;
-    total.period_credit += row.period_credit;
-    total.closing_debit += row.closing_debit;
-    total.closing_credit += row.closing_credit;
-    return total;
-  }, {
-    opening_debit: 0,
-    opening_credit: 0,
-    period_debit: 0,
-    period_credit: 0,
-    closing_debit: 0,
-    closing_credit: 0,
-  });
+  const summary = Object.fromEntries(['opening_debit', 'opening_credit', 'period_debit',
+    'period_credit', 'closing_debit', 'closing_credit'].map(key => [key, sumMoney(normalizedRows, key)]));
 
   return {
     filters: { from, to },
     rows: normalizedRows,
-    summary: Object.fromEntries(Object.entries(summary).map(([key, value]) => [key, roundMoney(value)])),
-    is_balanced: roundMoney(summary.closing_debit) === roundMoney(summary.closing_credit),
+    summary,
+    is_balanced: minor(summary.closing_debit) === minor(summary.closing_credit),
   };
   }));
 }
@@ -1530,8 +1517,8 @@ async function profitAndLossReport(filters = {}) {
       account.account_code,
       account.account_name,
       account.account_type,
-      COALESCE(SUM(gl.debit), 0)::float AS debit,
-      COALESCE(SUM(gl.credit), 0)::float AS credit
+      COALESCE(SUM(gl.debit), 0)::text AS debit,
+      COALESCE(SUM(gl.credit), 0)::text AS credit
     FROM app_gl_entries gl
     INNER JOIN app_accounts account ON account.id = gl.account_id
     WHERE ${where.join(' AND ')}
@@ -1547,14 +1534,14 @@ async function profitAndLossReport(filters = {}) {
   const expenses = [];
   for (const row of rows) {
     const amount = row.account_type === 'income'
-      ? roundMoney(Number(row.credit || 0) - Number(row.debit || 0))
-      : roundMoney(Number(row.debit || 0) - Number(row.credit || 0));
+      ? subtractMoney(row.credit, row.debit)
+      : subtractMoney(row.debit, row.credit);
     const reportRow = {
       account_code: row.account_code,
       account_name: row.account_name,
       account_type: row.account_type,
-      debit: roundMoney(row.debit),
-      credit: roundMoney(row.credit),
+      debit: reportMoney(row.debit),
+      credit: reportMoney(row.credit),
       amount,
     };
     if (row.account_type === 'income') {
@@ -1564,13 +1551,11 @@ async function profitAndLossReport(filters = {}) {
     }
   }
 
-  const totalIncome = roundMoney(income.reduce((sum, row) => sum + row.amount, 0));
-  const cogs = roundMoney(expenses
-    .filter((row) => row.account_name.toLowerCase().includes('cost of goods'))
-    .reduce((sum, row) => sum + row.amount, 0));
-  const totalExpenses = roundMoney(expenses.reduce((sum, row) => sum + row.amount, 0));
-  const grossProfit = roundMoney(totalIncome - cogs);
-  const netProfit = roundMoney(totalIncome - totalExpenses);
+  const totalIncome = sumMoney(income, 'amount');
+  const cogs = sumMoney(expenses.filter(row => row.account_name.toLowerCase().includes('cost of goods')), 'amount');
+  const totalExpenses = sumMoney(expenses, 'amount');
+  const grossProfit = subtractMoney(totalIncome, cogs);
+  const netProfit = subtractMoney(totalIncome, totalExpenses);
 
   return {
     filters: { from, to },
@@ -1587,101 +1572,102 @@ async function profitAndLossReport(filters = {}) {
 }
 
 async function balanceSheetReport(filters = {}) {
-  const asOf = String(filters.as_of || '').trim();
-  const params = [asOf || null];
-  const { rows } = await getPostgresPool().query(
-    `
-    SELECT
-      account.account_code,
-      account.account_name,
-      account.account_type,
-      COALESCE(SUM(gl.debit), 0)::float AS debit,
-      COALESCE(SUM(gl.credit), 0)::float AS credit
-    FROM app_accounts account
-    LEFT JOIN app_gl_entries gl ON gl.account_id = account.id
-      AND ($1::date IS NULL OR gl.posting_date <= $1::date)
-    WHERE account.is_group = false
-      AND account.is_active = true
-      AND account.account_type IN ('asset', 'liability', 'equity')
-    GROUP BY account.id, account.account_code, account.account_name, account.account_type
-    HAVING COALESCE(SUM(gl.debit), 0) <> 0
-      OR COALESCE(SUM(gl.credit), 0) <> 0
-    ORDER BY account.account_type, account.account_code, account.account_name
-    `,
-    params,
-  );
-  const { rows: earningsRows } = await getPostgresPool().query(
-    `
-    SELECT
-      COALESCE(SUM(CASE WHEN account.account_type = 'income' THEN gl.credit - gl.debit ELSE 0 END), 0)::float AS income,
-      COALESCE(SUM(CASE WHEN account.account_type = 'expense' THEN gl.debit - gl.credit ELSE 0 END), 0)::float AS expenses
-    FROM app_gl_entries gl
-    INNER JOIN app_accounts account ON account.id = gl.account_id
-    WHERE account.account_type IN ('income', 'expense')
-      AND ($1::date IS NULL OR gl.posting_date <= $1::date)
-    `,
-    params,
-  );
+  return readSnapshot(getPostgresPool(), async client => {
+    const asOf = String(filters.as_of || '').trim();
+    const params = [asOf || null];
+    const { rows } = await client.query(
+      `
+      SELECT
+        account.account_code,
+        account.account_name,
+        account.account_type,
+        COALESCE(SUM(gl.debit), 0)::text AS debit,
+        COALESCE(SUM(gl.credit), 0)::text AS credit
+      FROM app_accounts account
+      LEFT JOIN app_gl_entries gl ON gl.account_id = account.id
+        AND ($1::date IS NULL OR gl.posting_date <= $1::date)
+      WHERE account.is_group = false
+        AND account.account_type IN ('asset', 'liability', 'equity')
+      GROUP BY account.id, account.account_code, account.account_name, account.account_type
+      HAVING COALESCE(SUM(gl.debit), 0) <> 0
+        OR COALESCE(SUM(gl.credit), 0) <> 0
+      ORDER BY account.account_type, account.account_code, account.account_name
+      `,
+      params,
+    );
+    const { rows: earningsRows } = await client.query(
+      `
+      SELECT
+        COALESCE(SUM(CASE WHEN account.account_type = 'income' THEN gl.credit - gl.debit ELSE 0 END), 0)::text AS income,
+        COALESCE(SUM(CASE WHEN account.account_type = 'expense' THEN gl.debit - gl.credit ELSE 0 END), 0)::text AS expenses
+      FROM app_gl_entries gl
+      INNER JOIN app_accounts account ON account.id = gl.account_id
+      WHERE account.account_type IN ('income', 'expense')
+        AND ($1::date IS NULL OR gl.posting_date <= $1::date)
+      `,
+      params,
+    );
 
-  const assets = [];
-  const liabilities = [];
-  const equity = [];
-  for (const row of rows) {
-    const debit = roundMoney(row.debit);
-    const credit = roundMoney(row.credit);
-    const amount = row.account_type === 'asset'
-      ? roundMoney(debit - credit)
-      : roundMoney(credit - debit);
-    const reportRow = {
-      account_code: row.account_code,
-      account_name: row.account_name,
-      account_type: row.account_type,
-      debit,
-      credit,
-      amount,
-    };
-    if (row.account_type === 'asset') {
-      assets.push(reportRow);
-    } else if (row.account_type === 'liability') {
-      liabilities.push(reportRow);
-    } else {
-      equity.push(reportRow);
+    const assets = [];
+    const liabilities = [];
+    const equity = [];
+    for (const row of rows) {
+      const debit = reportMoney(row.debit);
+      const credit = reportMoney(row.credit);
+      const amount = row.account_type === 'asset'
+        ? subtractMoney(debit, credit)
+        : subtractMoney(credit, debit);
+      const reportRow = {
+        account_code: row.account_code,
+        account_name: row.account_name,
+        account_type: row.account_type,
+        debit,
+        credit,
+        amount,
+      };
+      if (row.account_type === 'asset') {
+        assets.push(reportRow);
+      } else if (row.account_type === 'liability') {
+        liabilities.push(reportRow);
+      } else {
+        equity.push(reportRow);
+      }
     }
-  }
 
-  const earnings = earningsRows[0] || {};
-  const currentEarnings = roundMoney(Number(earnings.income || 0) - Number(earnings.expenses || 0));
-  if (currentEarnings !== 0) {
-    equity.push({
-      account_code: '',
-      account_name: 'Current Earnings',
-      account_type: 'equity',
-      debit: 0,
-      credit: 0,
-      amount: currentEarnings,
-    });
-  }
+    const earnings = earningsRows[0] || {};
+    const currentEarnings = subtractMoney(earnings.income, earnings.expenses);
+    if (currentEarnings !== 0) {
+      equity.push({
+        account_code: '',
+        account_name: 'Current Earnings',
+        account_type: 'equity',
+        debit: 0,
+        credit: 0,
+        amount: currentEarnings,
+      });
+    }
 
-  const totalAssets = roundMoney(assets.reduce((sum, row) => sum + row.amount, 0));
-  const totalLiabilities = roundMoney(liabilities.reduce((sum, row) => sum + row.amount, 0));
-  const totalEquity = roundMoney(equity.reduce((sum, row) => sum + row.amount, 0));
-  const liabilitiesPlusEquity = roundMoney(totalLiabilities + totalEquity);
-  const difference = roundMoney(totalAssets - liabilitiesPlusEquity);
+    const totalAssets = sumMoney(assets, 'amount');
+    const totalLiabilities = sumMoney(liabilities, 'amount');
+    const totalEquity = sumMoney(equity, 'amount');
+    const liabilitiesPlusEquity = sumMoney([{ amount: totalLiabilities }, { amount: totalEquity }], 'amount');
+    const difference = subtractMoney(totalAssets, liabilitiesPlusEquity);
 
-  return {
-    filters: { as_of: asOf },
-    assets,
-    liabilities,
-    equity,
-    summary: {
-      total_assets: totalAssets,
-      total_liabilities: totalLiabilities,
-      total_equity: totalEquity,
-      liabilities_plus_equity: liabilitiesPlusEquity,
-      difference,
-      is_balanced: difference === 0,
-    },
-  };
+    return {
+      filters: { as_of: asOf },
+      assets,
+      liabilities,
+      equity,
+      summary: {
+        total_assets: totalAssets,
+        total_liabilities: totalLiabilities,
+        total_equity: totalEquity,
+        liabilities_plus_equity: liabilitiesPlusEquity,
+        difference,
+        is_balanced: difference === 0,
+      },
+    };
+  });
 }
 
 async function backfillAccountingGl() {

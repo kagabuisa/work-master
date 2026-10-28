@@ -1,8 +1,8 @@
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
-const { getPostgresPool } = require('./store');
-const { REPORTS } = require('./report-permissions');
-const { initRecordAudit } = require('./audit');
+const { getPostgresPool, withPostgresTransaction } = require('./store');
+const { REPORTS, ADMIN_REPORT_PERMISSIONS } = require('./report-permissions');
+const { initRecordAudit, runWithAuditUser } = require('./audit');
 const { defaultRecordPermissions } = require('./user-record-access');
 const { activePermissionPriceLists } = require('./permission-price-lists');
 
@@ -66,14 +66,15 @@ const ROLE_RECORD_TYPES = [
     permissions: { create: 'payments.sales.record', cancel: 'payments.sales.cancel' } },
   { key: 'payments.purchases', label: 'Supplier Payment', group: 'Payments', actions: ['create', 'cancel'],
     permissions: { create: 'payments.purchases.record', cancel: 'payments.purchases.cancel' } },
-  ...REPORTS.map((report) => ({ key: `reports.${report.slug}`, label: report.label,
+  ...REPORTS.filter(report => !report.adminOnly).map((report) => ({ key: `reports.${report.slug}`, label: report.label,
     group: 'Reports', actions: report.slug === 'daily-activity' ? ['view', 'create'] : ['view'],
     permissions: { view: report.permission, ...(report.slug === 'daily-activity' ? { create: 'reports.daily-activity.create' } : {}) } })),
   { key: 'accounts', label: 'Accounts', group: 'Accounts', actions: ['create'], permissions: { create: 'accounts.manage' } },
   { key: 'chart-of-accounts', label: 'Chart of Accounts', group: 'Accounts', actions: ['view'], permissions: { view: 'accounts.view' } },
 ];
 const RECORD_PERMISSION_KEYS = new Set(ROLE_RECORD_TYPES.flatMap((type) => Object.values(type.permissions)));
-const EXTRA_PERMISSIONS = PERMISSIONS.filter((permission) => !RECORD_PERMISSION_KEYS.has(permission.key));
+const EXTRA_PERMISSIONS = PERMISSIONS.filter((permission) => !RECORD_PERMISSION_KEYS.has(permission.key)
+  && !ADMIN_REPORT_PERMISSIONS.has(permission.key));
 const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('hr.') && !item.key.startsWith('masters.')
   && item.key !== 'reports.daily-activity.create' && !item.key.endsWith('.cancel') && !item.key.endsWith('.delete') && item.key !== 'sync.run').map((item) => item.key);
 const PREVIOUS_ROUTINE_PERMISSIONS = [...ROUTINE_PERMISSIONS,
@@ -314,10 +315,12 @@ async function initAuth() {
       user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
       expires_at TIMESTAMPTZ NOT NULL,
       last_activity_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      password_version TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
   await pool.query('ALTER TABLE app_user_sessions ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ');
+  await pool.query('ALTER TABLE app_user_sessions ADD COLUMN IF NOT EXISTS password_version TEXT');
   await pool.query('UPDATE app_user_sessions SET last_activity_at = COALESCE(created_at, now()) WHERE last_activity_at IS NULL');
   await pool.query('ALTER TABLE app_user_sessions ALTER COLUMN last_activity_at SET DEFAULT now()');
   await pool.query('ALTER TABLE app_user_sessions ALTER COLUMN last_activity_at SET NOT NULL');
@@ -326,8 +329,8 @@ async function initAuth() {
 
 }
 
-async function listRoles() {
-  const { rows } = await getPostgresPool().query(`
+async function listRoles(client = getPostgresPool()) {
+  const { rows } = await client.query(`
     SELECT r.slug, r.name, r.permissions, r.scopes, r.built_in, COUNT(u.id)::int AS user_count
     FROM app_roles r LEFT JOIN app_users u ON u.role = r.slug
     GROUP BY r.slug ORDER BY r.built_in DESC, r.name
@@ -335,8 +338,8 @@ async function listRoles() {
   return rows;
 }
 
-async function validateRole(role) {
-  if (typeof role !== 'string' || !(await listRoles()).some((item) => item.slug === role)) {
+async function validateRole(role, client = getPostgresPool()) {
+  if (typeof role !== 'string' || !(await client.query('SELECT 1 FROM app_roles WHERE slug=$1', [role])).rows.length) {
     const error = new Error('Choose an existing role.'); error.status = 400; throw error;
   }
   return role;
@@ -539,8 +542,8 @@ async function deleteRole(slug) {
 
 }
 
-async function userCount() {
-  const { rows } = await getPostgresPool().query('SELECT COUNT(*)::int AS count FROM app_users');
+async function userCount(client = getPostgresPool()) {
+  const { rows } = await client.query('SELECT COUNT(*)::int AS count FROM app_users');
   return rows[0].count;
 }
 
@@ -567,7 +570,7 @@ async function createUser(usernameValue, password, options = {}, client = getPos
   validatePassword(password);
   const hash = await passwordHash(password);
   const mustChange = Boolean(options.mustChangePassword);
-  const role = options.role ? await validateRole(options.role) : await userCount() === 0 ? 'admin' : 'standard';
+  const role = options.role ? await validateRole(options.role, client) : await userCount(client) === 0 ? 'admin' : 'standard';
   const recordAccess = options.record_access || {};
   const grants = defaultRecordPermissions(recordAccess);
   const { rows } = await client.query(
@@ -597,17 +600,39 @@ async function authenticate(usernameValue, password) {
   return { id: Number(user.id), username: user.username, role: user.role, must_change_password: Boolean(user.must_change_password) };
 }
 
-async function createSession(userId) {
+async function insertSession(client, user) {
   const token = crypto.randomBytes(32).toString('base64url');
   const hash = tokenHash(token);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
-  await getPostgresPool().query('DELETE FROM app_user_sessions WHERE expires_at <= now()');
-  await getPostgresPool().query(
-    'INSERT INTO app_user_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)',
-    [hash, userId, expiresAt],
+  // The user row is locked first. Touch only that user's sessions so concurrent
+  // password changes cannot acquire each other's expired session locks.
+  await client.query('DELETE FROM app_user_sessions WHERE user_id=$1 AND expires_at <= now()', [user.id]);
+  await client.query(
+    'INSERT INTO app_user_sessions (token_hash, user_id, expires_at, password_version) VALUES ($1, $2, $3, $4)',
+    [hash, user.id, expiresAt, tokenHash(user.password_hash)],
   );
 
   return token;
+}
+
+async function createSession(userId) {
+  return withPostgresTransaction(async client => {
+    const user = (await client.query('SELECT * FROM app_users WHERE id=$1 FOR UPDATE', [userId])).rows[0];
+    if (!user?.active || user.api_service_account) throw Object.assign(new Error('Login required.'), { status: 401 });
+    return insertSession(client, user);
+  });
+}
+
+async function authenticateSession(username, password) {
+  const verified = await authenticate(username, password);
+  if (!verified) return null;
+  return runWithAuditUser(verified, () => withPostgresTransaction(async client => {
+    const user = (await client.query('SELECT * FROM app_users WHERE id=$1 FOR UPDATE', [verified.id])).rows[0];
+    if (!user?.active || user.api_service_account || !await verifyPassword(password, user.password_hash)) return null;
+    return { token: await insertSession(client, user), user: {
+      id: Number(user.id), username: user.username, role: user.role, must_change_password: user.must_change_password,
+    } };
+  }));
 }
 
 async function sessionUser(token) {
@@ -619,7 +644,7 @@ async function sessionUser(token) {
       SET last_activity_at = now()
       WHERE token_hash = $1 AND expires_at > now()
         AND last_activity_at > now() - ($2::int * interval '1 minute')
-      RETURNING user_id
+      RETURNING user_id, password_version
     )
     SELECT u.id, u.username, u.must_change_password, u.role, u.permission_grants, u.permission_denials,
            u.record_access,
@@ -630,6 +655,7 @@ async function sessionUser(token) {
     JOIN app_users u ON u.id = s.user_id
     LEFT JOIN app_roles r ON r.slug = u.role
     WHERE u.active = true AND u.api_service_account = false
+      AND s.password_version = encode(sha256(u.password_hash::bytea), 'hex')
   `, [hash, SESSION_IDLE_MINUTES]);
   const user = rows[0];
   if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
@@ -726,15 +752,19 @@ async function changePassword(userId, oldPassword, newPassword) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query('SELECT password_hash FROM app_users WHERE id = $1 FOR UPDATE', [userId]);
+    const { rows } = await client.query('SELECT * FROM app_users WHERE id = $1 FOR UPDATE', [userId]);
     if (!rows[0] || !await verifyPassword(oldPassword, rows[0].password_hash)) {
       const error = new Error('Current password is incorrect.');
       error.status = 400;
       throw error;
     }
-    await client.query('UPDATE app_users SET password_hash = $1, must_change_password = false WHERE id = $2', [await passwordHash(newPassword), userId]);
+    if (!rows[0].active || rows[0].api_service_account) throw Object.assign(new Error('Login required.'), { status: 401 });
+    const nextHash = await passwordHash(newPassword);
+    await client.query('UPDATE app_users SET password_hash = $1, must_change_password = false WHERE id = $2', [nextHash, userId]);
     await client.query('DELETE FROM app_user_sessions WHERE user_id = $1', [userId]);
+    const token = await insertSession(client, { ...rows[0], password_hash: nextHash });
     await client.query('COMMIT');
+    return token;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -780,6 +810,7 @@ module.exports = {
   userCount,
   createUser,
   authenticate,
+  authenticateSession,
   verifyPassword,
   passwordHash,
   validatePassword,

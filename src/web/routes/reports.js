@@ -5,9 +5,10 @@ const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity
 const { localDailyActivityReport, localDailyActivityVoucher } = require('../local-daily-activity');
 const { createDailyActivity, dailyActivityFormOptions, UNIT_TYPES, DELIVERY_OPTIONS } = require('../daily-activity-create');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
-const { accountAccessOptions, hrLedgerAccessOptions } = require('../helpers');
+const { accountAccessOptions, hrLedgerAccessOptions, warehouseAccessOptions } = require('../helpers');
+const { ADMIN_REPORT_SLUGS } = require('../../report-permissions');
 const { selectedCategories } = require('../../access');
-const { money, todayString } = require('../format');
+const { money, financialMoney, todayString } = require('../format');
 const {
   debtorReport,
   stockLedgerReport,
@@ -27,6 +28,12 @@ const {
 const { sendCustomerStatementPdf } = require('../customer-statement-pdf');
 const { sendGeneralLedgerDownload } = require('../ledger-export-jobs');
 const router = express.Router();
+router.use((req, res, next) => {
+  if (ADMIN_REPORT_SLUGS.has(req.path.split('/')[1]) && req.currentUser?.role !== 'admin') {
+    return res.status(403).send('Only administrators can view this report.');
+  }
+  next();
+});
 
 function dailyActivityError(err, req, res, next) {
   if (err.code !== 'DAILY_ACTIVITY_SOURCE_UNAVAILABLE') return next(err);
@@ -142,6 +149,7 @@ router.get('/debtors', async (req, res, next) => {
 router.get('/stock-ledger', async (req, res, next) => {
   try {
     const report = await stockLedgerReport({
+      ...warehouseAccessOptions(req.currentUser),
       ownerId: voucherOwnerId(req.currentUser),
       ownerEmployeeId: voucherEmployeeId(req.currentUser),
       search: req.query.q,
@@ -175,6 +183,7 @@ router.get('/stock-ledger/vouchers/:type/:id', async (req, res, next) => {
 router.get('/stock-movement', async (req, res, next) => {
   try {
     const report = await stockMovementReport({
+      ...warehouseAccessOptions(req.currentUser),
       ownerId: voucherOwnerId(req.currentUser),
       ownerEmployeeId: voucherEmployeeId(req.currentUser),
       search: req.query.q,
@@ -193,6 +202,7 @@ router.get('/stock-movement', async (req, res, next) => {
 router.get('/stock-movement/details', async (req, res, next) => {
   try {
     const details = await stockMovementDetails({
+      ...warehouseAccessOptions(req.currentUser),
       ownerId: voucherOwnerId(req.currentUser),
       ownerEmployeeId: voucherEmployeeId(req.currentUser),
       item_code: req.query.item_code,
@@ -264,7 +274,7 @@ router.get('/trial-balance', async (req, res, next) => {
       from: req.query.from,
       to: req.query.to,
     });
-    res.render('trial-balance', { report, money });
+    res.render('trial-balance', { report, money: financialMoney });
   } catch (err) {
     next(err);
   }
@@ -276,7 +286,7 @@ router.get('/profit-and-loss', async (req, res, next) => {
       from: req.query.from,
       to: req.query.to,
     });
-    res.render('profit-and-loss', { report, money });
+    res.render('profit-and-loss', { report, money: financialMoney });
   } catch (err) {
     next(err);
   }
@@ -287,7 +297,7 @@ router.get('/balance-sheet', async (req, res, next) => {
     const report = await balanceSheetReport({
       as_of: req.query.as_of,
     });
-    res.render('balance-sheet', { report, money });
+    res.render('balance-sheet', { report, money: financialMoney });
   } catch (err) {
     next(err);
   }

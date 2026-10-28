@@ -31,6 +31,7 @@ const {
 const { updateVoucherPostingTime, deleteDraftVoucher } = require('../../store');
 const { registerVoucherReportRoutes } = require('./voucher-report-routes');
 const { voucherOwnerId } = require('../../voucher-ownership');
+const { warehouseAccessOptions } = require('../helpers');
 
 const router = express.Router();
 
@@ -99,7 +100,7 @@ async function fillPurchaseFromOrder(user, purchase, orderId) {
 router.get('/purchase-orders', async (req, res, next) => {
   try {
     const result = await listPurchaseOrders({ ...req.query, ownerId: voucherOwnerId(req.currentUser),
-      allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
+      allowedTypes: selectedCategories(req.currentUser, 'suppliers'), ...warehouseAccessOptions(req.currentUser) });
     res.render('purchase-orders', { result, query: req.query, money: purchaseMoney });
   } catch (err) { next(err); }
 });
@@ -155,7 +156,7 @@ router.post('/purchase-orders/:id/delete', async (req, res, next) => {
 router.get('/purchases', async (req, res, next) => {
   try {
     const result = await listPurchases({ ...req.query, ownerId: voucherOwnerId(req.currentUser),
-      allowedTypes: selectedCategories(req.currentUser, 'suppliers') });
+      allowedTypes: selectedCategories(req.currentUser, 'suppliers'), ...warehouseAccessOptions(req.currentUser) });
     res.render('purchases', { result, query: req.query, money: purchaseMoney });
   } catch (err) { next(err); }
 });

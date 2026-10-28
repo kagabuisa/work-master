@@ -40,7 +40,7 @@ Standard text, search, number, date, time, dropdown, and multiline fields use co
 
 - An account/logout icon at the right of the page header expands when selected. The panel shows the signed-in username and the current date and time in Kampala, using the app's configured display formats. Select the icon again to collapse the panel; keyboard users can focus it and press Enter or Space. The clock updates while the page is open. On module pages, **Change password** is also available in this panel. Select **Log out** to end your session and return to the login screen.
 - The login screen pairs a teal Work Master introduction with a focused sign-in panel; the panels stack on mobile. The introduction displays “Your Business, Transactions & Information Connected”. Its supporting text reads “Bring your transactions, accounts, inventory and people together in one workspace.” The introduction heading reads “A clearer view.” followed by “Better work everyday”. The desktop introduction footer reads “Work Better”. On shorter laptop windows, spacing contracts to keep the sign-in form in view; short mobile windows show a compact brand header. Enter your username and password, then select **Log in**. The information control beside **Need access?** explains how to get an account or password reset from your administrator.
-- Users sign in with a PostgreSQL-backed account. Sessions have a seven-day maximum lifetime and end after five minutes without activity. An idle open page returns to the login screen. Activity in an open form keeps its session alive.
+- Users sign in with a PostgreSQL-backed account. Changing your password ends older sessions and keeps only the new session issued by that change; an administrator password reset requires you to sign in again. A pending login with the old password cannot regain access after either operation. Sessions have a seven-day maximum lifetime and end after five minutes without activity. An idle open page returns to the login screen. Activity in an open form keeps its session alive.
 - Browser sign-in allows five attempts per username and twenty attempts per IP address in a 15-minute window. A successful sign-in clears that username's counter; the IP budget still counts the attempt. Excess attempts show a temporary login-limit message and HTTP 429; wait for the window to expire before trying again. Username matching ignores capitalization and surrounding spaces. Limits remain in effect across app restarts and multiple app instances.
 - Login and other forms must be submitted from the app's own origin. If a page was open before an update fixing “Request origin is not allowed,” reload it before submitting again.
 - Roles grant actions on vouchers, master lists, payments, accounts, and reports. An admin can adjust a user's permissions and assign permitted records in **Settings → Users**. See [Permissions and voucher visibility](permissions.md) for ownership and scope rules.
@@ -157,6 +157,19 @@ Uploading fills the form without saving or posting. Review the count and value d
 
 Scanned physical stock sheets and spreadsheet files can be attached separately under **Scanned stock sheets** after saving the voucher. Users with Stock Entry Edit can attach or remove supporting PDF, JPG, PNG, CSV, and Excel (.xls/.xlsx) files on saved draft, submitted, or cancelled reconciliations. Upload up to three files at a time, no larger than 10 MB each. A “request is too large” (413) response for a smaller file indicates that the server proxy upload limit needs to be increased. The list shows file name, size, uploader, and upload time; select a file name to download it. Uploaded scans are retained until removed or the voucher is deleted. Attaching or removing scans does not change the count, voucher status, stock ledger, or accounting entries. These attachments are supporting evidence; use **Upload count sheet** above to import Excel quantities.
 
+### Purchase quantities, costs, and visibility
+
+Purchase invoices and purchase orders accept quantities with up to three decimal
+places and buying costs with up to two decimal places. For example, `1.001` units
+at `1,000` total `1,001`, and `100` units at `0.07` total `7`. Form previews and
+saved totals use the same exact arithmetic. Receipt line values use the accepted rate and
+round the final quantity × rate to whole UGX: four units at `1,000.25` post stock
+and payable amounts of `4,001`. Cancellation reverses the posted stock value.
+
+Purchase invoice and order lists hide a document if any line uses a restricted
+warehouse. Payment links and drawers use the same access checks as their parent
+purchase, including ownership, supplier scope, and warehouse restrictions.
+
 ### Paying multiple purchase invoices in one journal
 
 Journal main inputs align within each responsive grid row, with selected reference chips displayed below the field grid so they do not shift the References input. The journal form keeps References and account rows compact; the reference-selection and partial-payment instructions are provided here in the guide.
@@ -177,6 +190,22 @@ The invoice picker lists submitted invoices with outstanding balances for the se
 - An account may appear on multiple debit lines or multiple credit lines, but it cannot appear on **both** sides of the same journal. The form shows this conflict, and the server rejects it when saving or posting. Submitting an older draft applies the same rule.
 
 ## Historical reports and simultaneous use
+
+**Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are available only
+to Admin.** Other users cannot open these reports through a direct link or a saved
+report permission. General Ledger remains available according to its own action,
+account, and ownership permissions.
+
+Trial Balance, Profit & Loss, and Balance Sheet show two-decimal UGX amounts so
+fractional payroll amounts remain visible and reconcile. Deactivating an account
+prevents new posting but retains its historical balances in financial statements.
+Balance Sheet reads account balances and earnings from one consistent snapshot.
+
+Stock Ledger and Stock Movement include only permitted warehouses in their rows,
+counts, opening balances, and totals. Selecting an unpermitted warehouse returns
+an access error. Voucher previews require access to the entire source voucher,
+including both warehouses on transfers.
+
 
 Controlled inventory checks each posting event’s stock movements against its invoice and accounting before the submission commits. These checks use a posting-event lookup index, so the event check can find the current voucher’s movements without scanning the full stock ledger. Submission still waits for validation and commit; saved drafts do not post stock or accounting.
 

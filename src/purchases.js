@@ -12,6 +12,8 @@ const { auditActor } = require('./audit');
 const { normalizePostingTime, storedPostingTime } = require('./posting-time');
 const { validateCostCenter } = require('./cost-centers');
 const { addVoucherOwnerFilter } = require('./voucher-ownership');
+const { addDocumentWarehouseFilter } = require('./warehouse-scope');
+const { decimalValue, multiplyMoney } = require('./shared/invoice-math');
 
 function badRequest(message) {
   const error = new Error(message);
@@ -64,12 +66,15 @@ function normalizePurchase(payload) {
       || !Number.isFinite(unitPrice) || unitPrice <= 0) {
       throw badRequest(`Complete item, warehouse, quantity, and unit price on row ${index + 1}.`);
     }
-    if (Math.round(quantity * 1000) !== quantity * 1000) {
+    let exactQuantity, exactPrice;
+    try { exactQuantity = decimalValue(row.quantity, 3, '99999999999.999'); } catch {
       throw badRequest(`Quantity on row ${index + 1} can have at most three decimal places.`);
     }
-    if (Math.round(unitPrice * 100) !== unitPrice * 100) {
+    try { exactPrice = decimalValue(row.unit_price, 2, '999999999999.99'); } catch {
       throw badRequest(`Unit price on row ${index + 1} can have at most two decimal places.`);
     }
+    const lineTotal = multiplyMoney(exactQuantity, exactPrice);
+    if (lineTotal > 999999999999) throw badRequest(`Line total on row ${index + 1} exceeds supported storage bounds.`);
     return {
       id: Number(row.id || 0),
       purchase_order_item_id: Number(row.purchase_order_item_id || 0) || null,
@@ -78,11 +83,13 @@ function normalizePurchase(payload) {
       warehouse,
       quantity,
       unit_price: unitPrice,
-      line_total: money(quantity * unitPrice),
+      line_total: lineTotal,
     };
   });
   if (!items.length) throw badRequest('Add at least one purchase item.');
-  const total = money(items.reduce((sum, item) => sum + item.line_total, 0));
+  const exactTotal = items.reduce((sum, item) => sum + BigInt(item.line_total), 0n);
+  if (exactTotal > 999999999999n) throw badRequest('Purchase total exceeds supported storage bounds.');
+  const total = Number(exactTotal);
   if (total <= 0) throw badRequest('Purchase total must be greater than zero.');
   return {
     posting_date: postingDate,
@@ -316,6 +323,7 @@ async function listPurchases(filters = {}) {
   const params = [];
   const where = [];
   addVoucherOwnerFilter(where, params, 'p', filters.ownerId);
+  addDocumentWarehouseFilter(where, params, 'app_purchase_items', 'purchase_id', 'p.id', filters);
   if (Array.isArray(filters.allowedTypes)) {
     params.push(filters.allowedTypes);
     where.push(`EXISTS (
@@ -415,7 +423,7 @@ async function submitPurchase(id) {
     if (!purchase) throw notFound();
     if (purchase.docstatus !== 'draft') throw badRequest('Only draft purchases can be submitted.');
     const itemResult = await client.query(`
-      SELECT item_code, item_name, warehouse, quantity::float, unit_price::float, purchase_order_item_id
+      SELECT item_code, item_name, warehouse, quantity::float, unit_price::text, purchase_order_item_id
       FROM app_purchase_items WHERE purchase_id = $1 ORDER BY line_no
     `, [purchaseId]);
     if (!itemResult.rows.length) throw badRequest('Add at least one item before submitting.');
@@ -434,7 +442,7 @@ async function submitPurchase(id) {
         voucher_id: purchaseId,
         voucher_no: purchase.purchase_no,
         qty_change: Number(item.quantity),
-        rate: Number(item.unit_price),
+        rate: item.unit_price,
       });
     }
     const ledger = await client.query(`

@@ -7,8 +7,8 @@ const { getPostgresPool, closeStore } = require('../src/core');
 async function main() {
   const { rows } = await getPostgresPool().query('SELECT current_database() AS name');
   const database = String(rows[0].name);
-  if (!/(_golden|_test)$/.test(database)) {
-    throw new Error(`Accounting tests refuse to reset database "${database}". Use a dedicated *_golden or *_test database.`);
+  if (!/_hr_test$/.test(database)) {
+    throw new Error(`Accounting tests refuse to reset database "${database}". Use a dedicated *_hr_test database.`);
   }
   const { rows: schemaRows } = await getPostgresPool().query(`
     SELECT pg_has_role(nspowner, 'MEMBER') AS owns_public_schema,

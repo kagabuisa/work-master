@@ -6,7 +6,6 @@ const {
   invoiceAllowed,
   purchaseAllowed,
   purchaseOrderAllowed,
-  purchasePaymentAllowed,
   priceListActionAllowed,
   anyNamedPriceListAction,
   warehouseAllowed,
@@ -18,7 +17,7 @@ const {
   assignedMasterRecordAllowed,
   purchasePriceListAllowed,
 } = require('./access');
-const { REPORTS } = require('./report-permissions');
+const { REPORTS, ADMIN_REPORT_PERMISSIONS, ADMIN_REPORT_SLUGS } = require('./report-permissions');
 const { voucherOwnedByUser } = require('./voucher-ownership');
 const { invoiceForPayment } = require('./store');
 const { purchaseForPayment } = require('./purchases');
@@ -29,6 +28,7 @@ const UNSCOPED_VOUCHER_REPORTS = new Set([
 ]);
 
 function can(user, permission) {
+  if (ADMIN_REPORT_PERMISSIONS.has(permission)) return user?.role === 'admin';
   if (user?.role === 'standard' && UNSCOPED_VOUCHER_REPORTS.has(permission)) return false;
   return user?.role === 'admin' || Array.isArray(user?.permissions) && user.permissions.includes(permission);
 }
@@ -346,6 +346,7 @@ async function scopeCheck(req) {
   if (method === 'GET' && (req.path === '/stock/shared' || req.stockEntrySharedRead
       && /^\/stock\/entries\/[1-9][0-9]*(?:\/drawer)?$/.test(req.path))) return true;
   if (user.role === 'admin') return true;
+  if (parts[0] === 'reports' && ADMIN_REPORT_SLUGS.has(parts[1])) return false;
   const scopedStandardLedger = user.role === 'standard'
     && (parts[0] === 'reports' && parts[1] === 'general-ledger' && parts.length === 2
       || parts[0] === 'api' && parts[1] === 'general-ledger');
@@ -409,23 +410,20 @@ async function scopeCheck(req) {
         && !await masterRecordAllowed(user, 'customers', body.customer_id)) return false;
   }
   if (parts[0] === 'purchases') {
-    if (user.role === 'standard' && parts[1] === 'payments' && parts[2]) {
-      const purchaseId = await purchaseForPayment(parts[2]).catch((error) => {
+    let purchaseId = parts[1] && !['new', 'payments', 'report'].includes(parts[1]) ? parts[1] : null;
+    if (parts[1] === 'payments' && parts[2]) {
+      purchaseId = await purchaseForPayment(parts[2]).catch((error) => {
         if (error.status === 404) return null;
         throw error;
       });
-      if (!purchaseId || !await voucherOwnedByUser(user, 'purchases', purchaseId)) return false;
+      if (!purchaseId) return false;
     }
-    if (parts[1] && !['new', 'payments', 'report'].includes(parts[1])
-        && !await voucherOwnedByUser(user, 'purchases', parts[1])) return false;
+    if (purchaseId && (!await voucherOwnedByUser(user, 'purchases', purchaseId)
+      || !await purchaseAllowed(user, purchaseId)
+      || !await voucherWarehousesAllowed(user, 'purchases', purchaseId))) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2) && body.purchase_order_id
         && (!await purchaseOrderAllowed(user, body.purchase_order_id)
           || !await voucherWarehousesAllowed(user, 'purchase-orders', body.purchase_order_id))) return false;
-    if (parts[1] === 'payments' && parts[2] && !await purchasePaymentAllowed(user, parts[2])) return false;
-    if (parts[1] && !['new', 'payments', 'report'].includes(parts[1])
-        && !await purchaseAllowed(user, parts[1])) return false;
-    if (parts[1] && !['new', 'payments', 'report'].includes(parts[1])
-        && !await voucherWarehousesAllowed(user, 'purchases', parts[1])) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2)
         && !await masterRecordAllowed(user, 'suppliers', body.supplier_id)) return false;
   }
@@ -459,11 +457,13 @@ async function scopeCheck(req) {
       return false;
     }
   }
-  if (parts[0] === 'reports' && parts[1] === 'stock-ledger' && parts[2] === 'vouchers'
-      && user.role === 'standard') {
+  if (parts[0] === 'reports' && parts[1] === 'stock-ledger' && parts[2] === 'vouchers') {
     const kind = parts[3] === 'invoice' ? 'sales' : parts[3] === 'purchase' ? 'purchases'
       : parts[3]?.startsWith('stock_') ? 'stock' : null;
-    if (!kind || !await voucherOwnedByUser(user, kind, parts[4])) return false;
+    if (!kind || !await voucherOwnedByUser(user, kind, parts[4])
+      || !await voucherWarehousesAllowed(user, kind, parts[4])) return false;
+    if (kind === 'sales' && !await invoiceAllowed(user, parts[4])) return false;
+    if (kind === 'purchases' && !await purchaseAllowed(user, parts[4])) return false;
   }
   return true;
 }

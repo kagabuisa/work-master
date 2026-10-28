@@ -909,8 +909,9 @@ async function applyPostgresStockMovement(client, movement) {
     valueSource = -roundMoney(source.stock_value_change);
   }
   if (qtyChange > 0) {
-    incomingRate = roundMoney(Number(movement.rate || previousRate || 0));
-    valueChange = valueSource ?? multiplyMoney(qtyChange, incomingRate);
+    const preciseRate = movement.rate || previousRate || 0;
+    incomingRate = Number(preciseRate);
+    valueChange = valueSource ?? multiplyMoney(qtyChange, preciseRate);
   } else if (qtyChange < 0) {
     if (previousQuantity + qtyChange < -0.0005) {
       const err = new Error(`Insufficient stock for ${itemName} in ${warehouse}.`);
