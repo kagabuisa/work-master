@@ -83,6 +83,7 @@ router.get('/invoices', async (req, res, next) => {
     const search = String(req.query.q || '').trim();
     const [result, warehouses] = await Promise.all([
       cachedInvoiceList({ ...req.query, allowedGroups: selectedCategories(req.currentUser, 'customers'),
+        ...warehouseAccessOptions(req.currentUser),
         ownerId: voucherOwnerId(req.currentUser), ownerEmployeeId: voucherEmployeeId(req.currentUser) }),
       invoiceWarehouseOptions(req.currentUser),
     ]);

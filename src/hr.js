@@ -410,12 +410,23 @@ async function lockedRun(client,id,user) {
   return {run,slips};
 }
 async function payrollList(user) {
-  const runs=(await getPostgresPool().query('SELECT *,posting_date::text FROM app_hr_runs ORDER BY id DESC LIMIT 200')).rows;
+  const pool=getPostgresPool();
+  const runs=(await pool.query('SELECT *,posting_date::text FROM app_hr_runs ORDER BY id DESC LIMIT 200')).rows
+    .filter(r=>accountAllowed(user,String(r.payable_account_id)));
+  if(!runs.length) return [];
   const opts=await options(user); const employees=new Set(opts.employees.map(e=>e.employee_id));
+  const rows=(await pool.query(`SELECT s.run_id,s.employee_id,s.cost_center,s.components,s.gross_pay,s.net_pay,
+    COALESCE((SELECT sum(p.amount) FROM app_hr_payments p WHERE p.slip_id=s.id AND p.docstatus='submitted'),0) AS paid_amount
+    FROM app_hr_slips s WHERE s.run_id=ANY($1::bigint[]) ORDER BY s.run_id,s.employee_id`,[runs.map(r=>r.id)])).rows;
+  const byRun=new Map();
+  for(const s of rows) {
+    const id=String(s.run_id);
+    if(!byRun.has(id)) byRun.set(id,[]);
+    byRun.get(id).push(s);
+  }
   const out=[];
   for(const r of runs) {
-    if(!accountAllowed(user,String(r.payable_account_id))) continue;
-    const slips=await runSlips(getPostgresPool(),r.id);
+    const slips=byRun.get(String(r.id))||[];
     if(!slips.length || slips.some(s=>!employees.has(s.employee_id)||!employeeAllowed(user,s.employee_id,s.cost_center)||s.components.some(c=>!accountAllowed(user,String(c.account_id))||c.payable_account_id&&!accountAllowed(user,String(c.payable_account_id))))) continue;
     out.push({...r,employees:slips.length,gross:slips.reduce((n,s)=>n+Number(s.gross_pay),0),net:slips.reduce((n,s)=>n+Number(s.net_pay),0),paid:slips.reduce((n,s)=>n+Number(s.paid_amount),0)});
   }

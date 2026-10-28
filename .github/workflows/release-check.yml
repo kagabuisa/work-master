@@ -11,22 +11,23 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: work_master_test
+          POSTGRES_DB: work_master_hr_test
           POSTGRES_USER: work_master_test
           POSTGRES_PASSWORD: test_password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U work_master_test -d work_master_test"
+          --health-cmd "pg_isready -U work_master_test -d work_master_hr_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
-      POSTGRES_DB: work_master_test
+      POSTGRES_DB: work_master_hr_test
       POSTGRES_USER: work_master_test
       POSTGRES_PASSWORD: test_password
+      POSTGRES_URL: postgresql://work_master_test:test_password@127.0.0.1:5432/work_master_hr_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,4 +35,5 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm run release:check
+      - run: npm run test:postgres
+      - run: npm run test:accounting

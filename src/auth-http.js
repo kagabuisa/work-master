@@ -6,6 +6,7 @@ const { can, permissionCheck, scopeCheck } = require('./authorize');
 const { getPostgresPool } = require('./store');
 const { activePermissionPriceLists } = require('./permission-price-lists');
 const { stockEntryShareAccess } = require('./stock-entry-workflow');
+const { rateLimit, hash } = require('./api/security');
 const { recordAccessChoices, selectedLabels, validateRecordAccess,
   defaultRecordPermissions } = require('./user-record-access');
 const { invoicePriceListAllowed, priceListActionAllowed, anyNamedPriceListAction,
@@ -38,9 +39,10 @@ const {
 } = require('./auth');
 
 const COOKIE_NAME = 'wm_session';
-const loginFailures = new Map();
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_ATTEMPT_LIMIT = 5;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+const LOGIN_IP_LIMIT = 20;
+const LOGIN_USERNAME_LIMIT = 5;
+const LOGIN_USERNAME_CATEGORY = 'browser-login-username';
 
 function sessionToken(req) {
   const header = String(req.headers.cookie || '');
@@ -62,18 +64,6 @@ function safeNext(value) {
   const path = String(value || '');
   return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\') && !path.startsWith('/login')
     ? path : '/';
-}
-
-function loginKey(req, username) {
-  return `${req.ip}|${String(username || '').trim().toLowerCase()}`;
-}
-
-function pruneLoginFailures(now) {
-  for (const [key, state] of loginFailures) {
-    if (state.until <= now) {
-      loginFailures.delete(key);
-    }
-  }
 }
 
 function denyAccess(req, res) {
@@ -216,26 +206,27 @@ function installAuth(app) {
     const username = String(req.body.username || '').trim().toLowerCase();
     const password = String(req.body.password || '');
     const nextPath = safeNext(req.body.next);
-    pruneLoginFailures(Date.now());
-    const key = loginKey(req, username);
-    const state = loginFailures.get(key);
-    if (state && state.until > Date.now() && state.count >= LOGIN_ATTEMPT_LIMIT) {
-      res.status(429).render('login', { error: 'Too many attempts. Try again in 15 minutes.', username, nextPath, setupNeeded: false });
-      return;
-    }
     try {
+      // Reserve attempts atomically before password hashing. Separate keys
+      // prevent username/IP rotation and concurrent workers bypassing limits.
+      await rateLimit(req, res, 'browser-login-ip', req.ip, LOGIN_IP_LIMIT, LOGIN_WINDOW_SECONDS);
+      await rateLimit(req, res, LOGIN_USERNAME_CATEGORY, username, LOGIN_USERNAME_LIMIT, LOGIN_WINDOW_SECONDS);
       const user = await authenticate(username, password);
       if (!user) {
-        const current = state && state.until > Date.now() ? state : { count: 0, until: Date.now() + LOGIN_WINDOW_MS };
-        current.count += 1;
-        loginFailures.set(key, current);
         res.status(401).render('login', { error: 'Invalid username or password.', username, nextPath, setupNeeded: await userCount() === 0 });
         return;
       }
-      loginFailures.delete(key);
+      // A valid account cannot erase the IP budget used by other attempts.
+      await getPostgresPool().query('DELETE FROM wm_api_rate_limits WHERE key=$1',
+        [hash(`${LOGIN_USERNAME_CATEGORY}:${username}`)]);
       setSessionCookie(req, res, await runWithAuditUser(user, () => createSession(user.id)));
       res.redirect(303, user.must_change_password ? '/account/password' : nextPath);
-    } catch (error) { next(error); }
+    } catch (error) {
+      if (error.code === 'rate_limited') {
+        return res.status(429).render('login', { error: 'Too many login attempts. Please try again later.', username, nextPath, setupNeeded: false });
+      }
+      next(error);
+    }
   });
 
   app.post('/logout', async (req, res, next) => {

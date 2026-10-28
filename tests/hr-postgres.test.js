@@ -9,6 +9,92 @@ const admin={role:'admin',id:1,username:'HR Admin'};
 const restrictedUserFor=employeeId=>({role:'finance',record_access:{employee_id:employeeId},permissions:['hr.payroll.view']});
 const author={role:'finance',id:2,username:'Author',permissions:[]};
 
+test('fractional HR postings, payments, snapshots and reversals reconcile; payroll lists batch slips', {
+  skip:process.env.HR_TEST_POSTGRES!=='1',
+},async()=>{
+  const pool=store.getPostgresPool();
+  try {
+    assert.match((await pool.query('SELECT current_database() AS name')).rows[0].name,/_hr_test$/);
+    await pool.query('DROP SCHEMA public CASCADE');await pool.query('CREATE SCHEMA public');await store.initStore();
+    await pool.query(`INSERT INTO app_master_employees(employee_id,employee_name,company,status)
+      VALUES('FRACTION-1','Fraction employee one','Fraction Co','Active'),('FRACTION-2','Fraction employee two','Fraction Co','Active')`);
+    const ids={};
+    for(const [key,type,detail] of [['salary','expense','Expense Account'],['payable','liability','Payable'],
+      ['loan','asset','Receivable'],['bank','asset','Bank']]) ids[key]=(await pool.query(`INSERT INTO app_accounts
+      (account_code,account_name,account_type,account_detail_type,normal_balance) VALUES($1,$1,$2,$3,$4) RETURNING id`,
+    [`FRACTION-${key}`,type,detail,type==='liability'?'credit':'debit'])).rows[0].id;
+    const ledger=async(type,id,account)=>Number((await pool.query(`SELECT COALESCE(sum(credit-debit),0) AS balance
+      FROM app_gl_entries WHERE voucher_type=$1 AND voucher_id=$2 AND account_id=$3`,[type,id,account])).rows[0].balance);
+    await runWithAuditUser(admin,async()=>{
+      await hr.saveSettings({action:'accounts',salary_payable_account_id:ids.payable},admin);
+      const loan=await hr.createMoney({employee_id:'FRACTION-1',kind:'loan',posting_date:'2026-01-01',
+        amount:'20.25',account_id:ids.loan,reason:'Fractional advance'},admin);
+      await hr.moneyAction(loan,'submit',admin);
+      const disbursement=await hr.payMoney(loan,{amount:'20.25',posting_date:'2026-01-01',bank_account_id:ids.bank,reference:'Advance'},admin);
+      assert.equal(await ledger('hr_payment',disbursement,ids.loan),-20.25);
+      const returned=await hr.payMoney(loan,{amount:'0.25',posting_date:'2026-01-02',bank_account_id:ids.bank,reference:'Cash return'},admin,'return');
+      assert.equal(await ledger('hr_payment',returned,ids.loan),0.25,'sub-shilling payments retain ledger lines');
+      const reimbursement=await hr.createMoney({employee_id:'FRACTION-1',kind:'reimbursement',posting_date:'2026-01-01',
+        amount:'12.25',account_id:ids.payable,offset_account_id:ids.salary,reason:'Travel'},admin);
+      await hr.moneyAction(reimbursement,'submit',admin);
+      assert.equal(await ledger('hr_money',reimbursement,ids.payable),12.25);
+      const reimbPayment=await hr.payMoney(reimbursement,{amount:'2.15',posting_date:'2026-01-02',bank_account_id:ids.bank,reference:'Travel payment'},admin);
+      assert.equal(await ledger('hr_payment',reimbPayment,ids.payable),-2.15);
+      const components=[{label:'Salary',kind:'earning',amount:'1000.50',account_id:ids.salary},
+        {label:'Allowance',kind:'earning',amount:'1000.50',account_id:ids.salary},
+        {label:'Tax',kind:'deduction',amount:'0.25',account_id:ids.payable},
+        {label:'Employer',kind:'employer',amount:'1.25',account_id:ids.salary,payable_account_id:ids.payable}];
+      const prepare=async(employee,components,paidDays)=>{
+        await hr.savePayPlan(employee,{effective_from:'2026-01-01',components},admin);
+        const run=await hr.createPayroll({company:'Fraction Co',period:'2026-01',posting_date:'2026-01-31',employee_ids:[employee]},admin);
+        const slip=(await hr.payrollDetails(run,admin)).slips[0];
+        await hr.updateSlip(run,slip.id,{paid_days:paidDays,input_note:'Reviewed fractional amounts',components,
+          recoveries:employee==='FRACTION-1'?[{money_id:loan,amount:'0.50'}]:[]},admin);
+        await hr.payrollAction(run,'submit',admin);
+        return {run,slip};
+      };
+      const first=await prepare('FRACTION-1',components,31);
+      const firstDetails=await hr.payslipDetails(first.slip.id,admin);
+      assert.equal(Number(firstDetails.slip.net_pay),2000.25);
+      assert.equal(await ledger('hr_payroll',first.run,ids.payable),2001.75,'net, tax and employer payable reconcile exactly');
+      assert.equal(firstDetails.employeeMoneySummary.debts[0].balance_remaining,19.50);
+      assert.equal(firstDetails.employeeMoneySummary.reimbursement_total,10.10);
+      assert.equal((await hr.moneyList(admin)).find(m=>String(m.id)===String(loan)).balance,19.50);
+      const partial=await hr.payPayroll(first.run,{slip_id:first.slip.id,posting_date:'2026-01-31',
+        amount:'0.25',bank_account_id:ids.bank,reference:'Partial salary'},admin);
+      assert.equal(await ledger('hr_payment',partial,ids.payable),-0.25);
+      const remainder=await hr.payPayroll(first.run,{slip_id:first.slip.id,posting_date:'2026-01-31',
+        amount:'2000',bank_account_id:ids.bank,reference:'Remaining salary'},admin);
+      assert.equal(Number((await hr.payslipDetails(first.slip.id,admin)).slip.paid_amount),2000.25);
+      const second=await prepare('FRACTION-2',[{label:'Prorated salary',kind:'earning',amount:10,prorate:true,account_id:ids.salary}],1);
+      assert.equal(Number((await hr.payslipDetails(second.slip.id,admin)).slip.net_pay),0.32);
+      assert.equal(await ledger('hr_payroll',second.run,ids.payable),0.32);
+
+      await pool.query(`INSERT INTO app_hr_runs(company,period,posting_date,payable_account_id)
+        SELECT 'Fraction Co','2026-02','2026-02-28',$1 FROM generate_series(1,198)`,[ids.payable]);
+      const original=pool.query;let queries=0;
+      pool.query=function(...args){queries++;return original.apply(this,args);};
+      let register;
+      try { register=await hr.payrollList(admin); } finally { pool.query=original; }
+      assert.equal(queries,7,'200 headers use one slip batch, not one query per run');
+      assert.equal(register.length,2,'empty headers remain omitted');
+      const row=register.find(r=>String(r.id)===String(first.run));
+      assert.deepEqual([row.employees,row.gross,row.net,row.paid],[1,2001,2000.25,2000.25]);
+      assert.deepEqual((await hr.payrollList(restrictedUserFor('FRACTION-1'))).map(r=>String(r.id)),[String(first.run)]);
+      assert.equal((await hr.payrollList({...admin,role:'finance',permission_denials:[`account.view:${ids.salary}`]})).length,0);
+      for(const id of [partial,remainder]) await hr.cancelPayment('payroll',first.run,id,{posting_date:'2026-02-01'},admin);
+      assert.equal(await ledger('hr_payment_cancellation',partial,ids.payable),0.25);
+      await hr.payrollAction(first.run,'cancel',admin,{posting_date:'2026-02-01',reason:'Reverse fractional payroll'});
+      assert.equal(await ledger('hr_payroll_cancellation',first.run,ids.payable),-2001.75);
+      assert.equal((await hr.moneyList(admin)).find(m=>String(m.id)===String(loan)).balance,20);
+      await hr.cancelPayment('money',reimbursement,reimbPayment,{posting_date:'2026-02-01'},admin);
+      assert.equal(await ledger('hr_payment_cancellation',reimbPayment,ids.payable),2.15);
+      await hr.moneyAction(reimbursement,'cancel',admin,{posting_date:'2026-02-01'});
+      assert.equal(await ledger('hr_money_cancellation',reimbursement,ids.payable),-12.25);
+    });
+  } finally { await store.closeStore(); }
+});
+
 test('payslip Employee Money balances are dated, frozen, scoped and independent of salary totals',{
   skip:process.env.HR_TEST_POSTGRES!=='1',
 },async()=>{

@@ -467,21 +467,25 @@ function paymentAccountKey(method) {
 async function postGlEntry(client, entry) {
   assertPostingDate(entry.posting_date);
   entry = await inventoryGlDate(client, entry);
+  // HR records and prorated payslips retain two decimal places. Use the same
+  // precision for their ledger entries, including reversals of saved amounts.
+  const scale = /^hr_(?:money|payroll|payment)(?:_cancellation)?$/.test(entry.voucher_type) ? 100 : 1;
+  const units = value => multiplyMoney(value, scale);
   const lines = (entry.lines || [])
     .map((line) => ({
       ...line,
-      debit: roundMoney(line.debit),
-      credit: roundMoney(line.credit),
+      debit: units(line.debit) / scale,
+      credit: units(line.credit) / scale,
     }))
     .filter((line) => line.debit > 0 || line.credit > 0);
   if (!lines.length) {
     return;
   }
 
-  const totalDebit = roundMoney(lines.reduce((sum, line) => sum + line.debit, 0));
-  const totalCredit = roundMoney(lines.reduce((sum, line) => sum + line.credit, 0));
+  const totalDebit = lines.reduce((sum, line) => sum + BigInt(units(line.debit)), 0n);
+  const totalCredit = lines.reduce((sum, line) => sum + BigInt(units(line.credit)), 0n);
   if (totalDebit !== totalCredit) {
-    const err = new Error(`GL entry is not balanced. Debit ${totalDebit}, credit ${totalCredit}.`);
+    const err = new Error(`GL entry is not balanced. Debit ${Number(totalDebit) / scale}, credit ${Number(totalCredit) / scale}.`);
     err.status = 400;
     throw err;
   }

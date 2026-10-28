@@ -44,6 +44,8 @@ function invoiceListCacheKey(query = {}) {
     page: String(query.page || '1'),
     page_size: String(query.page_size || ''),
     allowedGroups: query.allowedGroups || null,
+    allowedWarehouses: query.allowedWarehouses ?? null,
+    deniedWarehouses: query.deniedWarehouses || [],
     ownerId: query.ownerId ?? null,
     ownerEmployeeId: query.ownerEmployeeId ?? null,
   });
@@ -56,6 +58,7 @@ async function cachedInvoiceList(query = {}) {
     search: String(query.q || '').trim(), from: query.from, to: query.to,
     warehouse: query.warehouse, page: query.page, page_size: query.page_size,
     allowedGroups: query.allowedGroups, ownerId: query.ownerId,
+    allowedWarehouses: query.allowedWarehouses, deniedWarehouses: query.deniedWarehouses,
     ownerEmployeeId: query.ownerEmployeeId });
 }
 function clearInvoiceListCache() {

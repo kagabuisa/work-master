@@ -12,6 +12,17 @@ The browser invoice stock-preview batch (`POST /api/invoice-stock-balances`) use
 
 **Settings → Maintenance is Admin-only.** Backup creation/download and reset routes cannot be granted through custom role permissions. The backend checks that the administrator is active, is not an API service account, and is not awaiting a password change. Backups belong to their creating administrator and selected scope. Reset requires the current administrator password, a session-bound confirmation token, the exact phrase `RESET TRANSACTIONS`, and a fresh verified backup. Password attempts are limited to five per 15 minutes. Resetting ends website/mobile sessions and revokes integration tokens while retaining users, roles, permissions, and existing API audit history.
 
+## Browser sign-in protection
+
+Browser sign-in is independently throttled using PostgreSQL-backed, hashed IP and
+username counters. The fixed 15-minute limits are 20 attempts per IP and 5 per
+normalized username; rotating one does not reset the other's budget. Attempts
+reserve a slot atomically before password verification, including across app
+instances. Successful sign-in clears only that username's counter. Blocked logins
+return HTTP 429 with `Retry-After` and issue no session. Limits survive app restarts;
+expired rows are eligible for the existing rate-window cleanup. Browser and API
+login counters use separate namespaces and grant no additional record permissions.
+
 ## Versioned API access
 
 Mobile API requests resolve the user's current role, overrides and restrictions independently of browser sessions. Temporary-password sessions can only change their own password or log out. Integration credentials belong to dedicated non-admin accounts, expire after 90 days, and narrow account permissions through allowlisted scopes. Deactivated accounts, revoked/expired tokens and service accounts promoted to Admin are denied. Dedicated service accounts cannot use website/mobile password login, including after a password reset.
@@ -48,6 +59,8 @@ Role permissions are defined in [`src/auth.js`](../src/auth.js). User record ass
 Standard users can see a voucher when its `created_by_user_id` matches their login. For a **sales invoice**, they can also see it when `invoicer_id` matches the employee assigned to their user. These are alternative ways to qualify: a Standard user can see an invoice they created or one assigned to their permitted employee. Purchases, purchase orders, stock entries, stock reconciliations, and journals use the creator login because they have no employee assignee field. The Purchase Invoice purchase-order selector applies ownership, supplier-category, and warehouse restrictions before selecting its newest 100 receivable orders. Every nonempty line warehouse must be permitted, including lines already received; access is checked again when an order is used.
 
 The rule applies to voucher lists, voucher reports and CSV exports, direct detail/edit/action URLs, linked payment pages, stock entry cancellation lookups, stock ledger and movement details, gross profit, and journal reference suggestions. Other roles keep their existing role permissions and record scopes.
+
+The Sales Invoices browser list applies warehouse assignments, selected warehouse scopes, and named warehouse denials before pagination and counts. Every nonempty line warehouse must be permitted; a mixed-warehouse invoice is hidden if any line is restricted. Payment links and drawers resolve their parent invoice and enforce its creator/assigned-employee ownership, customer-category scope, and warehouse restrictions for every non-admin role. Knowing a payment ID does not grant access to a hidden parent invoice. Admin retains full record access.
 
 The Journals list, report, detail, and drawer require Account Read access to every line account, including for the journal creator. Standard users must also own the journal. A denied detail or drawer request explains whether Journal Read, ownership, or line account access is missing. The creator can see the restricted account codes in that error.
 

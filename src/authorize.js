@@ -394,19 +394,17 @@ async function scopeCheck(req) {
     }
   }
   if (parts[0] === 'invoices') {
-    if (user.role === 'standard' && parts[1] === 'payments' && parts[2]) {
-      const invoiceId = await invoiceForPayment(parts[2]).catch((error) => {
+    let invoiceId = parts[1] && !['new', 'report', 'payments'].includes(parts[1]) ? parts[1] : null;
+    if (parts[1] === 'payments' && parts[2]) {
+      invoiceId = await invoiceForPayment(parts[2]).catch((error) => {
         if (error.status === 404) return null;
         throw error;
       });
-      if (!invoiceId || !await voucherOwnedByUser(user, 'sales', invoiceId)) return false;
+      if (!invoiceId) return false;
     }
-    if (parts[1] && !['new', 'report', 'payments'].includes(parts[1])
-        && !await voucherOwnedByUser(user, 'sales', parts[1])) return false;
-    if (parts[1] && !['new', 'report', 'payments'].includes(parts[1])
-        && !await invoiceAllowed(user, parts[1])) return false;
-    if (parts[1] && !['new', 'report', 'payments'].includes(parts[1])
-        && !await voucherWarehousesAllowed(user, 'sales', parts[1])) return false;
+    if (invoiceId && (!await voucherOwnedByUser(user, 'sales', invoiceId)
+        || !await invoiceAllowed(user, invoiceId)
+        || !await voucherWarehousesAllowed(user, 'sales', invoiceId))) return false;
     if (method === 'POST' && (parts.length === 1 || parts.length === 2)
         && !await masterRecordAllowed(user, 'customers', body.customer_id)) return false;
   }

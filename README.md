@@ -56,6 +56,20 @@ POSTGRES_PASSWORD=invoice_password
 
 You can use `POSTGRES_URL` or `DATABASE_URL` instead of the separate Postgres fields.
 
+With restricted runtime credentials, `POSTGRES_RUNTIME_URL` takes precedence over
+`POSTGRES_URL`, then `DATABASE_URL`, for both the application pool and the startup
+readiness check. Startup probes or starts local PostgreSQL only when that selected
+connection points to a loopback address, using its selected port. A remote runtime
+URL does not trigger a local service start even when an owner URL points locally.
+
+Browser login throttling uses the existing PostgreSQL `wm_api_rate_limits` table
+with separate hashed namespaces for IP addresses and normalized usernames. It
+allows 20 attempts per IP and 5 per username in a fixed 15-minute window, shared
+across app processes and retained through restarts. Successful login clears only
+the username counter; it does not reset the IP budget. Exhausted budgets return
+HTTP 429 with `Retry-After`. Counter-storage failures reject sign-in rather than
+falling back to unthrottled login. No schema migration is required.
+
 Employee personal and contact details are stored in PostgreSQL alongside HR employment profiles. Startup adds the profile details column and synchronizes the employee compatibility flag with Active/Left employment status. Existing disabled employees with a blank status become Left; an explicit Active/Left status takes precedence over the old disabled flag. After updating the code, restart the app; Docker installations must rebuild and recreate the `invoice-app` service to apply the form and schema changes.
 
 ## Production transport and database TLS
@@ -330,7 +344,10 @@ only its copy database when its job exits.
 Run `npm run release:check` before deploying. It runs the unit suite, upgrades a
 version-1 test schema, compares accounting reports with the golden snapshot, and
 checks invoice, cash sale, payment, stock, and journal postings. GitHub Actions
-runs the same gate on pushes and pull requests.
+runs the complete `npm run test:postgres` suite followed by `npm run test:accounting`
+on pushes and pull requests, using an isolated `work_master_hr_test` database.
+This enables the HR, browser-access, API, and other PostgreSQL integration checks
+that the standard unit command otherwise skips.
 
 Point the command at a dedicated Postgres database whose name ends in `_test` or
 `_golden`, owned by the test database user. The accounting tests **drop and recreate
@@ -473,7 +490,7 @@ Migration 19 adds resource type/ID metadata to API retry records and backfills k
 
 Phase 4 exposes those services through strict financial HTTP contracts without a new migration or payment-table change. Every financial request requires JSON and exactly one stable `Idempotency-Key` header (1–128 visible ASCII characters without spaces). Seven-day retry responses commit atomically with effects and audit; retry the same payload/key after contention, timeout or a lost response. Reconcile draft creation after expiry. Receipts additionally require source/reference identity, permanently protected within the API account namespace across key expiry and credential rotation; cancellation does not free it. Never purge permanent references during cleanup or rollback. Invoice results contain saved totals; receipt results identify the original payment. Read current permitted resources to reconcile later website changes. Website cache invalidation remains process-local; the initial deployment is one app instance.
 
-Schedule `docker compose exec invoice-app node scripts/api-cleanup.js` daily to remove expired retry records, rate-limit windows and mobile families. Refresh history remains for the entire family lifetime. Cleanup does not remove financial audit, integration credential metadata or permanent payment references. Include all new tables in PostgreSQL backups and protect database access because retry results contain business data. Monitor table growth and account for database-backed API limits when measuring capacity.
+Schedule `docker compose exec invoice-app node scripts/api-cleanup.js` daily to remove expired retry records, API and browser-login rate-limit windows, and mobile families. Refresh history remains for the entire family lifetime. Cleanup does not remove active login windows, financial audit, integration credential metadata or permanent payment references. Include all new tables in PostgreSQL backups and protect database access because retry results contain business data. Monitor table growth and account for database-backed API limits when measuring capacity.
 
 The full isolated Docker procedure above enables API integration tests through `npm run test:postgres`; it exercises real HTTP financial workflows, website/payment/ledger parity, stock and overpayment concurrency, retry/audit rollback and credential lifecycles. Run `npm run test:accounting` against the same disposable database after the full suite, using the same runner environment and mounts. Do not run these schema-resetting commands concurrently or use the application database for tests.
 
@@ -511,6 +528,8 @@ Import the current ERPNext chart of accounts with `npm run sync:erpnext-accounts
 The app includes an HR module for employee employment profiles and dated pay plans, daily/bulk attendance, leave allocations/approvals, advances, simple loans, approved recoveries, reimbursements, monthly payroll, payslips, CSV payroll registers, and partial payments/reversals. Schema migrations 13–14 create the HR tables, their record-audit triggers, working-week calendar, and payroll review tracking at startup. Existing employee masters, cost centers, and accounts are reused; ERPNext HR transactions and opening balances are not imported automatically.
 
 Migration 48 adds nullable payslip Employee Money snapshots and an employee/date index for the underlying transactions. It preserves existing payroll and ledger records without backfilling historical balances. New payroll postings capture employee balances atomically; draft summaries remain provisional. Readers need Employee Money Read and the applicable record scopes. With runtime database credentials, apply the owner migration before restarting the updated app, using `docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js` after building the image. Older posted payslips report that historical balances were not saved. See the [payslip guidance](docs/app-guide.md#monthly-payroll-and-payment).
+
+HR ledger postings and reversals preserve the same two-decimal amounts as payroll and Employee Money records, including prorated pay and partial payments. This correction requires no schema migration and does not rewrite posted history. Reconcile any discrepancies from older fractional HR postings against the saved vouchers before making approved corrections.
 
 After updating the app, rebuild the local Docker service with `docker compose up -d --build invoice-app`. An admin should configure **HR → Settings** (salary payable account, workweek, holidays, leave types), save employee employment details and pay plans, and grant the necessary HR permissions. HR is not granted by default to non-admin built-in roles. See [the application guide](docs/app-guide.md#human-resources) and [HR permissions](docs/permissions.md#hr-permissions-and-visibility).
 

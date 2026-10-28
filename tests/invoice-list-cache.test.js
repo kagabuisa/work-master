@@ -17,11 +17,14 @@ test('website list facade retains no completed financial rows and forwards acces
   let rows=['before'];const seen=[];
   const {cache,restore}=loadCacheWithInvoiceList(async options=>{seen.push(options);return {rows:[...rows]};});
   try {
-    assert.deepEqual((await cache.cachedInvoiceList({q:'same',ownerId:'7',allowedGroups:['retail']})).rows,['before']);
+    assert.deepEqual((await cache.cachedInvoiceList({q:'same',ownerId:'7',allowedGroups:['retail'],
+      allowedWarehouses:['Main'],deniedWarehouses:['Hidden']})).rows,['before']);
     rows=['after'];
     assert.deepEqual((await cache.cachedInvoiceList({q:'same',ownerId:'7',allowedGroups:['retail']})).rows,['after']);
     assert.equal(seen[0].includeTotal,false);assert.equal(seen[0].ownerId,'7');
     assert.deepEqual(seen[0].allowedGroups,['retail']);
+    assert.deepEqual(seen[0].allowedWarehouses,['Main']);
+    assert.deepEqual(seen[0].deniedWarehouses,['Hidden']);
     await cache.cachedInvoiceList({exact_total:'1'});assert.equal(seen[2].includeTotal,true);
   } finally {restore();}
 });

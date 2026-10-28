@@ -2,6 +2,7 @@
 
 // API-owned tables deliberately avoid generic app_* record stamping: token
 // hashes and retry bodies have a separate retention policy from business data.
+// Rate-limit rows also hold separately namespaced browser login counters.
 async function initApiSchema(client) {
   await client.query(`
     ALTER TABLE app_users ADD COLUMN IF NOT EXISTS api_service_account boolean NOT NULL DEFAULT false;

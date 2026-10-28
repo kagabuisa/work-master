@@ -1,15 +1,15 @@
 const net = require('node:net');
 const { spawnSync } = require('node:child_process');
 
-require('dotenv').config({ quiet: true });
+require('../src/environment').loadEnvironment();
 
 function localPostgresEndpoint(env = process.env) {
   let host = env.PGHOST || env.POSTGRES_HOST || 'localhost';
   let port = Number(env.PGPORT || env.POSTGRES_PORT || 5432);
-  const connectionString = env.POSTGRES_URL || env.DATABASE_URL;
+  const connectionString = env.POSTGRES_RUNTIME_URL || env.POSTGRES_URL || env.DATABASE_URL;
   if (connectionString) {
     const url = new URL(connectionString);
-    host = url.hostname;
+    host = url.hostname.replace(/^\[|\]$/g, '');
     port = Number(url.port || 5432);
   }
 
