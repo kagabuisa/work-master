@@ -5,6 +5,7 @@ const { currentUser } = require('./api/auth');
 const { can } = require('./authorize');
 const { warehouseAllowed, accountAllowed, categoryAllowed } = require('./access');
 const { postStockEntryGlEntry, postGlEntry } = require('./domain/posting');
+const { currentPostingDate } = require('./posting-time');
 function fail(message,status=409) { const e=new Error(message);e.status=status;throw e; }
 async function actor(client,user,permission,warehouse) {
   const fresh=await currentUser(client,user?.id,true);
@@ -69,7 +70,7 @@ async function correctionAction(user,action,payload) {
         lines=value>0?[{account_key:'inventory',debit:value},{account_key:'stock_adjustment_gain',credit:value}]
           :[{account_key:'stock_adjustment_loss',debit:-value},{account_key:'inventory',credit:-value}];
       }
-      await postGlEntry(client,{posting_date:new Date().toISOString().slice(0,10),voucher_type:'inventory_correction',voucher_id:correction.id,
+      await postGlEntry(client,{posting_date:currentPostingDate(),voucher_type:'inventory_correction',voucher_id:correction.id,
         voucher_no:`COR-${correction.id}`,remarks:correction.reason,lines});
       correction=(await client.query("SELECT wm_inventory_correction_action('finish',$1::jsonb) AS correction",[JSON.stringify({id:correction.id})])).rows[0].correction;
     }

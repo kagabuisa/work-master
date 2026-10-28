@@ -337,3 +337,27 @@ test('simultaneous password changes for different users do not contend on expire
     for(const token of sessions)assert.ok(await auth.sessionUser(token));
   }finally{unblock?.();if(pool&&connect)pool.connect=connect;await store.closeStore();}
 });
+
+test('purchase and payment cancellations use Kampala today after UTC midnight differs', database, async t => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-17T21:15:00Z')});
+  try {
+    await resetGoldenSchema();const pool=store.getPostgresPool();await masters(pool);
+    const admin=await auth.createUser('midnight-admin',password,{role:'admin'});
+    await runWithAuditUser(admin,async()=>{
+      const payload={...purchase('4','1000.25'),posting_date:'2026-10-18',posting_time:'00:00'};
+      const id=await purchasing.createPurchase(payload);await purchasing.submitPurchase(id);
+      const cash=(await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
+      await purchasing.addPurchasePayment(id,{payment_date:'2026-10-18',amount:500,account_id:cash});
+      const journal=(await pool.query('SELECT journal_entry_id FROM app_purchase_payments WHERE purchase_id=$1',[id])).rows[0].journal_entry_id;
+      await purchasing.cancelPurchasePayment(id,1);
+      const paymentDates=(await pool.query("SELECT DISTINCT posting_date::text FROM app_gl_entries WHERE voucher_type='payment_journal_cancellation' AND voucher_id=$1",[journal])).rows;
+      assert.deepEqual(paymentDates,[{posting_date:'2026-10-18'}]);
+      await purchasing.cancelPurchase(id);
+      assert.equal((await purchasing.loadPurchase(id)).docstatus,'cancelled');
+      const stockDates=(await pool.query("SELECT DISTINCT posting_date::text FROM app_stock_ledger WHERE voucher_type='purchase' AND voucher_id=$1 AND is_reversal",[id])).rows;
+      assert.deepEqual(stockDates,[{posting_date:'2026-10-18'}]);
+      const purchaseDates=(await pool.query("SELECT DISTINCT posting_date::text FROM app_gl_entries WHERE voucher_type='purchase_cancellation' AND voucher_id=$1",[id])).rows;
+      assert.deepEqual(purchaseDates,[{posting_date:'2026-10-18'}]);
+    });
+  }finally{await store.closeStore();}
+});

@@ -8,6 +8,7 @@ const store = require('../../src/store');
 const { guard } = require('./seed');
 const { validateResponse } = require('../../tests/helpers/api-contract');
 const { benchmark, options } = require('../benchmark-api');
+const { currentPostingDate } = require('../../src/posting-time');
 const STATE = '/staging-state/credentials.json';
 const REPORT = '/staging-state/acceptance.json';
 const agent = new https.Agent({ ca: fs.readFileSync('/staging-state/tls/ca.crt'), rejectUnauthorized: true });
@@ -55,6 +56,7 @@ async function main() {
   const pool = store.getPostgresPool(); await guard(pool);
   const state = JSON.parse(fs.readFileSync(STATE, 'utf8'));
   const prefix = report.run_id;
+  const postingDate = currentPostingDate();
   stage = 'TLS and proxy';
   const denied = await request('/api/v1/me', { expected: 401 }); assert.equal(denied.body.error.code, 'unauthorized');
   const direct = await new Promise((resolve, reject) => {
@@ -105,14 +107,14 @@ async function main() {
     report.checks.push(label + ' scoped reads and concealed resources');
     stage = label + ' financial flow';
     const draft = { customer_id: 'STG-C1', warehouse: 'Staging Main', price_list: 'Staging Retail', invoicer_id: 'STG-E1',
-      invoice_date: '2026-10-01', items: [{ item_code: 'STG-I1', quantity: '1.25', unit_price: '100.50' }] };
+      invoice_date: postingDate, items: [{ item_code: 'STG-I1', quantity: '1.25', unit_price: '100.50' }] };
     const createKey = prefix + '-' + label + '-create';
     const create = () => request('/api/v1/invoices', { method: 'POST', token, key: createKey, body: draft, expected: 201 });
     const created = await Promise.all([create(), create()]); assert.deepEqual(created[0].body, created[1].body);
     const id = created[0].body.data.id; assert.equal(Number(created[0].body.data.total), 126);
     const submit = () => request(`/api/v1/invoices/${id}/submit`, { method: 'POST', token, key: prefix + '-' + label + '-submit', body: {}, expected: 200 });
     const submissions = await Promise.all([submit(), submit()]); assert.deepEqual(submissions[0].body, submissions[1].body);
-    const payment = { payment_date: '2026-10-01', amount: '50.50', account_id: state.fixture.cash,
+    const payment = { payment_date: postingDate, amount: '50.50', account_id: state.fixture.cash,
       external_source: 'local-staging', external_reference: prefix + '-' + label };
     const pay = (key, body = payment, expected = 201) => request(`/api/v1/invoices/${id}/payments`, { method: 'POST', token, key, body, expected });
     const payKey = prefix + '-' + label + '-payment';
@@ -149,10 +151,25 @@ async function main() {
   assert.equal((await website('/logout', { method: 'POST', cookie, form: {} })).status, 303);
   report.checks.push('HTTPS website cookie security and both API invoices visible through website detail pages');
   stage = 'failed submission';
-  const excessive = { customer_id: 'STG-C1', warehouse: 'Staging Main', price_list: 'Staging Retail', invoicer_id: 'STG-E1', invoice_date: '2026-10-01',
+  const excessive = { customer_id: 'STG-C1', warehouse: 'Staging Main', price_list: 'Staging Retail', invoicer_id: 'STG-E1', invoice_date: postingDate,
     items: [{ item_code: 'STG-I1', quantity: '100000', unit_price: '1' }] };
-  const failedDraft = await request('/api/v1/invoices', { method: 'POST', token: mobile.access_token, key: prefix + '-failed-draft', body: excessive, expected: 201 });
-  await request(`/api/v1/invoices/${failedDraft.body.data.id}/submit`, { method: 'POST', token: mobile.access_token, key: prefix + '-failed-submit', body: {}, expected: 422 });
+  const invoiceCount = async () => Number((await pool.query('SELECT count(*) AS count FROM app_invoices')).rows[0].count);
+  const beforeRejectedDraft = await invoiceCount();
+  await request('/api/v1/invoices', { method: 'POST', token: mobile.access_token,
+    key: prefix + '-insufficient-draft', body: excessive, expected: 422 });
+  assert.equal(await invoiceCount(), beforeRejectedDraft);
+  report.checks.push('insufficient-stock draft rejected without creating an invoice');
+  // Future drafts are allowed, while posting them is forbidden. Exercise a
+  // genuine submission failure without consuming or altering the reusable stock.
+  const futureDate = new Date(`${currentPostingDate()}T12:00:00Z`);
+  futureDate.setUTCDate(futureDate.getUTCDate() + 1);
+  const futureDraft = { ...excessive, invoice_date: futureDate.toISOString().slice(0, 10),
+    items: [{ item_code: 'STG-I1', quantity: '1', unit_price: '1' }] };
+  const failedDraft = await request('/api/v1/invoices', { method: 'POST', token: mobile.access_token,
+    key: prefix + '-failed-draft', body: futureDraft, expected: 201 });
+  const deniedSubmit = await request(`/api/v1/invoices/${failedDraft.body.data.id}/submit`, {
+    method: 'POST', token: mobile.access_token, key: prefix + '-failed-submit', body: {}, expected: 400 });
+  assert.equal(deniedSubmit.body.error.code, 'future_posting_date');
   assert.equal((await store.findInvoice(failedDraft.body.data.id)).docstatus, 'draft');
   report.checks.push('failed submission retains draft');
   stage = 'scope and revocation';
@@ -166,7 +183,7 @@ async function main() {
   await request(`/api/v1/integration-credentials/${integration.id}/revoke`, { method: 'POST', token: admin.access_token, body: {}, expected: 200 });
   const resource = report.resources.find(row => row.client === 'integration');
   await request(`/api/v1/invoices/${resource.invoice_id}/payments`, { method: 'POST', token: integration.token,
-    key: prefix + '-integration-payment', body: { payment_date: '2026-10-01', amount: '50.50', account_id: state.fixture.cash,
+    key: prefix + '-integration-payment', body: { payment_date: postingDate, amount: '50.50', account_id: state.fixture.cash,
       external_source: 'local-staging', external_reference: prefix + '-integration' }, expected: 401 });
   report.checks.push('scope narrowing, overlapping rotation and denied revoked replay');
   stage = 'bounded read load';

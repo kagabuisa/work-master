@@ -30,7 +30,7 @@ function paymentReturnPath(value, invoiceId) {
 }
 
 function todayString() {
-  return new Date().toISOString().slice(0, 10);
+  return require('../posting-time').currentPostingDate();
 }
 
 module.exports = { money, rateMoney, purchaseMoney, financialMoney, paymentReturnPath, todayString };

@@ -62,6 +62,7 @@ test('controlled warehouse counts close history, require independent approval, a
  await correctionAction(reviewer,'approve',{id:correction.id});
  correction=await correctionAction(maker,'submit',{id:correction.id});
  assert.equal(correction.state,'submitted');
+ assert.deepEqual((await pool.query("SELECT DISTINCT posting_date::text FROM app_gl_entries WHERE voucher_type='inventory_correction' AND voucher_id=$1",[correction.id])).rows,[{posting_date:require('../src/posting-time').currentPostingDate()}]);
  assert.equal((await pool.query("SELECT count(*)::int n FROM app_stock_ledger WHERE voucher_type='inventory_correction' AND voucher_id=$1",[correction.id])).rows[0].n,0);
  assert.equal(Number((await pool.query('SELECT quantity FROM app_stock_balances WHERE item_code=$1 AND warehouse=$2',[FIXED.itemCode,FIXED.warehouse])).rows[0].quantity),before-2);
  await assert.rejects(correctionAction(maker,'create',{warehouse:FIXED.warehouse,source_reference:'OMITTED-DISPATCH-002',reason:'Duplicate absorption must fail.',treatment:'absorbed',count_id:count.id,item_code:FIXED.itemCode,quantity:-1,rate:0,financial_lines:correction.financial_lines}),/exceeds_absorbed/);

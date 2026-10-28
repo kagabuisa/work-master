@@ -62,11 +62,13 @@ Preserve the staging environment/credential/CA files along with retained staging
 - Verified local CA/hostname, production direct-HTTP rejection, proxy metadata overwrite and API error contracts.
 - Mobile login, refresh rotation, old-token rejection and logout.
 - Restricted mobile and integration customer/warehouse/selector reads, hidden invoice/payment concealment and forbidden warehouse/account denial.
-- Permitted item/pricing, price-list, cost-center, stock and invoicer selectors; supplier reads denied to the sales-only role.
+- Permitted item/pricing, price-list, cost-center, stock and invoicer selectors; supplier reads denied to the sales-only role. Financial checks use the current Kampala posting date so they remain valid after a clock/day boundary.
 - For each account type, concurrent draft creation/submission/receipt retries return matching results; a new key with the same permanent receipt reference returns the same payment and a changed payload conflicts.
 - Saved totals, receipt balance, single stock posting, balanced payment GL, creator/audit/request attribution and existing website data-reader reconciliation.
 - Real HTTPS website login with Secure/HttpOnly cookies and both API-created invoices visible through website detail pages.
-- Failed submission keeps its committed draft.
+- Saving a draft with insufficient stock is rejected without creating an invoice.
+  A valid future-dated draft saves successfully, but its submission is rejected
+  until that date arrives; the rejected submission retains the saved draft.
 - Integration scope narrowing, overlapping replacement credentials, revocation and denial of stored-result replay under revoked credentials.
 - A small 10-request, two-worker read-load smoke check through HTTPS with verified CA and zero failed requests.
 

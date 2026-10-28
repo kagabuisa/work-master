@@ -20,7 +20,7 @@ API reliability includes transaction-local reference/permission checks, stable r
 
 Operators can temporarily disable API access without disabling the website. During containment, clients receive 503 `api_disabled` and should retain their original retry keys/references rather than recreating financial operations. The switch does not undo earlier commits or change permissions. Request IDs and redacted operational telemetry help reconcile incidents. See the [operations runbook](api/operations.md) for containment, credential recovery, backups and rollout; real-client staging and production acceptance remain pending.
 
-For synthetic practice and deployment checks, the [local staging environment](api/local-staging.md) is available at `https://localhost:3443` after trusting its local CA. Its Admin/mobile passwords and integration credentials are generated privately and its database is separate from company data. The restricted sales account can use only staging records assigned to it. Scripted checks create drafts, submit invoices, record receipts and verify retries/website visibility; actual phone and external-client acceptance remains pending.
+For synthetic practice and deployment checks, the [local staging environment](api/local-staging.md) is available at `https://localhost:3443` after trusting its local CA. Its Admin/mobile passwords and integration credentials are generated privately and its database is separate from company data. The restricted sales account can use only staging records assigned to it. Scripted checks create drafts, submit invoices, record receipts and verify retries/website visibility. They also check that insufficient stock prevents draft creation and a rejected future-dated submission retains its draft; actual phone and external-client acceptance remains pending.
 
 ## Screen layout
 
@@ -165,6 +165,10 @@ at `1,000` total `1,001`, and `100` units at `0.07` total `7`. Form previews and
 saved totals use the same exact arithmetic. Receipt line values use the accepted rate and
 round the final quantity × rate to whole UGX: four units at `1,000.25` post stock
 and payable amounts of `4,001`. Cancellation reverses the posted stock value.
+Purchase and supplier-payment cancellations use the current date in
+Africa/Kampala, including during the hours when the UTC calendar date differs.
+Default dates on journal and Daily Activity forms and the posting date of
+financial-only inventory corrections follow the same Kampala calendar.
 
 Purchase invoice and order lists hide a document if any line uses a restricted
 warehouse. Payment links and drawers use the same access checks as their parent

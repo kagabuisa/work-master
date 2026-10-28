@@ -9,7 +9,7 @@ const {
   reverseVoucherGlEntries,
 } = require('./store');
 const { auditActor } = require('./audit');
-const { normalizePostingTime, storedPostingTime } = require('./posting-time');
+const { normalizePostingTime, storedPostingTime, currentPostingDate } = require('./posting-time');
 const { validateCostCenter } = require('./cost-centers');
 const { addVoucherOwnerFilter } = require('./voucher-ownership');
 const { addDocumentWarehouseFilter } = require('./warehouse-scope');
@@ -494,7 +494,7 @@ async function cancelPurchase(id) {
     if (!purchase) throw notFound();
     if (purchase.docstatus !== 'submitted') throw badRequest('Only submitted purchases can be cancelled.');
 
-    const postingDate = new Date().toISOString().slice(0, 10);
+    const postingDate = currentPostingDate();
     const { rows: stockRows } = await client.query(
       "SELECT * FROM app_stock_ledger WHERE voucher_type = 'purchase' AND voucher_id = $1 AND is_reversal = false ORDER BY id",
       [purchaseId],
@@ -613,7 +613,7 @@ async function cancelPurchasePayment(id, paymentNo) {
     if (payment.docstatus !== 'submitted') throw badRequest('Payment is already cancelled.');
     if (payment.journal_entry_id && payment.method === 'journal') throw badRequest('Cancel the linked journal to reverse this payment allocation.');
 
-    const postingDate = new Date().toISOString().slice(0, 10);
+    const postingDate = currentPostingDate();
     await reversePurchasePayment(client, payment, postingDate);
     await client.query("UPDATE app_purchase_payments SET docstatus = 'cancelled' WHERE id = $1", [payment.id]);
     const { rows: totals } = await client.query(

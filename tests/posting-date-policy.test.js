@@ -15,9 +15,11 @@ test('posting date validation accepts today and the past and rejects future date
 test('future-date boundary follows Kampala midnight rather than UTC midnight', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-17T20:59:59Z') });
   assert.equal(currentPostingDate(), '2026-10-17');
+  assert.equal(require('../src/web/format').todayString(), '2026-10-17');
   assert.throws(() => assertPostingDate('2026-10-18'), { code: 'future_posting_date' });
   t.mock.timers.setTime(new Date('2026-10-17T21:00:00Z').getTime());
   assert.equal(currentPostingDate(), '2026-10-18');
+  assert.equal(require('../src/web/format').todayString(), '2026-10-18');
   assert.equal(assertPostingDate('2026-10-18'), '2026-10-18');
 });
 
