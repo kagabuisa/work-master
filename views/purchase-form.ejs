@@ -36,6 +36,7 @@
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
         <label class="wide">Remarks<input name="remarks" value="<%= purchase.remarks || '' %>"></label>
       </section>
+      <%- include('voucher-request-fields',{requestKind:'purchases',requestRecord:purchase}) %>
       <div id="purchase-lookup-status" class="notice" hidden>
         <p role="status" data-lookup-message></p>
         <button type="button" class="button-light" data-lookup-retry hidden>Retry lookup</button>

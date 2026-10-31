@@ -45,6 +45,7 @@ function purchasePayload(body, { singleWarehouse = false } = {}) {
   const quantities = arrayField(body.quantity);
   const prices = arrayField(body.unit_price);
   return {
+    ...require("../../voucher-controls").requestFields(body),
     posting_date: body.posting_date,
     posting_time: body.posting_time,
     due_date: body.due_date,

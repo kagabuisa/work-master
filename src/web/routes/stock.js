@@ -32,7 +32,7 @@ const {
   getPostgresPool,
 } = require('../../store');
 
-const { photoCountRows, savePhotoCount } = require('../../photo-count');
+const { photoCountReport, savePhotoCount, saveAllPhotoCounts } = require('../../photo-count');
 const router = express.Router();
 const { DELIVERY_STATUSES, canManageStockEntry, stockEntrySharing, changeStockEntryWorkflow } = require('../../stock-entry-workflow');
 
@@ -226,25 +226,42 @@ router.post('/reconciliations', async (req, res) => {
 
 router.get('/reconciliations/:id/photo-count', async (req, res, next) => {
   try {
+    const linked = await getPostgresPool().query('SELECT id FROM wm_inventory_counts WHERE reconciliation_id=$1', [req.params.id]);
+    if (linked.rows.length) return res.redirect(303, `/stock/reconciliations/counts/${linked.rows[0].id}/photo-count`);
     const data = await loadReconciliation(req.params.id);
-    const rows = await photoCountRows(getPostgresPool(), req.params.id);
-    const photos = (await getPostgresPool().query(`SELECT id, photo_id, file_name FROM app_stock_reconciliation_attachments
-      WHERE stock_entry_id=$1 AND photo_id IS NOT NULL ORDER BY uploaded_at,id`, [req.params.id])).rows;
+    const report = await photoCountReport(getPostgresPool(), req.params.id,req.currentUser);
     res.set('Cache-Control', 'private, no-store');
-    res.render('reconciliation-photo-count', { entry: data.entry, warehouse: data.items[0]?.warehouse || '', rows, photos, error: req.query.error || null });
+    res.render('reconciliation-photo-count', { entry: data.entry, warehouse: data.items[0]?.warehouse || '', ...report, error: req.query.error || null,aiCountSaved:req.query.descriptions==='saved' });
   } catch (error) { next(error); }
 });
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: {
-  fileSize: MAX_SCAN_BYTES, files: MAX_SCAN_FILES, fields: 3, parts: 6,
+  fileSize: MAX_SCAN_BYTES, files: MAX_SCAN_FILES, fields: 12, parts: 15, fieldSize: 120000,
 } }).array('photos', MAX_SCAN_FILES);
 router.post('/reconciliations/:id/photo-count', (req, res) => {
   photoUpload(req, res, async uploadError => {
     let failure;
+    let result;
+    const json=req.get('Accept')==='application/json';
     try {
-      if (uploadError) throw countSheetError('Upload up to three JPG or PNG photos, each no larger than 10 MB.');
+      if (uploadError) throw countSheetError('Choose one JPG or PNG photo no larger than 10 MB.');
       await loadReconciliation(req.params.id);
-      await withPostgresTransaction(client => savePhotoCount(client, req.params.id, req.body, req.files, req.currentUser),{inventoryExclusive:true});
-    } catch (error) { failure = error.status ? error.message : 'Could not save the photo count. Please retry.'; }
+      if(req.body.action==='ai_settings'){
+        await require('../../photo-count-settings').savePhotoCountSettings(req.currentUser,req.body);
+        return res.redirect(303,`/stock/reconciliations/${req.params.id}/photo-count?descriptions=saved`);
+      }
+      if(['ai_count','ai_clarify'].includes(req.body.action)){
+        result=await require('../../photo-count-ai').countPhotos(req.params.id,req.body,req.currentUser,{files:req.files});
+      }else if(req.body.action==='save_all'){
+        result=await withPostgresTransaction(client=>saveAllPhotoCounts(client,req.params.id,req.body,req.currentUser),{inventoryExclusive:true});
+      }else result=await withPostgresTransaction(async client=>{
+        await savePhotoCount(client,req.params.id,req.body,req.files,req.currentUser);
+        return {revision:(await client.query('SELECT revision FROM wm_inventory_counts WHERE reconciliation_id=$1',[req.params.id])).rows[0]?.revision??null};
+      },{inventoryExclusive:true});
+    } catch (error) {
+      failure = error.status ? error.message : 'Could not save the photo count. Please retry.';
+      if(json)return res.status(error.status||500).json({error:failure,retryAfter:error.retryAfter});
+    }
+    if(json)return res.json({revision:result?.revision??null,saved:result?.saved});
     res.redirect(303, `/stock/reconciliations/${req.params.id}/photo-count${failure ? '?error=' + encodeURIComponent(failure) : ''}`);
   });
 });
@@ -265,7 +282,7 @@ router.get('/reconciliations/:id/attachments/:attachmentId', async (req, res, ne
     res.set('Cache-Control', 'private, no-store');
     res.set('X-Content-Type-Options', 'nosniff');
     res.type(file.content_type);
-    res.attachment(file.file_name);
+    if(req.query.preview==='1'&&['image/jpeg','image/png'].includes(file.content_type))res.set('Content-Disposition','inline');else res.attachment(file.file_name);
     res.send(file.content);
   } catch (error) { next(error); }
 });

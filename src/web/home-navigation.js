@@ -14,6 +14,7 @@ function homeSections(user, locals) {
   add('Sales', 'Invoices, cash sales and customer balances.', [
     ...link('vouchers.sales.view', 'Sales Invoices', '/invoices'),
     ...link('vouchers.sales.create', 'New Sales Invoice', '/invoices/new'),
+    ...(can('sales.discounts.view') || can('sales.discounts.manage') ? [{label:'Approved Discounts',href:'/settings/approved-discounts'}] : []),
     ...(!scoped ? link('reports.debtors.view', 'Debtors', '/reports/debtors') : []),
   ], 'sales');
 
@@ -38,6 +39,7 @@ function homeSections(user, locals) {
       ? [{ label: 'Chart of Accounts', href: '/accounts' }] : []),
     ...(!scoped ? link('vouchers.journals.view', 'Journals', '/journals') : []),
     ...(!scoped ? link('vouchers.journals.create', 'New Journal Entry', '/journals/new') : []),
+    ...(['finance','admin'].includes(user.role) ? [{label:'Accounting Periods',href:'/accounting-periods'}] : []),
   ], 'accounts');
 
   add('HR', 'Employees, attendance, leave, payroll and employee balances.', [

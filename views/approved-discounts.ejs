@@ -1,0 +1,10 @@
+<!doctype html><html lang="en"><head><title>Approved Discounts</title><%- include('partials-head') %></head><body>
+<main class="shell ui-page ui-page-list ui-list-compact">
+<header class="topbar"><%- include('breadcrumbs',{breadcrumbs:[{label:'Home',href:'/'},{label:'Sales',href:'/invoices'},{label:'Approved Discounts'}]}) %><nav><% if(can('sales.discounts.manage')) { %><a class="button" href="/settings/approved-discounts/new">New Discount</a><% } %></nav></header>
+<% if(error) { %><p role="alert"><%= error %></p><% } %>
+<form class="ui-toolbar ui-filter-row" method="get"><label>Search<input name="q" value="<%= q %>" placeholder="Item, warehouse or price list"></label><button>Search</button></form>
+<section class="ui-surface ui-results"><%- include('ui-section-heading',{heading:{title:'Approved Discounts',help:'Local selling-price approvals. Blank scope fields match all values. Dates are inclusive and evaluated against today in Kampala.'}}) %>
+<div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Item</th><th>Status</th><th>Dates</th><th>Warehouse / type</th><th>Price list</th><th>Min qty</th><th>Selling rate</th><th></th></tr></thead><tbody>
+<% rows.forEach(r=>{ %><tr><td><%= r.item_code %></td><td><%= r.status %></td><td><%= r.start_date %> – <%= r.expiry_date || 'No expiry' %></td><td><%= r.warehouse || 'All warehouses' %> / <%= r.warehouse_type || 'All types' %></td><td><%= r.price_list || 'All lists' %></td><td><%= r.min_qty %></td><td><%= r.discount_rate %></td><td><% if(can('sales.discounts.manage')) { %><a href="/settings/approved-discounts/<%= r.id %>">Edit</a><% } %></td></tr><% }) %>
+<% if(!rows.length) { %><tr><td colspan="8">No discounts match.</td></tr><% } %></tbody></table></div></section>
+<nav><% if(page>1) { %><a href="?page=<%= page-1 %>&q=<%= encodeURIComponent(q) %>">Previous</a><% } %> Page <%= page %> <% if(hasNext) { %><a href="?page=<%= page+1 %>&q=<%= encodeURIComponent(q) %>">Next</a><% } %></nav></main></body></html>

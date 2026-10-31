@@ -1,3 +1,4 @@
+const voucherControls = require('../voucher-controls');
 const { beginInventoryPosting, enabled: inventoryEnabled } = require('../services/inventory-posting');
 'use strict';
 const { DELIVERY_STATUSES, saveStockEntryDelivery, validateSharedStockEntryEdit } = require('../stock-entry-workflow');
@@ -212,6 +213,7 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
     err.status = 400;
     throw err;
   }
+  require('../posting-time').assertPostingDate(postingDate);
   const postingTime = normalizePostingTime(payload.posting_time);
   const items = normalizeStockEntryItems(payload.items, entryType);
   if (!items.length) {
@@ -235,7 +237,7 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
       `,
       [
         entryType,
-        docstatus,
+        'draft',
         postingDate,
         String(payload.remarks || '').trim() || null,
         supplier.supplier_name || null,
@@ -249,16 +251,18 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
     const id = Number(rows[0].id);
     const entryNo = `${entryType === 'reconciliation' ? 'REC' : 'STK'}-${String(id).padStart(6, '0')}`;
     await client.query('UPDATE app_stock_entries SET entry_no = $1 WHERE id = $2', [entryNo, id]);
-    if (docstatus === 'submitted') {
-      await setVoucherDocstatus(client, 'app_stock_entries', id, 'submitted');
-    }
 
     await insertStockEntryItems(client, id, items);
+    await voucherControls.savedVoucher(client,'stock',id,payload);
+    if (docstatus === 'submitted') {
+      await setVoucherDocstatus(client,'app_stock_entries',id,'submitted');
+    }
     if (payload.delivery_status !== undefined && (payload.delivery_status !== '' || deliveryUser)) {
       await saveStockEntryDelivery(client, deliveryUser, { ...rows[0], entry_type: entryType, docstatus }, payload.delivery_status);
     }
     if (docstatus === 'submitted') {
       await postStockEntryMovements(client, { id, entryNo, entryType, postingDate, postingTime, items });
+      await voucherControls.requireApproval(client,'stock',id,'Backdate');
       await postStockEntryGlEntry(client, { id, entryNo, entryType, postingDate });
     }
 
@@ -456,6 +460,7 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
     err.status = 400;
     throw err;
   }
+  require('../posting-time').assertPostingDate(postingDate);
   const postingTime = normalizePostingTime(payload.posting_time);
   const items = normalizeStockEntryItems(payload.items, entryType);
   if (!items.length) {
@@ -505,7 +510,7 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
       `,
       [
         entryType,
-        docstatus,
+        'draft',
         postingDate,
         String(payload.remarks || '').trim() || null,
         supplier.supplier_name || null,
@@ -517,10 +522,11 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
         costCenter,
       ],
     );
-    if (docstatus === 'submitted') {
-      await setVoucherDocstatus(client, 'app_stock_entries', stockEntryId, 'submitted');
-    }
     await syncStockEntryItems(client, stockEntryId, items);
+    await voucherControls.savedVoucher(client,'stock',stockEntryId,payload);
+    if (docstatus === 'submitted') {
+      await setVoucherDocstatus(client,'app_stock_entries',stockEntryId,'submitted');
+    }
     if (payload.delivery_status !== undefined && payload.delivery_status !== existing.delivery_status) {
       await saveStockEntryDelivery(client, deliveryUser, { ...existing, entry_type: entryType, docstatus }, payload.delivery_status);
     }
@@ -533,6 +539,7 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
         postingTime,
         items,
       });
+      await voucherControls.requireApproval(client,'stock',stockEntryId,'Backdate');
       await postStockEntryGlEntry(client, {
         id: stockEntryId,
         entryNo: existing.entry_no,
@@ -552,7 +559,9 @@ async function updateStockEntrySupplierInfo(id, payload) {
     throw err;
   }
   const supplier = normalizeSupplierInfo(payload);
-  const { rows } = await getPostgresPool().query(
+  return withPostgresTransaction(async client=>{
+  await client.query('SELECT id FROM app_stock_entries WHERE id=$1 FOR UPDATE',[stockEntryId]);
+  const { rows } = await client.query(
     `
     UPDATE app_stock_entries
     SET supplier_name = $1,
@@ -577,7 +586,9 @@ async function updateStockEntrySupplierInfo(id, payload) {
     err.status = 400;
     throw err;
   }
+  await voucherControls.savedVoucher(client,'stock',stockEntryId);
   return normalizeSupplierInfo(rows[0]);
+  });
 }
 
 async function cancelStockEntry(id, payload = {}) {
@@ -588,7 +599,7 @@ async function cancelStockEntry(id, payload = {}) {
     throw err;
   }
   const reason = String(payload.reason || '').trim() || 'Cancelled';
-  const cancellationPostingDate = String(payload.posting_date || '').trim() || dateOnly(new Date());
+  const cancellationPostingDate = String(payload.posting_date || '').trim() || require('../posting-time').currentPostingDate();
   return withPostgresTransaction(async (client) => {
     const { rows } = await client.query(
       `
@@ -610,6 +621,11 @@ async function cancelStockEntry(id, payload = {}) {
       err.status = 400;
       throw err;
     }
+    if (await require('../sales-controls').currentUser(client)) {
+      const today=require('../posting-time').currentPostingDate();
+      if(cancellationPostingDate!==today) { const error=new Error('Stock cancellation uses today’s server date.');error.status=400;throw error; }
+    }
+    await voucherControls.requireApproval(client,'stock',stockEntryId,'Cancel');
     // Purchase, invoice and stock IDs come from independent sequences.
     const { rows: existingReversal } = await client.query(
       `

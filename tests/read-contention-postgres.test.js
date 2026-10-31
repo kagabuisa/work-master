@@ -10,8 +10,11 @@ test('bounded invoice reads preserve permissions and a consistent financial snap
   skip: process.env.GL_EXPORT_TEST_POSTGRES !== '1',
 }, async t => {
   try {
-    const { invoiceId, openingId, purchaseId, adjustmentId } = await runWithAuditUser(
-      {id:'READ-A', username:'Read A'}, () => seedGoldenData());
+    let ownerId;
+    const { invoiceId, openingId, purchaseId, adjustmentId } = await seedGoldenData({actorFactory:async()=>{
+      const actor=await require('../src/auth').createUser('read-a','ReadPassword123!',{role:'admin'});
+      ownerId=String(actor.id);return actor;
+    }});
     const pool = store.getPostgresPool();
     assert.match((await pool.query('SELECT current_database() name')).rows[0].name, /_hr_test$/);
     await pool.query(`INSERT INTO app_master_customers(customer_id, customer_name, customer_group)
@@ -26,12 +29,12 @@ test('bounded invoice reads preserve permissions and a consistent financial snap
         SUM(qty_change) OVER (PARTITION BY item_code, warehouse ORDER BY posting_date, movement_at, id)::float balance
         FROM app_stock_ledger ORDER BY posting_date, movement_at, id`)).rows;
       assert.ok(reference.length >= 5);
-      for (const access of [{ownerId:'READ-A'}, {ownerId:'READ-B', ownerEmployeeId:'READ-EA'},
+      for (const access of [{ownerId:ownerId}, {ownerId:'READ-B', ownerEmployeeId:'READ-EA'},
         {ownerId:'READ-B'}, {ownerId:'missing'}]) {
         const permitted = reference.filter(row => row.voucher_type.startsWith('stock_')
           ? ([openingId, purchaseId, adjustmentId].map(Number).includes(Number(row.voucher_id ?? row.reversal_of_voucher_id))
-            ? access.ownerId === 'READ-A' : access.ownerId === 'READ-B')
-          : row.voucher_type === 'invoice' && (access.ownerId === 'READ-A' || access.ownerEmployeeId === 'READ-EA'));
+            ? access.ownerId === ownerId : access.ownerId === 'READ-B')
+          : row.voucher_type === 'invoice' && (access.ownerId === ownerId || access.ownerEmployeeId === 'READ-EA'));
         const report = await store.stockLedgerReport({...access, page_size:200});
         assert.equal(report.pagination.total, permitted.length);
         assert.deepEqual(report.rows.map(row => ({voucher_no:row.voucher_no, balance:row.qty_after_transaction})),

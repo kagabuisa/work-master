@@ -11,8 +11,17 @@ function runWithAuditUser(user, callback) {
   return context.run(actor, callback);
 }
 
+function runWithTrustedAuditUser(user, callback) {
+  const actor = user ? { id: String(user.id), name: String(user.username), trusted: true } : { id: null, name: 'System', trusted: true };
+  return context.run(actor, callback);
+}
+
 function auditActor() {
   return context.getStore() || { id: null, name: 'System' };
+}
+
+function auditActorTrusted() {
+  return Boolean(context.getStore()?.trusted);
 }
 
 // Every checkout sets both values, including background jobs, so pooled
@@ -158,4 +167,4 @@ function recordAuditFields(record = {}) {
   return Object.fromEntries(AUDIT_FIELDS.map((key) => [key, record[key] ?? null]));
 }
 
-module.exports = { AuditPool, runWithAuditUser, auditActor, initRecordAudit, recordAuditFields };
+module.exports = { AuditPool, runWithAuditUser, runWithTrustedAuditUser, auditActor, auditActorTrusted, initRecordAudit, recordAuditFields };

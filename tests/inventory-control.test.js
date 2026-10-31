@@ -5,6 +5,7 @@ const {FIXED,seedGoldenData}=require('./helpers/golden-seed');
 const {countAction,correctionAction,loadCount}=require('../src/inventory-counts');
 const {runWithAuditUser}=require('../src/audit');
 const {withPostgresTransaction}=require('../src/core');
+const {approveVoucher}=require('./helpers/voucher-approval');
 test('controlled warehouse counts close history, require independent approval, and post corrections without duplicating stock', {skip:process.env.RECONCILIATION_TEST_POSTGRES!=='1'},async()=>{
  try{
  await seedGoldenData();const pool=store.getPostgresPool();
@@ -122,12 +123,19 @@ test('count locks drain preceding postings, both transfer warehouses freeze, app
  await assert.rejects(countAction(maker,'submit',{id:count.id,revision:count.revision}),/revision_conflict/);
  const changed=await loadCount({...maker,role:'admin'},count.id);assert.equal(changed.count.state,'counting');assert.equal(changed.count.approved_by,null);
  await countAction(maker,'abandon',{id:count.id,revision:changed.count.revision,reason:'Count evidence changed; abandon and repeat physical count.'});
- const transfer=await runWithAuditUser(maker,()=>store.createStockEntry({entry_type:'order',posting_date:FIXED.date,items:[{item_code:FIXED.itemCode,item_name:FIXED.itemName,warehouse:FIXED.warehouse,target_warehouse:'Count target',quantity:1,valuation_rate:50}]}));
+ const transferPayload={entry_type:'order',posting_date:FIXED.date,items:[{item_code:FIXED.itemCode,item_name:FIXED.itemName,warehouse:FIXED.warehouse,target_warehouse:'Count target',quantity:1,valuation_rate:50}]};
+ const transfer=await runWithAuditUser(maker,()=>store.createStockEntry({...transferPayload,action:'save_draft'}));
+ await approveVoucher(pool,'stock',transfer,'Backdate',maker,maker);
+ await runWithAuditUser(maker,()=>store.updateStockEntry(transfer,{...transferPayload,action:'submit'}));
+ await approveVoucher(pool,'stock',transfer,'Cancel',maker,maker);
  await runWithAuditUser(maker,()=>store.cancelStockEntry(transfer));
  const purchases=require('../src/purchases');
  await pool.query("INSERT INTO app_master_suppliers(supplier_id,supplier_name) VALUES('COUNT-SUP','Count supplier'); INSERT INTO app_master_price_lists(price_list,currency,price_type,active) VALUES('COUNT-BUY','UGX','buying',1)");
  const purchase=await purchases.createPurchase({posting_date:'2020-01-01',supplier_id:'COUNT-SUP',price_list:'COUNT-BUY',items:[{item_code:FIXED.itemCode,warehouse:FIXED.warehouse,quantity:1,unit_price:50}]});
- await runWithAuditUser(maker,()=>purchases.submitPurchase(purchase));await runWithAuditUser(maker,()=>purchases.cancelPurchase(purchase));
+ await approveVoucher(pool,'purchases',purchase,'Backdate',maker,maker);
+ await runWithAuditUser(maker,()=>purchases.submitPurchase(purchase));
+ await approveVoucher(pool,'purchases',purchase,'Cancel',maker,maker);
+ await runWithAuditUser(maker,()=>purchases.cancelPurchase(purchase));
  // Exercise an actual restricted SQL role, with no role membership or ownership.
  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='wm_count_test_runtime') THEN CREATE ROLE wm_count_test_runtime NOLOGIN NOINHERIT;END IF;END $$");
  await pool.query('GRANT USAGE ON SCHEMA public TO wm_count_test_runtime');

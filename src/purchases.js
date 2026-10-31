@@ -1,3 +1,4 @@
+const voucherControls = require('./voucher-controls');
 const { beginInventoryPosting } = require('./services/inventory-posting');
 const { validateReceivingAccount } = require('./domain/ledger');
 const { postPurchasePaymentJournal, reversePurchasePayment } = require('./purchase-payment-posting');
@@ -267,6 +268,7 @@ async function validatePurchaseOrder(client, purchase, excludePurchaseId = null,
 
 async function createPurchase(payload) {
   const purchase = normalizePurchase(payload);
+  require('./posting-time').assertPostingDate(purchase.posting_date);
   return withPostgresTransaction(async (client) => {
     await resolvePurchaseMasters(client, purchase);
     await validatePurchaseOrder(client, purchase);
@@ -283,6 +285,7 @@ async function createPurchase(payload) {
     await client.query('UPDATE app_purchases SET purchase_no = $1 WHERE id = $2',
       [`PURINV-${String(id).padStart(6, '0')}`, id]);
     await insertItems(client, id, purchase.items);
+    await voucherControls.savedVoucher(client,'purchases',id,payload);
     return id;
   });
 }
@@ -291,6 +294,7 @@ async function updatePurchase(id, payload) {
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   const purchase = normalizePurchase(payload);
+  require('./posting-time').assertPostingDate(purchase.posting_date);
   return withPostgresTransaction(async (client) => {
     const existing = await client.query('SELECT docstatus, purchase_order_id FROM app_purchases WHERE id = $1 FOR UPDATE', [purchaseId]);
     if (!existing.rows.length) throw notFound();
@@ -311,6 +315,7 @@ async function updatePurchase(id, payload) {
       purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
       purchase.subtotal, purchase.total, purchaseId, purchase.price_list, purchase.posting_time, purchase.purchase_order_id, purchase.cost_center]);
     await syncItems(client, purchaseId, purchase.items);
+    await voucherControls.savedVoucher(client,'purchases',purchaseId,payload);
     return purchaseId;
   });
 }
@@ -432,6 +437,7 @@ async function submitPurchase(id) {
         purchase_order_item_id: Number(item.purchase_order_item_id) })) }, purchaseId, true);
     }
     await beginInventoryPosting(client, 'purchase', purchaseId, itemResult.rows.map(item => item.warehouse));
+    await voucherControls.requireApproval(client,'purchases',purchaseId,'Backdate');
     for (const item of itemResult.rows) {
       await applyPostgresStockMovement(client, {
         posting_date: purchase.posting_date,
@@ -493,6 +499,7 @@ async function cancelPurchase(id) {
     const purchase = purchases[0];
     if (!purchase) throw notFound();
     if (purchase.docstatus !== 'submitted') throw badRequest('Only submitted purchases can be cancelled.');
+    await voucherControls.requireApproval(client,'purchases',purchaseId,'Cancel');
 
     const postingDate = currentPostingDate();
     const { rows: stockRows } = await client.query(

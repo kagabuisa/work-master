@@ -177,6 +177,8 @@ test('API authentication, transactional retries and website payment parity', {
     await t.test('shared invoice policy preserves creator ownership and warehouse restrictions', async () => {
       const { requireInvoice } = require('../src/api/policy');
       const user = await users.createUser('api-scope', 'OriginalPass123!', { role: 'standard' });
+      // Explicit fixture exemptions preserve historical ownership/read tests.
+      await pool.query('UPDATE app_users SET permission_grants=permission_grants || $1::jsonb WHERE id=$2',[JSON.stringify(['sales.policy.director','sales.policy.price-override']),user.id]);
       const owned = await runWithAuditUser(user, () => store.createInvoice({ invoice_date: FIXED.date,
         customer_id: FIXED.customerId, customer_name: FIXED.customerName,
         items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName, warehouse: FIXED.warehouse, quantity: 1, unit_price: 100 }] }));

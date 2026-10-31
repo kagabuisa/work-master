@@ -111,6 +111,8 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
       price_list: priceList, invoicer_id: 'E1', invoicer: 'Permitted Invoicer',
       items: [{ item_code: 'I1', item_name: 'Alpha Item', warehouse, quantity: 1, unit_price: 100 }],
     });
+    // Explicit fixture exemptions preserve historical ownership/read tests.
+    await pool.query('UPDATE app_users SET permission_grants=permission_grants || $1::jsonb WHERE id=$2',[JSON.stringify(['sales.policy.director','sales.policy.price-override']),standard.id]);
     const permitted = await runWithAuditUser(standard, () => store.createInvoice(payload()));
     await store.submitInvoice(permitted);
     await store.addInvoicePayment(permitted, { payment_date: '2026-10-01', amount: 10, account_id: cash });

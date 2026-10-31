@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><title>Discount</title><%- include('partials-head') %></head><body><main class="shell ui-page ui-page-form">
+<header class="topbar"><%- include('breadcrumbs',{breadcrumbs:[{label:'Home',href:'/'},{label:'Approved Discounts',href:'/settings/approved-discounts'},{label:record.id?'Edit Discount':'New Discount'}]}) %></header>
+<% if(error) { %><p class="notice warning" role="alert"><%= error %></p><% } %>
+<form method="post" action="/settings/approved-discounts<%= record.id?'/'+record.id:'' %>" class="ui-surface">
+<%- include('ui-section-heading',{heading:{title:'Discount eligibility',help:'Selling rate is a price, not a percentage. Every populated restriction must match. More specific scopes win, followed by the highest qualifying minimum quantity, latest start date, then newest record.'}}) %>
+<input type="hidden" name="revision" value="<%= record.revision || '' %>"><div class="ui-form-grid">
+<label>Item code<input name="item_code" value="<%= record.item_code || '' %>" required maxlength="200"></label>
+<label>Status<select name="status"><% ['Disapproved','Approved'].forEach(v=>{ %><option <%= record.status===v?'selected':'' %>><%= v %></option><% }) %></select></label>
+<label>Start date<input type="date" name="start_date" value="<%= record.start_date || '' %>" required></label><label>Expiry date<input type="date" name="expiry_date" value="<%= record.expiry_date || '' %>"></label>
+<% for(const [name,label,options,key] of [['warehouse','Warehouse',warehouses,'warehouse'],['warehouse_type','Warehouse type',types,'warehouse_type'],['price_list','Price list',lists,'price_list']]) { %><label><%= label %><select name="<%= name %>"><option value="">All</option><% options.forEach(o=>{ %><option value="<%= o[key] %>" <%= record[name]===o[key]?'selected':'' %>><%= o[key] %></option><% }) %></select></label><% } %>
+<label>Minimum quantity<input type="number" name="min_qty" min="0.001" step="0.001" required value="<%= record.min_qty || '' %>"></label><label>Approved selling rate (UGX)<input type="number" name="discount_rate" min="0.000001" step="0.000001" required value="<%= record.discount_rate || '' %>"></label>
+</div><div class="ui-form-footer"><button>Save Discount</button><a class="button button-light" href="/settings/approved-discounts">Back</a></div></form></main></body></html>

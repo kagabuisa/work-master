@@ -1,4 +1,5 @@
 <nav class="settings-tabs" aria-label="Reconciliation reports">
-  <a href="/stock/reconciliations/<%= entry.id %>" <%- photoTab ? '' : 'aria-current="page" class="active"' %>>Stock Reconciliation</a>
-  <a href="/stock/reconciliations/<%= entry.id %>/photo-count" <%- photoTab ? 'aria-current="page" class="active"' : '' %>>Photo Count Rpt</a>
+  <% const reconciliationPath=typeof count!=='undefined'&&count?'/stock/reconciliations/counts/'+count.id:'/stock/reconciliations/'+entry.id; %>
+  <a href="<%= reconciliationPath %>" <%- photoTab ? '' : 'aria-current="page" class="active"' %>>Stock Reconciliation</a>
+  <a href="<%= reconciliationPath %>/photo-count" <%- photoTab ? 'aria-current="page" class="active"' : '' %>>Photo Count Rpt</a>
 </nav>

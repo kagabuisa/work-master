@@ -187,10 +187,13 @@ app.use(async (req, res, next) => {
 });
 
 app.use('/reports', reportsRouter);
+app.use(require('./src/web/routes/accounting-periods'));
 
+app.use(require('./src/web/routes/voucher-controls'));
 app.use(purchasingRouter);
 
 app.use(require('./src/web/routes/maintenance'));
+app.use(require('./src/web/routes/sales-controls'));
 app.use(settingsRouter);
 
 app.use('/stock', stockRouter);

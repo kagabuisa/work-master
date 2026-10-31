@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 50;
+const SCHEMA_VERSION = 55;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -232,6 +232,23 @@ const MIGRATIONS = [
     await client.query('ALTER TABLE app_user_sessions ADD COLUMN IF NOT EXISTS password_version TEXT');
     // Old sessions have no verified credential version; require a fresh login.
     await client.query('DELETE FROM app_user_sessions WHERE password_version IS NULL');
+  } },
+  { version:51, name:'photo_count_ai_evidence', up:async client => {
+    await client.query(`ALTER TABLE app_reconciliation_photo_counts
+      ADD COLUMN IF NOT EXISTS ai_counts JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS ai_review JSONB`);
+  } },
+  { version:52, name:'photo_count_item_descriptions', up:async client=>{
+    await client.query("ALTER TABLE app_display_settings ADD COLUMN IF NOT EXISTS ai_count_descriptions TEXT NOT NULL DEFAULT ''");
+  } },
+  { version:53, name:'local_sales_controls', up:async client=>{
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/sales-controls.sql'),'utf8'));
+  } },
+  { version:54, name:'accounting_period_closure', up:async client=>{
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/accounting-periods.sql'),'utf8'));
+  } },
+  { version:55, name:'voucher_exception_controls', up:async client=>{
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/voucher-controls.sql'),'utf8'));
   } },
 ];
 

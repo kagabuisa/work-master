@@ -20,6 +20,7 @@ function parseStockEntryPayload(body) {
   const quantities = arrayField(body.quantity);
   const valuationRates = arrayField(body.valuation_rate);
   return {
+    ...require("../voucher-controls").requestFields(body),
     entry_type: body.entry_type,
     action: body.action,
     posting_date: body.posting_date,

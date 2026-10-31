@@ -58,6 +58,8 @@ Controlled warehouse count and correction screens use the shared form/list surfa
 
 Use `ui-panel-grid` for two adjacent document-tool surfaces (one column below 720px). `ui-upload-card` and `ui-upload-form` provide consistent file controls, compact spacing and aligned footer actions. Stock Reconciliation uses these shared components for supporting scans and Excel count sheets below its count table.
 
+Use `ui-upload-compact` on `ui-upload-card` for repeated short document forms: 12-pixel padding, 8-pixel gaps and forms kept together without automatic vertical spacing.
+
 Use `ui-attributes-compact` with `ui-voucher-attributes` for dense voucher metadata: smaller padding and type with the same accessible horizontal scrolling. Keep workflow guidance in the shared helper beside the relevant action.
 
 Document cards use shared `ui-upload-intro`, `ui-upload-summary`, `ui-upload-steps` and `ui-upload-field` components with `ui-upload-card`. Keep section headings, native accessible file pickers, quiet file-limit hints and bottom-aligned action rows; use a primary upload/import action and a secondary download action.
@@ -69,3 +71,13 @@ Stock entry preview metadata uses `ui-voucher-attributes ui-attributes-compact u
 Use the shared `ui-access-panel`, `ui-access-invite`, and `ui-access-list` components for record sharing. Show one identity and one access selector per person, with a small labelled remove control. Keep timestamps secondary, reserve a quiet feedback line for save/error messages, and keep the invite action separate from existing people. Invite fields retain fixed outline labels; list selectors use explicit accessible names and `data-standard-labels`. On small screens, move row controls below the identity without truncating names. Changes save in place and restore focus; a visible Save button remains available without JavaScript.
 
 Use `ui-multi-select.ejs` for checkbox-based multiple selection in report filter bars. Pass a `picker` with `label`, `name`, `options`, and `selected`. Include `ui-multi-select.js` for search, selected counts, Select all shown, and Clear all; the shared `filter-row.js` positions its disclosure panel above scrolling toolbars. Checkbox labels remain standard labels. ERPNext Stock Balance is the reference.
+
+Use `ui-photo-preview` for a 320 × 240 contained thumbnail and `ui-photo-cell` for its table column. Photo Count Rpt keeps the count form tabular inside `ui-table-scroll`; photo previews can open full size and selected upload files use an in-browser preview without changing the shared image security policy.
+
+Editable photo reports retain their table layout with Photo ID followed by the large photo cell. Use `ui-photo-stack` and the keyboard-accessible `ui-file-picker` for Choose/Replace, `ui-actions-inline` for full-size/removal links, and `ui-cell-form` for compact quantity and count actions. Quantity inputs inside table cells use visually hidden labels (the table-editor exception), preserving accessible names. Cell forms establish a positioned container so these hidden labels remain clipped inside the scrolling table. `ui-summary-strip` shows totals and unsaved rows; `ui-feedback` and native progress show operation status. An active row uses `data-counting` for a subtle accent. Secondary admin description settings remain collapsed below the report.
+
+Use the shared `invoice-request-fields` partial and `ui-action-row` for Backdate/Cancel request controls in invoice editors and previews. Both actions are native checkboxes inside the shared `ui-choice-group` / `ui-choice-chip` components, with selected, disabled and keyboard-focus states. Popups reuse `confirm-dialog`, `ui-dialog-fields` and `confirm-dialog-actions`, collect dates/reasons, and restore focus when closed.
+
+For invoice request controls below the main editor fields, use `ui-action-row-compact` and `ui-choice-group-compact`. Checkbox choices and the adjacent secondary action share compact control heights, spacing and corner sizes; coarse pointers retain 36-pixel touch targets. Keep this row above the items table.
+
+Use `ui-label-with-help` around short labels and the shared `ui-helper` disclosure to keep a compact information icon immediately beside the label. Keep the explanation text free to wrap inside the disclosure.

@@ -72,12 +72,13 @@
     </section>
     <% } %>
 
-    <% if (can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts) || can('vouchers.journals.view') && !scoped) { %>
+    <% if (['finance','admin'].includes(currentUser.role) || can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts) || can('vouchers.journals.view') && !scoped) { %>
     <section class="module-nav-section <%= currentModule === 'accounts' ? 'active' : '' %>">
-      <a class="module-nav-primary" href="<%= can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts) ? '/accounts' : '/journals' %>">Accounts</a>
+      <a class="module-nav-primary" href="<%= can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts) ? '/accounts' : ['finance','admin'].includes(currentUser.role) ? '/accounting-periods' : '/journals' %>">Accounts</a>
       <div class="module-nav-links">
         <% if (can('vouchers.journals.create') && !scoped) { %><a href="/journals/new">New Journal Entry</a><% } %>
         <% if (can('accounts.view') || (typeof canViewNamedAccounts !== 'undefined' && canViewNamedAccounts)) { %><a href="/accounts">Chart of Accounts</a><% } %>
+        <% if (['finance','admin'].includes(currentUser.role)) { %><a href="/accounting-periods">Accounting Periods</a><% } %>
         <% if (can('vouchers.journals.view') && !scoped) { %><a href="/journals">Journals</a><% } %>
       </div>
     </section>

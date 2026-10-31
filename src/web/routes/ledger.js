@@ -37,6 +37,7 @@ function parseJournalEntryPayload(body) {
   const remarks = arrayField(body.line_remarks);
   const references = arrayField(body.line_reference_no);
   return {
+    ...require("../../voucher-controls").requestFields(body),
     journal_type: body.journal_type,
     posting_date: body.posting_date,
     posting_time: body.posting_time,

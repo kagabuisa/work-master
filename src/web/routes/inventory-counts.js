@@ -30,6 +30,39 @@ router.post('/counts',async(req,res,next)=>{try{
 }catch(error){if(error.status||error.code==='P0001')res.status(error.status||409).render('inventory-counts',{...await indexData(req.currentUser),error:error.message});else next(error);}});
 const scans=require('../../reconciliation-attachments');
 const {withPostgresTransaction}=require('../../core');
+const {photoCountReport,savePhotoCount,saveAllPhotoCounts}=require('../../photo-count');
+router.get('/counts/:id/photo-count',async(req,res,next)=>{try{
+ const {count}=await loadCount(req.currentUser,req.params.id);
+ const report=await photoCountReport(getPostgresPool(),count.reconciliation_id,req.currentUser);
+ res.set('Cache-Control','private, no-store');
+ res.render('reconciliation-photo-count',{...report,count,entry:{id:count.reconciliation_id,entry_no:count.entry_no},warehouse:count.warehouse,error:req.query.error||null,aiCountSaved:req.query.descriptions==='saved'});
+}catch(error){next(error);}});
+const photoUpload=require('multer')({storage:require('multer').memoryStorage(),limits:{fileSize:scans.MAX_SCAN_BYTES,files:scans.MAX_SCAN_FILES,fields:12,parts:15,fieldSize:120000}}).array('photos',scans.MAX_SCAN_FILES);
+router.post('/counts/:id/photo-count',(req,res)=>photoUpload(req,res,async uploadError=>{
+ let failure;
+ let result;
+ const json=req.get('Accept')==='application/json';
+ try {
+  if(uploadError)throw scans.attachmentError('Choose one JPG or PNG photo no larger than 10 MB.');
+  const {count}=await loadCount(req.currentUser,req.params.id);
+  if(req.body.action==='ai_settings'){
+   await require('../../photo-count-settings').savePhotoCountSettings(req.currentUser,req.body);
+   return res.redirect(303,`/stock/reconciliations/counts/${req.params.id}/photo-count?descriptions=saved`);
+  }
+  if(['ai_count','ai_clarify'].includes(req.body.action)){
+   result=await require('../../photo-count-ai').countPhotos(count.reconciliation_id,req.body,req.currentUser,{files:req.files});
+  }else if(req.body.action==='save_all'){
+   result=await withPostgresTransaction(client=>saveAllPhotoCounts(client,count.reconciliation_id,req.body,req.currentUser),{inventoryExclusive:true});
+  }else result=await withPostgresTransaction(async client=>{
+   await savePhotoCount(client,count.reconciliation_id,req.body,req.files,req.currentUser);
+   return {revision:(await client.query('SELECT revision FROM wm_inventory_counts WHERE reconciliation_id=$1',[count.reconciliation_id])).rows[0]?.revision??null};
+  },{inventoryExclusive:true});
+ }catch(error){failure=error.status?error.message:'Could not save the photo count. Please retry.';
+  if(json)return res.status(error.status||500).json({error:failure,retryAfter:error.retryAfter});
+ }
+ if(json)return res.json({revision:result?.revision??null,saved:result?.saved});
+ res.redirect(303,`/stock/reconciliations/counts/${req.params.id}/photo-count${failure?'?error='+encodeURIComponent(failure):''}`);
+}));
 router.get('/counts/:id/items',async(req,res,next)=>{try{
  const {count}=await loadCount(req.currentUser,req.params.id);
  const query=String(req.query.q||'').trim();
@@ -49,7 +82,9 @@ router.get('/counts/:id/attachments',async(req,res,next)=>{try{
 }catch(error){next(error);}});
 router.get('/counts/:id/attachments/:fileId',async(req,res,next)=>{try{
  const {count}=await loadCount(req.currentUser,req.params.id);const file=await scans.findAttachment(getPostgresPool(),count.reconciliation_id,req.params.fileId);
- res.set('Cache-Control','private, no-store');res.set('X-Content-Type-Options','nosniff');res.type(file.content_type);res.attachment(file.file_name);res.send(file.content);
+ res.set('Cache-Control','private, no-store');res.set('X-Content-Type-Options','nosniff');res.type(file.content_type);
+ if(req.query.preview==='1'&&['image/jpeg','image/png'].includes(file.content_type))res.set('Content-Disposition','inline');else res.attachment(file.file_name);
+ res.send(file.content);
 }catch(error){next(error);}});
 const scanUpload=require('multer')({storage:require('multer').memoryStorage(),limits:{fileSize:scans.MAX_SCAN_BYTES,files:scans.MAX_SCAN_FILES,fields:0}}).array('scans',scans.MAX_SCAN_FILES);
 router.post('/counts/:id/attachments',(req,res,next)=>scanUpload(req,res,async uploadError=>{try{

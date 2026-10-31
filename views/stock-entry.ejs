@@ -70,6 +70,8 @@
           <div id="stock-entry-item-results" class="results"></div>
         </label>
       </section>
+      <% if(selectedEntryType!=='reconciliation') { %>
+      <%- include('voucher-request-fields',{requestKind:'stock',requestRecord:entry || {}}) %><% } %>
       <p id="stock-entry-item-status" class="field-hint" role="status" aria-live="polite"></p>
       <button type="button" class="inline-link" id="adjust-supplier-info" hidden>Adjust supplier info</button>
       <input type="hidden" name="supplier_name" id="supplier-name" value="<%= entry ? entry.supplier_name || '' : '' %>">

@@ -8,7 +8,7 @@ function invoiceFormState(body, savedInvoice = null) {
     // A malformed request still gets an editable form and a useful error.
   }
   const invoice = { id: savedInvoice?.id, invoice_no: savedInvoice?.invoice_no, payments: [] };
-  for (const key of ['invoice_date', 'posting_time', 'due_date', 'non_system_invoice', 'customer_id', 'customer_name', 'customer_phone', 'price_list', 'cost_center', 'invoicer_id', 'invoicer', 'warehouse', 'notes', 'discount_amount', 'tax_amount']) {
+  for (const key of ['action_request', 'why_cancel', 'approval_revision', 'invoice_date', 'posting_time', 'due_date', 'non_system_invoice', 'customer_id', 'customer_name', 'customer_phone', 'price_list', 'cost_center', 'invoicer_id', 'invoicer', 'warehouse', 'notes', 'discount_amount', 'tax_amount']) {
     invoice[key] = typeof body[key] === 'string' ? body[key] : '';
   }
   if (typeof body.ext_invoice === 'string') invoice.non_system_invoice = body.ext_invoice;

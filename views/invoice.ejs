@@ -18,6 +18,7 @@
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <%- include('invoice-detail', { invoice, items, today, money }) %>
+    <%- include('invoice-approval',{invoice}) %>
   </main>
 </body>
 </html>

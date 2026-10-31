@@ -12,7 +12,8 @@ const { MAINTENANCE_LOCK, maintenanceBusy } = require('./maintenance-lock');
 const DATA_ROOT = path.resolve(__dirname, '..', 'data');
 const BACKUP_ROOT = path.join(DATA_ROOT, 'transaction-reset-backups');
 const GROUPS = [
-  ['Sales', ['app_invoices', 'app_invoice_items', 'app_invoice_payments']],
+  ['Voucher approvals', ['app_voucher_approval_events','app_voucher_approvals']],
+  ['Sales', ['app_sales_approval_events', 'app_invoices', 'app_invoice_items', 'app_invoice_payments']],
   ['Purchases', ['app_purchases', 'app_purchase_items', 'app_purchase_payments']],
   ['Purchase orders', ['app_purchase_orders', 'app_purchase_order_items']],
   ['Journals', ['app_journal_entries', 'app_journal_entry_lines']],
@@ -194,10 +195,12 @@ async function resetTransactions(user, scope, backupId, confirmation, password) 
   if (!UUID.test(String(backupId))) fail('Create a verified backup before resetting transactions.', 409);
   return exclusive(async client => {
     await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock_shared(1776342163)');
     try {
       if ((await client.query('SELECT wm_inventory_enabled() AS enabled')).rows[0]?.enabled) fail('Controlled inventory history cannot be reset.',409);
       const actor = await requireAdministrator(client, user);
       if (!await require('./auth').verifyPassword(String(password || ''),actor.password_hash)) fail('Your current administrator password is incorrect.',401);
+      if ((await client.query("SELECT 1 FROM app_accounting_periods WHERE status='closed' LIMIT 1")).rowCount) fail('Reopen closed accounting periods before resetting financial history.',409);
       const backup = (await client.query(`SELECT * FROM wm_maintenance_backups
         WHERE id=$1 AND actor_id=$2 AND scope=$3 AND consumed_at IS NULL
           AND expires_at>clock_timestamp() FOR UPDATE`, [backupId,user.id,scope])).rows[0];

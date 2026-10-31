@@ -55,7 +55,8 @@ test('batch creation preserves 100 line snapshots, rounding and per-row audit id
       quantity: 1 + index / 1000, unit_price: '180.25', stock_at_sale: 500,
       item_category: 'Forged', source: 'Forged', cost: 999,
     }));
-    const id = await require('../src/audit').runWithAuditUser({ id: 'batch-auditor', username: 'Batch auditor' },
+    const auditor=await require('../src/auth').createUser('batch-auditor','BatchAuditorPassword123!',{role:'admin'});
+    const id = await require('../src/audit').runWithAuditUser({ id: auditor.id, username: 'Batch auditor' },
       () => store.createInvoice({ invoice_date: FIXED.date, customer_id: FIXED.customerId,
         customer_name: FIXED.customerName, payments: [], items }));
     const rows = (await pool.query('SELECT * FROM app_invoice_items WHERE invoice_pk=$1 ORDER BY line_no', [id])).rows;
@@ -68,7 +69,7 @@ test('batch creation preserves 100 line snapshots, rounding and per-row audit id
       assert.equal(Number(row.stock_at_sale), 500);
       assert.equal(row.item_category, 'Batch category'); assert.equal(row.source, 'Batch source');
       assert.equal(Number(row.cost), 42.25);
-      assert.equal(row.created_by, 'Batch auditor'); assert.equal(row.created_by_user_id, 'batch-auditor');
+      assert.equal(row.created_by, 'Batch auditor'); assert.equal(row.created_by_user_id, String(auditor.id));
       assert.equal(row.updated_by, 'Batch auditor'); assert.ok(row.created_at);
     });
     const header = (await pool.query('SELECT subtotal FROM app_invoices WHERE id=$1', [id])).rows[0];

@@ -241,6 +241,7 @@ async function updateVoucherPostingTime(kind, value, time) {
       if (!existing.length) { const error = new Error('Voucher not found.'); error.status = 404; throw error; }
       const error = new Error('Posting time can only be changed on draft vouchers.'); error.status = 400; throw error;
     }
+    if (kind !== 'sales') await require('./voucher-controls').savedVoucher(client,kind,id);
     if (kind === 'sales') {
       await client.query(`UPDATE app_journal_entries SET posting_time = $2
         WHERE journal_type = 'sales_invoice' AND reference_no = $1`, [rows[0].invoice_no, postingTime]);

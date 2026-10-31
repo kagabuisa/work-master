@@ -1,3 +1,4 @@
+const salesControls = require('../sales-controls');
 const { beginInventoryPosting, inventoryMovements } = require('../services/inventory-posting');
 'use strict';
 // Sales domain: invoices, payments, debtor reports and invoice hydration.
@@ -6,7 +7,7 @@ const { measurePosting, postingStage, runExpensiveRead } = require('../workload-
 const { shareRead, readSnapshot } = require('../read-cache');
 const { invoiceSearchSql, invoiceTextOnlyPattern } = require('./search-sql');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
-const { assertPostingDate, normalizePostingTime, storedPostingTime } = require('../posting-time');
+const { assertPostingDate, currentPostingDate, normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { recordAuditFields } = require('../audit');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
@@ -176,6 +177,8 @@ async function postgresDebtorReport(options = {}) {
     params.push(to);
     where.push(`invoice_date <= $${params.length}`);
   }
+  params.push(currentPostingDate());
+  const kampalaToday = `$${params.length}::date`;
   const invoiceDateRange = Boolean(from || to);
   const groupedSql = `
     WITH ${postgresInvoiceBalancesCte()}, invoice_grouped AS (
@@ -187,11 +190,11 @@ async function postgresDebtorReport(options = {}) {
         COALESCE(SUM(total), 0)::float AS invoice_total,
         COALESCE(SUM(amount_paid), 0)::float AS paid_total,
         COALESCE(SUM(balance_due), 0)::float AS balance_due,
-        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) <= 0 THEN balance_due ELSE 0 END), 0)::float AS current,
-        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 1 AND 30 THEN balance_due ELSE 0 END), 0)::float AS days_1_30,
-        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 31 AND 60 THEN balance_due ELSE 0 END), 0)::float AS days_31_60,
-        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) BETWEEN 61 AND 90 THEN balance_due ELSE 0 END), 0)::float AS days_61_90,
-        COALESCE(SUM(CASE WHEN CURRENT_DATE - COALESCE(due_date, invoice_date) > 90 THEN balance_due ELSE 0 END), 0)::float AS days_over_90
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) <= 0 THEN balance_due ELSE 0 END), 0)::float AS current,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 1 AND 30 THEN balance_due ELSE 0 END), 0)::float AS days_1_30,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 31 AND 60 THEN balance_due ELSE 0 END), 0)::float AS days_31_60,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 61 AND 90 THEN balance_due ELSE 0 END), 0)::float AS days_61_90,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) > 90 THEN balance_due ELSE 0 END), 0)::float AS days_over_90
       FROM invoice_balances
       WHERE ${where.join(' AND ')}
       GROUP BY COALESCE(NULLIF(customer_id, ''), customer_name)
@@ -686,6 +689,7 @@ async function createPostgresInvoice(payload) {
 }
 
 async function createPostgresInvoiceInTransaction(client, payload, invoiceData = buildInvoiceData(payload)) {
+  const approval = await salesControls.validateInvoice(client, { ...invoiceData, ...payload, items:invoiceData.items });
   const { rows } = await client.query(
     `
     INSERT INTO app_invoices (
@@ -706,6 +710,8 @@ async function createPostgresInvoiceInTransaction(client, payload, invoiceData =
     'UPDATE app_invoices SET invoice_no = $1 WHERE id = $2',
     [invoiceNo, id],
   );
+  await salesControls.saveApprovalState(client,id,approval);
+  if (approval.action_request) await salesControls.approvalEvent(client,id,await salesControls.currentUser(client),approval,'request');
   await insertPostgresItems(client, id, invoiceNo, invoiceData.items);
   await insertPostgresPayments(client, id, invoiceData.payments);
   return id;
@@ -746,6 +752,7 @@ async function postInvoiceStock(client, invoice, itemRows) {
 async function createCashSaleInvoice(payload, payment) {
   const invoiceData = buildInvoiceData({ ...payload, is_cash_sale: true, payments: [], amount_paid: 0 });
   return withPostgresTransaction(async (client) => {
+    const approval = await salesControls.validateInvoice(client,{...invoiceData,...payload,items:invoiceData.items},{submitting:true});
     const { rows } = await client.query(
       `
       INSERT INTO app_invoices (
@@ -766,6 +773,8 @@ async function createCashSaleInvoice(payload, payment) {
       'UPDATE app_invoices SET invoice_no = $1 WHERE id = $2',
       [invoiceNo, id],
     );
+    await salesControls.saveApprovalState(client,id,approval);
+    if (approval.action_request) await salesControls.approvalEvent(client,id,await salesControls.currentUser(client),approval,'request');
     await insertPostgresItems(client, id, invoiceNo, invoiceData.items);
 
     const { rows: itemRows } = await client.query(
@@ -827,7 +836,7 @@ async function updatePostgresInvoice(id, payload) {
 async function updatePostgresInvoiceInTransaction(client, id, payload) {
   const invoiceData = buildInvoiceData(payload);
     const { rows } = await client.query(
-      'SELECT invoice_no, docstatus FROM app_invoices WHERE id = $1 FOR UPDATE',
+      'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
       [Number(id)],
     );
     const invoice = rows[0];
@@ -841,6 +850,7 @@ async function updatePostgresInvoiceInTransaction(client, id, payload) {
       err.status = 400;
       throw err;
     }
+    await salesControls.persistValidation(client,Number(id),{...invoiceData,...payload,items:invoiceData.items},{saved:invoice});
     await client.query(
       `
       UPDATE app_invoices
@@ -905,6 +915,7 @@ async function submitPostgresInvoiceInTransaction(client, id) {
     [Number(id)],
   );
 
+  await salesControls.validateInvoice(client,{...invoice,invoice_date:dateOnly(invoice.invoice_date),items:itemRows},{saved:invoice,submitting:true});
   const totalCost = await postInvoiceStock(client, invoice, itemRows);
   await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
   await postingStage('payment_totals', () => syncPostgresInvoicePaymentTotals(client, Number(id)));
@@ -956,6 +967,7 @@ async function submitCashSaleInvoice(id, payment) {
       [Number(id)],
     );
 
+    await salesControls.validateInvoice(client,{...invoice,invoice_date:dateOnly(invoice.invoice_date),items:itemRows},{saved:invoice,submitting:true});
     const totalCost = await postInvoiceStock(client, invoice, itemRows);
 
     await client.query('UPDATE app_invoices SET is_cash_sale = true WHERE id = $1', [Number(id)]);
@@ -1001,7 +1013,7 @@ async function submitCashSaleInvoice(id, payment) {
 async function cancelPostgresInvoice(id) {
   return withPostgresTransaction(async (client) => {
     const { rows: invoices } = await client.query(
-      'SELECT id, invoice_no, docstatus FROM app_invoices WHERE id = $1 FOR UPDATE',
+      'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
       [Number(id)],
     );
     const invoice = invoices[0];
@@ -1016,7 +1028,8 @@ async function cancelPostgresInvoice(id) {
       throw err;
     }
 
-    const postingDate = dateOnly(new Date());
+    await salesControls.cancellationAllowed(client,invoice);
+    const postingDate = currentPostingDate();
     const { rows: stockRows } = await client.query(
       "SELECT * FROM app_stock_ledger WHERE voucher_type = 'invoice' AND voucher_id = $1 AND is_reversal = false ORDER BY id",
       [Number(id)],
@@ -1205,7 +1218,7 @@ async function cancelPostgresInvoicePayment(id, paymentId) {
       err.status = 400;
       throw err;
     }
-    const postingDate = dateOnly(new Date());
+    const postingDate = currentPostingDate();
     if (payment.journal_entry_id) {
       await reverseVoucherGlEntries(client, 'payment_journal', payment.journal_entry_id, postingDate);
       await client.query("UPDATE app_journal_entries SET docstatus = 'cancelled' WHERE id = $1", [payment.journal_entry_id]);
@@ -1344,6 +1357,7 @@ async function hydratePostgresInvoices(invoiceRows, client = getPostgresPool()) 
   const journalPaymentsByInvoice = groupByInvoiceId(journalResult.rows);
   return invoiceRows.map((row) => normalizeInvoiceTotals({
     ...recordAuditFields(row),
+    ...salesControls.approvalState(row),
     id: Number(row.id),
     invoice_no: row.invoice_no,
     non_system_invoice: row.non_system_invoice,

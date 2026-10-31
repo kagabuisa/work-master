@@ -340,6 +340,7 @@ test('controlled REC voucher renders its workflow inside reconciliation sub-tabs
   });
   assert.match(html,/<title>REC-000012<\/title>/);
   assert.match(html,/aria-label="Stock Reconciliation"/);
+  assert.match(html,/href="\/stock\/reconciliations\/counts\/5\/photo-count"/);
   assert.match(html,/action="\/stock\/reconciliations\/counts\/5\/save"/);
   assert.match(html,/href="\/stock\/reconciliations\/counts\/5\/sheet"/);
   assert.match(html,/data-voucher-form data-prevent-enter-submit/);

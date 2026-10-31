@@ -48,5 +48,6 @@
     </table>
     <% if (journal.remarks) { %><p class="notes"><%= journal.remarks %></p><% } %>
   </section>
+<%- include('voucher-approval') %>
   <% if (true) { %><%- include('record-audit', { record: journal }) %><% } %>
 </div>

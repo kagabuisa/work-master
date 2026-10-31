@@ -53,12 +53,20 @@ function permissionCheck(req) {
   const method = req.method;
   const has = (key) => can(user, key);
   const all = (...keys) => keys.every(has);
+  const controlRoute = /^\/(purchases|journals|stock\/entries)\/[1-9][0-9]*\/(action-request|action-approval)$/.exec(req.path);
+  if (controlRoute) {
+    const kind=controlRoute[1]==='stock/entries'?'stock':controlRoute[1];
+    return method==='POST' && (controlRoute[2]==='action-approval'?user?.role==='admin':has(`vouchers.${kind}.view`));
+  }
   if (sharedStockWriteRequest(req)) return true;
 
   if (method === 'GET' && req.stockEntrySharedRead
       && /^\/stock\/entries\/[1-9][0-9]*(?:\/drawer)?$/.test(req.path)) return true;
 
   if (!parts.length) return true;
+  if (parts[0] === 'accounting-periods') return parts.length === 1 && (method === 'GET' && ['finance','admin'].includes(user.role)
+    || method === 'POST' && (['create','save','submit'].includes(req.body?.action) ? user.role === 'finance'
+      : ['approve','return','reopen'].includes(req.body?.action) && user.role === 'admin'));
   if (parts[0] === 'hr') {
     const { permissionForHr, HR_AREAS } = require('./hr-policy');
     const permission = permissionForHr(req.path, method);
@@ -66,6 +74,7 @@ function permissionCheck(req) {
       : Boolean(permission && has(permission));
   }
   if (parts[0] === 'settings') {
+    if (parts[1] === 'approved-discounts') return method === 'GET' ? has('sales.discounts.view') || has('sales.discounts.manage') : method === 'POST' && has('sales.discounts.manage');
     if (parts[1] === 'maintenance') return user.role === 'admin' && (
       parts.length === 2 && method === 'GET'
       || parts.length === 3 && ['backup','reset'].includes(parts[2]) && method === 'POST'
@@ -73,6 +82,7 @@ function permissionCheck(req) {
     );
     if (parts[1] === 'company-information') return user.role === 'admin';
     if (parts[1] === 'date-time') return parts.length === 2 && user.role === 'admin' && method === 'POST';
+    if (parts[1] === 'photo-count') return false;
     if (parts[1] === 'erpnext-sync') return has('sync.run');
     if (parts[1] === 'users' || parts[1] === 'roles') return user.role === 'admin';
     if (parts[1] === 'files') {
@@ -151,6 +161,8 @@ function permissionCheck(req) {
       || method === 'POST' && (parts.length === 3 && parts[2] === 'columns'
         || parts.length === 4 && parts[2] === 'columns' && parts[3] === 'reset')
     );
+    if (parts[2] === 'action-request') return method === 'POST' && has('sales.approvals.request');
+    if (parts[2] === 'action-approval') return method === 'POST' && has('sales.approvals.approve');
     if (parts[2] === 'payments') return has('payments.sales.' + (parts[4] === 'cancel' ? 'cancel' : 'record'));
     if (parts[2] === 'edit') return has(prefix + 'edit');
     if (parts[2] === 'duplicate') return method === 'GET' && all(prefix + 'view', prefix + 'create');
@@ -200,6 +212,8 @@ function permissionCheck(req) {
   }
   if (parts[0] === 'stock' && ['counts','corrections'].includes(parts[1])) {
     const kind=parts[1]==='counts'?'count':'correction';
+    if (kind==='count' && parts.length===4 && /^\d+$/.test(parts[2]) && parts[3]==='photo-count') return method==='GET'
+      ? has('inventory.count.view') : method==='POST' && all('inventory.count.view','inventory.count.save');
     if (kind==='count' && parts[3]==='attachments' && parts.length>=4 && parts.length<=6) return method==='GET'?has('inventory.count.view'):method==='POST'&&has('inventory.count.save')&&(parts.length===4 || parts.length===6&&parts[5]==='delete');
     if (kind==='count' && parts.length===4 && parts[3]==='found-item') return method==='POST'&&has('inventory.count.save');
     if (kind==='count' && parts.length===4 && ['sheet','items'].includes(parts[3])) return method==='GET'?has('inventory.count.view'):method==='POST'&&parts[3]==='sheet'&&has('inventory.count.save');
@@ -300,6 +314,7 @@ function permissionCheck(req) {
     const name = parts[1];
     if (name === 'invoice-stock-balances') return method === 'POST' && parts.length === 2 && canAny(user,
       ['masters.warehouses.view', 'vouchers.sales.create', 'vouchers.purchases.create', 'vouchers.purchase-orders.create', 'vouchers.purchase-orders.edit', 'vouchers.stock.create', 'vouchers.stock.edit']);
+    if (name === 'invoice-minimum-prices') return method === 'POST' && canAny(user,['vouchers.sales.create','vouchers.sales.edit']);
     if (name === 'invoice-item-prices') return method === 'POST' && canAny(user,
       ['vouchers.sales.create', 'vouchers.sales.edit']);
     if (name === 'item-price-codes') return method === 'GET' && has('masters.item-prices.view');

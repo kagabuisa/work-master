@@ -8,8 +8,9 @@ const { can, permissionCheck } = require('../src/authorize');
 const { REPORTS } = require('../src/report-permissions');
 const purchasing = require('../src/purchases');
 const orders = require('../src/purchase-orders');
-const { runWithAuditUser } = require('../src/audit');
+const { runWithAuditUser, runWithTrustedAuditUser } = require('../src/audit');
 const { resetGoldenSchema } = require('./helpers/golden-seed');
+const { approveVoucher } = require('./helpers/voucher-approval');
 const { currentPostingDate, currentPostingTime } = require('../src/posting-time');
 const password = 'Review regression 123!';
 const database = { skip: process.env.ACCOUNTING_TEST_POSTGRES !== '1', timeout: 120000 };
@@ -135,6 +136,7 @@ for (const controlled of [false,true]) test(`fractional purchase submission and 
       assert.equal(stock.value,4001);
       const gl=(await pool.query("SELECT sum(debit)::float debit,sum(credit)::float credit FROM app_gl_entries WHERE voucher_type='purchase' AND voucher_id=$1",[id])).rows[0];
       assert.deepEqual(gl,{debit:4001,credit:4001});
+      await approveVoucher(pool,'purchases',id,'Cancel',admin,admin);
       await purchasing.cancelPurchase(id,{posting_date:currentPostingDate(),reason:'Review reversal'});
       const balance=(await pool.query("SELECT quantity::float quantity,stock_value::float value FROM app_stock_balances WHERE item_code='REVIEW-ITEM' AND warehouse='Allowed'")).rows[0];
       assert.deepEqual(balance,{quantity:0,value:0});
@@ -352,6 +354,7 @@ test('purchase and payment cancellations use Kampala today after UTC midnight di
       await purchasing.cancelPurchasePayment(id,1);
       const paymentDates=(await pool.query("SELECT DISTINCT posting_date::text FROM app_gl_entries WHERE voucher_type='payment_journal_cancellation' AND voucher_id=$1",[journal])).rows;
       assert.deepEqual(paymentDates,[{posting_date:'2026-10-18'}]);
+      await approveVoucher(pool,'purchases',id,'Cancel',admin,admin);
       await purchasing.cancelPurchase(id);
       assert.equal((await purchasing.loadPurchase(id)).docstatus,'cancelled');
       const stockDates=(await pool.query("SELECT DISTINCT posting_date::text FROM app_stock_ledger WHERE voucher_type='purchase' AND voucher_id=$1 AND is_reversal",[id])).rows;
@@ -359,5 +362,50 @@ test('purchase and payment cancellations use Kampala today after UTC midnight di
       const purchaseDates=(await pool.query("SELECT DISTINCT posting_date::text FROM app_gl_entries WHERE voucher_type='purchase_cancellation' AND voucher_id=$1",[id])).rows;
       assert.deepEqual(purchaseDates,[{posting_date:'2026-10-18'}]);
     });
+  }finally{await store.closeStore();}
+});
+
+test('sales cancellations and debtor ageing use Kampala today after UTC midnight differs', database, async t => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-17T21:15:00Z')});
+  try {
+    await resetGoldenSchema();
+    const pool=store.getPostgresPool();
+    await pool.query(`INSERT INTO app_master_items(item_code,item_name,is_sales_item,unit_cost)
+        VALUES('REVIEW-SALE','Review sale',true,50);
+      INSERT INTO app_master_customers(customer_id,customer_name)
+        VALUES('REVIEW-SALE-CUST','Review sale customer'),('REVIEW-AGE-CUST','Review ageing customer');
+      INSERT INTO app_master_warehouses(warehouse,warehouse_type) VALUES('Allowed','Shop')`);
+    const admin=await auth.createUser('sales-midnight-admin',password,{role:'admin'});
+    const cash=(await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
+    const invoice=(customer_id,customer_name,invoice_date)=>({invoice_date,posting_time:'00:00',due_date:invoice_date,
+      customer_id,customer_name,items:[{item_code:'REVIEW-SALE',item_name:'Review sale',warehouse:'Allowed',quantity:1,unit_price:100}]});
+    const glDates=async(voucherType,voucherId)=>(await pool.query(`SELECT DISTINCT posting_date::text AS date
+      FROM app_gl_entries WHERE voucher_type=$1 AND voucher_id=$2 ORDER BY date`,[voucherType,voucherId])).rows.map(row=>row.date);
+    await runWithTrustedAuditUser(admin,()=>store.createStockEntry({posting_date:'2026-09-30',posting_time:'00:00',
+      entry_type:'opening',items:[{item_code:'REVIEW-SALE',item_name:'Review sale',warehouse:'Allowed',quantity:10,valuation_rate:50}]}));
+    await runWithAuditUser(admin,async()=>{
+      const ageingId=await store.createInvoice(invoice('REVIEW-AGE-CUST','Review ageing customer','2026-10-17'));
+      await store.submitInvoice(ageingId);
+
+      const id=await store.createInvoice(invoice('REVIEW-SALE-CUST','Review sale customer','2026-10-18'));
+      await store.submitInvoice(id);
+      await store.addInvoicePayment(id,{payment_date:'2026-10-18',amount:40,method:'cash',account_id:cash});
+      const payment=(await pool.query('SELECT id,payment_no,journal_entry_id FROM app_invoice_payments WHERE invoice_id=$1',[id])).rows[0];
+      await store.cancelInvoicePayment(id,payment.payment_no);
+      assert.deepEqual(await glDates('payment_journal_cancellation',payment.journal_entry_id),['2026-10-18']);
+
+      await store.cancelInvoice(id);
+      assert.equal((await store.findInvoice(id)).docstatus,'cancelled');
+      assert.deepEqual(await glDates('sales_invoice_cancellation',id),['2026-10-18']);
+      const stockDates=(await pool.query(`SELECT DISTINCT posting_date::text AS date FROM app_stock_ledger
+        WHERE voucher_type='invoice' AND voucher_id=$1 AND is_reversal ORDER BY date`,[id])).rows.map(row=>row.date);
+      assert.deepEqual(stockDates,['2026-10-18']);
+    });
+
+    const report=await store.debtorReport({customer:'REVIEW-AGE-CUST'});
+    const ageing=report.debtors.find(row=>row.customer_key==='REVIEW-AGE-CUST');
+    assert.ok(ageing,'ageing debtor is present');
+    assert.deepEqual({current:ageing.current,days_1_30:ageing.days_1_30,days_31_60:ageing.days_31_60},
+      {current:0,days_1_30:100,days_31_60:0});
   }finally{await store.closeStore();}
 });

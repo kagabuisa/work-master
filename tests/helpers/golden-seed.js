@@ -36,8 +36,13 @@ async function resetGoldenSchema() {
   await store.initStore();
 }
 
-async function seedGoldenData() {
+async function seedGoldenData({ actorFactory } = {}) {
   await resetGoldenSchema();
+  if (actorFactory) return require('../../src/audit').runWithTrustedAuditUser(await actorFactory(), seedGoldenTransactions);
+  return seedGoldenTransactions();
+}
+
+async function seedGoldenTransactions() {
   const date = FIXED.date;
 
   const openingId = await store.createStockEntry({

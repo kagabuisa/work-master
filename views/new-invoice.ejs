@@ -26,11 +26,10 @@
               <button type="submit" class="button-light">Submit Invoice</button>
             </form>
           <% } %>
-          <button type="submit" form="invoice-form" data-voucher-save data-edit-save<%= editing && savedListAllowed && can('vouchers.sales.submit') ? ' hidden' : '' %>>Save</button>
+          <button type="submit" form="invoice-form" data-voucher-save data-edit-save>Save</button>
         </div>
       </nav>
     </header>
-    <p class="muted">Save keeps this invoice as a draft. Review and submit it to post stock and accounting entries.</p>
     <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %>
       <section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft.</section>
     <% } %>
@@ -53,6 +52,8 @@
     </section>
 
     <form id="invoice-form" method="post" action="<%= editing ? `/invoices/${invoice.id}` : '/invoices' %>" class="invoice-form entry-form new-invoice-form ui-surface" data-static-labels data-voucher-form>
+      <input type="hidden" id="sales-control-settings" value="<%= JSON.stringify({today:typeof currentPostingDate==='function'?currentPostingDate():today,director:can('sales.policy.director'),accountant:can('sales.policy.accountant'),allow:invoice && invoice.allow || '',approvedDate:invoice && invoice.invoice_date || ''}) %>">
+      <p id="sales-control-feedback" role="status" class="field-hint"></p>
       <section class="invoice-entry-row">
         <%- include('voucher-posting-fields', { postingFields: { date: invoice && invoice.invoice_date ? invoice.invoice_date : today, time: invoice && invoice.posting_time !== undefined ? invoice.posting_time : currentPostingTime(), dateName: 'invoice_date', dateId: 'invoice-date', timeId: 'invoice-posting-time' } }) %>
         <div class="form-field app-floating-field app-floating-choice">
@@ -104,6 +105,10 @@
           <div id="item-results" class="results"></div>
         </div>
       </section>
+      <% if(can('sales.approvals.request')) { %>
+        <input type="hidden" name="approval_revision" value="<%= invoice && invoice.approval_revision || 0 %>">
+        <%- include('invoice-request-fields',{requestInvoice:invoice,requestPrefix:'invoice-editor-request'}) %>
+      <% } %>
       <p class="field-hint invoice-price-update-status" id="invoice-price-update-status" role="status" hidden></p>
 
       <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Invoice items" tabindex="0">
@@ -112,7 +117,7 @@
           <tr>
             <th class="row-number">#</th>
             <th class="item-code-col">Item Code</th>
-            <th>Stock as of posting <%- include('ui-helper', { helpLabel: 'Stock as of posting', helpText: 'Warehouse quantity at the selected invoice date and time. A lower available quantity protects later transactions. Quantities refresh when you add items, edit quantities, change the posting date/time, or return to this window. Submission checks stock again.' }) %></th>
+            <th><div class="ui-label-with-help"><span data-stock-preview-label>Stock as of posting</span><%- include('ui-helper', { helpLabel: 'Stock as of posting', helpText: 'Warehouse quantity at the selected invoice date and time. A lower available quantity protects later transactions. Quantities refresh when you add items, edit quantities, change the posting date/time, or return to this window. Submission checks stock again.' }) %></div></th>
             <th>Qty</th>
             <th class="ui-amount">Unit Price</th>
             <th class="ui-amount">Total</th>
@@ -217,6 +222,7 @@
   </script>
   <script src="/shared/invoice-math.js?v=<%= assetVersion %>"></script>
   <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>
+  <script src="/shared/sales-controls.js?v=<%= assetVersion %>"></script>
   <script src="/invoice.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ const math = require('../src/shared/invoice-math');
 const { runWithAuditUser } = require('../src/audit');
 const { currentPostingDate, currentPostingTime } = require('../src/posting-time');
 const { resetGoldenSchema } = require('./helpers/golden-seed');
+const { approveVoucher } = require('./helpers/voucher-approval');
 
 for (const controlled of [false, true]) {
   test(`exact invoices, cash receipts, stock depletion, transfers and reversals (${controlled ? 'controlled' : 'legacy'} inventory)`, {
@@ -91,6 +92,7 @@ for (const controlled of [false, true]) {
         const transfer = await store.createStockEntry({ ...stamp(), entry_type: 'transfer', items: [item('DRIFT', 2, { target_warehouse: 'Money Target' })] });
         assert.deepEqual(await balance('DRIFT'), { quantity: 0, value: 0 });
         assert.deepEqual(await balance('DRIFT', 'Money Target'), { quantity: 2, value: 201 });
+        await approveVoucher(pool, 'stock', transfer, 'Cancel', admin, admin);
         await store.cancelStockEntry(transfer, { posting_date: currentPostingDate(), reason: 'Exact transfer reversal' });
         assert.deepEqual(await balance('DRIFT'), { quantity: 2, value: 201 });
         assert.deepEqual(await balance('DRIFT', 'Money Target'), { quantity: 0, value: 0 });
@@ -105,6 +107,7 @@ for (const controlled of [false, true]) {
 
         await receipt('CANCEL', 1, 100);
         const cancel = await receipt('CANCEL', 2, 101);
+        await approveVoucher(pool, 'stock', cancel, 'Cancel', admin, admin);
         await store.cancelStockEntry(cancel, { posting_date: currentPostingDate(), reason: 'Reverse exact receipt value' });
         assert.deepEqual(await balance('CANCEL'), { quantity: 1, value: 100 });
 
@@ -112,6 +115,7 @@ for (const controlled of [false, true]) {
         const expensive = await receipt('CANCEL-NEGATIVE', 1, 200);
         await sell([item('CANCEL-NEGATIVE', 1, { unit_price: 300 })]);
         const beforeReversal = await balance('CANCEL-NEGATIVE');
+        await approveVoucher(pool, 'stock', expensive, 'Cancel', admin, admin);
         await assert.rejects(store.cancelStockEntry(expensive, { posting_date: currentPostingDate(), reason: 'Reject negative remaining inventory value' }), /stock value/);
         assert.deepEqual(await balance('CANCEL-NEGATIVE'), beforeReversal);
 

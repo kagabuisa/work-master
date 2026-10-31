@@ -1,0 +1,12 @@
+<% if(typeof currentUser!=='undefined' && currentUser) { %>
+<section class="ui-surface"><%- include('ui-section-heading',{heading:{title:'Action request and approval',help:'Backdate and Cancel are mutually exclusive approvals. Users with Request permission can request an action; Approve permission is separate. A changed request or approved posting date clears approval. Reconciliation cut-offs always apply.'}}) %>
+<p>Request: <strong><%= invoice.action_request || 'None' %></strong> · Allow: <strong><%= invoice.allow || 'None' %></strong><% if(invoice.approved_by) { %> · Approved by <%= invoice.approved_by %><% } %></p>
+<% if(invoice.why_cancel) { %><p class="ui-wrap-text"><%= invoice.why_cancel %></p><% } %>
+<% if(invoice.docstatus!=='cancelled' && can('sales.approvals.request')) { %>
+<form method="post" action="/invoices/<%= invoice.id %>/action-request">
+<input type="hidden" name="approval_revision" value="<%= invoice.approval_revision || 0 %>">
+<%- include('invoice-request-fields',{requestInvoice:invoice,requestPrefix:typeof requestSurface!=='undefined'?'invoice-'+requestSurface+'-request':'invoice-preview-request'}) %>
+<div class="ui-form-footer"><button class="button-light">Save Request</button></div>
+</form><% } %>
+<% if(invoice.docstatus!=='cancelled' && can('sales.approvals.approve')) { %><form method="post" action="/invoices/<%= invoice.id %>/action-approval" class="ui-action-form ui-form-grid"><input type="hidden" name="approval_revision" value="<%= invoice.approval_revision || 0 %>"><label>Allow<select name="allow"><option value="">Revoke / None</option><% if(invoice.action_request) { %><option value="<%= invoice.action_request %>" <%= invoice.allow===invoice.action_request?'selected':'' %>><%= invoice.action_request %></option><% } %></select></label><button class="button-light">Save Approval</button></form><% } %>
+</section><% } %>

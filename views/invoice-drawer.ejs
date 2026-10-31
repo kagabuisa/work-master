@@ -10,4 +10,5 @@
   </div>
   <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
   <%- include('invoice-detail', { invoice, items, today, money, returnTo, showVoucherNumber: false }) %>
+  <%- include('invoice-approval',{invoice,requestSurface:'drawer'}) %>
 </div>

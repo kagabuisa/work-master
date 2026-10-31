@@ -51,13 +51,15 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
     const cash = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
     const bank = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1120'")).rows[0].id;
     const ar = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1100'")).rows[0].id;
-    const permissions = ['vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.sales.submit', 'vouchers.sales.view', 'payments.sales.record'];
+    const permissions = ['sales.policy.director', 'sales.policy.price-override', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.sales.submit', 'vouchers.sales.view', 'payments.sales.record'];
     const role = await auth.createRole('API Financial Tester', permissions, {
       customers: { mode: 'selected', values: ['retail'] }, warehouses: { mode: 'selected', values: ['Main'] },
       invoicePriceLists: { mode: 'selected', values: ['Retail'] }, accounts: { mode: 'selected', values: [String(cash)] },
     });
     const user = await auth.createUser('financial-user', 'FinancialPass123!', { role: role.slug,
       record_access: { employee_id: 'E1', cost_center: 'CC1' } });
+    // This transport/accounting fixture intentionally uses historical dates and arbitrary prices.
+    await pool.query('UPDATE app_users SET permission_grants=permission_grants || $1::jsonb WHERE id=$2',[JSON.stringify(['sales.policy.director','sales.policy.price-override']),user.id]);
     await pool.query(`INSERT INTO app_master_customers(customer_id,customer_name,customer_group,docstatus) VALUES
       ('C1','Authoritative Customer','Retail','submitted'),('C2','Hidden Customer','Wholesale','submitted');
       INSERT INTO app_master_warehouses(warehouse,docstatus) VALUES ('Main','submitted'),('Secret','submitted');

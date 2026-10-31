@@ -1,0 +1,12 @@
+      <details class="ui-surface" id="photo-count-settings">
+        <summary>AI item and carton descriptions</summary>
+        <%- include('ui-section-heading',{heading:{title:'AI item and carton descriptions',help:'Reference descriptions for Count Qty. Include item names or Photo IDs, appearance, carton markings and pieces per carton. AI uses a matching description together with the photo and asks when information is unclear.'}}) %>
+        <% if(typeof aiCountSaved!=='undefined'&&aiCountSaved) { %><p class="notice" role="status">AI counting descriptions saved.</p><% } %>
+        <% if(typeof aiCountError!=='undefined'&&aiCountError) { %><p class="error" role="alert"><%= aiCountError %></p><% } %>
+        <form method="post" action="<%= reportPath %>/photo-count">
+          <input type="hidden" name="action" value="ai_settings">
+          <div class="form-grid ui-form-grid"><label class="wide">Item and carton descriptions<textarea name="descriptions" rows="14" maxlength="30000" placeholder="Photo ID / item code: ...&#10;Item appearance: ...&#10;Carton colour and printed markings: ...&#10;Pieces per full carton: ...&#10;&#10;Add the next item description here."><%= typeof aiCountSettings!=='undefined'?aiCountSettings.descriptions:'' %></textarea></label></div>
+          <p class="field-hint">Use one paragraph per item or carton type. Room for about 30 descriptions, up to 30,000 characters. Quantities are always counted in pc.</p>
+          <div class="ui-form-footer"><button type="submit">Save descriptions</button></div>
+        </form>
+      </details>

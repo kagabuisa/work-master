@@ -18,7 +18,7 @@ const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership')
 const { requireReceiptAccount, validateDbItems, buildInvoicePayload, normalizeStockQuantity } = require('../../services/sales-validation');
 
 const router = express.Router();
-router.use((_req, res, next) => { res.locals.rateMoney = rateMoney; next(); });
+router.use((_req, res, next) => { res.locals.currentPostingDate = currentPostingDate; res.locals.rateMoney = rateMoney; next(); });
 
 
 async function defaultSalesPriceList(user) {

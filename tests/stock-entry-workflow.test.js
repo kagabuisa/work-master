@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { renderView } = require('./helpers/render-view');
+const { approveVoucher } = require('./helpers/voucher-approval');
 const workflow = require('../src/stock-entry-workflow');
 const { permissionCheck, scopeCheck } = require('../src/authorize');
 
@@ -264,6 +265,7 @@ test('stock delivery and sharing persist, reject unauthorized changes, and enfor
     await workflow.changeStockEntryWorkflow(admin, id, 'delivery', '');
     assert.equal((await store.loadStockEntry(id)).entry.delivery_status, '');
     const savedDraft = await store.loadStockEntry(id);
+    await approveVoucher(pool, 'stock', id, 'Backdate', admin, admin);
     await runWithAuditUser(owner, () => store.updateStockEntry(id, { ...savedDraft.entry, action: 'submit', items: savedDraft.items }));
     const postingSnapshot = async () => (await pool.query(`SELECT
       (SELECT to_jsonb(s) FROM app_stock_entries s WHERE id=$1) AS document,

@@ -94,6 +94,7 @@ function normalizeItemQuantity(value) {
 
 async function buildInvoicePayload(body, user) {
   const payload = {
+    ...(Object.hasOwn(body,'action_request') ? {action_request:body.action_request,why_cancel:body.why_cancel,approval_revision:body.approval_revision} : {}),
     invoice_date: body.invoice_date,
     posting_time: body.posting_time,
     due_date: body.due_date,

@@ -76,6 +76,8 @@
           </label>
         <% } %>
       </section>
+      <% if(!journalReadOnly) { %>
+      <%- include('voucher-request-fields',{requestKind:'journals',requestRecord:journal}) %><% } %>
 
       <% if (!journalReadOnly) { %>
         <div id="journal-selected-references" class="journal-reference-chips" aria-label="Selected references"></div>
@@ -188,6 +190,7 @@
         <% } %>
       </div>
     </form>
+    <% if(journalReadOnly) { %><%- include('voucher-approval') %><% } %>
     <% if (journal && journal.id) { %><%- include('record-audit', { record: journal }) %><% } %>
   </main>
   <% if (!journalReadOnly) { %>

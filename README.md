@@ -34,6 +34,8 @@ See [Permissions and voucher visibility](docs/permissions.md) for role inheritan
 
 See the [app guide](docs/app-guide.md) for current voucher workflows, validation rules, and other user-facing functions. Keep it updated with each behavior change.
 
+See the [voucher controls review](docs/voucher-controls-review.md) for background, existing safeguards, and the remaining rollout. Purchase Invoice, Journal, and Stock Entry backdate/cancellation approvals are live and documented in the [app guide](docs/app-guide.md); the review report keeps its proposal status only for vouchers that are not yet implemented.
+
 Master record actions require the corresponding master list permissions. A new master record is saved inactive; its Active switch controls whether it appears in lookups and operations. Submitted and cancelled master states are no longer exposed. Existing imported active records remain available. Manual journals retain their draft, submit, and cancel workflow because submission posts ledger entries.
 
 Sales and purchase vouchers require an active Price List. An active Item Price on that list supplies the suggested rate for its item; otherwise sales use the item's default rate and purchases use its unit cost. Existing voucher lines keep their saved rates. A master record referenced elsewhere may be deactivated, but deletion can be blocked by database references.
@@ -83,6 +85,18 @@ Mutation requests with an Origin must match the app origin, including scheme and
 Pages use `Referrer-Policy: same-origin` so browsers preserve the Origin on same-origin form submissions while withholding referrers from external sites. A `no-referrer` policy can cause form POST requests to carry `Origin: null` and be rejected with “Request origin is not allowed.”
 
 Enable PostgreSQL TLS with `POSTGRES_SSL=true` (or `PGSSL=true`) and ERPNext MySQL TLS with `DB_SSL=true`. Server certificates are verified. For a private CA, set `POSTGRES_SSL_CA_FILE` or `DB_SSL_CA_FILE` to a readable PEM file; mount that file into Docker when applicable. Invalid or missing CA files fail connection setup.
+
+## Optional AI photo counting
+
+Photo Count Rpt can request suggested counts from OpenAI. Configure `OPENAI_API_KEY` privately in the deployment `.env`; never place it in browser code, Git or command arguments. The API project needs access to the selected model and available credits. `OPENAI_PHOTO_COUNT_MODEL` optionally overrides the default `gpt-6.1-terra`. No key means AI requests are disabled; ordinary photo evidence and verified quantities remain available.
+
+The server sends the selected saved JPG/PNG photo to `https://api.openai.com/v1/responses`, with `store:false`, high image detail, low reasoning effort and a structured count/explanation response. It uses a 45-second deadline, a 1,600-output-token limit, exactly one photo (maximum 10 MB), and one concurrent request per app process without a fixed interval. Provider HTTP 429 rate limits reach the browser with Retry-After when supplied; bulk counting retries up to three times, honours the supplied delay (including values over 60 seconds), and uses short exponential waits only when it is absent. Insufficient API credits stop the batch; other provider errors are not automatically retried. An override model must support image input, structured outputs and low reasoning effort. Outbound HTTPS to OpenAI is required. No GPU is needed on the application server. Recorded API input/output/total token usage is shown with each successful result; image size, detail and reasoning affect usage. Test accuracy on representative stock photos before operational use.
+
+Migration 51 adds AI suggestion history and review metadata to the existing reconciliation photo-evidence table. It preserves existing counts/photos and needs no new runtime table privileges. For a restricted-runtime installation, apply `npm run db:migrate` using owner credentials before starting the new image. Recreate the app after adding or changing API environment settings with `docker compose up -d --build invoice-app`. See [the app guide](docs/app-guide.md#ai-suggestions-for-stock-photos) for selection, review and count-revision behavior.
+
+AI always counts in pc and reads visible PC/CTN carton print before asking one short clarification question. Follow-ups replay the original single photo and the locally retained question/answer history with `store:false`; no provider conversation ID is required. Each paid round records its token usage and can continue for up to five clarification rounds. Existing JSON evidence fields retain the conversation, so no further migration is required. Ensure the key is assigned as `OPENAI_API_KEY=...` in `.env`; a key pasted on a line without the variable name is not loaded.
+
+Migration 52 adds `ai_count_descriptions` to the existing display-settings singleton. Administrators maintain a shared item/carton reference field (30,000 characters, roughly 30 descriptions) in a collapsed section of Photo Count Rpt. All AI controls/results are administrator-only; standard users retain manual uploads and quantities. Administrators can count a photo already uploaded by a standard user. New AI counts send these notes and retain a snapshot with the result; follow-ups use that snapshot. Apply the owner migration before restarting a restricted-runtime deployment. Existing table grants cover the added column; date/time setting updates preserve it. Photo previews use the existing authorized attachment endpoints with `?preview=1`, allow inline JPG/PNG only, and retain private/no-store responses.
 
 ## Run With Docker
 
@@ -1013,3 +1027,9 @@ results and stops completed benchmark containers. It enforces six GiB free on th
 benchmark volume and two GiB on the root volume. Private configuration stays in
 the retained run directory. Existing legacy fixtures, images, configurations and
 results remain untouched; this controller does not reseed or reset them.
+
+### Local sales controls setup
+
+Schema migration 53 adds local Approved Discounts, invoice action requests/approvals and event history without modifying historical invoice amounts. Configure the new Sales controls permissions in Roles & Permissions (or user overrides) after upgrading. Admin can manage these immediately; existing non-admin grants are preserved. All discount eligibility and invoice enforcement use local PostgreSQL data; ERPNext is not required. No discount records are imported automatically. Approval history and discount audit snapshots are retained when approvals change or discounts are disapproved.
+
+Accounting period closure is available at **Accounts → Accounting Periods**. Finance prepares and submits reviews; Admin approves, returns or reopens with a reason. Migration 54 installs the period tables and statement-level ledger guards. A closed period also blocks financial reset operations affecting its postings; reopen the affected periods explicitly before such an operation. See `docs/app-guide.md` for the workflow. No periods are closed automatically during migration.

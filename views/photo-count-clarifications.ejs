@@ -1,0 +1,3 @@
+<% if(analysis.clarifications?.length) { %><details><summary>Questions and answers used</summary><ol>
+<% analysis.clarifications.forEach(pair=>{ %><li><p><strong><%= pair.question %></strong></p><p class="ui-wrap-text"><%= pair.answer %></p><small>Answered <%= formatTimestamp(pair.answered_at) %></small></li><% }) %>
+</ol></details><% } %>

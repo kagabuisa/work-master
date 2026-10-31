@@ -1,24 +1,97 @@
 <!doctype html>
+<% const isAdmin=currentUser.role==='admin';
+const controlledCount=typeof count!=='undefined'&&count;
+const reportPath=controlledCount?'/stock/reconciliations/counts/'+count.id:'/stock/reconciliations/'+entry.id;
+const canSavePhotoCount=controlledCount?can('inventory.count.save')&&!['submitted','abandoned'].includes(count.state):can('vouchers.stock.edit');
+const canEditPhysical=controlledCount?can('inventory.count.save')&&(count.state==='counting'||currentUser.role==='admin'&&['awaiting_review','approved'].includes(count.state)):entry.docstatus==='draft'&&can('vouchers.stock.edit');
+const physicalPath=controlledCount?reportPath+'#inventory-count-form':reportPath+(canEditPhysical?'/edit':'')+'#reconciliation-form'; %>
 <html lang="en">
 <head><title><%= entry.entry_no %> · Photo Count Rpt</title><%- include('partials-head') %></head>
 <body><main class="shell ui-page ui-page-report">
-  <header class="topbar"><div><%- include('breadcrumbs', { breadcrumbs: [{label:'Home',href:'/'},{label:'Stocks',href:'/stock/entries'},{label:'Stock Reconciliation',href:'/stock/reconciliations'},{label:entry.entry_no,href:'/stock/reconciliations/'+entry.id},{label:'Photo Count Rpt'}] }) %></div><nav><%- include('module-nav', {activeModule:'stock'}) %></nav></header>
+  <header class="topbar"><div><%- include('breadcrumbs', { breadcrumbs: [{label:'Home',href:'/'},{label:'Stocks',href:'/stock/entries'},{label:'Stock Reconciliation',href:'/stock/reconciliations'},{label:entry.entry_no,href:reportPath},{label:'Photo Count Rpt'}] }) %></div><nav><%- include('module-nav', {activeModule:'stock'}) %></nav></header>
+  <%- include('stock-reconciliation-tabs',{activeReconciliationTab:controlledCount?'counts':'vouchers'}) %>
   <%- include('reconciliation-tabs', {entry, photoTab:true}) %>
   <% if(error) { %><p class="notice warning" role="alert"><%= error %></p><% } %>
-  <section class="ui-surface ui-results">
-    <%- include('ui-section-heading', {heading:{title:'Photo Count Rpt',meta:warehouse+' · '+rows.length+' Photo IDs',help:'Inventory Qty is the current warehouse stock balance summed across items sharing a Photo ID. Saved auditor and verified quantities and attached photos are supporting evidence; they do not post stock changes.'}}) %>
+  <section class="ui-surface ui-results" data-photo-count-report data-endpoint="<%= reportPath %>/photo-count" data-revision="<%= controlledCount?count.revision:'' %>">
+    <%- include('ui-section-heading', {heading:{title:'Photo Count Rpt',meta:warehouse+' · '+rows.length+' Photo IDs'+(controlledCount?' · Revision '+count.revision:''),help:'Inventory Qty sums current warehouse stock by Photo ID. Physical Qty sums the saved physical counts for the same Photo ID; groups with uncounted items stay blank. Edit physical quantities on Stock Reconciliation. Verified Qty and photos are supporting evidence.'}}) %>
+    <div class="ui-toolbar ui-toolbar-split"><a class="button button-light" href="<%= physicalPath %>"><%= canEditPhysical?'Edit Physical Qty':'View physical counts' %></a>
+      <div class="ui-actions-inline"><% if(canSavePhotoCount&&rows.length) { %>
+        <% if(isAdmin) { %><button type="button" class="button-light" data-count-all hidden <%= photos.length&&typeof aiConfigured!=='undefined'&&aiConfigured?'':'disabled' %>>Count all photos</button><% } %>
+        <button type="button" data-save-all hidden>Save all</button>
+        <% if(isAdmin) { %><button type="button" class="button-light" data-stop-counting hidden>Stop after current photo</button><% } %>
+      <% } %></div>
+    </div>
+    <div class="ui-summary-strip">
+      <span><strong><%= rows.length %></strong> Photo IDs</span><span><strong><%= new Set(photos.map(photo=>photo.photo_id)).size %></strong> photos uploaded</span>
+      <% if(canSavePhotoCount) { %><span data-photo-unsaved-summary><strong data-photo-unsaved>0</strong> to save</span><% } %>
+      <% if(isAdmin) { const questions=rows.filter(row=>row.ai_result?.questions?.length&&String(row.ai_result.sources?.[0]?.id)===String(photos.filter(photo=>photo.photo_id===row.photo_id).at(-1)?.id)).length; if(questions) { %><span class="ui-text-warning"><strong><%= questions %></strong> need an answer</span><% } } %>
+    </div>
+    <div class="ui-feedback" data-photo-feedback hidden><p data-photo-bulk-status role="status" aria-live="polite"></p><progress data-photo-progress max="1" value="0" aria-label="Photos processed" hidden></progress></div>
+    <% if(controlledCount&&['submitted','abandoned','approved','awaiting_review'].includes(count.state)) { %><p class="field-hint"><%= ['submitted','abandoned'].includes(count.state)?'This count is closed and read-only.':'Saving changes clears any approval.' %></p><% } %>
+    <% if(canSavePhotoCount) { %><p class="ui-helper-text"><%= !isAdmin?'Choose a photo to upload it automatically. Enter quantities, then select Save all.':typeof aiConfigured!=='undefined'&&aiConfigured?'Upload photos → Count all photos → review quantities → Save all. All AI quantities are in pc.':'Photo uploads and manual quantities are available. AI counting is not configured.' %></p><% } %>
     <div class="ui-table-scroll" role="region" aria-label="Photo counts" tabindex="0"><table class="ui-table">
-      <thead><tr><th>Photo ID</th><th class="ui-amount">Inventory Qty</th><th class="ui-amount">Auditor Qty</th><th class="ui-amount">Verified Qty</th><th>Item photos</th><th></th></tr></thead>
-      <tbody><% rows.forEach((row,index)=>{ const formId='photo-count-'+index; %>
-        <tr><td><%= row.photo_id %></td><td class="ui-amount"><%= row.inventory_qty %></td>
-        <td><% if(can('vouchers.stock.edit')) { %><input form="<%= formId %>" aria-label="Auditor Qty for <%= row.photo_id %>" name="auditor_qty" type="number" min="0" step="0.001" value="<%= row.auditor_qty ?? '' %>"><% } else { %><%= row.auditor_qty ?? '—' %><% } %></td>
-        <td><% if(can('vouchers.stock.edit')) { %><input form="<%= formId %>" aria-label="Verified Qty for <%= row.photo_id %>" name="verified_qty" type="number" min="0" step="0.001" value="<%= row.verified_qty ?? '' %>"><% } else { %><%= row.verified_qty ?? '—' %><% } %></td>
-        <td><% photos.filter(p=>p.photo_id===row.photo_id).forEach(photo=>{ %><p><a href="/stock/reconciliations/<%= entry.id %>/attachments/<%= photo.id %>"><%= photo.file_name %></a></p><% }) %>
-        <% if(can('vouchers.stock.edit')) { %><label>Attach photos<input form="<%= formId %>" type="file" name="photos" accept=".jpg,.jpeg,.png" multiple></label><% } %></td>
-        <td><% if(can('vouchers.stock.edit')) { %><form id="<%= formId %>" method="post" action="/stock/reconciliations/<%= entry.id %>/photo-count" enctype="multipart/form-data"><input type="hidden" name="photo_id" value="<%= row.photo_id %>"><button type="submit">Save row</button></form><% } %></td></tr>
-      <% }) %></tbody>
-    </table></div>
+      <thead><tr><th>Photo ID</th><th>Photo</th><th class="ui-amount">Inventory Qty</th><th class="ui-amount">Physical Qty</th><% if(isAdmin) { %><th class="ui-amount">AI Qty (pc)</th><% } %><th>Verified Qty</th></tr></thead><tbody>
+      <% rows.forEach((row,index)=>{
+        const formId='photo-count-'+index;
+        const rowPhotos=photos.filter(p=>p.photo_id===row.photo_id);
+        const photo=rowPhotos.at(-1);
+        const ai=row.ai_result;
+        const active=isAdmin&&Boolean(ai&&ai.sources?.length===1&&String(ai.sources[0].id)===String(photo?.id));
+        const pending=active&&Boolean(ai.questions?.length);
+        const ready=active&&!pending&&ai.count!==null&&ai.unit==='pc';
+        const reviewed=ready&&row.ai_review?.result_id===ai.id;
+        const verified=ready&&!reviewed?ai.count:row.verified_qty??'';
+      %>
+        <tr data-photo-row data-photo-id="<%= row.photo_id %>"><td class="ui-id-cell"><strong><%= row.photo_id %></strong></td>
+          <td class="ui-photo-cell">
+          <% if(canSavePhotoCount) { %><form method="post" action="<%= reportPath %>/photo-count" enctype="multipart/form-data" data-photo-upload-form class="ui-photo-stack">
+            <input type="hidden" name="action" value="upload_photo"><input type="hidden" name="photo_id" value="<%= row.photo_id %>"><% if(controlledCount) { %><input type="hidden" name="revision" value="<%= count.revision %>"><% } %>
+            <a data-photo-preview-link <% if(photo) { %>href="<%= reportPath %>/attachments/<%= photo.id %>?preview=1" target="_blank" rel="noopener"<% } %>><img class="ui-photo-preview" data-photo-preview <% if(photo) { %>src="<%= reportPath %>/attachments/<%= photo.id %>?preview=1"<% } else { %>hidden<% } %> alt="Photo of <%= row.photo_id %>" loading="lazy" decoding="async"></a>
+            <% if(!photo) { %><div class="ui-photo-placeholder"><span>No photo yet</span><small>JPG or PNG · up to 10 MB</small></div><% } %>
+            <label class="ui-file-picker"><span><%= photo?'Replace photo':'Choose photo' %></span><input type="file" name="photos" accept=".jpg,.jpeg,.png" aria-label="<%= photo?'Replace':'Choose' %> photo for <%= row.photo_id %>" required></label>
+            <span data-photo-upload-status role="status" hidden>Uploading photo…</span>
+            <noscript><button type="submit">Upload photo</button></noscript>
+          </form><% } %>
+          <% if(!canSavePhotoCount&&photo) { %><a href="<%= reportPath %>/attachments/<%= photo.id %>?preview=1" target="_blank" rel="noopener"><img class="ui-photo-preview" src="<%= reportPath %>/attachments/<%= photo.id %>?preview=1" alt="Photo of <%= row.photo_id %>" loading="lazy" decoding="async"></a><% } %>
+          <% if(photo) { %><div class="ui-actions-inline"><a class="ui-row-action" href="<%= reportPath %>/attachments/<%= photo.id %>?preview=1" target="_blank" rel="noopener" title="<%= photo.file_name %>">View full size</a><% if(canSavePhotoCount) { %><%- include('photo-count-remove',{reportPath,photoId:row.photo_id,attachment:photo,revision:controlledCount?count.revision:null}) %><% } %></div><% } %>
+          <% if(rowPhotos.length>1) { %><details><summary>Previous photos</summary><% rowPhotos.slice(0,-1).forEach(previous=>{ %><p><a href="<%= reportPath %>/attachments/<%= previous.id %>"><%= previous.file_name %></a></p><% if(canSavePhotoCount) { %><%- include('photo-count-remove',{reportPath,photoId:row.photo_id,attachment:previous,revision:controlledCount?count.revision:null}) %><% } %><% }) %></details><% } %>
+          </td>
+<td class="ui-amount"><%= row.inventory_qty %></td>
+          <td class="ui-amount"><%= row.physical_qty??'—' %><% if(row.uncounted_items>0) { %><p class="field-hint"><%= row.uncounted_items %> uncounted <%= row.uncounted_items===1?'item':'items' %></p><% } %></td>
+          <% if(isAdmin) { %><td class="ui-result-cell"><% if(active&&ai.count!==null&&!pending) { %><strong class="ui-result-value"><%= ai.count %> <small><%= ai.unit %></small></strong><% } %>
+          <% if(canSavePhotoCount) { %><form method="post" action="<%= reportPath %>/photo-count" enctype="multipart/form-data" data-ai-count-form class="ui-cell-form" <%= pending?'hidden':'' %>>
+            <input type="hidden" name="action" value="ai_count"><input type="hidden" name="photo_id" value="<%= row.photo_id %>"><input type="hidden" name="photo_ids" value="<%= photo?.id||'' %>"><% if(controlledCount) { %><input type="hidden" name="revision" value="<%= count.revision %>"><% } %>
+            <button type="submit" <%= photo&&typeof aiConfigured!=='undefined'&&aiConfigured?'':'disabled' %>>Count Qty</button>
+          </form><% } %>
+          <% if(active) { %>
+            <% if(pending||ai.count===null) { %><p><strong><%= pending?'Needs an answer':'Unable to count' %></strong></p><% } %>
+            <% if(pending) { %>
+              <% if(canSavePhotoCount) { %><form method="post" action="<%= reportPath %>/photo-count" enctype="multipart/form-data" data-ai-clarify-form class="ui-cell-form">
+                <input type="hidden" name="action" value="ai_clarify"><input type="hidden" name="photo_id" value="<%= row.photo_id %>"><input type="hidden" name="parent_ai_id" value="<%= ai.id %>"><% if(controlledCount) { %><input type="hidden" name="revision" value="<%= count.revision %>"><% } %>
+                <% ai.questions.forEach(question=>{ %><label><%= question %><textarea name="answers" maxlength="1000" rows="2" required <%= typeof aiConfigured!=='undefined'&&aiConfigured?'':'disabled' %>></textarea></label><% }) %>
+                <button type="submit" <%= typeof aiConfigured!=='undefined'&&aiConfigured?'':'disabled' %>>Count Qty</button>
+              </form><% } else { %><% ai.questions.forEach(question=>{ %><p><%= question %></p><% }) %><% } %>
+            <% } %>
+          <% } else if(photo) { %><p class="field-hint">No count for this photo yet.</p><% } %>
+          <% if(ai) { %><details><summary>Details</summary>
+            <% if(ai) { %><p class="ui-wrap-text"><%= ai.notes %></p><small><%= ai.model %> · <%= formatTimestamp(ai.requested_at) %></small>
+              <% if(ai.usage) { %><p class="field-hint">Tokens: <%= ai.usage.input_tokens??'—' %> input · <%= ai.usage.output_tokens??'—' %> output · <%= ai.usage.total_tokens??'—' %> total</p><% } %>
+              <%- include('photo-count-clarifications',{analysis:ai}) %>
+              <% if(row.ai_history?.length>1) { %><details><summary>Previous counts</summary><% row.ai_history.slice(0,-1).forEach(previous=>{ %><p><%= formatTimestamp(previous.requested_at) %> · <%= previous.questions?.length?'Needs clarification':previous.count??'Unable to count' %> <%= previous.unit %> · <%= previous.notes %></p><% previous.questions?.forEach(question=>{ %><p><%= question %></p><% }) %><%- include('photo-count-clarifications',{analysis:previous}) %><% }) %></details><% } %>
+            <% } %>
+          </details><% } %>
+          </td><% } %><td><% if(canSavePhotoCount) { %><form id="<%= formId %>" method="post" action="<%= reportPath %>/photo-count" enctype="multipart/form-data" class="ui-cell-form" data-verified-form data-review-required="<%= ready&&!reviewed?'true':'false' %>">
+          <input type="hidden" name="photo_id" value="<%= row.photo_id %>"><% if(controlledCount) { %><input type="hidden" name="revision" value="<%= count.revision %>"><% } %>
+          <% if(ready) { %><input type="hidden" name="review_ai_id" value="<%= ai.id %>"><% } %>
+          <label class="visually-hidden" for="<%= formId %>-qty">Verified Qty</label><input id="<%= formId %>-qty" data-saved-value="<%= row.verified_qty??'' %>" aria-label="Verified Qty for <%= row.photo_id %>" name="verified_qty" type="number" min="0" step="0.001" value="<%= verified %>">
+          <small class="field-hint" data-row-save-status><%= ready&&!reviewed?'Review & save':row.verified_qty!==null&&row.verified_qty!==undefined?'Saved':'Not saved' %></small>
+          <button type="submit" class="button-light">Save</button>
+        </form><% } else { %><p>Verified Qty: <strong><%= row.verified_qty ?? '—' %></strong></p><% } %>
+          </td></tr>
+      <% }) %>
+    </tbody></table></div>
     <% if(!rows.length) { %><p class="empty">No items with a Photo ID are stocked or counted in this warehouse.</p><% } %>
-    <% if(can('vouchers.stock.edit')) { %><p class="field-hint">Save each row to retain its counts and photos. Up to three JPG or PNG photos per save, maximum 10 MB each. Blank quantities remain uncounted; enter 0 for zero stock. Available on draft, submitted, and cancelled reconciliations.</p><% } %>
+    <% if(canSavePhotoCount) { %><p class="field-hint">One JPG or PNG photo, up to 10 MB.<% if(isAdmin) { %> AI results need your review before saving.<% } %></p><% } %>
   </section>
-</main></body></html>
+  <% if(isAdmin) { %><%- include('photo-count-settings',{reportPath,aiCountSettings:typeof aiCountSettings!=='undefined'?aiCountSettings:{descriptions:''},aiCountSaved:typeof aiCountSaved!=='undefined'&&aiCountSaved,aiCountError:null}) %><% } %>
+</main><script src="/photo-count-ai.js?v=<%= assetVersion %>" defer></script></body></html>

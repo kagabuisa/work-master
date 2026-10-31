@@ -11,7 +11,9 @@
   <a class="button" href="/invoices/<%= invoice.id %>/print" target="_blank">Print</a>
   <% if ((invoice.docstatus || 'submitted') === 'submitted' && can('vouchers.sales.cancel')) { %>
     <form method="post" action="/invoices/<%= invoice.id %>/cancel" class="inline-form" data-confirm="Cancel this invoice? Stock and ledger entries will be reversed.">
-      <button type="submit" class="button-light">Cancel Invoice</button>
+      <% const needsApproval=can('sales.policy.accountant') && !can('sales.policy.director') && invoice.allow!=='Cancel'; %>
+      <button type="submit" class="button-light" <%= needsApproval?'disabled':'' %>>Cancel Invoice</button>
+      <% if(needsApproval) { %><%- include('ui-helper',{helpLabel:'Cancellation approval required',helpText:'Request Cancel in the invoice preview and obtain Allow = Cancel before cancelling.'}) %><% } %>
     </form>
   <% } %>
   <% if (invoice.docstatus === 'cancelled' && currentUser.role === 'admin') { %>

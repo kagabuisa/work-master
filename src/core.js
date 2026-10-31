@@ -112,6 +112,9 @@ async function withPostgresTransaction(callback, { invalidate, inventoryExclusiv
     return result;
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    if (err.code === '23514' && /^accounting_period_closed:/.test(err.message)) {
+      err.code = 'accounting_period_closed'; err.status = 409;
+    }
     if (err.code === 'P0001' && /^future_posting_date:/.test(err.message)) {
       err.code = 'future_posting_date'; err.status = 400;
     }

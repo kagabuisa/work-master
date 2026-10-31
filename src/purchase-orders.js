@@ -44,6 +44,7 @@ async function insertItems(client, id, items) {
 
 async function createPurchaseOrder(payload) {
   const order = normalizePurchaseOrder(payload);
+  require('./posting-time').assertPostingDate(order.posting_date);
   return withPostgresTransaction(async (client) => {
     await resolvePurchaseMasters(client, order);
     const result = await client.query(`INSERT INTO app_purchase_orders
@@ -64,6 +65,7 @@ async function createPurchaseOrder(payload) {
 async function updatePurchaseOrder(value, payload) {
   const id = orderId(value);
   const order = normalizePurchaseOrder(payload);
+  require('./posting-time').assertPostingDate(order.posting_date);
   return withPostgresTransaction(async (client) => {
     const existing = await client.query('SELECT docstatus FROM app_purchase_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!existing.rows.length) throw error('Purchase order not found.', 404);

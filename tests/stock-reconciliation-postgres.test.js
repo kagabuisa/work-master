@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const store = require('../src/store');
+const { currentPostingDate } = require('../src/posting-time');
 const { FIXED, seedGoldenData } = require('./helpers/golden-seed');
 
 test('stock cancellation ignores purchase and invoice reversals with the same numeric ID', {
@@ -36,7 +37,7 @@ test('stock cancellation ignores purchase and invoice reversals with the same nu
       WHERE reversal_of_voucher_id=$1 AND is_reversal AND voucher_type NOT LIKE 'stock_%'`, [stockId])).rows;
     assert.ok(foreignReversals.some(row => row.voucher_type === 'purchase'));
     assert.ok(foreignReversals.some(row => row.voucher_type === 'invoice'));
-    await store.cancelStockEntry(stockId, { posting_date: new Date().toISOString().slice(0, 10) });
+    await store.cancelStockEntry(stockId, { posting_date: currentPostingDate() });
     assert.equal((await store.loadStockEntry(stockId)).entry.docstatus, 'cancelled');
     assert.equal((await pool.query(`SELECT quantity::float FROM app_stock_balances
       WHERE item_code=$1 AND warehouse=$2`, [item.item_code, item.warehouse])).rows[0].quantity, 0);

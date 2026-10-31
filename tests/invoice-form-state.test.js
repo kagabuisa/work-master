@@ -266,13 +266,13 @@ test('saved drafts expose submission actions with permission checks; submitted i
   assert.doesNotMatch(submitted, /Submit Cash Sale|Submit Invoice/);
 });
 
-test('saved draft edit offers submission actions until the form has changes', async () => {
+test('saved draft edit keeps Save visible alongside unchanged submission actions', async () => {
   const invoice = { id: 12, invoice_no: 'INV-12', invoice_date: '2026-09-26', price_list: 'Retail', warehouse: 'Main', total: 200 };
   const file = path.join(__dirname, '../views/new-invoice.ejs');
   const draft = await renderView(file, { ...locals, formError: null, invoice, items: [], today: '2026-09-26' });
   assert.match(draft, /data-cash-sale-url="\/invoices\/12\/submit-cash-sale"/);
   assert.match(draft, /action="\/invoices\/12\/submit"[^>]*data-edit-submit-action/);
-  assert.match(draft, /data-edit-save hidden>Save<\/button>/);
+  assert.match(draft, /data-edit-save>Save<\/button>/);
 
   const recovered = await renderView(file, { ...locals, invoice, items: [], today: '2026-09-26' });
   assert.match(recovered, /"recovered":true/);
@@ -337,4 +337,33 @@ test('invoice stock refresh uses selected posting time and ignores superseded re
   requests[2].resolve({ ok: false });
   await failure;
   assert.match(cell.textContent, /Unavailable/);
+});
+
+test('request-only and reason-only edits count as unsaved changes while Save remains visible', () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(__dirname, '../public/invoice.js'), 'utf8');
+  const functions = source.slice(source.indexOf('function invoiceState()'), source.indexOf('function calculateGrandTotal()'));
+  const element = () => ({ value: '' });
+  const context = {
+    document: { querySelector: element },
+    form: { elements: Object.fromEntries(['action_request', 'why_cancel', 'discount_amount', 'tax_amount', 'notes'].map(name => [name, element()])) },
+    customerId: element(), priceListSelect: element(), costCenterInput: element(), invoicerId: element(), warehouseSelect: element(),
+    items: [], payments: [], initialData: { invoice: { id: 12 } }, savedInvoiceState: null, repricing: false,
+    editSaveButton: { hidden: true }, editSubmitActions: [{ hidden: false }],
+  };
+  vm.createContext(context);
+  vm.runInContext(functions + '\nsavedInvoiceState = JSON.stringify(invoiceState()); updateEditActions();', context);
+  assert.equal(context.editSaveButton.hidden, false);
+  assert.equal(context.editSubmitActions[0].hidden, false);
+  context.form.elements.action_request.value = 'Backdate';
+  vm.runInContext('updateEditActions()', context);
+  assert.equal(context.editSaveButton.hidden, false);
+  assert.equal(context.editSubmitActions[0].hidden, true);
+  vm.runInContext('savedInvoiceState = JSON.stringify(invoiceState()); updateEditActions();', context);
+  assert.equal(context.editSubmitActions[0].hidden, false);
+  context.form.elements.why_cancel.value = 'Late supporting documents';
+  vm.runInContext('updateEditActions()', context);
+  assert.equal(context.editSaveButton.hidden, false);
+  assert.equal(context.editSubmitActions[0].hidden, true);
 });

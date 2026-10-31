@@ -826,6 +826,7 @@ function initializePayments() {
 }
 
 function renderItems() {
+  scheduleMinimumPrices();
   if (!items.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="empty">Search and add items to begin.</td></tr>';
     renderTotals();
@@ -1049,6 +1050,8 @@ function renderTotals() {
 
 function invoiceState() {
   return {
+    action_request: form.elements.action_request?.value || '',
+    why_cancel: form.elements.why_cancel?.value.trim() || '',
     invoice_date: document.querySelector('#invoice-date').value,
     posting_time: document.querySelector('#invoice-posting-time').value,
     due_date: document.querySelector('#due-date').value,
@@ -1089,10 +1092,10 @@ function isInvoiceChanged() {
 }
 
 function updateEditActions() {
+  if (editSaveButton) editSaveButton.hidden = false;
   if (!initialData.invoice?.id || savedInvoiceState === null || !editSubmitActions.length) return;
-  const showSave = repricing || isInvoiceChanged();
-  editSaveButton.hidden = !showSave;
-  editSubmitActions.forEach((action) => { action.hidden = showSave; });
+  const hasUnsavedChanges = repricing || isInvoiceChanged();
+  editSubmitActions.forEach((action) => { action.hidden = hasUnsavedChanges; });
 }
 
 function calculateGrandTotal() {
@@ -1271,3 +1274,50 @@ function formatRate(value) {
 function editableRate(value) {
   try { return InvoiceMath.rateValue(value); } catch { return String(value ?? ''); }
 }
+
+
+var minimumTimer, minimumSequence = 0, minimumPending = false, minimumFloors = [], minimumSignature = '';
+function minimumPayload() { return { customer_id:customerId.value,price_list:priceListSelect.value,
+  items:items.map(i=>({item_code:i.item_code,warehouse:warehouseSelect.value,quantity:i.quantity})) }; }
+function scheduleMinimumPrices() {
+  clearTimeout(minimumTimer);
+  minimumPending = true;
+  minimumTimer = setTimeout(refreshMinimumPrices,300);
+}
+async function refreshMinimumPrices() {
+  const payload=minimumPayload(),signature=JSON.stringify(payload),sequence=++minimumSequence;
+  if(!payload.items.length || !payload.customer_id || !payload.price_list || !warehouseSelect.value) {minimumPending=false;return;}
+  try {
+    const response=await fetch('/api/invoice-minimum-prices',{method:'POST',headers:{'Content-Type':'application/json'},body:signature});
+    if(!response.ok) throw new Error('Could not verify minimum prices. Retry before saving.');
+    const floors=await response.json();
+    if(sequence!==minimumSequence || signature!==JSON.stringify(minimumPayload())) return;
+    minimumFloors=floors;minimumSignature=signature;minimumPending=false;showMinimumFeedback();
+  }catch(error){if(sequence===minimumSequence){minimumPending=false;minimumSignature='';document.querySelector('#sales-control-feedback').textContent=error.message;}}
+}
+function salesDateError() {
+ const settings=JSON.parse(document.querySelector('#sales-control-settings').value);
+ const date=document.querySelector('#invoice-date').value;
+ const pending=form.elements.action_request?.value==='Backdate' && !!form.elements.why_cancel?.value.trim();
+ return SalesControls.dateError(date,settings.today,settings,settings.approvedDate===date?settings.allow:'',pending);
+}
+function showMinimumFeedback() {
+ const errors=minimumFloors.flatMap((f,i)=>f.rate===null?[items[i]?.item_code+': '+f.reason]:Number(items[i]?.unit_price)<Number(f.rate)?[items[i]?.item_code+': minimum '+f.rate+' ('+f.reason+')']:[]);
+ document.querySelector('#sales-control-feedback').textContent=salesDateError() || errors.join(' · ');
+ tbody.querySelectorAll('[data-field="unit_price"]').forEach(input=>{const f=minimumFloors[Number(input.dataset.index)];input.setCustomValidity(f && (f.rate===null || Number(input.value)<Number(f.rate))?'Enter the permitted minimum selling rate.':'');});
+}
+form.addEventListener('input',event=>{
+ if(event.target.dataset.field==='quantity') scheduleMinimumPrices();
+ if(event.target.dataset.field==='unit_price' && minimumSignature===JSON.stringify(minimumPayload())) showMinimumFeedback();
+});
+form.addEventListener('change',event=>{
+ if(['warehouse','price_list','customer_id'].includes(event.target.name) || event.target.id==='customer-search') scheduleMinimumPrices();
+ if(['invoice_date','action_request','why_cancel'].includes(event.target.name)) document.querySelector('#sales-control-feedback').textContent=salesDateError();
+});
+form.addEventListener('submit',event=>{
+ const error=salesDateError();
+ if(error || minimumPending || minimumSignature!==JSON.stringify(minimumPayload())) {
+  event.preventDefault();showFormError(error || 'Wait for minimum price verification, then save again.');scheduleMinimumPrices();
+ }
+});
+scheduleMinimumPrices();

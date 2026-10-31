@@ -1,3 +1,4 @@
+const voucherControls = require('../voucher-controls');
 'use strict';
 // Ledger domain: chart of accounts, journal entries, general ledger, trial
 // balance, profit & loss, balance sheet and accounting backfill.
@@ -285,6 +286,7 @@ async function findJournalEntry(id) {
 
 async function createJournalEntry(payload, options = {}) {
   const journal = normalizeJournalEntryPayload(payload);
+  require('../posting-time').assertPostingDate(journal.posting_date);
   const submit = options.submit !== false;
   return withPostgresTransaction(async (client) => {
     journal.cost_center = await validateCostCenter(client, journal.cost_center);
@@ -309,7 +311,7 @@ async function createJournalEntry(payload, options = {}) {
         journal.remarks,
         journal.total_debit,
         journal.total_credit,
-        submit ? 'submitted' : 'draft',
+        'draft',
         journal.posting_time,
         journal.cost_center,
       ],
@@ -320,9 +322,6 @@ async function createJournalEntry(payload, options = {}) {
       'UPDATE app_journal_entries SET journal_no = $1 WHERE id = $2',
       [journalNo, id],
     );
-    if (submit) {
-      await setVoucherDocstatus(client, 'app_journal_entries', id, 'submitted');
-    }
     for (const line of journal.lines) {
       await client.query(
         `
@@ -333,6 +332,10 @@ async function createJournalEntry(payload, options = {}) {
         `,
         [id, line.line_no, line.account_id, line.debit, line.credit, line.remarks, line.reference_no],
       );
+    }
+    await voucherControls.savedVoucher(client,'journals',id,payload);
+    if (submit) {
+      await setVoucherDocstatus(client,'app_journal_entries',id,'submitted');
     }
     if (submit) await postGlEntry(client, {
       posting_date: journal.posting_date,
@@ -352,12 +355,14 @@ async function createJournalEntry(payload, options = {}) {
       })),
     });
     if (submit) await postPurchaseAllocations(client, { ...journal, id, journal_no: journalNo }, allocations);
+    if (submit) await voucherControls.requireApproval(client,'journals',id,'Backdate');
     return id;
   });
 }
 
 async function updateJournalEntry(id, payload) {
   const journal = normalizeJournalEntryPayload(payload);
+  require('../posting-time').assertPostingDate(journal.posting_date);
   return withPostgresTransaction(async (client) => {
     journal.cost_center = await validateCostCenter(client, journal.cost_center);
     const existing = await client.query('SELECT docstatus FROM app_journal_entries WHERE id = $1 FOR UPDATE', [id]);
@@ -374,6 +379,7 @@ async function updateJournalEntry(id, payload) {
       journal.party_name, journal.reference_no, journal.remarks, journal.total_debit, journal.total_credit,
       journal.posting_time, journal.cost_center]);
     await syncJournalEntryLines(client, id, journal.lines);
+    await voucherControls.savedVoucher(client,'journals',id,payload);
     return Number(id);
   });
 }
@@ -470,6 +476,7 @@ async function submitJournalEntry(id) {
       lines,
     });
     await postPurchaseAllocations(client, { ...journal, posting_date: dateOnly(journal.posting_date), lines }, allocations);
+    await voucherControls.requireApproval(client,'journals',id,'Backdate');
     return Number(id);
   });
 }
@@ -598,6 +605,7 @@ async function cancelJournalEntry(id) {
       throw err;
     }
 
+    await voucherControls.requireApproval(client,'journals',journalId,'Cancel');
     const actor = actorAuditValues();
     await client.query(
       `
@@ -612,7 +620,7 @@ async function cancelJournalEntry(id) {
       [actor.by, actor.by_user_id, actor.at, 'Cancelled', journalId],
     );
     await cancelPurchaseAllocations(client, journalId);
-    await reverseVoucherGlEntries(client, journal.journal_type, journalId, dateOnly(new Date()));
+    await reverseVoucherGlEntries(client, journal.journal_type, journalId, require('../posting-time').currentPostingDate());
     return journalId;
   });
 }

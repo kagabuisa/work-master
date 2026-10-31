@@ -1,0 +1,6 @@
+<% const vc=typeof voucherControl!=='undefined'?voucherControl:null;
+const vr=vc && vc.voucher_kind===requestKind && vc.record.id==requestRecord.id?vc:null;
+const requestDocument={...requestRecord,docstatus:'draft',invoice_date:requestRecord.posting_date || (typeof currentPostingDate==='function'?currentPostingDate():new Date().toISOString().slice(0,10)),action_request:requestRecord.action_request!==undefined?requestRecord.action_request:vr && vr.action_request,why_cancel:requestRecord.why_cancel!==undefined?requestRecord.why_cancel:vr && vr.reason}; %>
+<input type="hidden" name="control_revision" value="<%= requestRecord.control_revision!==undefined?requestRecord.control_revision:vr && vr.revision || 0 %>">
+<%- include('invoice-request-fields',{requestInvoice:requestDocument,requestDateField:'posting_date',requestDateEditable:true}) %>
+<% if(vr && vr.allow) { %><span class="ui-action-summary">Admin approved <%= vr.allow %></span><% } else if(vr && vr.action_request) { %><span class="ui-action-summary">Admin approval pending</span><% } %>

@@ -1,0 +1,5 @@
+<form method="post" action="<%= reportPath %>/photo-count" enctype="multipart/form-data" class="ui-cell-form" data-photo-remove-form>
+  <input type="hidden" name="action" value="remove_photo"><input type="hidden" name="photo_id" value="<%= photoId %>"><input type="hidden" name="attachment_id" value="<%= attachment.id %>">
+  <% if(revision!==null) { %><input type="hidden" name="revision" value="<%= revision %>"><% } %>
+  <button type="submit" class="ui-button-link" aria-label="Remove photo <%= attachment.file_name %>">Remove photo</button>
+</form>

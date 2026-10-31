@@ -28,6 +28,8 @@ async function main(){
   await client.query(`REVOKE ALL ON ${table} FROM ${role}; GRANT SELECT ON ${table} TO ${role}`);
  for(const signature of ['wm_inventory_enabled()','wm_inventory_begin(text,bigint,boolean,text[])','wm_inventory_apply(jsonb)','wm_inventory_count_action(text,jsonb)','wm_inventory_correction_action(text,jsonb)'])
   await client.query(`GRANT EXECUTE ON FUNCTION ${signature} TO ${role}`);
+ await client.query(`REVOKE DELETE ON app_accounting_periods FROM ${role}`);
+ await client.query(`REVOKE UPDATE,DELETE ON app_accounting_period_events FROM ${role}`);
  // Activation is one-way for runtime. Legacy reconciliations are deliberately not converted to closures.
  await client.query('SELECT wm_inventory_activate()');
  // Write credentials atomically before commit; retain owner settings only for the separate migration process.

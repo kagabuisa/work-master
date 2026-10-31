@@ -24,6 +24,15 @@ const VOUCHER_TYPES = [
 ];
 const { HR_AREAS } = require('./hr-policy');
 const PERMISSIONS = [
+  ...[
+    ['sales.policy.accountant','Accountant date limits and cancellation approval requirement'],
+    ['sales.policy.director','Director past-date and cancellation approval exemption'],
+    ['sales.policy.price-override','Override invoice minimum prices'],
+    ['sales.approvals.request','Request invoice backdating or cancellation'],
+    ['sales.approvals.approve','Approve or revoke invoice action requests'],
+    ['sales.discounts.view','View approved discounts'],
+    ['sales.discounts.manage','Create, edit and approve discounts'],
+  ].map(([key,label])=>({key,label,group:'Sales controls'})),
   ...['view','start','save','review','approve','reject','submit','abandon'].map(action => ({ key:`inventory.count.${action}`, label:`${action} warehouse counts`, group:'Inventory control' })),
   ...['view','create','approve','submit','abandon'].map(action => ({ key:`inventory.correction.${action}`, label:`${action} inventory corrections`, group:'Inventory control' })),
   ...HR_AREAS.flatMap((area) => area.actions.map((action) => ({
@@ -75,7 +84,7 @@ const ROLE_RECORD_TYPES = [
 const RECORD_PERMISSION_KEYS = new Set(ROLE_RECORD_TYPES.flatMap((type) => Object.values(type.permissions)));
 const EXTRA_PERMISSIONS = PERMISSIONS.filter((permission) => !RECORD_PERMISSION_KEYS.has(permission.key)
   && !ADMIN_REPORT_PERMISSIONS.has(permission.key));
-const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('hr.') && !item.key.startsWith('masters.')
+const ROUTINE_PERMISSIONS = PERMISSIONS.filter((item) => !item.key.startsWith('sales.') && !item.key.startsWith('hr.') && !item.key.startsWith('masters.')
   && item.key !== 'reports.daily-activity.create' && !item.key.endsWith('.cancel') && !item.key.endsWith('.delete') && item.key !== 'sync.run').map((item) => item.key);
 const PREVIOUS_ROUTINE_PERMISSIONS = [...ROUTINE_PERMISSIONS,
   ...PERMISSIONS.filter((item) => item.key.startsWith('masters.') && item.key.endsWith('.view')).map((item) => item.key)];

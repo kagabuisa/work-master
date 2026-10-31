@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><title>Accounting Periods</title><%- include('partials-head') %></head><body>
+<main class="shell ui-page ui-page-list ui-list-compact">
+<header class="topbar"><div><p class="eyebrow">Accounting</p><%- include('breadcrumbs',{breadcrumbs:[{label:'Home',href:'/'},{label:'Accounting Periods'}]}) %></div><nav><%- include('module-nav',{activeModule:'accounts'}) %></nav></header>
+<% if(error){ %><p class="error" role="alert"><%= error %></p><% } %>
+<section class="invoice-card ui-surface">
+<%- include('ui-section-heading',{heading:{title:'Accounting period closure',help:'Finance sets the dates and prepares the review. Admin reviews and approves closure. Closed dates reject accounting postings and reversals. Only Admin can reopen a period with a reason. Reopened periods need a fresh Finance review before closing again.'}}) %>
+<p>Review cash, bank, receivables, payables, accounts and pending vouchers before submitting. Changes to the ledger after submission require a fresh review.</p>
+<% if(currentUser.role==='finance'){ %>
+<form method="post" action="/accounting-periods" class="ui-toolbar ui-filter-row"><input type="hidden" name="action" value="create">
+<label>Period start<input type="date" name="period_start" required></label><label>Period end<input type="date" name="period_end" required></label>
+<label>Initial notes<input name="review_notes" maxlength="10000"></label><button>Create draft</button></form>
+<% } %></section>
+<% if(!rows.length){ %><section class="invoice-card ui-surface"><p>No accounting periods prepared.</p></section><% } %>
+<% rows.forEach(row=>{const editable=currentUser.role==='finance' && ['draft','returned','reopened'].includes(row.status); %>
+<section class="invoice-card ui-surface">
+<%- include('ui-section-heading',{heading:{title:`${row.period_start} to ${row.period_end}`,meta:`${row.status} · revision ${row.revision}`}}) %>
+<% if(can('reports.general-ledger.view')){ %><p><a href="/reports/general-ledger?from=<%= row.period_start %>&amp;to=<%= row.period_end %>">Review period ledger</a></p><% } %>
+<p>Prepared by <%= row.preparer %><% if(row.approver){ %> · Approved by <%= row.approver %><% } %></p>
+<% if(editable){ %>
+<form method="post" action="/accounting-periods">
+<input type="hidden" name="id" value="<%= row.id %>"><input type="hidden" name="revision" value="<%= row.revision %>">
+<div class="ui-form-grid"><label>Period start<input type="date" name="period_start" value="<%= row.period_start %>" required></label>
+<label>Period end<input type="date" name="period_end" value="<%= row.period_end %>" required></label></div>
+<label>Finance review notes<textarea name="review_notes" maxlength="10000" rows="3"><%= row.review_notes %></textarea></label>
+<div class="ui-action-row" data-standard-labels>
+<% [['cash','Cash reviewed'],['bank','Bank reviewed'],['receivables','Receivables reviewed'],['payables','Payables reviewed'],['accounts','Accounts reviewed'],['pending','Pending vouchers resolved or explained in notes']].forEach(([key,label])=>{ %>
+<label><input type="checkbox" name="<%= key %>" <%= row.review_checks[key]?'checked':'' %>> <%= label %></label><% }) %></div>
+<div class="ui-action-row"><button name="action" value="save" class="button-light">Save draft</button><button name="action" value="submit">Submit review to Admin</button></div></form>
+<% }else{ %><p><strong>Finance review:</strong> <%= row.review_notes || 'No notes yet.' %></p>
+<p>Completed checks: <%= Object.entries(row.review_checks).filter(([,checked])=>checked).map(([name])=>name).join(', ') || 'None' %></p>
+<% if(row.ledger_snapshot){ %><p>Reviewed ledger: <%= row.ledger_snapshot.entries %> entries · Debit <%= row.ledger_snapshot.debit %> · Credit <%= row.ledger_snapshot.credit %></p><% } %><% } %>
+<% if(row.admin_notes){ %><p><strong>Admin review:</strong> <%= row.admin_notes %></p><% } %>
+<% if(row.open_reason){ %><p><strong>Reopened by <%= row.opener %>:</strong> <%= row.open_reason %></p><% } %>
+<% if(currentUser.role==='admin' && ['pending','closed'].includes(row.status)){ %>
+<form method="post" action="/accounting-periods" class="ui-action-row"><input type="hidden" name="id" value="<%= row.id %>"><input type="hidden" name="revision" value="<%= row.revision %>">
+<label><%= row.status==='closed'?'Reopening reason':'Admin review notes' %><input name="reason" maxlength="10000" required></label>
+<% if(row.status==='pending'){ %><button name="action" value="approve">Approve and close</button><button name="action" value="return" class="button-light">Return to Finance</button>
+<% }else{ %><button name="action" value="reopen" class="button-light">Reopen period</button><% } %></form><% } %>
+<details><summary>History</summary><div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Action</th><th>User</th><th>Time</th><th>Notes</th></tr></thead><tbody>
+<% row.history.forEach(event=>{ %><tr><td><%= event.action %></td><td><%= event.actor %></td><td><%= event.at %></td><td><%= event.reason %></td></tr><% }) %>
+</tbody></table></div></details></section><% }) %>
+<nav class="ui-action-row" aria-label="Accounting period pages"><% if(page>1){ %><a href="?page=<%= page-1 %>" class="button button-light">Previous</a><% } %><span>Page <%= page %></span><% if(hasNext){ %><a href="?page=<%= page+1 %>" class="button button-light">Next</a><% } %></nav></main></body></html>
