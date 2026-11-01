@@ -678,3 +678,67 @@
 .ui-label-with-help { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
 .ui-label-with-help > span { white-space: nowrap; }
 .ui-label-with-help .ui-help > summary { width: 16px; height: 16px; font-size: 10px; }
+
+/* Voucher action requests and approval decisions. */
+.ui-approval-workflow > .ui-section-heading { margin-bottom: 14px; }
+.ui-approval-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.ui-approval-status { display: grid; align-content: start; gap: 7px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 94%, var(--text) 6%); }
+.ui-approval-status.has-request { border-color: color-mix(in srgb, #b7791f 35%, var(--line)); background: color-mix(in srgb, #fff7e8 72%, var(--surface)); }
+.ui-approval-status.is-approved { border-color: color-mix(in srgb, #227a4b 35%, var(--line)); background: color-mix(in srgb, #effaf3 70%, var(--surface)); }
+.ui-approval-kicker { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ui-status-pill { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: 11px; font-weight: 650; line-height: 1.3; }
+.ui-status-pill.pending { color: #81520d; border-color: #e7c98e; background: #fff9ec; }
+.ui-status-pill.approved { color: #16643d; border-color: #9ed5b5; background: #f0fbf5; }
+.ui-status-pill.neutral { color: var(--muted); }
+.ui-approval-reason, .ui-approval-hint { margin: 0; color: #596675; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.ui-approval-reason { color: var(--text); font-size: 12px; }
+.ui-approval-panel { display: grid; gap: 12px; margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.ui-approval-panel form { display: grid; gap: 12px; margin: 0; }
+.ui-approval-panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ui-approval-panel-heading strong { color: var(--text); font-size: 12px; font-weight: 650; }
+.ui-approval-panel-heading span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.ui-approval-panel .ui-form-footer { margin-top: 0; }
+.ui-approval-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ui-approval-choice { position: relative; display: flex; align-items: flex-start; gap: 10px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; }
+.ui-approval-choice > input { position: absolute; opacity: 0; pointer-events: none; }
+.ui-approval-choice-mark { flex: 0 0 auto; width: 17px; height: 17px; margin-top: 1px; border: 1px solid #9aa7b4; border-radius: 50%; background: var(--surface); }
+.ui-approval-choice > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.ui-approval-choice strong { color: var(--text); font-size: 12px; font-weight: 650; }
+.ui-approval-choice small { color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+.ui-approval-choice:has(input:checked) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.ui-approval-choice:has(input:checked) .ui-approval-choice-mark { border: 5px solid var(--accent); }
+.ui-approval-choice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-approval-empty { display: grid; gap: 4px; margin-top: 14px; padding: 13px 14px; border: 1px dashed var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 96%, var(--text) 4%); }
+.ui-approval-empty strong { color: var(--text); font-size: 12px; font-weight: 600; }
+.ui-approval-empty span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.ui-approval-history { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ui-approval-history > summary { width: fit-content; color: var(--muted); font-size: 11px; cursor: pointer; }
+
+.ui-request-workflow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; }
+.ui-request-current { display: grid; gap: 4px; min-width: 0; }
+.ui-request-kicker { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.ui-request-summary { min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.ui-request-summary.is-selected { color: var(--text); font-weight: 600; }
+.ui-request-action-list { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ui-request-action { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; margin: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; }
+.ui-request-action > input { position: absolute; opacity: 0; pointer-events: none; }
+.ui-request-action-mark { flex: 0 0 auto; width: 18px; height: 18px; border: 1px solid #9aa7b4; border-radius: 5px; background: var(--surface); }
+.ui-request-action-copy { display: grid; gap: 2px; min-width: 0; }
+.ui-request-action-copy strong { color: var(--text); font-size: 12px; font-weight: 650; }
+.ui-request-action-copy small { color: var(--muted); font-size: 10.5px; line-height: 1.4; }
+.ui-request-action:has(input:checked) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.ui-request-action:has(input:checked) .ui-request-action-mark { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 4px var(--surface); }
+.ui-request-action:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-request-action:has(input:disabled) { opacity: .48; cursor: default; }
+.ui-request-clear { justify-self: end; min-height: var(--ui-control-height); padding: 6px 10px; border-radius: 6px; font-size: 11px; }
+.ui-request-approval-note { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 11px; }
+@media (max-width: 720px) {
+  .ui-approval-status-grid, .ui-approval-choice-grid, .ui-request-action-list { grid-template-columns: minmax(0, 1fr); }
+  .ui-approval-panel-heading { display: grid; gap: 4px; }
+  .ui-request-workflow { grid-template-columns: minmax(0, 1fr); }
+  .ui-request-clear { justify-self: start; }
+}
+@media (pointer: coarse) {
+  .ui-request-action, .ui-approval-choice { min-height: 48px; }
+  .ui-request-clear { min-height: 36px; }
+}

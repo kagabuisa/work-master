@@ -20,9 +20,9 @@ test('compact voucher request and approval views escape reasons and show Admin a
  const voucherControl={voucher_kind:'purchases',base:'/purchases',record,revision:2,action_request:'Cancel',reason:'<unsafe>',allow:'',events:[]};
  const locals={currentUser:{role:'standard'},voucherControl,can:()=>true};
  let html=await renderView(path.join(__dirname,'../views/voucher-approval.ejs'),locals);
- assert.match(html,/&lt;unsafe&gt;/);assert.match(html,/data-request-cancel/);assert.doesNotMatch(html,/Approve Cancellation/);
+ assert.match(html,/&lt;unsafe&gt;/);assert.match(html,/data-request-cancel/);assert.match(html,/ui-approval-workflow/);assert.match(html,/Requested action/);assert.doesNotMatch(html,/Approve Cancellation/);
  html=await renderView(path.join(__dirname,'../views/voucher-approval.ejs'),{...locals,currentUser:{role:'admin'}});
- assert.match(html,/Approve Cancellation/);
+ assert.match(html,/Approve Cancellation/);assert.match(html,/Approval decision/);
 });
 test('backdating and cancellation bind to reviewed versions, require explicit Admin approval, and commit atomically', {skip:process.env.SCHEMA_TEST_POSTGRES!=='1'},async()=>{
  let server;

@@ -1,23 +1,29 @@
 <% const vc=typeof voucherControl!=='undefined'?voucherControl:null;
 if(vc && currentUser && (vc.voucher_kind!=='journals' || ['cash_receipt','journal_entry','payment_journal'].includes(vc.record.journal_type))) { %>
-<section class="ui-surface">
-<%- include('ui-section-heading',{heading:{title:'Action request and approval'}}) %>
-<p class="ui-action-summary" role="status"><%= vc.allow?'Admin approved '+vc.allow:vc.action_request?'Admin approval pending':'No action requested' %></p>
+<% const requested=vc.action_request||''; const approved=Boolean(vc.allow&&requested&&vc.allow===requested); %>
+<section class="ui-surface ui-approval-workflow">
+<%- include('ui-section-heading',{heading:{title:'Action request and approval',meta:requested?(approved?'Approved':'Waiting for decision'):'No request',help:'Backdate and Cancel are mutually exclusive approvals. Save one requested action, then an Admin approves the exact request.'}}) %>
+<div class="ui-approval-status-grid">
+  <article class="ui-approval-status<%= requested?' has-request':'' %>"><span class="ui-approval-kicker">Requested action</span><strong><span class="ui-status-pill <%= requested?'pending':'neutral' %>"><%= requested||'No action requested' %></span></strong><p class="ui-approval-reason"><%= vc.reason||(requested?'Reason recorded with the request.':'Choose an action below to begin.') %></p></article>
+  <article class="ui-approval-status<%= approved?' is-approved':'' %>"><span class="ui-approval-kicker">Approval</span><strong><span class="ui-status-pill <%= approved?'approved':requested?'pending':'neutral' %>"><%= !requested?'Not required':approved?'Approved':'Awaiting approval' %></span></strong><p class="ui-approval-hint"><%= approved?'Admin approval is valid for this exact request.':requested?'Admin review is required before proceeding.':'No Admin decision is needed.' %></p></article>
+</div>
 <% if(vc.record.docstatus!=='cancelled' && can('vouchers.'+vc.voucher_kind+'.view')) { %>
+<div class="ui-approval-panel"><div class="ui-approval-panel-heading"><strong>Create or change request</strong><span>Select one action, then save the request for Admin review.</span></div>
 <form method="post" action="<%= vc.base %>/<%= vc.record.id %>/action-request">
 <input type="hidden" name="control_revision" value="<%= vc.revision %>">
 <%- include('invoice-request-fields',{requestInvoice:{docstatus:vc.record.docstatus,invoice_date:vc.record.posting_date instanceof Date?vc.record.posting_date.toISOString().slice(0,10):vc.record.posting_date,action_request:vc.action_request,why_cancel:vc.reason},requestDateField:'posting_date',requestDateEditable:can('vouchers.'+vc.voucher_kind+'.edit')}) %>
-<div class="ui-form-footer"><button class="button-light">Save Request</button></div>
-</form>
+<div class="ui-form-footer"><button class="button" data-request-save <%= requested?'':'disabled' %>>Save request</button></div>
+</form></div>
 <% } %>
 <% if(vc.action_request && vc.record.docstatus!=='cancelled' && currentUser.role==='admin') { %>
-<form method="post" action="<%= vc.base %>/<%= vc.record.id %>/action-approval" class="ui-action-row">
+<form method="post" action="<%= vc.base %>/<%= vc.record.id %>/action-approval" class="ui-approval-panel ui-approval-decision">
 <input type="hidden" name="control_revision" value="<%= vc.revision %>">
-<button name="allow" value="<%= vc.action_request %>" class="button-light">Approve <%= vc.action_request==='Cancel'?'Cancellation':'Backdate' %></button>
-<% if(vc.allow) { %><button name="allow" value="" class="button-light">Revoke Approval</button><% } %>
+<div class="ui-approval-panel-heading"><strong>Approval decision</strong><span>Approve the exact saved request or keep it unapproved.</span></div>
+<div class="ui-form-footer"><button name="allow" value="<%= vc.action_request %>" class="button">Approve <%= vc.action_request==='Cancel'?'Cancellation':'Backdate' %></button>
+<% if(vc.allow) { %><button name="allow" value="" class="button-light">Revoke approval</button><% } %></div>
 </form>
 <% } %>
-<% if(vc.events.length) { %><details><summary>Approval history</summary>
+<% if(vc.events.length) { %><details class="ui-approval-history"><summary>Approval history</summary>
 <div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Reason</th></tr></thead><tbody>
 <% vc.events.forEach(event=>{ %><tr><td><%= formatTimestamp(event.created_at) %></td><td><%= event.actor_name %></td><td><%= ({saved:'Draft saved',requested:'Request saved',approved:'Admin approved',revoked:'Approval revoked',approval_invalidated:'Approval invalidated by changes',approval_used:'Approved action executed'})[event.event] || event.event %></td><td class="ui-wrap-text"><%= event.state.reason %></td></tr><% }) %>
 </tbody></table></div></details><% } %>

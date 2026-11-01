@@ -1,12 +1,42 @@
 <% if(typeof currentUser!=='undefined' && currentUser) { %>
-<section class="ui-surface"><%- include('ui-section-heading',{heading:{title:'Action request and approval',help:'Backdate and Cancel are mutually exclusive approvals. Users with Request permission can request an action; Approve permission is separate. A changed request or approved posting date clears approval. Reconciliation cut-offs always apply.'}}) %>
-<p>Request: <strong><%= invoice.action_request || 'None' %></strong> · Allow: <strong><%= invoice.allow || 'None' %></strong><% if(invoice.approved_by) { %> · Approved by <%= invoice.approved_by %><% } %></p>
-<% if(invoice.why_cancel) { %><p class="ui-wrap-text"><%= invoice.why_cancel %></p><% } %>
-<% if(invoice.docstatus!=='cancelled' && can('sales.approvals.request')) { %>
-<form method="post" action="/invoices/<%= invoice.id %>/action-request">
-<input type="hidden" name="approval_revision" value="<%= invoice.approval_revision || 0 %>">
-<%- include('invoice-request-fields',{requestInvoice:invoice,requestPrefix:typeof requestSurface!=='undefined'?'invoice-'+requestSurface+'-request':'invoice-preview-request'}) %>
-<div class="ui-form-footer"><button class="button-light">Save Request</button></div>
-</form><% } %>
-<% if(invoice.docstatus!=='cancelled' && can('sales.approvals.approve')) { %><form method="post" action="/invoices/<%= invoice.id %>/action-approval" class="ui-action-form ui-form-grid"><input type="hidden" name="approval_revision" value="<%= invoice.approval_revision || 0 %>"><label>Allow<select name="allow"><option value="">Revoke / None</option><% if(invoice.action_request) { %><option value="<%= invoice.action_request %>" <%= invoice.allow===invoice.action_request?'selected':'' %>><%= invoice.action_request %></option><% } %></select></label><button class="button-light">Save Approval</button></form><% } %>
+<% const requested=invoice.action_request||''; const approved=Boolean(invoice.allow&&requested&&invoice.allow===requested); const requestText=requested||'No action requested'; const approvalText=!requested?'Not required':approved?'Approved':invoice.allow?'Different action approved':'Awaiting approval'; %>
+<section class="ui-surface ui-approval-workflow">
+  <%- include('ui-section-heading',{heading:{title:'Action request and approval',meta:requested?(approved?'Approved':'Waiting for decision'):'No request',help:'Backdate and Cancel are mutually exclusive approvals. Users with Request permission can request one action; Admin approval is separate and applies only to the exact saved request and posting date. Reconciliation cut-offs always apply.'}}) %>
+  <div class="ui-approval-status-grid">
+    <article class="ui-approval-status<%= requested?' has-request':'' %>">
+      <span class="ui-approval-kicker">Requested action</span>
+      <strong><span class="ui-status-pill <%= requested?'pending':'neutral' %>"><%= requestText %></span></strong>
+      <% if(invoice.why_cancel) { %><p class="ui-approval-reason"><%= invoice.why_cancel %></p><% } else { %><p class="ui-approval-hint"><%= requested?'A reason is required before approval.':'Choose Backdate or Cancel below to begin.' %></p><% } %>
+    </article>
+    <article class="ui-approval-status<%= approved?' is-approved':'' %>">
+      <span class="ui-approval-kicker">Approval</span>
+      <strong><span class="ui-status-pill <%= approved?'approved':requested?'pending':'neutral' %>"><%= approvalText %></span></strong>
+      <p class="ui-approval-hint"><%= approved?(invoice.approved_by?'Approved by '+invoice.approved_by:'Approved for this exact request.'):requested?'An Admin must review this request.':'No Admin decision is needed.' %></p>
+    </article>
+  </div>
+  <% if(invoice.docstatus!=='cancelled' && can('sales.approvals.request')) { %>
+  <div class="ui-approval-panel">
+    <div class="ui-approval-panel-heading"><strong>Create or change request</strong><span>Select one action, then save the request for Admin review.</span></div>
+    <form method="post" action="/invoices/<%= invoice.id %>/action-request">
+      <input type="hidden" name="approval_revision" value="<%= invoice.approval_revision || 0 %>">
+      <%- include('invoice-request-fields',{requestInvoice:invoice,requestPrefix:typeof requestSurface!=='undefined'?'invoice-'+requestSurface+'-request':'invoice-preview-request'}) %>
+      <div class="ui-form-footer"><button class="button" data-request-save <%= requested?'':'disabled' %>>Save request</button></div>
+    </form>
+  </div>
+  <% } %>
+  <% if(invoice.docstatus!=='cancelled' && can('sales.approvals.approve')) { %>
+    <% if(requested) { %>
+    <form method="post" action="/invoices/<%= invoice.id %>/action-approval" class="ui-approval-panel ui-approval-decision">
+      <input type="hidden" name="approval_revision" value="<%= invoice.approval_revision || 0 %>">
+      <div class="ui-approval-panel-heading"><strong>Approval decision</strong><span>Approve the exact request or leave it unapproved.</span></div>
+      <div class="ui-approval-choice-grid">
+        <label class="ui-approval-choice"><input type="radio" name="allow" value="<%= requested %>" <%= approved?'checked':'' %>><span class="ui-approval-choice-mark" aria-hidden="true"></span><span><strong>Approve <%= requested==='Cancel'?'cancellation':'backdate' %></strong><small>Allows this saved request to proceed.</small></span></label>
+        <label class="ui-approval-choice"><input type="radio" name="allow" value="" <%= approved?'':'checked' %>><span class="ui-approval-choice-mark" aria-hidden="true"></span><span><strong>Keep unapproved</strong><small>Revokes approval without changing the request.</small></span></label>
+      </div>
+      <div class="ui-form-footer"><button class="button">Save decision</button></div>
+    </form>
+    <% } else { %>
+    <div class="ui-approval-empty"><strong>No action is waiting for approval</strong><span>A saved Backdate or Cancel request will appear here for review.</span></div>
+    <% } %>
+  <% } %>
 </section><% } %>

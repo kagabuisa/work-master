@@ -12,7 +12,9 @@
     cancel.disabled = root.dataset.documentState !== 'submitted' || selected === 'Backdate';
     root.querySelector('[data-request-clear]').hidden = !selected;
     root.querySelector('[data-request-summary]').textContent = action(root).value
-      ? `${action(root).value}${action(root).value === 'Backdate' ? ': ' + root.querySelector('[name="requested_posting_date"]').value : ''} — ${reason(root).value}` : '';
+      ? `${action(root).value}${action(root).value === 'Backdate' ? ' · ' + root.querySelector('[name="requested_posting_date"]').value : ''}${reason(root).value ? ' · ' + reason(root).value : ''}` : 'Choose an action below';
+    const save = root.closest('form')?.querySelector('[data-request-save]');
+    if (save) save.disabled = !action(root).value;
   }
   function notify(root) {
     paint(root);

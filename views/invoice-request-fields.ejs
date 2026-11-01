@@ -1,13 +1,25 @@
 <% const requestState = requestInvoice && requestInvoice.docstatus || 'draft'; %>
 <% const chosenAction = requestInvoice && requestInvoice.action_request || ''; %>
-<div class="ui-action-row ui-action-row-compact" data-invoice-request-controls data-document-state="<%= requestState %>" data-posting-date="<%= requestInvoice && requestInvoice.invoice_date || '' %>" data-today="<%= typeof currentPostingDate==='function'?currentPostingDate():new Date().toISOString().slice(0,10) %>" data-date-field="<%= typeof requestDateField!=='undefined'?requestDateField:'invoice_date' %>" data-date-editable="<%= typeof requestDateEditable!=='undefined'?(requestDateEditable?'1':'0'):(can('vouchers.sales.edit')?'1':'0') %>">
+<% const chosenReason = requestInvoice && requestInvoice.why_cancel || ''; %>
+<div class="ui-request-workflow" data-invoice-request-controls data-document-state="<%= requestState %>" data-posting-date="<%= requestInvoice && requestInvoice.invoice_date || '' %>" data-today="<%= typeof currentPostingDate==='function'?currentPostingDate():new Date().toISOString().slice(0,10) %>" data-date-field="<%= typeof requestDateField!=='undefined'?requestDateField:'invoice_date' %>" data-date-editable="<%= typeof requestDateEditable!=='undefined'?(requestDateEditable?'1':'0'):(can('vouchers.sales.edit')?'1':'0') %>">
   <input type="hidden" name="action_request" value="<%= chosenAction %>">
-  <input type="hidden" name="why_cancel" value="<%= requestInvoice && requestInvoice.why_cancel || '' %>">
+  <input type="hidden" name="why_cancel" value="<%= chosenReason %>">
   <input type="hidden" name="requested_posting_date" value="<%= requestInvoice && requestInvoice.invoice_date || '' %>">
-  <div class="ui-choice-group ui-choice-group-compact" role="group" aria-label="Invoice action request" data-standard-labels>
-    <label class="ui-choice-chip"><input type="checkbox" data-request-backdate <%= chosenAction==='Backdate'?'checked':'' %> <%= requestState!=='draft'||chosenAction==='Cancel'?'disabled':'' %>><span>Backdate</span></label>
-    <label class="ui-choice-chip"><input type="checkbox" data-request-cancel <%= chosenAction==='Cancel'?'checked':'' %> <%= requestState!=='submitted'||chosenAction==='Backdate'?'disabled':'' %>><span>Cancel</span></label>
+  <div class="ui-request-current">
+    <span class="ui-request-kicker">Request selection</span>
+    <span class="ui-request-summary<%= chosenAction?' is-selected':'' %>" role="status" data-request-summary><%= chosenAction ? `${chosenAction}${chosenAction==='Backdate'&&requestInvoice&&requestInvoice.invoice_date?' · '+requestInvoice.invoice_date:''}${chosenReason?' · '+chosenReason:''}` : 'Choose an action below' %></span>
   </div>
-  <button type="button" class="button-light" data-request-clear <%= !chosenAction?'hidden':'' %>>Clear Request</button>
-  <span class="ui-action-summary ui-wrap-text" role="status" data-request-summary><%= chosenAction %><%= requestInvoice && requestInvoice.why_cancel?': '+requestInvoice.why_cancel:'' %></span>
+  <div class="ui-request-action-list" role="group" aria-label="Voucher action request" data-standard-labels>
+    <label class="ui-request-action">
+      <input type="checkbox" data-request-backdate <%= chosenAction==='Backdate'?'checked':'' %> <%= requestState!=='draft'||chosenAction==='Cancel'?'disabled':'' %>>
+      <span class="ui-request-action-mark" aria-hidden="true"></span>
+      <span class="ui-request-action-copy"><strong>Backdate</strong><small>Request a permitted earlier posting date</small></span>
+    </label>
+    <label class="ui-request-action">
+      <input type="checkbox" data-request-cancel <%= chosenAction==='Cancel'?'checked':'' %> <%= requestState!=='submitted'||chosenAction==='Backdate'?'disabled':'' %>>
+      <span class="ui-request-action-mark" aria-hidden="true"></span>
+      <span class="ui-request-action-copy"><strong>Cancel</strong><small>Request cancellation with an audit reason</small></span>
+    </label>
+  </div>
+  <button type="button" class="button-light ui-request-clear" data-request-clear <%= !chosenAction?'hidden':'' %>>Clear selection</button>
 </div>

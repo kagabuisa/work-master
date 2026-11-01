@@ -106,7 +106,7 @@ test('discount forms and mutually exclusive invoice approval controls render saf
  const locals={assetVersion:'test',can:()=>true,currentUser:{role:'admin'},record:{status:'Disapproved'},error:null,warehouses:[],lists:[],types:[]};
  const form=await renderView(path.join(__dirname,'../views/approved-discount-form.ejs'),locals);assert.match(form,/Approved selling rate/);
  const list=await renderView(path.join(__dirname,'../views/approved-discounts.ejs'),{...locals,rows:[],q:'',page:1,hasNext:false});assert.match(list,/No discounts match/);
- const approval=await renderView(path.join(__dirname,'../views/invoice-approval.ejs'),{...locals,invoice:{id:1,docstatus:'submitted',action_request:'Cancel',why_cancel:'<unsafe>'}});assert.match(approval,/&lt;unsafe&gt;/);assert.match(approval,/action-approval/);
+ const approval=await renderView(path.join(__dirname,'../views/invoice-approval.ejs'),{...locals,invoice:{id:1,docstatus:'submitted',action_request:'Cancel',why_cancel:'<unsafe>'}});assert.match(approval,/&lt;unsafe&gt;/);assert.match(approval,/action-approval/);assert.match(approval,/ui-approval-status-grid/);assert.match(approval,/Keep unapproved/);assert.match(approval,/Save decision/);assert.doesNotMatch(approval,/Request: <strong>None/);
 });
 test('minimum comparison preserves six decimals at large selling rates',()=>{
  const {scaledRate}=require('../src/shared/sales-controls');
