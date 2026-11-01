@@ -4,6 +4,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.swp
+*.swo
+__pycache__/
+*.py[cod]
 dist/
 build/
 coverage/

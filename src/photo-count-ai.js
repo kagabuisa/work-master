@@ -3,9 +3,28 @@ const crypto=require('node:crypto');
 const {attachmentError,validateScans,saveAttachments}=require('./reconciliation-attachments');
 const {photoCountRows}=require('./photo-count');
 const {withPostgresTransaction}=require('./core');
-let busy=false;
 const configured=()=>Boolean(process.env.OPENAI_API_KEY?.trim());
 const model=()=>process.env.OPENAI_PHOTO_COUNT_MODEL||'gpt-6.1-terra';
+function concurrencyLimit(){
+ const raw=String(process.env.PHOTO_COUNT_AI_CONCURRENCY??'1').trim();
+ if(!/^\d+$/.test(raw)||Number(raw)<1||Number(raw)>8)
+  throw attachmentError('PHOTO_COUNT_AI_CONCURRENCY must be an integer from 1 to 8.',503);
+ return Number(raw);
+}
+function createConcurrencyGate(limit=concurrencyLimit){
+ let active=0;
+ return {
+  acquire(){
+   const maximum=limit();
+   if(active>=maximum)throw Object.assign(attachmentError('Photo counting capacity is in use. Please retry shortly.',429),{retryAfter:1});
+   active+=1;
+   let released=false;
+   return ()=>{if(released)return;released=true;active-=1;};
+  },
+  active:()=>active,
+ };
+}
+const photoCountGate=createConcurrencyGate();
 const fingerprint=photos=>photos.map(p=>({id:String(p.id),sha256:crypto.createHash('sha256').update(p.content).digest('hex')}));
 
 async function context(client,voucherId,body,user){
@@ -65,8 +84,7 @@ async function analyse(photos,fetchImpl=fetch,clarifications=[],{descriptions=''
 async function countPhotos(voucherId,body,user,{fetchImpl=fetch,files=[]}={}){
  if(user?.role!=='admin')throw attachmentError('Only an administrator can use AI counting.',403);
  if(!configured())throw attachmentError('AI counting is not configured. Ask an administrator to add the OpenAI API key.',503);
- if(busy)throw Object.assign(attachmentError('Another photo is being counted. Please wait for it to finish.',429),{retryAfter:1});
- busy=true;
+ const release=photoCountGate.acquire();
  try{
   let workingBody={...body};
   const prepared=await withPostgresTransaction(async client=>{
@@ -112,6 +130,6 @@ async function countPhotos(voucherId,body,user,{fetchImpl=fetch,files=[]}={}){
    return (await client.query('SELECT revision FROM wm_inventory_counts WHERE reconciliation_id=$1',[voucherId])).rows[0]?.revision??null;
   },{inventoryExclusive:true});
   return {...record,revision};
- }finally{busy=false;}
+ }finally{release();}
 }
-module.exports={configured,analyse,countPhotos:(id,body,user,options)=>require('./audit').runWithAuditUser(user,()=>countPhotos(id,body,user,options)),context,fingerprint};
+module.exports={configured,analyse,concurrencyLimit,createConcurrencyGate,countPhotos:(id,body,user,options)=>require('./audit').runWithAuditUser(user,()=>countPhotos(id,body,user,options)),context,fingerprint};

@@ -84,13 +84,15 @@ Mutation requests with an Origin must match the app origin, including scheme and
 
 Pages use `Referrer-Policy: same-origin` so browsers preserve the Origin on same-origin form submissions while withholding referrers from external sites. A `no-referrer` policy can cause form POST requests to carry `Origin: null` and be rejected with “Request origin is not allowed.”
 
+Pages use a per-response Content Security Policy nonce. Inline scripts require that nonce, inline event handlers are not used, and inline styles are not permitted.
+
 Enable PostgreSQL TLS with `POSTGRES_SSL=true` (or `PGSSL=true`) and ERPNext MySQL TLS with `DB_SSL=true`. Server certificates are verified. For a private CA, set `POSTGRES_SSL_CA_FILE` or `DB_SSL_CA_FILE` to a readable PEM file; mount that file into Docker when applicable. Invalid or missing CA files fail connection setup.
 
 ## Optional AI photo counting
 
 Photo Count Rpt can request suggested counts from OpenAI. Configure `OPENAI_API_KEY` privately in the deployment `.env`; never place it in browser code, Git or command arguments. The API project needs access to the selected model and available credits. `OPENAI_PHOTO_COUNT_MODEL` optionally overrides the default `gpt-6.1-terra`. No key means AI requests are disabled; ordinary photo evidence and verified quantities remain available.
 
-The server sends the selected saved JPG/PNG photo to `https://api.openai.com/v1/responses`, with `store:false`, high image detail, low reasoning effort and a structured count/explanation response. It uses a 45-second deadline, a 1,600-output-token limit, exactly one photo (maximum 10 MB), and one concurrent request per app process without a fixed interval. Provider HTTP 429 rate limits reach the browser with Retry-After when supplied; bulk counting retries up to three times, honours the supplied delay (including values over 60 seconds), and uses short exponential waits only when it is absent. Insufficient API credits stop the batch; other provider errors are not automatically retried. An override model must support image input, structured outputs and low reasoning effort. Outbound HTTPS to OpenAI is required. No GPU is needed on the application server. Recorded API input/output/total token usage is shown with each successful result; image size, detail and reasoning affect usage. Test accuracy on representative stock photos before operational use.
+The server sends the selected saved JPG/PNG photo to `https://api.openai.com/v1/responses`, with `store:false`, high image detail, low reasoning effort and a structured count/explanation response. It uses a 45-second deadline, a 1,600-output-token limit and exactly one photo (maximum 10 MB). `PHOTO_COUNT_AI_CONCURRENCY` sets the maximum concurrent AI requests per app process from 1 to 8; the default is 1. Requests beyond that budget return HTTP 429 with `Retry-After`. Provider HTTP 429 rate limits reach the browser with Retry-After when supplied; bulk counting retries up to three times, honours the supplied delay (including values over 60 seconds), and uses short exponential waits only when it is absent. Insufficient API credits stop the batch; other provider errors are not automatically retried. An override model must support image input, structured outputs and low reasoning effort. Outbound HTTPS to OpenAI is required. No GPU is needed on the application server. Recorded API input/output/total token usage is shown with each successful result; image size, detail and reasoning affect usage. Test accuracy on representative stock photos before operational use.
 
 Migration 51 adds AI suggestion history and review metadata to the existing reconciliation photo-evidence table. It preserves existing counts/photos and needs no new runtime table privileges. For a restricted-runtime installation, apply `npm run db:migrate` using owner credentials before starting the new image. Recreate the app after adding or changing API environment settings with `docker compose up -d --build invoice-app`. See [the app guide](docs/app-guide.md#ai-suggestions-for-stock-photos) for selection, review and count-revision behavior.
 
@@ -493,13 +495,29 @@ Backfill GL entries for existing submitted invoices, payments, and stock entries
 npm run backfill:accounting
 ```
 
+This command is available only before controlled inventory is activated. Once controls are active, missing historical inventory accounting must be resolved through the approved reconciliation or current-period correction workflow so stock and accounting remain guarded together.
+
 Verify current accounting consistency:
 
 ```bash
 npm run verify:accounting
 ```
 
-The verification script checks voucher balance, overall GL balance, balance sheet balance, Accounts Receivable against submitted invoices minus payments, and Inventory against local stock value.
+The verification script checks voucher balance, overall GL balance, balance sheet balance including posted inactive accounts, Accounts Receivable against submitted invoices after direct and manual journal receipts, and Inventory against local stock value. An inventory failure lists the affected stock entries and their unmatched values.
+
+The reviewed legacy opening-inventory repair is a dry run by default:
+
+```bash
+npm run inventory:repair-opening
+```
+
+After reviewing the listed vouchers, totals, mappings and accounting-period status, an owner-authorized operator can post the repair with:
+
+```bash
+npm run inventory:repair-opening -- --apply
+```
+
+The command only accepts the reviewed legacy purchase vouchers `STK-000003`, `STK-000009`, `STK-000010` and `STK-000011`. It requires Inventory and Opening Equity to be active posting accounts, rejects closed accounting periods and conflicting GL rows, locks inventory/accounting posting, and writes balanced Inventory debit/Opening Equity credit lines with an audit marker. Rerunning it is safe; already posted targets are reported and skipped.
 
 ## Development Plans
 

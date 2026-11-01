@@ -3,6 +3,28 @@ const test=require('node:test');const assert=require('node:assert/strict');
 const ai=require('../src/photo-count-ai');
 const png=Buffer.from([137,80,78,71,13,10,26,10,1]);
 const response=(result={count:6,uncertain:true,notes:'One partially hidden item.',questions:[]})=>new Response(JSON.stringify({id:'fixture-response',status:'completed',usage:{input_tokens:1800,output_tokens:100,total_tokens:1900},output:[{content:[{type:'output_text',text:JSON.stringify(result)}]}]}));
+test('AI request slots enforce the configured concurrency and release in every path',()=>{
+ const gate=ai.createConcurrencyGate(()=>2);
+ const releaseFirst=gate.acquire(),releaseSecond=gate.acquire();
+ assert.equal(gate.active(),2);
+ assert.throws(()=>gate.acquire(),error=>error.status===429&&error.retryAfter===1);
+ releaseFirst();releaseFirst();assert.equal(gate.active(),1);
+ const releaseThird=gate.acquire();releaseSecond();releaseThird();assert.equal(gate.active(),0);
+});
+test('AI concurrency configuration rejects unsafe values',async()=>{
+ const previous=process.env.PHOTO_COUNT_AI_CONCURRENCY;
+ try{
+  for(const value of ['0','9','1.5','abc']){
+   process.env.PHOTO_COUNT_AI_CONCURRENCY=value;
+   assert.throws(()=>ai.concurrencyLimit(),error=>error.status===503&&/1 to 8/.test(error.message));
+  }
+  process.env.PHOTO_COUNT_AI_CONCURRENCY='4';
+  assert.equal(ai.concurrencyLimit(),4);
+ }finally{
+  if(previous===undefined)delete process.env.PHOTO_COUNT_AI_CONCURRENCY;
+  else process.env.PHOTO_COUNT_AI_CONCURRENCY=previous;
+ }
+});
 test('AI requests count one photo in pc, read carton print and report actual usage',async()=>{
  let request;
  const result=await ai.analyse([{content:png,content_type:'image/png'}],async(url,options)=>{assert.equal(url,'https://api.openai.com/v1/responses');request=JSON.parse(options.body);return response();});
