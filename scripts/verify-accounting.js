@@ -78,7 +78,6 @@ async function balanceSheetCheck(pool) {
       FROM app_accounts account
       LEFT JOIN app_gl_entries gl ON gl.account_id = account.id
       WHERE account.is_group = false
-        AND account.is_active = true
       GROUP BY account.account_type
     )
     SELECT
@@ -104,30 +103,62 @@ async function balanceSheetCheck(pool) {
 
 async function accountsReceivableCheck(pool) {
   const { rows } = await pool.query(`
-    WITH ar_account AS (
-      SELECT account_id
-      FROM app_accounting_settings
-      WHERE setting_key = 'accounts_receivable'
-    ),
-    invoice_totals AS (
+    WITH invoice_totals AS (
       SELECT
-        COALESCE(SUM(invoice.total), 0) AS invoice_total,
-        COALESCE(SUM(invoice.amount_paid), 0) AS paid_total
+        COALESCE(SUM(invoice.total), 0) AS invoice_total
       FROM app_invoices invoice
       WHERE invoice.docstatus = 'submitted'
+    ),
+    direct_payments AS (
+      SELECT COALESCE(SUM(payment.amount), 0) AS amount_paid
+      FROM app_invoice_payments payment
+      JOIN app_invoices invoice ON invoice.id = payment.invoice_id
+      WHERE invoice.docstatus = 'submitted'
+        AND payment.docstatus = 'submitted'
+    ),
+    journal_payments AS (
+      SELECT COALESCE(SUM(line.credit - line.debit), 0) AS amount_paid
+      FROM app_invoices invoice
+      JOIN app_journal_entries journal ON journal.party_type = 'customer'
+        AND journal.docstatus = 'submitted'
+        AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+        AND (
+          journal.reference_no = invoice.invoice_no
+          OR EXISTS (
+            SELECT 1
+            FROM app_journal_entry_lines reference_line
+            WHERE reference_line.journal_entry_id = journal.id
+              AND reference_line.reference_no = invoice.invoice_no
+          )
+        )
+        AND (
+          NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
+          OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name)
+        )
+      JOIN app_journal_entry_lines line ON line.journal_entry_id = journal.id
+        AND COALESCE(NULLIF(line.reference_no, ''), journal.reference_no) = invoice.invoice_no
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = line.account_id
+      WHERE invoice.docstatus = 'submitted'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM app_invoice_payments linked_payment
+          WHERE linked_payment.journal_entry_id = journal.id
+        )
     ),
     gl_totals AS (
       SELECT COALESCE(SUM(gl.debit - gl.credit), 0) AS gl_balance
       FROM app_gl_entries gl
-      WHERE gl.account_id = (SELECT account_id FROM ar_account)
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = gl.account_id
     )
     SELECT
       ROUND(invoice_totals.invoice_total::numeric, 2)::float AS invoice_total,
-      ROUND(invoice_totals.paid_total::numeric, 2)::float AS paid_total,
-      ROUND((invoice_totals.invoice_total - invoice_totals.paid_total)::numeric, 2)::float AS expected_balance,
+      ROUND((direct_payments.amount_paid + journal_payments.amount_paid)::numeric, 2)::float AS paid_total,
+      ROUND((invoice_totals.invoice_total - direct_payments.amount_paid - journal_payments.amount_paid)::numeric, 2)::float AS expected_balance,
       ROUND(gl_totals.gl_balance::numeric, 2)::float AS gl_balance,
-      ROUND((gl_totals.gl_balance - (invoice_totals.invoice_total - invoice_totals.paid_total))::numeric, 2)::float AS difference
-    FROM invoice_totals, gl_totals
+      ROUND((gl_totals.gl_balance - (invoice_totals.invoice_total - direct_payments.amount_paid - journal_payments.amount_paid))::numeric, 2)::float AS difference
+    FROM invoice_totals, direct_payments, journal_payments, gl_totals
   `);
   const row = rows[0] || {};
   return roundMoney(row.difference) === 0
@@ -158,9 +189,36 @@ async function inventoryCheck(pool) {
     FROM stock_totals, gl_totals
   `);
   const row = rows[0] || {};
-  return roundMoney(row.difference) === 0
-    ? pass('inventory_stock_value', row)
-    : fail('inventory_stock_value', row);
+  if (roundMoney(row.difference) === 0) return pass('inventory_stock_value', row);
+  const missing = await pool.query(`
+    WITH ledger AS (
+      SELECT voucher_id, ROUND(SUM(stock_value_change)::numeric, 2)::float AS stock_value
+      FROM app_stock_ledger
+      WHERE voucher_type LIKE 'stock_%'
+      GROUP BY voucher_id
+    ),
+    posted AS (
+      SELECT gl.voucher_id, ROUND(SUM(gl.debit - gl.credit)::numeric, 2)::float AS inventory_value
+      FROM app_gl_entries gl
+      JOIN app_accounting_settings setting ON setting.setting_key = 'inventory'
+        AND setting.account_id = gl.account_id
+      WHERE gl.voucher_type LIKE 'stock_%'
+      GROUP BY gl.voucher_id
+    )
+    SELECT stock_entry.id, stock_entry.entry_no, stock_entry.entry_type,
+      stock_entry.posting_date::text,
+      ledger.stock_value,
+      COALESCE(posted.inventory_value, 0)::float AS inventory_value,
+      ROUND((ledger.stock_value - COALESCE(posted.inventory_value, 0))::numeric, 2)::float AS difference
+    FROM app_stock_entries stock_entry
+    JOIN ledger ON ledger.voucher_id = stock_entry.id
+    LEFT JOIN posted ON posted.voucher_id = stock_entry.id
+    WHERE ledger.stock_value <> 0
+      AND ROUND((ledger.stock_value - COALESCE(posted.inventory_value, 0))::numeric, 2) <> 0
+    ORDER BY ABS(ledger.stock_value - COALESCE(posted.inventory_value, 0)) DESC, stock_entry.id
+    LIMIT 50
+  `);
+  return fail('inventory_stock_value', { ...row, missing_stock_entries: missing.rows });
 }
 
 async function main() {
@@ -183,7 +241,17 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.stack || err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err.stack || err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  balanceSheetCheck,
+  accountsReceivableCheck,
+  inventoryCheck,
+  overallGlBalanceCheck,
+  voucherBalanceCheck,
+};

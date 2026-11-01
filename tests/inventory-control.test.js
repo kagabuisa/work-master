@@ -16,6 +16,7 @@ test('controlled warehouse counts close history, require independent approval, a
  await pool.query('INSERT INTO app_master_warehouses(warehouse) VALUES($1) ON CONFLICT DO NOTHING',[FIXED.warehouse]);
  await pool.query('INSERT INTO app_master_items(item_code,item_name) VALUES($1,$2) ON CONFLICT DO NOTHING',[FIXED.itemCode,FIXED.itemName]);
  await pool.query('SELECT wm_inventory_activate()');
+ await assert.rejects(store.backfillAccountingGl(),{code:'backfill_requires_legacy_inventory',status:409});
  await assert.rejects(pool.query("UPDATE app_accounting_settings SET setting_key='changed_inventory' WHERE setting_key='inventory'"),/inventory_mapping_immutable/);
  const invAccount=(await pool.query("SELECT account_id FROM app_accounting_settings WHERE setting_key='inventory'")).rows[0].account_id;
  const equity=(await pool.query("SELECT id FROM app_accounts WHERE account_code='3000'")).rows[0].id;

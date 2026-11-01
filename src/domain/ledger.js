@@ -1680,6 +1680,13 @@ async function balanceSheetReport(filters = {}) {
 
 async function backfillAccountingGl() {
   return withPostgresTransaction(async (client) => {
+    const controlled = (await client.query('SELECT wm_inventory_enabled() AS enabled')).rows[0]?.enabled;
+    if (controlled) {
+      const error = new Error('Controlled inventory is active. Historical GL backfill is disabled; use an approved inventory correction instead.');
+      error.status = 409;
+      error.code = 'backfill_requires_legacy_inventory';
+      throw error;
+    }
     const { rows: invoiceRows } = await client.query(`
       SELECT
         invoice.*,
