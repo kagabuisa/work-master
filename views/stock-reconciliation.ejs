@@ -119,7 +119,7 @@
     <%- include('reconciliation-attachments', { saved, entry }) %>
     <% if (saved) { %><%- include('record-audit', { record: entry }) %><% } %>
   </main>
-  <script>window.RECONCILIATION_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], balances: typeof balances === 'undefined' ? [] : balances, warehouse: warehouse || '', readOnly: isReadOnly, canEditRate: currentUser.role === 'admin' }) %>;</script>
+  <script<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>>window.RECONCILIATION_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], balances: typeof balances === 'undefined' ? [] : balances, warehouse: warehouse || '', readOnly: isReadOnly, canEditRate: currentUser.role === 'admin' }) %>;</script>
   <script src="/stock-reconciliation.js?v=<%= assetVersion %>"></script>
   <script src="/reconciliation-attachments.js?v=<%= assetVersion %>"></script>
   <script src="/cost-center-field.js?v=<%= assetVersion %>"></script>

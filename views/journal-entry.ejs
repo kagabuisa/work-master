@@ -101,7 +101,7 @@
       </section>
 
       <% if (!journalReadOnly) { %>
-        <script id="journal-account-data" type="application/json"><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))) %></script>
+        <script id="journal-account-data" type="application/json"<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))) %></script>
       <% } %>
       <datalist id="journal-purchase-invoices"></datalist>
       <div class="ui-table-scroll" role="region" aria-label="Journal Entry table" tabindex="0"><table class="editable" id="journal-lines">

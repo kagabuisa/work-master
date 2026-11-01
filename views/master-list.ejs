@@ -51,7 +51,7 @@
         </div>
         <div class="employee-list-status-field">
           <label class="employee-list-status-filter">
-            <input type="checkbox" name="left_only" value="1" role="switch" <%= query.left_only === '1' ? 'checked' : '' %> onchange="this.form.requestSubmit()">
+            <input type="checkbox" name="left_only" value="1" role="switch" <%= query.left_only === '1' ? 'checked' : '' %> data-auto-submit>
             <span class="employee-list-switch" aria-hidden="true"></span>
             <span>Show left employees only</span>
           </label>

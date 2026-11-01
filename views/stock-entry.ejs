@@ -177,7 +177,7 @@
     </dialog>
   <% } %>
   <% if (!stockEntryReadOnly) { %>
-  <script>
+  <script<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>>
     window.STOCK_ENTRY_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], readOnly: stockEntryReadOnly, transferTypes: stockTransferTypes }) %>;
   </script>
   <script src="/stock-entry.js?v=<%= assetVersion %>"></script>

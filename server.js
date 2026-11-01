@@ -1,6 +1,7 @@
 const express = require('express');
 const { assertSecureTransportConfiguration } = require('./src/transport-security');
 const compression = require('compression');
+const crypto = require('node:crypto');
 const path = require('path');
 
 const { initStore, getDateTimeSettings, receivingAccounts, getPostgresPool } = require('./src/store');
@@ -48,13 +49,15 @@ app.locals.stockEntryTypeLabels = STOCK_ENTRY_TYPE_LABELS;
 app.locals.stockTransferTypes = STOCK_TRANSFER_TYPES;
 app.locals.deliveryStatuses = require('./src/stock-entry-workflow').DELIVERY_STATUSES;
 app.use((req, res, next) => {
+  const cspNonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = cspNonce;
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    `default-src 'self'; script-src 'self' 'nonce-${cspNonce}'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`,
   );
   if (req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');

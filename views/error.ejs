@@ -9,7 +9,7 @@
     <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Error' }] }) %>
     <h1><%= status %></h1>
     <p><%= message %></p>
-    <a class="button" href="/" onclick="if (history.length > 1) { history.back(); return false; }">Go back</a>
+    <a class="button" href="/" data-history-back>Go back</a>
   </main>
 </body>
 </html>
