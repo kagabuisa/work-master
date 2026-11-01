@@ -34,5 +34,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+          pg_dump --version
       - run: npm ci
-      - run: npm run release:check
+      - name: Run release checks with PostgreSQL 16 tools
+        env:
+          PATH: /usr/lib/postgresql/16/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        run: npm run release:check
