@@ -30,17 +30,21 @@ jobs:
       POSTGRES_URL: postgresql://work_master_test:test_password@127.0.0.1:5432/work_master_hr_test
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Install PostgreSQL 16 client
+      - name: Build release-check image
+        run: docker build --tag work-master-ci .
+      - name: Run release checks in the Node 22 / PostgreSQL 16 image
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-16
-          pg_dump --version
-      - run: npm ci
-      - name: Run release checks with PostgreSQL 16 tools
-        env:
-          PATH: /usr/lib/postgresql/16/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-        run: npm run release:check
+          docker run --rm --network host \
+            --entrypoint sh \
+            -v "$PWD:/workspace:ro" \
+            --tmpfs /workspace/data:mode=1777 \
+            -w /workspace \
+            -e NODE_PATH=/app/node_modules \
+            -e POSTGRES_HOST=127.0.0.1 \
+            -e POSTGRES_PORT=5432 \
+            -e POSTGRES_DB=work_master_hr_test \
+            -e POSTGRES_USER=work_master_test \
+            -e POSTGRES_PASSWORD=test_password \
+            -e POSTGRES_URL=postgresql://work_master_test:test_password@127.0.0.1:5432/work_master_hr_test \
+            work-master-ci \
+            -c 'npm run release:check'
