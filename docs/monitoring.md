@@ -21,6 +21,11 @@ checks the public `/healthz` and `/readyz` endpoints plus HTTPS certificate
 expiry. A failed check opens one GitHub issue assigned to the configured owner;
 recovery closes the issue.
 
+Both production monitoring and the release check pin the GitHub runner image to
+`ubuntu-26.04`. This avoids behavior changing when `ubuntu-latest` moves to a
+new operating-system release. Review and test a newer runner image deliberately
+before changing the pin.
+
 Set repository variable `PRODUCTION_HEALTH_URL` to the deployed origin. The
 workflow defaults to `https://wmaster.zenjji.com`. Set repository variable
 `MONITORING_OWNER` only when ownership moves away from `kagabuisa`.

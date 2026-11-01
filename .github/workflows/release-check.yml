@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     services:
       postgres:
         image: postgres:16-alpine
@@ -29,7 +29,7 @@ jobs:
       POSTGRES_PASSWORD: test_password
       POSTGRES_URL: postgresql://work_master_test:test_password@127.0.0.1:5432/work_master_hr_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build release-check image
         run: docker build --tag work-master-ci .
       - name: Run release checks in the Node 22 / PostgreSQL 16 image

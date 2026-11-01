@@ -120,7 +120,8 @@ secret. See [monitoring and alert ownership](docs/monitoring.md).
 authenticated metrics and certificate expiry every 15 minutes. Failures open or
 retain a GitHub issue assigned to `@kagabuisa`; recovery closes it. Store the
 contents of `.runtime/monitoring_token` as the repository Actions secret
-`MONITORING_TOKEN`.
+`MONITORING_TOKEN`. The monitor and release workflows pin `ubuntu-26.04` for
+reproducible runner behavior and use the Node 24-compatible checkout action.
 
 `SIGTERM` and `SIGINT` stop new HTTP admission, close idle keep-alive
 connections, allow active requests to finish, close the database pool and exit.
