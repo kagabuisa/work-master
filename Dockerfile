@@ -26,5 +26,7 @@ RUN mkdir -p /app/data && chown -R node:node /app/data
 
 USER node
 EXPOSE 3020
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=4 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3020) + '/readyz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["node", "scripts/start.js"]

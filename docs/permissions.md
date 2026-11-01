@@ -37,13 +37,20 @@ other warehouses on its source document.
 ## Browser sign-in protection
 
 Browser sign-in is independently throttled using PostgreSQL-backed, hashed IP and
-username counters. The fixed 15-minute limits are 20 attempts per IP and 5 per
-normalized username; rotating one does not reset the other's budget. Attempts
-reserve a slot atomically before password verification, including across app
-instances. Successful sign-in clears only that username's counter. Blocked logins
-return HTTP 429 with `Retry-After` and issue no session. Limits survive app restarts;
-expired rows are eligible for the existing rate-window cleanup. Browser and API
-login counters use separate namespaces and grant no additional record permissions.
+username counters. The defaults are 100 attempts per IP and 5 per normalized
+username in a fixed 15-minute window; rotating one does not reset the other's
+budget. Attempts reserve a slot atomically before password verification, including
+across app instances. Successful sign-in clears only that username's counter.
+Blocked logins return HTTP 429 with `Retry-After` and issue no session. Limits
+survive app restarts; expired rows are eligible for the existing rate-window
+cleanup. Browser and API login counters use separate namespaces and grant no
+additional record permissions.
+
+Deployments can set `BROWSER_LOGIN_WINDOW_SECONDS`, `BROWSER_LOGIN_IP_LIMIT`,
+`BROWSER_LOGIN_USERNAME_LIMIT`, `BROWSER_SESSION_IDLE_MINUTES` and
+`BROWSER_SESSION_DAYS`. Invalid values fail startup. The server and browser use
+the same idle-session value.
+
 Session creation rechecks current credentials while holding the user lock and
 stores the verified password version. Password changes revoke old sessions and
 issue the replacement session in the same transaction. Password resets revoke
@@ -65,7 +72,15 @@ Mobile users need the account permission and record checks without integration s
 
 See [API authentication and credential administration](api/README.md). No new payment allocation permissions, rate override policy or existing payment-table constraints were introduced.
 
-Operational telemetry and recovery tools add no public metrics or audit-edit endpoint and grant no new account permissions. Operators need restricted deployment/log/database access. `API_V1_ENABLED=false` makes the API unavailable to every credential with JSON 503; it does not grant/bypass permissions, revoke credentials or affect website access. Re-enable only after reconciling any preceding operations. Existing permission and replay checks remain in force.
+Operational telemetry and recovery tools add no account permissions. Public
+liveness/readiness responses contain status only. The detailed `/metrics`
+endpoint requires the monitoring secret when accessed through the proxy and
+exposes bounded operational metrics without actor or resource identifiers.
+Operators need restricted deployment, log, monitoring-secret and database
+access. `API_V1_ENABLED=false` makes the API unavailable to every credential with
+JSON 503; it does not grant/bypass permissions, revoke credentials or affect
+website access. Re-enable only after reconciling any preceding operations.
+Existing permission and replay checks remain in force.
 
 Local staging seeds an Admin and a restricted sales role/user in its separate database only. Retail customer, warehouse, price-list, Cash-account and employee/cost-center assignments narrow its access; staging integration credentials add scope restrictions. Hidden synthetic records/accounts are used for denial checks. These test accounts/role definitions do not modify working-app permissions. See the [local staging guide](api/local-staging.md) for credential handling and access evidence.
 

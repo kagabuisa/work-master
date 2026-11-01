@@ -7,13 +7,13 @@ const { getPostgresPool } = require('./store');
 const { activePermissionPriceLists } = require('./permission-price-lists');
 const { stockEntryShareAccess } = require('./stock-entry-workflow');
 const { rateLimit, hash } = require('./api/security');
+const { browserSecuritySettings } = require('./browser-security');
 const { recordAccessChoices, selectedLabels, validateRecordAccess,
   defaultRecordPermissions } = require('./user-record-access');
 const { invoicePriceListAllowed, priceListActionAllowed, anyNamedPriceListAction,
   anyNamedListView, allowedInvoicePriceLists, allowedNamedListValues,
   allowedMasterRecordIds } = require('./access');
 const {
-  SESSION_DAYS,
   userCount,
   authenticateSession,
   sessionUser,
@@ -38,9 +38,6 @@ const {
 } = require('./auth');
 
 const COOKIE_NAME = 'wm_session';
-const LOGIN_WINDOW_SECONDS = 15 * 60;
-const LOGIN_IP_LIMIT = 20;
-const LOGIN_USERNAME_LIMIT = 5;
 const LOGIN_USERNAME_CATEGORY = 'browser-login-username';
 
 function sessionToken(req) {
@@ -49,13 +46,13 @@ function sessionToken(req) {
   return pair ? pair.slice(COOKIE_NAME.length + 1) : '';
 }
 
-function setSessionCookie(req, res, token) {
+function setSessionCookie(req, res, token, { sessionDays }) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     secure: secureSessionCookie(req),
     sameSite: 'lax',
     path: '/',
-    maxAge: SESSION_DAYS * 86400000,
+    maxAge: sessionDays * 86400000,
   });
 }
 
@@ -188,6 +185,7 @@ function displayedUserPermissions(inherited, user, lists) {
 }
 
 function installAuth(app) {
+  const browserSecurity = browserSecuritySettings();
   app.use(rejectCrossOrigin);
 
   app.get('/login', async (req, res, next) => {
@@ -208,8 +206,10 @@ function installAuth(app) {
     try {
       // Reserve attempts atomically before password hashing. Separate keys
       // prevent username/IP rotation and concurrent workers bypassing limits.
-      await rateLimit(req, res, 'browser-login-ip', req.ip, LOGIN_IP_LIMIT, LOGIN_WINDOW_SECONDS);
-      await rateLimit(req, res, LOGIN_USERNAME_CATEGORY, username, LOGIN_USERNAME_LIMIT, LOGIN_WINDOW_SECONDS);
+      await rateLimit(req, res, 'browser-login-ip', req.ip,
+        browserSecurity.loginIpLimit, browserSecurity.loginWindowSeconds);
+      await rateLimit(req, res, LOGIN_USERNAME_CATEGORY, username,
+        browserSecurity.loginUsernameLimit, browserSecurity.loginWindowSeconds);
       const session = await authenticateSession(username, password);
       if (!session) {
         res.status(401).render('login', { error: 'Invalid username or password.', username, nextPath, setupNeeded: await userCount() === 0 });
@@ -219,7 +219,7 @@ function installAuth(app) {
       // A valid account cannot erase the IP budget used by other attempts.
       await getPostgresPool().query('DELETE FROM wm_api_rate_limits WHERE key=$1',
         [hash(`${LOGIN_USERNAME_CATEGORY}:${username}`)]);
-      setSessionCookie(req, res, session.token);
+      setSessionCookie(req, res, session.token, browserSecurity);
       res.redirect(303, user.must_change_password ? '/account/password' : nextPath);
     } catch (error) {
       if (error.code === 'rate_limited') {
@@ -291,7 +291,7 @@ function installAuth(app) {
     }
     try {
       const token = await changePassword(req.currentUser.id, currentPassword, newPassword);
-      setSessionCookie(req, res, token);
+      setSessionCookie(req, res, token, browserSecuritySettings());
       res.redirect(303, '/');
     } catch (error) {
       if (error.status === 400) {

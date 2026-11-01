@@ -1,0 +1,92 @@
+name: Production monitoring
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-monitoring
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      HEALTH_URL: ${{ vars.PRODUCTION_HEALTH_URL || 'https://wmaster.zenjji.com' }}
+      ALERT_ASSIGNEE: ${{ vars.MONITORING_OWNER || 'kagabuisa' }}
+      ALERT_TITLE: Work Master production monitoring alert
+      MONITORING_TOKEN: ${{ secrets.MONITORING_TOKEN }}
+    steps:
+      - name: Check public health, readiness and certificate
+        id: check
+        shell: bash
+        run: |
+          set +e
+          failures=()
+          curl -fsS --max-time 15 "$HEALTH_URL/healthz" >/dev/null
+          [ $? -eq 0 ] || failures+=("Liveness check failed")
+          curl -fsS --max-time 20 "$HEALTH_URL/readyz" >/dev/null
+          [ $? -eq 0 ] || failures+=("Readiness check failed")
+          if [ -z "$MONITORING_TOKEN" ]; then
+            failures+=("MONITORING_TOKEN repository secret is not configured")
+          else
+            metrics=$(curl -fsS --max-time 20 -H "Authorization: Bearer $MONITORING_TOKEN" "$HEALTH_URL/metrics")
+            if [ $? -ne 0 ] || ! printf '%s\n' "$metrics" | grep -qx 'work_master_ready 1'; then
+              failures+=("Authenticated metrics check failed")
+            fi
+          fi
+
+          host=$(printf '%s' "$HEALTH_URL" | sed -E 's#https?://([^/:]+).*#\1#')
+          expiry=$(echo | openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null \
+            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+          if [ -z "$expiry" ]; then
+            failures+=("TLS certificate could not be inspected")
+          else
+            expiry_epoch=$(date -d "$expiry" +%s)
+            days_left=$(( (expiry_epoch - $(date +%s)) / 86400 ))
+            if [ "$days_left" -lt 14 ]; then
+              failures+=("TLS certificate expires in ${days_left} days")
+            fi
+          fi
+
+          if [ ${#failures[@]} -eq 0 ]; then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            printf 'healthy=false\n' >> "$GITHUB_OUTPUT"
+            printf 'summary=%s\n' "$(IFS='; '; echo "${failures[*]}")" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open or retain alert issue
+        if: steps.check.outputs.healthy != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$ALERT_TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ALERT_TITLE" \
+              --body "Owner: @$ALERT_ASSIGNEE
+
+            Monitor detected: ${{ steps.check.outputs.summary }}
+            Target: $HEALTH_URL
+            Time: $(date -u +%FT%TZ)
+            Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+              --assignee "$ALERT_ASSIGNEE"
+          fi
+      - name: Close recovered alert issue
+        if: steps.check.outputs.healthy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$ALERT_TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" \
+              --comment "Production health recovered at $(date -u +%FT%TZ)."
+          fi

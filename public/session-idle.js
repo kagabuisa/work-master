@@ -1,5 +1,8 @@
 (() => {
-  const idleMs = 5 * 60 * 1000;
+  const configuredIdleMinutes = Number(document.querySelector?.('meta[name="wm-session-idle-minutes"]')?.content);
+  const idleMinutes = Number.isFinite(configuredIdleMinutes) && configuredIdleMinutes > 0
+    ? configuredIdleMinutes : 30;
+  const idleMs = idleMinutes * 60 * 1000;
   const heartbeatMs = 60 * 1000;
   const activityKey = 'wm_session_last_activity';
   let lastActivity = Date.now();

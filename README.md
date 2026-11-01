@@ -12,6 +12,7 @@ The repository history has been rewritten to remove `audits/`. Existing clones m
 
 ```bash
 npm install
+npm run runtime:env
 npm start
 ```
 
@@ -26,7 +27,7 @@ Create the first login account on the app server:
 npm run user:create -- admin
 ```
 
-The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after five minutes of inactivity, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL.
+The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after thirty minutes of inactivity by default, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL.
 
 The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Daily Activity, Debtors, Stock Ledger, Stock Movement, and General Ledger have their own Read permission rows. Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are Admin-only; saved role permissions and individual grants cannot grant them to non-admin users. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Legacy report grants do not override the Admin-only financial report rule.
 
@@ -65,12 +66,26 @@ connection points to a loopback address, using its selected port. A remote runti
 URL does not trigger a local service start even when an owner URL points locally.
 
 Browser login throttling uses the existing PostgreSQL `wm_api_rate_limits` table
-with separate hashed namespaces for IP addresses and normalized usernames. It
-allows 20 attempts per IP and 5 per username in a fixed 15-minute window, shared
-across app processes and retained through restarts. Successful login clears only
-the username counter; it does not reset the IP budget. Exhausted budgets return
-HTTP 429 with `Retry-After`. Counter-storage failures reject sign-in rather than
-falling back to unthrottled login. No schema migration is required.
+with separate hashed namespaces for IP addresses and normalized usernames. The
+defaults allow 100 attempts per shared IP and 5 per username in a fixed 15-minute
+window, shared across app processes and retained through restarts. Successful
+login clears only the username counter; it does not reset the IP budget. Exhausted
+budgets return HTTP 429 with `Retry-After`. Counter-storage failures reject
+sign-in rather than falling back to unthrottled login. No schema migration is
+required.
+
+Browser login and session settings are validated at startup:
+
+| Variable | Default | Behavior |
+| --- | ---: | --- |
+| `BROWSER_LOGIN_WINDOW_SECONDS` | `900` | Fixed login-attempt window in seconds. |
+| `BROWSER_LOGIN_IP_LIMIT` | `100` | Attempts from one IP in the window, including successful sign-ins. |
+| `BROWSER_LOGIN_USERNAME_LIMIT` | `5` | Attempts against one normalized username in the window. |
+| `BROWSER_SESSION_IDLE_MINUTES` | `30` | Server and browser inactivity limit. |
+| `BROWSER_SESSION_DAYS` | `7` | Absolute session lifetime. |
+
+Choose the IP limit for the largest group expected to share one office or mobile
+network. The per-username limit remains the account lockout boundary.
 
 Employee personal and contact details are stored in PostgreSQL alongside HR employment profiles. Startup adds the profile details column and synchronizes the employee compatibility flag with Active/Left employment status. Existing disabled employees with a blank status become Left; an explicit Active/Left status takes precedence over the old disabled flag. After updating the code, restart the app; Docker installations must rebuild and recreate the `invoice-app` service to apply the form and schema changes.
 
@@ -86,26 +101,87 @@ Pages use `Referrer-Policy: same-origin` so browsers preserve the Origin on same
 
 Pages use a per-response Content Security Policy nonce. Inline scripts require that nonce, inline event handlers are not used, and inline styles are not permitted.
 
+## Health, shutdown and logs
+
+`GET /healthz` is a public lightweight liveness check that does not contact
+PostgreSQL. `GET /readyz` is public and returns HTTP 200 only after store
+initialization and a successful database query; otherwise it returns HTTP 503.
+Both responses contain status only. The application image uses `/readyz` as its
+Docker healthcheck.
+
+`GET /metrics` exposes bounded Prometheus text metrics for process memory,
+request groups, pool usage, workload admission and versioned API outcomes.
+Public proxy requests require the monitoring token as
+`Authorization: Bearer ...` or `X-Monitoring-Token`; direct loopback collection
+is allowed. The token is generated under `.runtime/` and mounted as a Docker
+secret. See [monitoring and alert ownership](docs/monitoring.md).
+
+`.github/workflows/production-monitor.yml` checks public liveness, readiness,
+authenticated metrics and certificate expiry every 15 minutes. Failures open or
+retain a GitHub issue assigned to `@kagabuisa`; recovery closes it. Store the
+contents of `.runtime/monitoring_token` as the repository Actions secret
+`MONITORING_TOKEN`.
+
+`SIGTERM` and `SIGINT` stop new HTTP admission, close idle keep-alive
+connections, allow active requests to finish, close the database pool and exit.
+`SHUTDOWN_TIMEOUT_MS` defaults to 25000; Docker Compose allows 30 seconds before
+forcing container termination. An invalid value or a stuck shutdown exits with
+failure.
+
+Docker Compose rotates application and PostgreSQL JSON logs at 20 MiB per file
+and retains five files, or 100 MiB per container. Nginx uses the host logrotate
+policy, normally retaining 14 compressed daily files. Configure equivalent
+rotation when deploying outside the supplied Compose file.
+
 Enable PostgreSQL TLS with `POSTGRES_SSL=true` (or `PGSSL=true`) and ERPNext MySQL TLS with `DB_SSL=true`. Server certificates are verified. For a private CA, set `POSTGRES_SSL_CA_FILE` or `DB_SSL_CA_FILE` to a readable PEM file; mount that file into Docker when applicable. Invalid or missing CA files fail connection setup.
 
 ## Optional AI photo counting
 
-Photo Count Rpt can request suggested counts from OpenAI. Configure `OPENAI_API_KEY` privately in the deployment `.env`; never place it in browser code, Git or command arguments. The API project needs access to the selected model and available credits. `OPENAI_PHOTO_COUNT_MODEL` optionally overrides the default `gpt-6.1-terra`. No key means AI requests are disabled; ordinary photo evidence and verified quantities remain available.
+Photo Count Rpt can request suggested counts from OpenAI. Source
+`OPENAI_API_KEY` is accepted only while preparing runtime secrets; the web
+process receives `OPENAI_API_KEY_FILE` pointing at the private Docker secret.
+Never place the key in browser code, Git or command arguments. The API project
+needs access to the selected model and available credits.
+`OPENAI_PHOTO_COUNT_MODEL` optionally overrides the default `gpt-6.1-terra`. No
+key means AI requests are disabled; ordinary photo evidence and verified
+quantities remain available.
 
 The server sends the selected saved JPG/PNG photo to `https://api.openai.com/v1/responses`, with `store:false`, high image detail, low reasoning effort and a structured count/explanation response. It uses a 45-second deadline, a 1,600-output-token limit and exactly one photo (maximum 10 MB). `PHOTO_COUNT_AI_CONCURRENCY` sets the maximum concurrent AI requests per app process from 1 to 8; the default is 1. Requests beyond that budget return HTTP 429 with `Retry-After`. Provider HTTP 429 rate limits reach the browser with Retry-After when supplied; bulk counting retries up to three times, honours the supplied delay (including values over 60 seconds), and uses short exponential waits only when it is absent. Insufficient API credits stop the batch; other provider errors are not automatically retried. An override model must support image input, structured outputs and low reasoning effort. Outbound HTTPS to OpenAI is required. No GPU is needed on the application server. Recorded API input/output/total token usage is shown with each successful result; image size, detail and reasoning affect usage. Test accuracy on representative stock photos before operational use.
 
 Migration 51 adds AI suggestion history and review metadata to the existing reconciliation photo-evidence table. It preserves existing counts/photos and needs no new runtime table privileges. For a restricted-runtime installation, apply `npm run db:migrate` using owner credentials before starting the new image. Recreate the app after adding or changing API environment settings with `docker compose up -d --build invoice-app`. See [the app guide](docs/app-guide.md#ai-suggestions-for-stock-photos) for selection, review and count-revision behavior.
 
-AI always counts in pc and reads visible PC/CTN carton print before asking one short clarification question. Follow-ups replay the original single photo and the locally retained question/answer history with `store:false`; no provider conversation ID is required. Each paid round records its token usage and can continue for up to five clarification rounds. Existing JSON evidence fields retain the conversation, so no further migration is required. Ensure the key is assigned as `OPENAI_API_KEY=...` in `.env`; a key pasted on a line without the variable name is not loaded.
+AI always counts in pc and reads visible PC/CTN carton print before asking one short clarification question. Follow-ups replay the original single photo and the locally retained question/answer history with `store:false`; no provider conversation ID is required. Each paid round records its token usage and can continue for up to five clarification rounds. Existing JSON evidence fields retain the conversation, so no further migration is required. `npm run runtime:env` copies `OPENAI_API_KEY` from `.env` into the private runtime secret during deployment preparation.
 
 Migration 52 adds `ai_count_descriptions` to the existing display-settings singleton. Administrators maintain a shared item/carton reference field (30,000 characters, roughly 30 descriptions) in a collapsed section of Photo Count Rpt. All AI controls/results are administrator-only; standard users retain manual uploads and quantities. Administrators can count a photo already uploaded by a standard user. New AI counts send these notes and retain a snapshot with the result; follow-ups use that snapshot. Apply the owner migration before restarting a restricted-runtime deployment. Existing table grants cover the added column; date/time setting updates preserve it. Photo previews use the existing authorized attachment endpoints with `?preview=1`, allow inline JPG/PNG only, and retain private/no-store responses.
 
 ## Run With Docker
 
 ```bash
+npm run runtime:env
 docker compose up -d --build
 docker compose exec invoice-app npm run user:create -- admin
 ```
+
+The application container does not receive `.env`. `npm run runtime:env`
+generates a mode-0600 `runtime.env` containing only non-excluded configuration
+and restricted PostgreSQL runtime credentials. Owner database credentials, AWS
+keys, GitHub credentials, test credentials and raw AI/ERPNext passwords are
+excluded. It also creates mode-0600 files under `.runtime/` for the monitoring
+token, OpenAI key and ERPNext password. These files are mounted as Docker
+secrets and are excluded from Git and the Docker build context.
+
+If Node.js is unavailable on the host, build the image directly and run the
+generator in a temporary container:
+
+```bash
+docker build -t work_master-invoice-app .
+docker run --rm -u "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" -w /workspace \
+  --entrypoint node work_master-invoice-app scripts/prepare-runtime-env.js
+```
+
+Rerun `npm run runtime:env` after changing source credentials or runtime
+configuration, then recreate the app. Do not copy `.env` into the container.
 
 Then open the app on the port configured in `.env`, for example:
 
@@ -542,13 +618,20 @@ The full isolated Docker procedure above enables API integration tests through `
 
 ### API operational hardening
 
-Phase 5 adds redacted JSON `api_request` events and cumulative per-process `api_metrics` latency/count snapshots. `API_REQUEST_LOGS=true` and `API_METRICS_INTERVAL_MS=60000` are defaults; use `false` and `0` respectively to disable those outputs. Templates replace raw API URLs and metric labels omit actor/resource IDs. Configure a restricted log collector and alerts through your deployment; no external monitoring service is installed automatically. See the [operations and launch runbook](docs/api/operations.md) for counters, outcomes, incident recovery and alert proposals.
+Phase 5 adds redacted JSON `api_request` events and cumulative per-process
+`api_metrics` latency/count snapshots. `API_REQUEST_LOGS=true` and
+`API_METRICS_INTERVAL_MS=60000` are defaults; use `false` and `0` respectively
+to disable those outputs. Templates replace raw API URLs and metric labels omit
+actor/resource IDs. The protected `/metrics` endpoint and scheduled GitHub
+production monitor are documented in
+[monitoring and alert ownership](docs/monitoring.md). External log collection
+and a backup-age monitor remain operational follow-up.
 
 `API_V1_ENABLED=false` returns JSON 503 `api_disabled` before new API requests are parsed/authenticated, while website access remains available. Recreate the app after changing deployment environment values. This switch preserves committed vouchers, retry records, permanent receipt references, credentials and revocations; it does not undo preceding operations. Default is `true`. All three settings reject invalid values. No new schema migration, public monitoring endpoint or financial workflow change is introduced.
 
 Run `bash scripts/api-recovery-drill.sh` on the local Docker host to seed synthetic data, dump a fresh disposable database and restore into a separate empty test database. It verifies table fingerprints, restored credentials/revocations, retries, permanent references, absence of repeated postings and sequence continuity, then removes all temporary Docker/data/credential artifacts. It uses no application environment file or database credentials. Do not execute this Docker-orchestrating command inside the app container. `npm run verify:api-recovery` is an equivalent host command when Node/npm are installed. This drill covers PostgreSQL; persistent file volumes, deployment secrets and production recovery timing remain separate staging checks.
 
-The bearer-only read-load tool is `npm run perf:api -- --url=https://staging.example/api/v1 --resource=invoices --requests=30 --concurrency=1 --interval_ms=1000`. Supply opaque tokens through `API_BENCHMARK_TOKEN` or `API_BENCHMARK_TOKENS` in a secure process environment; never use token command arguments or checked-in credentials. It issues GETs only, rejects redirects/non-2xx/non-JSON responses and reports status/error counts, latency percentiles and throughput without token/query/business-data output. See the runbook for allowed resources, bounds, pacing and loopback-only local HTTP. Representative staging load, real clients, deployed TLS, production alert ownership, recovery timing and pilot acceptance remain pending.
+The bearer-only read-load tool is `npm run perf:api -- --url=https://staging.example/api/v1 --resource=invoices --requests=30 --concurrency=1 --interval_ms=1000`. Supply opaque tokens through `API_BENCHMARK_TOKEN` or `API_BENCHMARK_TOKENS` in a secure process environment; never use token command arguments or checked-in credentials. It issues GETs only, rejects redirects/non-2xx/non-JSON responses and reports status/error counts, latency percentiles and throughput without token/query/business-data output. See the runbook for allowed resources, bounds, pacing and loopback-only local HTTP. Representative staging load, real clients, representative recovery timing and pilot acceptance remain pending.
 
 ### Isolated local staging
 
@@ -584,7 +667,15 @@ Payroll uses approved manual paid-day and component amounts. Statutory calculati
 Run `npm test` for the standard checks. To exercise HR accounting, concurrent payment protection, permission checks, and actual HTTP page rendering, configure a separate PostgreSQL database whose name ends in `_hr_test`, then run `npm run test:hr`. That integration test resets its dedicated public schema and refuses any other database name. Do not point it at the application database.
 
 
-The optional **ERPNext reference** view uses `ERPNEXT_URL`, `ERPNEXT_USERNAME`, and `ERPNEXT_PASSWORD` from the deployment environment (`.env` for local Docker Compose). Its ERPNext user needs Read access to Daily Activity Report. When no API URL is configured, the legacy MySQL source requires `DB_HOST`, `DB_USER`, and `DB_NAME`, plus `DB_PASSWORD` when required and `DB_PORT` if it differs from 3306. Missing or unavailable ERPNext settings show HTTP 503 in the reference view only; local Daily Activity creation and viewing use PostgreSQL and do not require ERPNext. No Daily Activity records are written to ERPNext. Recreate the app with `docker compose up -d --build invoice-app` after changing connection settings.
+The optional **ERPNext reference** view uses `ERPNEXT_URL` and `ERPNEXT_USERNAME`
+from `runtime.env`; the password is read from the private
+`ERPNEXT_PASSWORD_FILE` Docker secret. Its ERPNext user needs Read access to
+Daily Activity Report. The legacy MySQL web source is no longer available to
+the container because external database credentials are excluded. Missing or
+unavailable ERPNext settings show HTTP 503 in the reference view only; local
+Daily Activity creation and viewing use PostgreSQL and do not require ERPNext.
+No Daily Activity records are written to ERPNext. Rerun `npm run runtime:env`
+and recreate the app after changing connection settings.
 
 **Stocks → Stock Balance · ERPNext** uses the same API connection settings and requires the ERPNext service user to read Warehouse, Bin, and Item, including the site's item `cost` field. It reads current Bin quantities and stock values for selected permitted warehouses, groups by item, and reads item costs in one batch per page. It does not use local stock or the legacy MySQL fallback. Missing settings, connection failures, or inaccessible source fields show HTTP 503. This report assumes the existing UGX company currency; it does not convert currencies. No stock is imported or posted by this report.
 
@@ -875,7 +966,7 @@ Before activation, deploy compatible website/API/mobile clients and take a verif
 
 Run `npm run db:migrate` with the existing schema-owner credentials while application writers are drained. Then, from the project directory with owner-level role-management credentials, run `npm run inventory:setup`. On a host without Node.js, use the local image in a one-off container on the application's Docker network, mount the project read/write for this setup operation, pass the application environment, and run the script in `/workspace`; this is an operational command, not an isolated test. Stop the application before activation and restart it immediately after setup. Do not expose an older app version during rollout.
 
-The setup command creates a database-specific `wm_inventory_runtime_*` login, grants ordinary application access while withholding direct stock/control/schema writes, activates inventory controls, and atomically writes generated `POSTGRES_RUNTIME_USER` / `POSTGRES_RUNTIME_PASSWORD` entries into the local `.env` without displaying the secret. It requires a writable environment file (`INVENTORY_ENV_FILE`, default `.env`). These runtime credentials take precedence over the owner `POSTGRES_USER` credentials for application queries. When an owner URL is configured, the pool replaces its credentials with the generated runtime login in memory; an explicit `POSTGRES_RUNTIME_URL` may instead provide the separate runtime connection. Owner URL credentials never take precedence over the generated runtime login. Restart with `docker compose up -d --build invoice-app` and verify the local app before admitting traffic.
+The setup command creates a database-specific `wm_inventory_runtime_*` login, grants ordinary application access while withholding direct stock/control/schema writes, activates inventory controls, and atomically writes generated `POSTGRES_RUNTIME_USER` / `POSTGRES_RUNTIME_PASSWORD` entries into the local `.env` without displaying the secret. It requires a writable environment file (`INVENTORY_ENV_FILE`, default `.env`). Run `npm run runtime:env` after setup so the container receives the new restricted credentials, then restart with `docker compose up -d --build invoice-app` and verify the local app before admitting traffic. These runtime credentials take precedence over owner credentials for application queries. Owner URL credentials never take precedence over the generated runtime login.
 
 Activation is one-way for the runtime and application administrators. Inventory-account GL lines require a matching controlled posting event and date; manual inventory journals and inventory-account mapping changes are rejected. Do not delete closures, lower boundaries, disable triggers or roll back by running an old image. Setup is intended to be performed by the operator during maintenance; no web administrator action can disable it. Database owners/superusers can alter database protections and remain an infrastructure trust boundary. In production, keep owner credentials in a separate migration job/environment and supply only runtime credentials to the web process. Runtime startup validates the schema version without attempting DDL; complete owner migrations before restarting it. Never grant runtime membership in the schema-owner role or schema CREATE/TRUNCATE rights.
 

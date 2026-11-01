@@ -9,6 +9,14 @@ const { hash } = require('../src/api/security');
 test('browser login budgets persist in PostgreSQL independently by IP and username', {
   skip: process.env.API_TEST_POSTGRES !== '1', timeout: 120000,
 }, async t => {
+  const previous = {
+    BROWSER_LOGIN_IP_LIMIT: process.env.BROWSER_LOGIN_IP_LIMIT,
+    BROWSER_LOGIN_USERNAME_LIMIT: process.env.BROWSER_LOGIN_USERNAME_LIMIT,
+    BROWSER_LOGIN_WINDOW_SECONDS: process.env.BROWSER_LOGIN_WINDOW_SECONDS,
+  };
+  process.env.BROWSER_LOGIN_IP_LIMIT = '20';
+  process.env.BROWSER_LOGIN_USERNAME_LIMIT = '5';
+  process.env.BROWSER_LOGIN_WINDOW_SECONDS = '900';
   let server;
   const pool = store.getPostgresPool();
   const password = 'Browser password 123!';
@@ -104,5 +112,9 @@ test('browser login budgets persist in PostgreSQL independently by IP and userna
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     await store.closeStore();
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
   }
 });

@@ -1,6 +1,10 @@
 # API operations and launch runbook
 
-Updated: 13 October 2026. Applies to the current single-instance `/api/v1` service. Local telemetry, containment, restore verification and read-load tooling are implemented. Staging/client acceptance, deployed TLS, capacity targets, production alert ownership and limited-pilot evidence remain pending by product-owner decision.
+Updated: 1 November 2026. Applies to the current single-instance `/api/v1`
+service. Local telemetry, containment, restore verification, read-load tooling,
+protected metrics and an external GitHub health monitor are implemented.
+Staging/client acceptance, capacity targets, backup RPO/RTO and limited-pilot
+evidence remain pending.
 
 Local staging follow-up: [the production-mode localhost HTTPS environment](local-staging.md) is now running with synthetic records and scripted scoped sales/website checks. Its local TLS/proxy/revocation evidence does not certify a reachable public deployment or actual mobile/business clients; those gates and representative capacity/recovery remain open.
 
@@ -20,7 +24,13 @@ Financial outcomes:
 | `failed` | HTTP failure/disconnection without a recorded successful mutation result |
 | `none` | Successful nonfinancial request |
 
-Logs are observational, not the accounting source of truth. A connection can fail after a database commit; resolve uncertainty through saved retry results and durable `wm_api_audit` records. Telemetry failures do not roll back a financial commit. Request events are emitted before they leave the process; external log collection/delivery is an operations responsibility. Metrics are in memory, not persisted or publicly exposed by a new endpoint.
+Logs are observational, not the accounting source of truth. A connection can
+fail after a database commit; resolve uncertainty through saved retry results
+and durable `wm_api_audit` records. Telemetry failures do not roll back a
+financial commit. Request events are emitted before they leave the process;
+external log collection/delivery is an operations responsibility. Metrics are
+in memory but exposed at the authenticated `/metrics` endpoint documented in
+[monitoring and alert ownership](../monitoring.md).
 
 | Environment variable | Default | Behavior |
 | --- | --- | --- |
@@ -32,18 +42,22 @@ Apply configuration through the deployment environment and recreate the app. Inv
 
 ## Alert setup and ownership
 
-The following alert rules are proposals ready for the staging/operations owner to configure; no alert service or external notifications are connected by this change. Name an on-call responder and escalation owner before pilot. Store confirmed targets and contacts in the deployment's restricted operations records rather than inventing them here.
+Alert ownership and thresholds are recorded in
+[monitoring and alert ownership](../monitoring.md). GitHub issues assigned to
+`@kagabuisa` are the current external alert record. The scheduled production
+monitor checks public liveness/readiness, authenticated metrics and certificate
+expiry.
 
-| Signal | Investigation / owner to assign |
+| Signal | Investigation / owner |
 | --- | --- |
-| Any financial 5xx, `api_audit_failure`, repeated 503 or missing resource attribution | Application/accounting responder: correlate request ID with durable audit, check database/pool and reconcile saved result |
-| Rising 401/403 or refresh-replay denials | Account/security responder: credential expiry/revocation, scope changes and coordinated mobile refresh |
-| Repeated 409 `operation_in_progress` / timeouts | Application/database responder: locks, account serialization and contention; preserve original retry keys |
-| 409 key/reference conflicts | Integration owner: distinguish client payload changes from duplicate imports; never release permanent reference rows |
-| Sustained 429 | Integration/operations owner: rate windows, client pacing and shared proxy IP; do not raise limits without measurements |
-| Elevated p95/p99 or aborted requests | Operations/database owner: agreed workload baseline, query/pool pressure and network interruption |
-| Missing metric heartbeat | Operations owner: process/container and log collector liveness; interval 0 intentionally disables heartbeat |
-| Expired retries/windows or growing audit/reference tables | Database owner: daily cleanup job completion, backups, retention/capacity |
+| Any financial 5xx, `api_audit_failure`, repeated 503 or missing resource attribution | Kagabu Isa: correlate request ID with durable audit, check database/pool and reconcile saved result |
+| Rising 401/403 or refresh-replay denials | Kagabu Isa: credential expiry/revocation, scope changes and coordinated mobile refresh |
+| Repeated 409 `operation_in_progress` / timeouts | Kagabu Isa: locks, account serialization and contention; preserve original retry keys |
+| 409 key/reference conflicts | Kagabu Isa: distinguish client payload changes from duplicate imports; never release permanent reference rows |
+| Sustained 429 | Kagabu Isa: rate windows, client pacing and shared proxy IP; do not raise limits without measurements |
+| Elevated p95/p99 or aborted requests | Kagabu Isa: agreed workload baseline, query/pool pressure and network interruption |
+| Missing metric heartbeat | Kagabu Isa: process/container and log collector liveness; interval 0 intentionally disables heartbeat |
+| Expired retries/windows or growing audit/reference tables | Kagabu Isa: daily cleanup job completion, backups, retention/capacity |
 
 Latency/error-rate thresholds require staging measurements. Check counts over a defined rolling window and apply minimum-volume rules; a percentage from one request is not a capacity target. Financial integrity failures require investigation even at low volume.
 

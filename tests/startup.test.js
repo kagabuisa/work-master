@@ -9,7 +9,7 @@ function startup(env) {
   const calls = { probes: [], services: [] };
   const module = { exports: {} };
   const requireStub = name => {
-    if (name === '../src/environment') return { loadEnvironment() {} };
+    if (name === '../src/environment') return { loadRuntimeEnvironment() {} };
     if (name === 'node:child_process') return { spawnSync(...args) { calls.services.push(args); return { status: 0 }; } };
     if (name === 'node:net') return { createConnection(options) {
       calls.probes.push(options);
@@ -56,8 +56,34 @@ test('environment isolation follows the runtime database rather than the owner d
     let loads = 0;
     const module = { exports: {} };
     vm.runInNewContext(source, { module, process: { env }, URL,
-      require: name => { assert.equal(name, 'dotenv'); return { config() { loads++; } }; } });
+      __dirname: path.join(__dirname, '../src'),
+      require: name => {
+        if (name === 'node:path') return path;
+        assert.equal(name, 'dotenv');
+        return { config() { loads++; } };
+      } });
     module.exports.loadEnvironment();
     assert.equal(loads, expectedLoads);
   }
+});
+
+test('server runtime loading uses runtime.env and prevents a later .env load', () => {
+  const loads = [];
+  const module = { exports: {} };
+  const env = {};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../src/environment.js'), 'utf8'), {
+    module,
+    process: { env },
+    URL,
+    __dirname: path.join(__dirname, '../src'),
+    require: (name) => {
+      if (name === 'node:path') return path;
+      if (name === 'dotenv') return { config(options) { loads.push(options); return {}; } };
+      throw new Error(`Unexpected module: ${name}`);
+    },
+  });
+  module.exports.loadRuntimeEnvironment(env);
+  module.exports.loadEnvironment();
+  assert.equal(loads.length, 1);
+  assert.match(loads[0].path, /runtime\.env$/);
 });

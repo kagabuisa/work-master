@@ -35,7 +35,7 @@ The load tool is verified against a local HTTP fixture for bearer headers, GET-o
 | Restricted mobile and actual integration-client staging acceptance | Deferred by product owner |
 | Deployed TLS/proxy and credential drills | Pending staging/deployment |
 | Representative load, financial concurrency workload and latency/error targets | Pending agreed volumes and staging data |
-| External log collection, alert rules and named responders | Runbook proposals ready; deployment configuration/ownership pending |
+| External availability monitor, alert rules and named responders | GitHub production monitor and `@kagabuisa` ownership implemented; external log collection and a second responder remain operational follow-up |
 | Representative database/file/config restoration and measured RPO/RTO | Synthetic local database drill passed; deployment verification pending |
 | Compatible deployed rollback, limited pilot and launch sign-off | Runbook ready; deployment/client evidence pending |
 

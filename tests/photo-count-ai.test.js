@@ -57,6 +57,18 @@ test('missing credentials prevent any AI request',async()=>{
  const old=process.env.OPENAI_API_KEY;delete process.env.OPENAI_API_KEY;
  try{await assert.rejects(ai.countPhotos(1,{},{role:'admin'}),{status:503});}finally{if(old!==undefined)process.env.OPENAI_API_KEY=old;}
 });
+test('AI credentials load from a private file without exposing the key in the environment',async()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'wm-ai-secret-')),file=path.join(dir,'key');
+ const oldKey=process.env.OPENAI_API_KEY,oldFile=process.env.OPENAI_API_KEY_FILE;
+ fs.writeFileSync(file,'fixture-file-key\n',{mode:0o600});delete process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY_FILE=file;
+ try{assert.equal(ai.configured(),true);assert.equal(process.env.OPENAI_API_KEY,undefined);}
+ finally{
+  fs.rmSync(dir,{recursive:true,force:true});
+  if(oldKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=oldKey;
+  if(oldFile===undefined)delete process.env.OPENAI_API_KEY_FILE;else process.env.OPENAI_API_KEY_FILE=oldFile;
+ }
+});
 test('AI description settings provide a large escaped administrator-only field',async()=>{
  const {renderView}=require('./helpers/render-view');const file=require('node:path').join(__dirname,'../views/photo-count-settings.ejs');
  const locals={company:{},companySaved:false,companyError:null,dateTimeSaved:false,dateTimeError:null,salesInvoiceSync:{running:false,import_from:'2026-01-01'},canCreateItemPrice:false,canViewNamedWarehouses:false,canViewAssignedEmployees:false,canViewAssignedCostCenters:false,aiCountSettings:{descriptions:'Carton: 12 pc/ctn. </textarea><script>bad</script>'},aiCountSaved:true,aiCountError:null,currentUser:{role:'admin',scopes:{}},can:()=>false,availableReports:[],assetVersion:'test'};

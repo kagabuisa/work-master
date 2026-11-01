@@ -3,21 +3,38 @@ services:
     build: .
     container_name: invoice-app
     env_file:
-      - .env
+      - runtime.env
     environment:
       PORT: ${PORT:-3020}
+      BROWSER_LOGIN_WINDOW_SECONDS: ${BROWSER_LOGIN_WINDOW_SECONDS:-900}
+      BROWSER_LOGIN_IP_LIMIT: ${BROWSER_LOGIN_IP_LIMIT:-100}
+      BROWSER_LOGIN_USERNAME_LIMIT: ${BROWSER_LOGIN_USERNAME_LIMIT:-5}
+      BROWSER_SESSION_IDLE_MINUTES: ${BROWSER_SESSION_IDLE_MINUTES:-30}
+      BROWSER_SESSION_DAYS: ${BROWSER_SESSION_DAYS:-7}
+      SHUTDOWN_TIMEOUT_MS: ${SHUTDOWN_TIMEOUT_MS:-25000}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-work_master}
-      POSTGRES_USER: ${POSTGRES_USER:-invoice_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-invoice_password}
+      MONITORING_TOKEN_FILE: /run/secrets/monitoring_token
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      ERPNEXT_PASSWORD_FILE: /run/secrets/erpnext_password
     ports:
       - "127.0.0.1:${PORT:-3020}:${PORT:-3020}"
     volumes:
       - invoice-data:/app/data
+    secrets:
+      - monitoring_token
+      - openai_api_key
+      - erpnext_password
     depends_on:
       postgres:
         condition: service_healthy
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     restart: unless-stopped
 
   postgres:
@@ -36,8 +53,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     restart: unless-stopped
 
 volumes:
   invoice-data:
   postgres-data:
+
+secrets:
+  monitoring_token:
+    file: ${MONITORING_TOKEN_SECRET_FILE:-./.runtime/monitoring_token}
+  openai_api_key:
+    file: ${OPENAI_API_KEY_SECRET_FILE:-./.runtime/openai_api_key}
+  erpnext_password:
+    file: ${ERPNEXT_PASSWORD_SECRET_FILE:-./.runtime/erpnext_password}

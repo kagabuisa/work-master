@@ -1,5 +1,13 @@
+require('./src/environment').loadRuntimeEnvironment();
+
 const express = require('express');
 const { assertSecureTransportConfiguration } = require('./src/transport-security');
+const { browserSecuritySettings } = require('./src/browser-security');
+const { installHealthRoutes } = require('./src/health');
+const { renderMetrics } = require('./src/metrics');
+const requestMetrics = require('./src/request-metrics');
+const { readSecret } = require('./src/secrets');
+const { createGracefulShutdown, shutdownTimeoutMs } = require('./src/server-lifecycle');
 const compression = require('compression');
 const crypto = require('node:crypto');
 const path = require('path');
@@ -24,14 +32,17 @@ const { accountAccessOptions } = require('./src/web/helpers');
 const { scriptJson } = require('./src/web/script-json');
 const apiRouter = require('./src/web/routes/api');
 
-require('dotenv').config({ quiet: true });
-
 const app = express();
+const browserSecurity = browserSecuritySettings();
+const shutdownTimeout = shutdownTimeoutMs();
+const monitoringAccessToken = readSecret('MONITORING_TOKEN');
 const port = Number(process.env.PORT || 3000);
 const STATIC_MAX_AGE = process.env.STATIC_MAX_AGE || '3600';
 const SLOW_REQUEST_MS = Number(process.env.SLOW_REQUEST_MS || 300);
 let storeReady = false;
 let storeInitPromise = null;
+let shuttingDown = false;
+let httpServer;
 
 app.set('view engine', 'ejs');
 // Cache compiled templates, never rendered pages or request/permission data.
@@ -43,6 +54,7 @@ app.locals.assetVersion = Date.now();
 app.locals.currentPostingTime = currentPostingTime;
 app.locals.currentPostingDate = currentPostingDate;
 app.locals.scriptJson = scriptJson;
+app.locals.sessionIdleMinutes = browserSecurity.sessionIdleMinutes;
 const { STOCK_ENTRY_CHOICES, STOCK_ENTRY_TYPE_LABELS, STOCK_TRANSFER_TYPES } = require('./src/constants');
 app.locals.stockEntryChoices = STOCK_ENTRY_CHOICES;
 app.locals.stockEntryTypeLabels = STOCK_ENTRY_TYPE_LABELS;
@@ -63,6 +75,13 @@ app.use((req, res, next) => {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
   next();
+});
+app.use(requestMetrics.observeRequest);
+installHealthRoutes(app, {
+  isReady: () => storeReady && !shuttingDown,
+  checkDatabase: () => getPostgresPool().query('SELECT 1'),
+  monitoringAccessToken,
+  metrics: renderMetrics,
 });
 app.use(compression({ threshold: 0 }));
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -251,9 +270,17 @@ ensureStoreInitialized()
       process.exitCode = 1;
       return;
     }
-    app.listen(port, () => {
+    httpServer = app.listen(port, () => {
       console.log(`Work Master running on http://localhost:${port}`);
     });
+    const shutdown = createGracefulShutdown({
+      server: httpServer,
+      closeStore: require('./src/store').closeStore,
+      timeoutMs: shutdownTimeout,
+      onShutdownStart: () => { shuttingDown = true; },
+    });
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
+    process.once('SIGINT', () => shutdown('SIGINT'));
   })
   .catch((err) => {
     console.error('Store initialization failed:', err);

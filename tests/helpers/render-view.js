@@ -15,6 +15,7 @@ function renderView(file, locals = {}) {
     stockEntryTypeLabels: require('../../src/constants').STOCK_ENTRY_TYPE_LABELS,
     stockTransferTypes: require('../../src/constants').STOCK_TRANSFER_TYPES,
     deliveryStatuses: require('../../src/stock-entry-workflow').DELIVERY_STATUSES,
+    sessionIdleMinutes: locals.sessionIdleMinutes || 30,
     dateTimeSettings: settings,
     formatDate: (value) => formatDate(value, settings),
     formatTime: (value) => formatTime(value, settings),

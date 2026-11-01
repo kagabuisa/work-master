@@ -5,10 +5,9 @@ const { REPORTS, ADMIN_REPORT_PERMISSIONS } = require('./report-permissions');
 const { initRecordAudit, runWithAuditUser } = require('./audit');
 const { defaultRecordPermissions } = require('./user-record-access');
 const { activePermissionPriceLists } = require('./permission-price-lists');
+const { browserSecuritySettings } = require('./browser-security');
 
 const scrypt = promisify(crypto.scrypt);
-const SESSION_DAYS = 7;
-const SESSION_IDLE_MINUTES = 5;
 const PASSWORD_MIN_LENGTH = 12;
 const MASTER_LISTS = [
   ['customers', 'Customers'], ['suppliers', 'Suppliers'], ['items', 'Items'],
@@ -612,7 +611,8 @@ async function authenticate(usernameValue, password) {
 async function insertSession(client, user) {
   const token = crypto.randomBytes(32).toString('base64url');
   const hash = tokenHash(token);
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
+  const { sessionDays } = browserSecuritySettings();
+  const expiresAt = new Date(Date.now() + sessionDays * 86400000);
   // The user row is locked first. Touch only that user's sessions so concurrent
   // password changes cannot acquire each other's expired session locks.
   await client.query('DELETE FROM app_user_sessions WHERE user_id=$1 AND expires_at <= now()', [user.id]);
@@ -647,6 +647,7 @@ async function authenticateSession(username, password) {
 async function sessionUser(token) {
   if (!token || typeof token !== 'string' || token.length > 128) return null;
   const hash = tokenHash(token);
+  const { sessionIdleMinutes } = browserSecuritySettings();
   const { rows } = await getPostgresPool().query(`
     WITH active_session AS (
       UPDATE app_user_sessions
@@ -665,7 +666,7 @@ async function sessionUser(token) {
     LEFT JOIN app_roles r ON r.slug = u.role
     WHERE u.active = true AND u.api_service_account = false
       AND s.password_version = encode(sha256(u.password_hash::bytea), 'hex')
-  `, [hash, SESSION_IDLE_MINUTES]);
+  `, [hash, sessionIdleMinutes]);
   const user = rows[0];
   if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
   return user || null;
@@ -813,8 +814,6 @@ async function resetUserPassword(usernameValue, newPassword) {
 
 module.exports = {
   BUILT_IN_ROLES,
-  SESSION_DAYS,
-  SESSION_IDLE_MINUTES,
   initAuth,
   userCount,
   createUser,

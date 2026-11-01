@@ -1,5 +1,6 @@
 'use strict';
 
+const { readSecret } = require('../secrets');
 const MESSAGE = 'Daily Activity is unavailable because the ERPNext connection is not configured or cannot be reached. Ask an administrator to check the ERPNext connection, then try again.';
 function unavailable(cause) {
   return Object.assign(new Error(MESSAGE, { cause }), { status: 503, code: 'DAILY_ACTIVITY_SOURCE_UNAVAILABLE' });
@@ -9,7 +10,7 @@ function apiConfigured() { return Boolean(process.env.ERPNEXT_URL?.trim()); }
 async function apiSession() {
   const base = process.env.ERPNEXT_URL?.replace(/\/$/, '');
   const usr = process.env.ERPNEXT_USERNAME;
-  const pwd = process.env.ERPNEXT_PASSWORD;
+  const pwd = readSecret('ERPNEXT_PASSWORD');
   if (!base || !usr || !pwd) throw unavailable();
   try {
     const response = await fetch(`${base}/api/method/login`, {

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'session-idle.js'), 'utf8');
 
-function browser() {
+function browser({ idleMinutes } = {}) {
   let now = 0;
   let nextTimer = 0;
   const timers = new Map();
@@ -21,7 +21,12 @@ function browser() {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value),
     },
-    document: { addEventListener: addListener, hidden: false },
+    document: {
+      addEventListener: addListener,
+      hidden: false,
+      querySelector: (selector) => selector === 'meta[name="wm-session-idle-minutes"]'
+        ? { content: idleMinutes === undefined ? null : String(idleMinutes) } : null,
+    },
     window: { addEventListener: addListener, location: { replace: (url) => redirects.push(url) } },
     setTimeout: (callback, delay) => {
       const id = ++nextTimer;
@@ -52,13 +57,21 @@ function browser() {
   };
 }
 
-test('idle browser logs out at five minutes', async () => {
+test('idle browser uses the default thirty-minute timeout', async () => {
   const page = browser();
-  await page.advance(5 * 60 * 1000 - 1);
+  await page.advance(30 * 60 * 1000 - 1);
   assert.deepEqual(page.requests, []);
   await page.advance(1);
   assert.deepEqual(page.requests, ['/logout']);
   assert.deepEqual(page.redirects, ['/login?expired=1']);
+});
+
+test('idle browser uses the configured timeout', async () => {
+  const page = browser({ idleMinutes: 12 });
+  await page.advance(12 * 60 * 1000 - 1);
+  assert.deepEqual(page.redirects, []);
+  await page.advance(1);
+  assert.deepEqual(page.requests, ['/logout']);
 });
 
 test('user activity keeps the session alive and sends a heartbeat', async () => {
@@ -67,7 +80,7 @@ test('user activity keeps the session alive and sends a heartbeat', async () => 
   page.event('keydown');
   await Promise.resolve();
   assert.deepEqual(page.requests, ['/session/activity']);
-  await page.advance(5 * 60 * 1000 - 1);
+  await page.advance(30 * 60 * 1000 - 1);
   assert.deepEqual(page.redirects, []);
   await page.advance(1);
   assert.deepEqual(page.requests, ['/session/activity', '/logout']);

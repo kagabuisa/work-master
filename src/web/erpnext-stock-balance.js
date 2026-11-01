@@ -1,6 +1,7 @@
 'use strict';
 
 const { warehouseAllowed, allowedNamedListValues, deniedNamedListValues } = require('../access');
+const { readSecret } = require('../secrets');
 
 const PAGE_SIZE = 50;
 const MESSAGE = 'ERPNext Stock Balance is unavailable. Ask an administrator to check the ERPNext connection and read access to Warehouses, Bins, and Items, then try again.';
@@ -23,7 +24,7 @@ function normalizeFilters(query = {}) {
 async function resourceReader() {
   const base = process.env.ERPNEXT_URL?.trim().replace(/\/$/, '');
   const usr = process.env.ERPNEXT_USERNAME;
-  const pwd = process.env.ERPNEXT_PASSWORD;
+  const pwd = readSecret('ERPNEXT_PASSWORD');
   if (!base || !usr || !pwd) throw unavailable();
   try {
     const response = await fetch(`${base}/api/method/login`, {

@@ -1,7 +1,7 @@
 const net = require('node:net');
 const { spawnSync } = require('node:child_process');
 
-require('../src/environment').loadEnvironment();
+require('../src/environment').loadRuntimeEnvironment();
 
 function localPostgresEndpoint(env = process.env) {
   let host = env.PGHOST || env.POSTGRES_HOST || 'localhost';
