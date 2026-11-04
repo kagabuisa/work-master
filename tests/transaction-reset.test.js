@@ -49,7 +49,12 @@ test('verified backups and scoped resets preserve masters, HR accounting, recove
     const other=await auth.createUser('reset-other','ResetExample123!',{role:'admin'});
     const standard=await auth.createUser('reset-standard','ResetExample123!',{role:'standard'});
     const session=await auth.createSession(admin.id);
-    const account=Number((await pool.query('SELECT id FROM app_accounts ORDER BY id LIMIT 1')).rows[0].id);
+    const account=Number((await pool.query(`SELECT account.id FROM app_accounts account
+      WHERE account.id NOT IN (
+        SELECT setting.account_id FROM app_accounting_settings setting
+        WHERE setting.setting_key IN ('accounts_receivable','accounts_payable')
+      )
+      ORDER BY account.id LIMIT 1`)).rows[0].id);
     await pool.query(`INSERT INTO app_master_employees(employee_id,employee_name,status) VALUES('RESET-E','Reset Employee','Active');
       INSERT INTO app_hr_profiles(employee_id,joining_date) VALUES('RESET-E','2026-01-01');
       INSERT INTO app_hr_pay_plans(employee_id,effective_from,components) VALUES('RESET-E','2026-01-01','[]');

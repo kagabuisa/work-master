@@ -83,7 +83,7 @@ Employee, cost center, and account names must be unique, including inactive reco
 | Purchase Invoice | **Purchases → Purchase Invoices** | Save a draft, then submit to receive stock and create the payable. Each purchase order can have only one draft purchase invoice at a time. If another draft is saved, the error identifies the existing draft by its purchase invoice number, which links to the draft purchase invoice for users with purchase invoice view permission. Edit or submit the existing draft, or delete it before saving another. When saving or submitting a linked invoice, quantities for each order line cannot exceed the ordered quantity minus quantities already received through submitted invoices; repeated invoice rows for the same order line are added together. Quantity errors identify the purchase order number and show the invoice, ordered, already received, and remaining quantities. **Submit and Receive Stock** validates the saved purchase order link automatically; you do not need to select the order again. Record and cancel supplier payments from the submitted voucher. Choose the payment **Account** from the same permitted active cash and bank accounts available on sales invoice payments. The payment history shows the selected account. Each payment creates a submitted Payment Journal, displays its JRN payment reference, and debits Accounts Payable while crediting the selected payment account in the General Ledger. Cancelling the payment reverses its journal. Payments allocated through a manually entered supplier journal must be cancelled from that journal before cancelling the purchase. Cancelling a purchase reverses its stock and ledger entries. |
 | Stock Entry | **Stocks → Stock Entries** | Choose Opening Stock, Transfer, Order, Taff Kla Order, DDR Shortage, or DDR Excess. Transfer and all four named types move stock between different source and target warehouses. Draft previews and full detail pages place **Edit** and **Delete Draft** next to each other when the corresponding permissions are granted. The preview drawer keeps permitted voucher actions together without an Open voucher link. Full previews and drawers share the sales invoice document layout: metadata cards, a scrollable item table, remarks, and tracking. Edit pages group entry details and items, with Save and Submit in the top action bar. Submitted and cancelled item rows are read-only; delivery can still be updated on submitted entries. |
 | Stock Reconciliation | **Stocks → Stock Reconciliation** | Load warehouse stock, enter physical counts, save a draft, then submit the differences. A submitted reconciliation can be cancelled with a reversal. |
-| Journal Entry | **Accounts → Journals** | Enter two or more account lines, save a draft or post it, and cancel eligible manual journals. Posting creates general ledger entries. Automatically generated journals are managed from their source voucher. |
+| Journal Entry | **Accounts → Journals** | Enter two or more account lines, save a draft or post it, and cancel eligible manual journals. Posting creates general ledger entries. Accounts Receivable lines require a valid customer, and Accounts Payable lines require a valid supplier; customer and supplier control accounts must be posted on separate journals. Use a suspense or clearing account when the party is unknown. The database independently rejects new control-account ledger rows without the required party. Automatically generated journals are managed from their source voucher. |
 
 Stock Entry item tables show **Item value (UGX)** for each row and a total. The editor recalculates these when quantities, rates, imported rows, or warehouse-derived rates change. Values use quantity × saved rate, rounded to whole UGX for each row; a transfer's item value is shown once, rather than adding its source and target movements. These are item valuations at the saved rate, not the net accounting or stock-ledger effect. Stock Entries lists also show the total item value.
 
@@ -216,6 +216,11 @@ Stock Ledger and Stock Movement include only permitted warehouses in their rows,
 counts, opening balances, and totals. Selecting an unpermitted warehouse returns
 an access error. Voucher previews require access to the entire source voucher,
 including both warehouses on transfers.
+
+Ledger summaries and inventory-history reports use separate bounded queues. A
+long Stock Movement or Stock Ledger calculation therefore does not wait behind
+or block General Ledger and Trial Balance. Requests still return the existing
+busy message if their lane queue reaches its configured waiting deadline.
 
 
 Controlled inventory checks each posting event’s stock movements against its invoice and accounting before the submission commits. These checks use a posting-event lookup index, so the event check can find the current voucher’s movements without scanning the full stock ledger. Submission still waits for validation and commit; saved drafts do not post stock or accounting.
@@ -398,10 +403,15 @@ database capacity. Report filters, totals and access rules are unchanged.
 Credit invoices and cash sales process stock valuation in line order and save
 line costs in one batch inside the same transaction as stock and accounting.
 A failed submission rolls back these posting changes together.
+Each active item can appear only once on an invoice. Add the combined quantity
+to its single line instead of repeating the item code. Every invoice line must
+also use the same single warehouse; duplicate-item and multi-warehouse invoices
+are rejected when saved, edited or submitted.
 With controlled inventory active, invoice stock movements are sent together to
-the database and processed in line order through the existing stock checks.
-Repeated items still use the balance left by preceding lines; stock, accounting,
-warehouse restrictions and reconciliation cut-offs are checked before commit.
+the database. Item histories are validated together in one set-based pass, then
+the movements are applied in line order through the existing stock checks.
+Stock, accounting, warehouse restrictions and reconciliation cut-offs are
+checked before commit.
 Availability checks combine stock at the selected posting time with the lowest
 balance reached by later movements. Movements sharing a timestamp retain their
 recorded order, so a later receipt cannot hide an intervening shortage.
@@ -413,6 +423,10 @@ warehouse's latest physical movement uses its protected current balance. Earlier
 posting times and shortage warnings retain the historical calculation. Saving
 does not reserve stock, and submission rechecks availability under the existing
 locks before posting stock and accounting together.
+When a minute-only posting time belongs to the minute immediately before a
+submission that crosses the minute boundary, the stock check uses the submission
+instant. This prevents normal form submission from being treated as historical
+while preserving full history checks for genuinely earlier posting times.
 Final controlled stock-balance verification checks quantities and values against
 the full ledger before commit. A covering index reduces the historical table
 reads needed by this check when PostgreSQL can use index-only access. It does
@@ -508,7 +522,11 @@ Expensive invoice/journal browsing and the admitted accounting, debtor, invoice
 and voucher reports share bounded capacity. Requests may wait briefly when busy;
 a full or expired queue returns a retryable busy response. This limits competition
 with posting without changing account access or financial values. Reports keep
-all existing filters and accounting calculations.
+all existing filters and accounting calculations. Report totals, pages,
+suggestions and reconciliation figures are read from one database snapshot, so
+a transaction committed during a request cannot produce mismatched rows and
+totals. Long-running read snapshots are cancelled after the configured report
+deadline and release their database connection.
 
 Invoice saves batch initial line inserts. Successful submissions do not load
 receipt-account dropdown choices; an error form loads the permitted choices when

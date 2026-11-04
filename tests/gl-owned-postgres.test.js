@@ -10,7 +10,12 @@ test('owned summaries stay equivalent to detailed permissions through source and
  try{
   await seedGoldenData();const p=store.getPostgresPool();
   assert.match((await p.query('SELECT current_database() name')).rows[0].name,/_hr_test$/);
-  const accounts=(await p.query('SELECT id,account_code FROM app_accounts ORDER BY id LIMIT 2')).rows;
+  const accounts=(await p.query(`SELECT account.id,account.account_code FROM app_accounts account
+    WHERE account.id NOT IN (
+      SELECT setting.account_id FROM app_accounting_settings setting
+      WHERE setting.setting_key IN ('accounts_receivable','accounts_payable')
+    )
+    ORDER BY account.id LIMIT 2`)).rows;
   const id=950001,other=950002;
   await p.query(`INSERT INTO app_invoices(id,invoice_no,invoice_date,customer_id,customer_name,invoicer_id,created_by_user_id)
     VALUES ($1,'OWNED-INVOICE','2026-01-01','OWNED-C','Owned customer','OWNED-E','OWNED-A'),

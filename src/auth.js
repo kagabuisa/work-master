@@ -6,6 +6,7 @@ const { initRecordAudit, runWithAuditUser } = require('./audit');
 const { defaultRecordPermissions } = require('./user-record-access');
 const { activePermissionPriceLists } = require('./permission-price-lists');
 const { browserSecuritySettings } = require('./browser-security');
+const { runSessionRead } = require('./workload-control');
 
 const scrypt = promisify(crypto.scrypt);
 const PASSWORD_MIN_LENGTH = 12;
@@ -648,7 +649,7 @@ async function sessionUser(token) {
   if (!token || typeof token !== 'string' || token.length > 128) return null;
   const hash = tokenHash(token);
   const { sessionIdleMinutes } = browserSecuritySettings();
-  const { rows } = await getPostgresPool().query(`
+  const { rows } = await runSessionRead(() => getPostgresPool().query(`
     WITH active_session AS (
       UPDATE app_user_sessions
       SET last_activity_at = now()
@@ -666,7 +667,7 @@ async function sessionUser(token) {
     LEFT JOIN app_roles r ON r.slug = u.role
     WHERE u.active = true AND u.api_service_account = false
       AND s.password_version = encode(sha256(u.password_hash::bytea), 'hex')
-  `, [hash, sessionIdleMinutes]);
+  `, [hash, sessionIdleMinutes]));
   const user = rows[0];
   if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
   return user || null;

@@ -121,7 +121,8 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
     const blockedCustomer = await store.createInvoice(payload('C3'));
     const blockedWarehouse = await store.createInvoice(payload('C1', 'Secret'));
     const blockedPrice = await store.createInvoice(payload('C1', 'Main', 'Wholesale'));
-    const mixed = await store.createInvoice({ ...payload(), items: [...payload().items, ...payload('C1', 'Secret').items] });
+    const mixed = await store.createInvoice(payload());
+    await pool.query("UPDATE app_invoice_items SET warehouse='Secret' WHERE invoice_pk=$1", [mixed]);
     const otherOwner = await runWithAuditUser(admin, () => store.createInvoice({ ...payload(), invoicer_id: 'E2' }));
     const app = express();
     app.use('/api/v1', apiContext); app.use(express.json()); app.use('/api/v1', require('../src/api/router')); app.use(apiErrors);

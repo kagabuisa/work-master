@@ -55,6 +55,8 @@ test('Postgres journal allocations persist, update invoice balances, reverse tog
   try {
     await resetGoldenSchema();
     const pool = store.getPostgresPool();
+    await pool.query(`INSERT INTO app_master_suppliers(supplier_id,supplier_name,supplier_type,docstatus)
+      VALUES('SUP-1','Supplier One','Local','submitted'),('SUP-2','Supplier Two','Local','submitted')`);
     const accounts = (await pool.query("SELECT setting_key, account_id FROM app_accounting_settings WHERE setting_key IN ('accounts_payable', 'bank')")).rows;
     const accountId = (key) => Number(accounts.find((row) => row.setting_key === key).account_id);
     await pool.query(`INSERT INTO app_master_cost_centers (cost_center, cost_center_name, disabled, docstatus)
@@ -179,7 +181,10 @@ test('invoice supplier payments generate journals, repair legacy postings once, 
     await pool.query("UPDATE app_purchases SET amount_paid=30, status='partial' WHERE id=$1", [id]);
     await store.withPostgresTransaction(async (client) => {
       await store.postGlEntry(client, { posting_date: '2026-10-03', voucher_type: 'purchase_payment',
-        voucher_id: legacy.rows[0].id, lines: [{ account_key: 'accounts_payable', debit: 30 }, { account_key: 'cash', credit: 30 }] });
+        voucher_id: legacy.rows[0].id, lines: [{
+          account_key: 'accounts_payable', debit: 30, party_type: 'supplier',
+          party_id: 'SUP-1', party_name: 'Supplier One',
+        }, { account_key: 'cash', credit: 30 }] });
       await backfillPurchasePaymentJournals(client);
       await backfillPurchasePaymentJournals(client);
     });

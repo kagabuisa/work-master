@@ -65,6 +65,7 @@ function validationService(pool) {
     if (name === './invoice-draft-validation') return require('../src/services/invoice-draft-validation');
     if (name === '../core') return { getPostgresPool: () => pool };
     if (name === '../access') return { accountAllowed: () => true, requireInvoicePriceList: () => {} };
+    if (name === '../invoice-items') return require('../src/invoice-items');
     throw Error(`Unexpected validation import: ${name}`);
   } });
   return module.exports;

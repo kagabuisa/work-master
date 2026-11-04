@@ -36,7 +36,7 @@ function salesInvoiceAccountingLines(invoice) {
   const totalCost = roundMoney(invoice.total_cost);
   const party = {
     party_type: 'customer',
-    party_id: invoice.customer_id || null,
+    party_id: invoice.customer_id || invoice.customer_name || null,
     party_name: invoice.customer_name || null,
   };
 
@@ -90,7 +90,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
       `,
       [
         dateOnly(invoice.invoice_date),
-        invoice.customer_id || null,
+        invoice.customer_id || invoice.customer_name || null,
         invoice.customer_name || null,
         invoice.invoice_no || String(invoice.id),
         remarks,
@@ -113,7 +113,7 @@ async function createOrUpdateSalesInvoiceJournalEntry(client, invoice, journalLi
       `,
       [
         dateOnly(invoice.invoice_date),
-        invoice.customer_id || null,
+        invoice.customer_id || invoice.customer_name || null,
         invoice.customer_name || null,
         invoice.invoice_no || String(invoice.id),
         remarks,
@@ -161,7 +161,7 @@ async function postCustomerPaymentGlEntry(client, invoice, payment) {
   }
   const party = {
     party_type: 'customer',
-    party_id: invoice.customer_id || null,
+    party_id: invoice.customer_id || invoice.customer_name || null,
     party_name: invoice.customer_name || null,
   };
 
@@ -205,7 +205,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       debit: 0,
       credit: amount,
       party_type: 'customer',
-      party_id: invoice.customer_id || null,
+      party_id: invoice.customer_id || invoice.customer_name || null,
       party_name: invoice.customer_name || null,
       remarks,
     },
@@ -234,7 +234,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       `,
       [
         dateOnly(payment.payment_date),
-        invoice.customer_id || null,
+        invoice.customer_id || invoice.customer_name || null,
         invoice.customer_name || null,
         invoice.invoice_no || null,
         remarks,
@@ -269,7 +269,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       `,
       [
         dateOnly(payment.payment_date),
-        invoice.customer_id || null,
+        invoice.customer_id || invoice.customer_name || null,
         invoice.customer_name || null,
         invoice.invoice_no || null,
         remarks,
@@ -296,7 +296,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
     voucher_id: savedJournalId,
     voucher_no: journalNo,
     party_type: 'customer',
-    party_id: invoice.customer_id || null,
+    party_id: invoice.customer_id || invoice.customer_name || null,
     party_name: invoice.customer_name || null,
     remarks,
     lines: journalLines.map((line, index) => ({
@@ -327,8 +327,11 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
 }
 
 async function postStockEntryGlEntry(client, entry) {
-  const costCenter = entry.costCenter !== undefined ? entry.costCenter
-    : (await client.query('SELECT cost_center FROM app_stock_entries WHERE id = $1', [Number(entry.id)])).rows[0]?.cost_center;
+  const stockEntry = (await client.query(
+    'SELECT cost_center, supplier_name FROM app_stock_entries WHERE id = $1',
+    [Number(entry.id)],
+  )).rows[0] || {};
+  const costCenter = entry.costCenter !== undefined ? entry.costCenter : stockEntry.cost_center;
   const entryType = String(entry.entryType || '').replace(/^stock_/, '');
   if (STOCK_TRANSFER_TYPES.includes(entryType)) {
     await client.query(
@@ -367,6 +370,12 @@ async function postStockEntryGlEntry(client, entry) {
   if (!lines.length) {
     return;
   }
+  const supplierName = String(entry.supplierName ?? stockEntry.supplier_name ?? '').trim();
+  if (entryType === 'purchase' && !supplierName) {
+    const error = new Error('Purchase stock entries require a supplier name before posting.');
+    error.status = 400;
+    throw error;
+  }
 
   await postGlEntry(client, {
     posting_date: dateOnly(entry.postingDate),
@@ -378,7 +387,14 @@ async function postStockEntryGlEntry(client, entry) {
     is_reversal: Boolean(entry.isReversal),
     reversal_of_voucher_type: entry.isReversal ? `stock_${entryType}` : null,
     reversal_of_voucher_id: entry.isReversal ? Number(entry.id) : null,
-    lines: lines.map((line) => ({ ...line, debit: line.debit || 0, credit: line.credit || 0 })),
+    lines: lines.map((line) => ({
+      ...line,
+      debit: line.debit || 0,
+      credit: line.credit || 0,
+      ...(entryType === 'purchase' && line.account_key === 'accounts_payable'
+        ? { party_type: 'supplier', party_id: supplierName, party_name: supplierName }
+        : {}),
+    })),
   });
 }
 

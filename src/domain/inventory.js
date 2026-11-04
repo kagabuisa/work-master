@@ -5,11 +5,14 @@ const { DELIVERY_STATUSES, saveStockEntryDelivery, validateSharedStockEntryEdit 
 // Inventory domain: stock balances, stock entries, stock ledger/movement and
 // gross profit. Extracted from store.js.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
+const { runExpensiveRead, runHeavyReport } = require('../workload-control');
+const { shareRead, readSnapshot, readParallelSnapshot } = require('../read-cache');
 const { checkWarehouseFilter, addWarehouseRowFilter, addDocumentWarehouseFilter } = require('../warehouse-scope');
 const { STOCK_ENTRY_TYPES } = require('../constants');
 const { normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
+const { canSummarizeStockMovement } = require('../stock-daily');
 const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
@@ -58,27 +61,32 @@ async function stockBalances(filters = {}) {
     where.push(`item_code = $${params.length}`);
   }
   const whereSql = where.join(' AND ');
-  const countResult = await getPostgresPool().query(
-    `
-    SELECT COUNT(*)::int AS total
-    FROM app_stock_balances
-    WHERE ${whereSql}
-    `,
-    params,
-  );
-  params.push(pagination.limit, pagination.offset);
-  const { rows } = await getPostgresPool().query(
-    `
-    SELECT item_code, item_name, warehouse, quantity::${filters.textNumerics ? 'text' : 'float'},
-      stock_value::${filters.textNumerics ? 'text' : 'float'}, valuation_rate::${filters.textNumerics ? 'text' : 'float'}
-    FROM app_stock_balances
-    WHERE ${whereSql}
-    ORDER BY item_name, warehouse, item_code
-    LIMIT $${params.length - 1} OFFSET $${params.length}
-    `,
-    params,
-  );
-  rows.pagination = paginationResult(Number(countResult.rows[0].total || 0), pagination);
+  const pageParams = [...params, pagination.limit, pagination.offset];
+  const pool = getPostgresPool();
+  const result = await shareRead(pool, ['stock-balances', whereSql, params, pagination.limit,
+    pagination.offset, Boolean(filters.textNumerics)], () => runExpensiveRead(() =>
+    readSnapshot(pool, async client => client.query(`
+      WITH filtered AS MATERIALIZED (
+        SELECT item_code, item_name, warehouse,
+          quantity::${filters.textNumerics ? 'text' : 'float'} AS quantity,
+          stock_value::${filters.textNumerics ? 'text' : 'float'} AS stock_value,
+          valuation_rate::${filters.textNumerics ? 'text' : 'float'} AS valuation_rate
+        FROM app_stock_balances
+        WHERE ${whereSql}
+      )
+      SELECT
+        (SELECT COUNT(*)::int FROM filtered) AS total,
+        COALESCE((
+          SELECT json_agg(row_to_json(page))
+          FROM (
+            SELECT * FROM filtered
+            ORDER BY item_name, warehouse, item_code
+            LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+          ) page
+        ), '[]'::json) AS rows`,
+    pageParams))), { scope: 'stock-balances' });
+  const rows = result.rows[0].rows;
+  rows.pagination = paginationResult(Number(result.rows[0].total || 0), pagination);
   return rows;
 }
 
@@ -158,33 +166,36 @@ async function listStockEntries(filters = {}) {
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const pool = getPostgresPool();
-  const countResult = await pool.query(`SELECT COUNT(*)::int AS total FROM app_stock_entries se ${whereSql}`, params);
-  const total = Number(countResult.rows[0]?.total || 0);
-  pagination.page = Math.min(pagination.page, Math.max(1, Math.ceil(total / pagination.limit)));
-  pagination.offset = (pagination.page - 1) * pagination.limit;
-  const rowsResult = await pool.query(`
-    SELECT se.id, se.entry_no, se.entry_type, COALESCE(se.docstatus, 'submitted') AS docstatus,
-      se.posting_date::text, se.posting_time::text, se.remarks, se.cost_center,
-      COALESCE(delivery.delivery_status, '') AS delivery_status,
-      ${sharedPermissionSql} AS share_permission,
-      COALESCE(item_summary.total_value, 0)::float AS total_value,
-      COALESCE(item_summary.item_count, 0)::int AS item_count,
-      COALESCE(item_summary.warehouses, '') AS warehouses
-    FROM app_stock_entries se
-    LEFT JOIN app_stock_entry_delivery delivery ON delivery.stock_entry_id=se.id
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*)::int AS item_count,
-        SUM(FLOOR(item.quantity * item.valuation_rate + 0.5)) AS total_value,
-        STRING_AGG(DISTINCT item.warehouse, ', ' ORDER BY item.warehouse) AS warehouses
-      FROM app_stock_entry_items item WHERE item.stock_entry_id = se.id
-    ) item_summary ON true
-    ${whereSql}
-    ORDER BY se.posting_date DESC, se.posting_time DESC, se.id DESC
-    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-  `, [...params, pagination.limit, pagination.offset]);
-  return { rows: rowsResult.rows.map((row) => ({ ...row,
-    id: Number(row.id), posting_time: storedPostingTime(row.posting_time),
-  })), pagination: paginationResult(total, pagination) };
+  return shareRead(pool, ['stock-entry-list', whereSql, params, pagination.limit, pagination.offset,
+    filters.sharedWithUserId || null], () => runExpensiveRead(() => readSnapshot(pool, async client => {
+    const countResult = await client.query(`SELECT COUNT(*)::int AS total FROM app_stock_entries se ${whereSql}`, params);
+    const total = Number(countResult.rows[0]?.total || 0);
+    pagination.page = Math.min(pagination.page, Math.max(1, Math.ceil(total / pagination.limit)));
+    pagination.offset = (pagination.page - 1) * pagination.limit;
+    const rowsResult = await client.query(`
+      SELECT se.id, se.entry_no, se.entry_type, COALESCE(se.docstatus, 'submitted') AS docstatus,
+        se.posting_date::text, se.posting_time::text, se.remarks, se.cost_center,
+        COALESCE(delivery.delivery_status, '') AS delivery_status,
+        ${sharedPermissionSql} AS share_permission,
+        COALESCE(item_summary.total_value, 0)::float AS total_value,
+        COALESCE(item_summary.item_count, 0)::int AS item_count,
+        COALESCE(item_summary.warehouses, '') AS warehouses
+      FROM app_stock_entries se
+      LEFT JOIN app_stock_entry_delivery delivery ON delivery.stock_entry_id=se.id
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS item_count,
+          SUM(FLOOR(item.quantity * item.valuation_rate + 0.5)) AS total_value,
+          STRING_AGG(DISTINCT item.warehouse, ', ' ORDER BY item.warehouse) AS warehouses
+        FROM app_stock_entry_items item WHERE item.stock_entry_id = se.id
+      ) item_summary ON true
+      ${whereSql}
+      ORDER BY se.posting_date DESC, se.posting_time DESC, se.id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `, [...params, pagination.limit, pagination.offset]);
+    return { rows: rowsResult.rows.map((row) => ({ ...row,
+      id: Number(row.id), posting_time: storedPostingTime(row.posting_time),
+    })), pagination: paginationResult(total, pagination) };
+  })), {scope:'stock-entry-list'});
 }
 
 async function localStockQuantity(itemCode, warehouse) {
@@ -222,10 +233,15 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
     throw err;
   }
   const docstatus = payload.action === 'save_draft' ? 'draft' : 'submitted';
+  const supplier = entryType === 'purchase' ? normalizeSupplierInfo(payload) : normalizeSupplierInfo();
+  if (entryType === 'purchase' && docstatus === 'submitted' && !supplier.supplier_name) {
+    const err = new Error('Enter supplier information before submitting a purchase receipt.');
+    err.status = 400;
+    throw err;
+  }
 
   return withPostgresTransaction(async (client) => {
     const costCenter = await validateCostCenter(client, payload.cost_center);
-    const supplier = entryType === 'purchase' ? normalizeSupplierInfo(payload) : normalizeSupplierInfo();
     const { rows } = await client.query(
       `
       INSERT INTO app_stock_entries (
@@ -469,6 +485,12 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
     throw err;
   }
   const docstatus = payload.action === 'save_draft' ? 'draft' : 'submitted';
+  const supplier = entryType === 'purchase' ? normalizeSupplierInfo(payload) : normalizeSupplierInfo();
+  if (entryType === 'purchase' && docstatus === 'submitted' && !supplier.supplier_name) {
+    const err = new Error('Enter supplier information before submitting a purchase receipt.');
+    err.status = 400;
+    throw err;
+  }
 
   return withPostgresTransaction(async (client) => {
     const costCenter = await validateCostCenter(client, payload.cost_center);
@@ -492,7 +514,6 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
     }
     if (sharedWrite) await validateSharedStockEntryEdit(client, deliveryUser, existing, payload);
 
-    const supplier = entryType === 'purchase' ? normalizeSupplierInfo(payload) : normalizeSupplierInfo();
     await client.query(
       `
       UPDATE app_stock_entries
@@ -788,101 +809,106 @@ async function stockLedgerReport(filters = {}) {
   addWarehouseRowFilter(where, params, 'l.warehouse', filters);
   addStockLedgerOwnerFilter(where, params, 'l', filters.ownerId, filters.ownerEmployeeId);
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const countResult = await getPostgresPool().query(
-    `
-    SELECT COUNT(*)::int AS total
-    FROM app_stock_ledger l
-    LEFT JOIN app_stock_entries se
-      ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
-      AND l.voucher_type LIKE 'stock_%'
-    LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
-    LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
-    ${whereSql}
-    `,
-    params,
-  );
-  params.push(pagination.limit, pagination.offset);
-  const { rows } = await getPostgresPool().query(
-    `
-    WITH report_page AS MATERIALIZED (
-      SELECT l.*
-      FROM app_stock_ledger l
-      LEFT JOIN app_stock_entries se
-        ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
-        AND l.voucher_type LIKE 'stock_%'
-      LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
-      LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
-      ${whereSql}
-      ORDER BY l.posting_date ASC, l.movement_at ASC, l.id ASC
-      LIMIT $${params.length - 1} OFFSET $${params.length}
-    )
-    SELECT
-      l.posting_date::text AS posting_date,
-      CASE WHEN l.posting_event_id IS NOT NULL THEN l.movement_at END AS movement_at,
-      l.item_code AS item_code,
-      l.item_name AS item_name,
-      l.warehouse AS warehouse,
-      CASE
-        WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.entry_type, replace(l.voucher_type, 'stock_', ''))
-        WHEN l.voucher_type = 'purchase' THEN 'purchase'
-        WHEN l.voucher_type = 'inventory_correction' THEN 'adjustment'
-        ELSE ''
-      END AS stock_entry_type,
-      CASE
-        WHEN l.is_reversal THEN 'cancelled'
-        WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.docstatus, 'deleted')
-        WHEN l.voucher_type = 'purchase' THEN COALESCE(p.docstatus, 'deleted')
-        WHEN l.voucher_type = 'invoice' THEN COALESCE(i.docstatus, 'deleted')
-        ELSE 'submitted'
-      END AS stock_entry_status,
-      l.voucher_type AS voucher_type,
-      CASE
-        WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(l.voucher_id, l.reversal_of_voucher_id)
-        ELSE l.voucher_id
-      END AS voucher_id,
-      l.voucher_no AS voucher_no,
-      CASE
-        WHEN l.voucher_type LIKE 'stock_%' THEN se.id IS NOT NULL
-        WHEN l.voucher_type = 'purchase' THEN p.id IS NOT NULL
-        WHEN l.voucher_type = 'invoice' THEN i.id IS NOT NULL
-        ELSE false
-      END AS voucher_exists,
-      l.is_reversal AS is_reversal,
-      l.reversal_of_voucher_id AS reversal_of_voucher_id,
-      l.reversal_of_voucher_no AS reversal_of_voucher_no,
-      l.remarks AS ledger_remarks,
-      l.qty_change::float AS qty_change,
-      l.incoming_rate::float AS incoming_rate,
-      l.outgoing_rate::float AS outgoing_rate,
-      l.stock_value_change::float AS stock_value_change,
-      running.balance_qty::float AS qty_after_transaction,
-      l.stock_value_after_transaction::float AS stock_value_after_transaction
-    FROM report_page l
-    -- The page is already selected. Include all earlier movements for its
-    -- item/warehouse, even those hidden by report filters or ownership rules.
-    CROSS JOIN LATERAL (
-      SELECT SUM(history.qty_change) AS balance_qty
-      FROM app_stock_ledger history
-      WHERE history.item_code = l.item_code AND history.warehouse = l.warehouse
-        AND history.posting_date <= l.posting_date
-        AND (
-          history.posting_date < l.posting_date
-          OR history.movement_at < l.movement_at
-          OR (l.movement_at IS NULL AND history.movement_at IS NOT NULL)
-          OR (history.movement_at IS NOT DISTINCT FROM l.movement_at AND history.id <= l.id)
+  const pool = getPostgresPool();
+  return shareRead(pool, ['stock-ledger-report', whereSql, params, pagination.limit, pagination.offset],
+    () => runHeavyReport(() => readSnapshot(pool, async client => {
+      const countResult = await client.query(
+        `
+        SELECT COUNT(*)::int AS total
+        FROM app_stock_ledger l
+        LEFT JOIN app_stock_entries se
+          ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
+          AND l.voucher_type LIKE 'stock_%'
+        LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
+        LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
+        ${whereSql}
+        `,
+        params,
+      );
+      const pageParams = [...params, pagination.limit, pagination.offset];
+      const { rows } = await client.query(
+        `
+        WITH report_page AS MATERIALIZED (
+          SELECT l.*
+          FROM app_stock_ledger l
+          LEFT JOIN app_stock_entries se
+            ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
+            AND l.voucher_type LIKE 'stock_%'
+          LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
+          LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
+          ${whereSql}
+          ORDER BY l.posting_date ASC, l.movement_at ASC, l.id ASC
+          LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
         )
-    ) running
-    LEFT JOIN app_stock_entries se
-      ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
-      AND l.voucher_type LIKE 'stock_%'
-    LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
-    LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
-    ORDER BY l.posting_date ASC, l.movement_at ASC, l.id ASC
-    `,
-    params,
-  );
-  for (const row of rows) if (row.movement_at === null) delete row.movement_at;
-  return { filters: reportFilterValues(filters), rows, pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination) };
+        SELECT
+          l.posting_date::text AS posting_date,
+          CASE WHEN l.posting_event_id IS NOT NULL THEN l.movement_at END AS movement_at,
+          l.item_code AS item_code,
+          l.item_name AS item_name,
+          l.warehouse AS warehouse,
+          CASE
+            WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.entry_type, replace(l.voucher_type, 'stock_', ''))
+            WHEN l.voucher_type = 'purchase' THEN 'purchase'
+            WHEN l.voucher_type = 'inventory_correction' THEN 'adjustment'
+            ELSE ''
+          END AS stock_entry_type,
+          CASE
+            WHEN l.is_reversal THEN 'cancelled'
+            WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(se.docstatus, 'deleted')
+            WHEN l.voucher_type = 'purchase' THEN COALESCE(p.docstatus, 'deleted')
+            WHEN l.voucher_type = 'invoice' THEN COALESCE(i.docstatus, 'deleted')
+            ELSE 'submitted'
+          END AS stock_entry_status,
+          l.voucher_type AS voucher_type,
+          CASE
+            WHEN l.voucher_type LIKE 'stock_%' THEN COALESCE(l.voucher_id, l.reversal_of_voucher_id)
+            ELSE l.voucher_id
+          END AS voucher_id,
+          l.voucher_no AS voucher_no,
+          CASE
+            WHEN l.voucher_type LIKE 'stock_%' THEN se.id IS NOT NULL
+            WHEN l.voucher_type = 'purchase' THEN p.id IS NOT NULL
+            WHEN l.voucher_type = 'invoice' THEN i.id IS NOT NULL
+            ELSE false
+          END AS voucher_exists,
+          l.is_reversal AS is_reversal,
+          l.reversal_of_voucher_id AS reversal_of_voucher_id,
+          l.reversal_of_voucher_no AS reversal_of_voucher_no,
+          l.remarks AS ledger_remarks,
+          l.qty_change::float AS qty_change,
+          l.incoming_rate::float AS incoming_rate,
+          l.outgoing_rate::float AS outgoing_rate,
+          l.stock_value_change::float AS stock_value_change,
+          running.balance_qty::float AS qty_after_transaction,
+          l.stock_value_after_transaction::float AS stock_value_after_transaction
+        FROM report_page l
+        -- The page is already selected. Include all earlier movements for its
+        -- item/warehouse, even those hidden by report filters or ownership rules.
+        CROSS JOIN LATERAL (
+          SELECT SUM(history.qty_change) AS balance_qty
+          FROM app_stock_ledger history
+          WHERE history.item_code = l.item_code AND history.warehouse = l.warehouse
+            AND history.posting_date <= l.posting_date
+            AND (
+              history.posting_date < l.posting_date
+              OR history.movement_at < l.movement_at
+              OR (l.movement_at IS NULL AND history.movement_at IS NOT NULL)
+              OR (history.movement_at IS NOT DISTINCT FROM l.movement_at AND history.id <= l.id)
+            )
+        ) running
+        LEFT JOIN app_stock_entries se
+          ON se.id = COALESCE(l.voucher_id, l.reversal_of_voucher_id)
+          AND l.voucher_type LIKE 'stock_%'
+        LEFT JOIN app_purchases p ON p.id = l.voucher_id AND l.voucher_type = 'purchase'
+        LEFT JOIN app_invoices i ON i.id = l.voucher_id AND l.voucher_type = 'invoice'
+        ORDER BY l.posting_date ASC, l.movement_at ASC, l.id ASC
+        `,
+        pageParams,
+      );
+      for (const row of rows) if (row.movement_at === null) delete row.movement_at;
+      return { filters: reportFilterValues(filters), rows,
+        pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination) };
+    }), {lane:'inventory',label:'stock-ledger'}), {scope:'stock-ledger-report'});
 }
 
 async function stockLedgerVoucherDetails(voucherType, voucherId) {
@@ -1082,52 +1108,60 @@ async function stockEntryDraftReport(filters = {}) {
     )`);
   }
   const whereSql = where.join(' AND ');
-  const countResult = await getPostgresPool().query(
-    `
-    SELECT COUNT(*)::int AS total
-    FROM app_stock_entries se
-    JOIN app_stock_entry_items item
-      ON item.stock_entry_id = se.id
-    WHERE ${whereSql}
-    `,
-    params,
-  );
-  params.push(pagination.limit, pagination.offset);
-  const { rows } = await getPostgresPool().query(
-    `
-    SELECT
-      se.posting_date::text AS posting_date,
-      item.item_code AS item_code,
-      item.item_name AS item_name,
-      item.warehouse AS warehouse,
-      se.entry_type AS stock_entry_type,
-      se.docstatus AS stock_entry_status,
-      'stock_' || se.entry_type AS voucher_type,
-      se.id AS voucher_id,
-      se.entry_no AS voucher_no,
-      false AS is_reversal,
-      NULL::bigint AS reversal_of_voucher_id,
-      NULL::text AS reversal_of_voucher_no,
-      NULL::text AS ledger_remarks,
-      CASE WHEN se.entry_type = 'cancel' THEN -item.quantity ELSE item.quantity END::float AS qty_change,
-      CASE WHEN se.entry_type = 'cancel' THEN 0 ELSE item.valuation_rate END::float AS incoming_rate,
-      CASE WHEN se.entry_type = 'cancel' THEN item.valuation_rate ELSE 0 END::float AS outgoing_rate,
-      CASE
-        WHEN se.entry_type = 'cancel' THEN -(item.quantity * item.valuation_rate)
-        ELSE item.quantity * item.valuation_rate
-      END::float AS stock_value_change,
-      0::float AS qty_after_transaction,
-      0::float AS stock_value_after_transaction
-    FROM app_stock_entries se
-    JOIN app_stock_entry_items item
-      ON item.stock_entry_id = se.id
-    WHERE ${whereSql}
-    ORDER BY se.posting_date ASC, se.id ASC, item.line_no ASC
-    LIMIT $${params.length - 1} OFFSET $${params.length}
-    `,
-    params,
-  );
-  return { filters: reportFilterValues(filters), rows, pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination) };
+  const pageParams = [...params, pagination.limit, pagination.offset];
+  const pool = getPostgresPool();
+  return shareRead(pool, ['stock-entry-draft-report', whereSql, params, pagination.limit, pagination.offset],
+    () => runHeavyReport(() => readSnapshot(pool, async client => {
+      const countResult = await client.query(
+        `
+        SELECT COUNT(*)::int AS total
+        FROM app_stock_entries se
+        JOIN app_stock_entry_items item
+          ON item.stock_entry_id = se.id
+        WHERE ${whereSql}
+        `,
+        params,
+      );
+      const { rows } = await client.query(
+        `
+        SELECT
+          se.posting_date::text AS posting_date,
+          item.item_code AS item_code,
+          item.item_name AS item_name,
+          item.warehouse AS warehouse,
+          se.entry_type AS stock_entry_type,
+          se.docstatus AS stock_entry_status,
+          'stock_' || se.entry_type AS voucher_type,
+          se.id AS voucher_id,
+          se.entry_no AS voucher_no,
+          false AS is_reversal,
+          NULL::bigint AS reversal_of_voucher_id,
+          NULL::text AS reversal_of_voucher_no,
+          NULL::text AS ledger_remarks,
+          CASE WHEN se.entry_type = 'cancel' THEN -item.quantity ELSE item.quantity END::float AS qty_change,
+          CASE WHEN se.entry_type = 'cancel' THEN 0 ELSE item.valuation_rate END::float AS incoming_rate,
+          CASE WHEN se.entry_type = 'cancel' THEN item.valuation_rate ELSE 0 END::float AS outgoing_rate,
+          CASE
+            WHEN se.entry_type = 'cancel' THEN -(item.quantity * item.valuation_rate)
+            ELSE item.quantity * item.valuation_rate
+          END::float AS stock_value_change,
+          0::float AS qty_after_transaction,
+          0::float AS stock_value_after_transaction
+        FROM app_stock_entries se
+        JOIN app_stock_entry_items item
+          ON item.stock_entry_id = se.id
+        WHERE ${whereSql}
+        ORDER BY se.posting_date ASC, se.id ASC, item.line_no ASC
+        LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+        `,
+        pageParams,
+      );
+      return {
+        filters: reportFilterValues(filters),
+        rows,
+        pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
+      };
+    }), {lane:'inventory',label:'stock-entry-draft'}), { scope: 'stock-entry-draft-report' });
 }
 
 async function stockMovementReport(filters = {}) {
@@ -1174,35 +1208,51 @@ async function stockMovementReport(filters = {}) {
     params.push(to);
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const groupedSql = `
-    WITH movement AS (
-      SELECT *
-      FROM app_stock_ledger
-      ${whereSql}
-    ),
-    grouped AS (
+  const movementWhereSql = `${where.length ? `${whereSql} AND` : 'WHERE'}
+    (${toSql} IS NULL OR posting_date <= ${toSql})`;
+  const pageParams = [...params, pagination.limit, pagination.offset];
+  const pool = getPostgresPool();
+  const summarized = canSummarizeStockMovement(filters);
+  const source = summarized ? 'wm_stock_daily' : 'app_stock_ledger';
+  const inQty = summarized
+    ? `COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql})
+        AND (${toSql} IS NULL OR posting_date <= ${toSql}) THEN in_qty ELSE 0 END), 0)::float`
+    : `COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql})
+        AND (${toSql} IS NULL OR posting_date <= ${toSql}) AND qty_change > 0
+        THEN qty_change ELSE 0 END), 0)::float`;
+  const outQty = summarized
+    ? `COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql})
+        AND (${toSql} IS NULL OR posting_date <= ${toSql}) THEN out_qty ELSE 0 END), 0)::float`
+    : `COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql})
+        AND (${toSql} IS NULL OR posting_date <= ${toSql}) AND qty_change < 0
+        THEN ABS(qty_change) ELSE 0 END), 0)::float`;
+  return shareRead(pool, ['stock-movement-report', source, whereSql, params, pagination.limit, pagination.offset],
+    async () => runHeavyReport(() => readSnapshot(pool, async client => {
+      const { rows: [result] } = await client.query(
+        `
+    WITH grouped AS MATERIALIZED (
       SELECT
         item_code,
         item_name,
         warehouse,
         COALESCE(SUM(CASE WHEN ${fromSql} IS NOT NULL AND posting_date < ${fromSql} THEN qty_change ELSE 0 END), 0)::float AS opening_qty,
         COALESCE(SUM(CASE WHEN ${fromSql} IS NOT NULL AND posting_date < ${fromSql} THEN stock_value_change ELSE 0 END), 0)::float AS opening_value,
-        COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql}) AND (${toSql} IS NULL OR posting_date <= ${toSql}) AND qty_change > 0 THEN qty_change ELSE 0 END), 0)::float AS in_qty,
-        COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql}) AND (${toSql} IS NULL OR posting_date <= ${toSql}) AND qty_change < 0 THEN ABS(qty_change) ELSE 0 END), 0)::float AS out_qty,
+        ${inQty} AS in_qty,
+        ${outQty} AS out_qty,
         COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql}) AND (${toSql} IS NULL OR posting_date <= ${toSql}) THEN stock_value_change ELSE 0 END), 0)::float AS value_change,
         COALESCE(SUM(CASE WHEN ${toSql} IS NULL OR posting_date <= ${toSql} THEN qty_change ELSE 0 END), 0)::float AS closing_qty,
         COALESCE(SUM(CASE WHEN ${toSql} IS NULL OR posting_date <= ${toSql} THEN stock_value_change ELSE 0 END), 0)::float AS closing_value
-      FROM movement
+      FROM ${source}
+      ${movementWhereSql}
       GROUP BY item_code, item_name, warehouse
-    )
-  `;
-  const [countResult, summaryResult] = await Promise.all([
-    getPostgresPool().query(
-      `${groupedSql} SELECT COUNT(*)::int AS total FROM grouped`,
-      params,
     ),
-    getPostgresPool().query(
-      `${groupedSql}
+    report_page AS MATERIALIZED (
+      SELECT *
+      FROM grouped
+      ORDER BY item_name, warehouse
+      LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+    ),
+    report_summary AS (
       SELECT
         COALESCE(SUM(opening_qty), 0)::float AS opening_qty,
         COALESCE(SUM(in_qty), 0)::float AS in_qty,
@@ -1211,42 +1261,25 @@ async function stockMovementReport(filters = {}) {
         COALESCE(SUM(opening_value), 0)::float AS opening_value,
         COALESCE(SUM(value_change), 0)::float AS value_change,
         COALESCE(SUM(closing_value), 0)::float AS closing_value
-      FROM grouped`,
-      params,
-    ),
-  ]);
-  const pageParams = [...params, pagination.limit, pagination.offset];
-  const { rows } = await getPostgresPool().query(
-    `
-    WITH movement AS (
-      SELECT *
-      FROM app_stock_ledger
-      ${whereSql}
+      FROM grouped
     )
     SELECT
-      item_code,
-      item_name,
-      warehouse,
-      COALESCE(SUM(CASE WHEN ${fromSql} IS NOT NULL AND posting_date < ${fromSql} THEN qty_change ELSE 0 END), 0)::float AS opening_qty,
-      COALESCE(SUM(CASE WHEN ${fromSql} IS NOT NULL AND posting_date < ${fromSql} THEN stock_value_change ELSE 0 END), 0)::float AS opening_value,
-      COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql}) AND (${toSql} IS NULL OR posting_date <= ${toSql}) AND qty_change > 0 THEN qty_change ELSE 0 END), 0)::float AS in_qty,
-      COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql}) AND (${toSql} IS NULL OR posting_date <= ${toSql}) AND qty_change < 0 THEN ABS(qty_change) ELSE 0 END), 0)::float AS out_qty,
-      COALESCE(SUM(CASE WHEN (${fromSql} IS NULL OR posting_date >= ${fromSql}) AND (${toSql} IS NULL OR posting_date <= ${toSql}) THEN stock_value_change ELSE 0 END), 0)::float AS value_change,
-      COALESCE(SUM(CASE WHEN ${toSql} IS NULL OR posting_date <= ${toSql} THEN qty_change ELSE 0 END), 0)::float AS closing_qty,
-      COALESCE(SUM(CASE WHEN ${toSql} IS NULL OR posting_date <= ${toSql} THEN stock_value_change ELSE 0 END), 0)::float AS closing_value
-    FROM movement
-    GROUP BY item_code, item_name, warehouse
-    ORDER BY item_name, warehouse
-    LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+      (SELECT COUNT(*)::int FROM grouped) AS total,
+      (SELECT row_to_json(report_summary) FROM report_summary) AS summary,
+      COALESCE((
+        SELECT json_agg(row_to_json(report_page) ORDER BY report_page.item_name, report_page.warehouse)
+        FROM report_page
+      ), '[]'::json) AS rows
     `,
-    pageParams,
-  );
-  return {
-    filters: reportFilterValues(filters),
-    rows,
-    summary: summaryResult.rows[0] || {},
-    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
-  };
+        pageParams,
+      );
+      return {
+        filters: reportFilterValues(filters),
+        rows: result.rows || [],
+        summary: result.summary || {},
+        pagination: paginationResult(Number(result.total || 0), pagination),
+      };
+    }), {lane:'inventory',label:'stock-movement'}), {scope:'stock-movement-report'});
 }
 
 async function stockMovementDetails(filters = {}) {
@@ -1342,36 +1375,21 @@ async function grossProfitReport(filters = {}) {
     )`);
   }
   const whereSql = where.join(' AND ');
-  const [countResult, summaryResult] = await Promise.all([
-    getPostgresPool().query(
-      `
-      SELECT COUNT(*)::int AS total
-      FROM app_invoice_items item
-      INNER JOIN app_invoices invoice ON invoice.id = item.invoice_pk
-      WHERE ${whereSql}
-      `,
-      params,
-    ),
-    getPostgresPool().query(
-      `
-      SELECT
-        COALESCE(SUM(item.line_total), 0)::float AS sales_amount,
-        COALESCE(SUM(item.cost_amount), 0)::float AS cost_amount,
-        COALESCE(SUM(item.gross_profit), 0)::float AS gross_profit
-      FROM app_invoice_items item
-      INNER JOIN app_invoices invoice ON invoice.id = item.invoice_pk
-      WHERE ${whereSql}
-      `,
-      params,
-    ),
-  ]);
   const pageParams = [...params, pagination.limit, pagination.offset];
-  const { rows } = await getPostgresPool().query(
-    `
+  const pool = getPostgresPool();
+  const summarySql = `
+    SELECT COUNT(*)::int AS total,
+      COALESCE(SUM(item.line_total), 0)::float AS sales_amount,
+      COALESCE(SUM(item.cost_amount), 0)::float AS cost_amount,
+      COALESCE(SUM(item.gross_profit), 0)::float AS gross_profit
+    FROM app_invoice_items item
+    INNER JOIN app_invoices invoice ON invoice.id = item.invoice_pk
+    WHERE ${whereSql}`;
+  const pageSql = `
     SELECT
       invoice.invoice_date::text,
       invoice.invoice_no,
-      invoice.id AS invoice_id,
+      invoice.id::text AS invoice_id,
       invoice.customer_name,
       item.item_code,
       item.item_name,
@@ -1384,15 +1402,33 @@ async function grossProfitReport(filters = {}) {
     INNER JOIN app_invoices invoice ON invoice.id = item.invoice_pk
     WHERE ${whereSql}
     ORDER BY invoice.invoice_date DESC, invoice.id DESC, item.line_no
-    LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
-    `,
-    pageParams,
-  );
+    LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`;
+  const shape = (summaryResult, pageResult) => {
+    const { total, ...summary } = summaryResult.rows[0];
+    return { total, summary, rows: pageResult.rows };
+  };
+  const load = async () => {
+    if (Number(pool.options?.max || 2) < 2) {
+      return readSnapshot(pool, async client => {
+        const summaryResult = await client.query(summarySql, params);
+        const pageResult = await client.query(pageSql, pageParams);
+        return shape(summaryResult, pageResult);
+      });
+    }
+    return readParallelSnapshot(pool, [
+      async client => client.query(summarySql, params),
+      async client => client.query(pageSql, pageParams),
+    ], async (_client, [summaryResult, pageResult]) =>
+      shape(summaryResult, pageResult));
+  };
+  const result = await shareRead(pool,
+    ['gross-profit', whereSql, params, pagination.limit, pagination.offset], () =>
+      runHeavyReport(load, {lane:'inventory',label:'gross-profit'}), { scope: 'gross-profit' });
   return {
     filters: reportFilterValues(filters),
-    rows,
-    summary: roundReportMoney(summaryResult.rows[0] || { sales_amount: 0, cost_amount: 0, gross_profit: 0 }),
-    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
+    rows: result.rows,
+    summary: roundReportMoney(result.summary || { sales_amount: 0, cost_amount: 0, gross_profit: 0 }),
+    pagination: paginationResult(Number(result.total || 0), pagination),
   };
 }
 module.exports = {

@@ -4,6 +4,51 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const invoiceMath = require('../src/shared/invoice-math');
+const {
+  duplicateInvoiceItemCode,
+  assertUniqueInvoiceItems,
+  assertSingleInvoiceWarehouse,
+} = require('../src/invoice-items');
+
+test('invoice item codes must be unique after trimming', () => {
+  assert.equal(duplicateInvoiceItemCode([
+    { item_code: 'ITEM-1' },
+    { item_code: ' ITEM-1 ' },
+  ]), 'ITEM-1');
+  assert.throws(() => assertUniqueInvoiceItems([
+    { item_code: 'ITEM-1' },
+    { item_code: 'ITEM-1' },
+  ]), {
+    status: 400,
+    code: 'DUPLICATE_INVOICE_ITEM',
+    message: 'Item ITEM-1 is already included in this invoice. Combine the quantities into one line.',
+  });
+});
+
+test('distinct item codes and one consistent warehouse are required', () => {
+  assert.equal(duplicateInvoiceItemCode([
+    { item_code: 'ITEM-1' },
+    { item_code: 'ITEM-2' },
+    { item_code: '' },
+  ]), null);
+  assert.doesNotThrow(() => assertSingleInvoiceWarehouse([
+    { item_code: 'ITEM-1', warehouse: 'Main' },
+    { item_code: 'ITEM-2', warehouse: ' Main ' },
+  ], 'Main'));
+  assert.throws(() => assertSingleInvoiceWarehouse([
+    { item_code: 'ITEM-1', warehouse: 'Main' },
+    { item_code: 'ITEM-2', warehouse: 'Other' },
+  ]), {
+    status: 400,
+    code: 'MULTIPLE_INVOICE_WAREHOUSES',
+  });
+  assert.throws(() => assertSingleInvoiceWarehouse([
+    { item_code: 'ITEM-1' },
+  ]), {
+    status: 400,
+    code: 'INVOICE_WAREHOUSE_REQUIRED',
+  });
+});
 const { roundMoney } = require('../src/lib/money');
 const { sumPayments, paymentStatus } = require('../src/domain/normalization');
 
@@ -47,8 +92,9 @@ test('exact decimal line arithmetic and signed half rounding match PostgreSQL', 
 
 test('preview and save use identical line, adjustment and discount-cap rules', () => {
   const { buildInvoiceData, normalizeInvoiceTotals } = require('../src/domain/normalization');
-  const item = { item_code: 'EXACT', item_name: 'Exact item', quantity: '0.005', unit_price: '100' };
-  const payload = { invoice_date: '2026-01-15', items: [item, item], discount_amount: '0.49', tax_amount: '0.50' };
+  const item = { item_code: 'EXACT', item_name: 'Exact item', warehouse: 'Exact warehouse', quantity: '0.005', unit_price: '100' };
+  const second = { ...item, item_code: 'EXACT-2' };
+  const payload = { invoice_date: '2026-01-15', items: [item, second], discount_amount: '0.49', tax_amount: '0.50' };
   const invoice = buildInvoiceData(payload);
   assert.equal(invoice.total, 3);
   assert.equal(invoice.total, invoiceMath.grandTotal(payload.items, payload.discount_amount, payload.tax_amount));

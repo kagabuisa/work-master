@@ -182,7 +182,7 @@ test('financial reports retain fractional payroll and inactive accounts and shar
     let committed=false;
     hookedClient.query=async function(sql,...args){
       const result=await originalQuery.call(this,sql,...args);
-      if(!committed && typeof sql==='string' && sql.includes('LEFT JOIN app_gl_entries gl ON gl.account_id = account.id')){
+      if(!committed && typeof sql==='string' && sql.includes('LEFT JOIN wm_gl_daily gl ON gl.account_id = account.id')){
         committed=true;
         await store.createJournalEntry({journal_type:'journal_entry',posting_date:'2026-02-02',lines:[
           {account_id:accounts.bank,debit:50},{account_id:accounts.income,credit:50}]});

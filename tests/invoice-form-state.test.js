@@ -175,10 +175,12 @@ test('duplicate opens a new unpaid draft with copied invoice details and items',
   const routePath = require.resolve('../src/web/routes/sales');
   const previousRoute = require.cache[routePath];
   const originalFind = store.findInvoice;
+  const originalPage = store.findInvoicePage;
   const originalCompany = store.getCompanyInformation;
   const originalStock = store.localStockQuantity;
   const stockLookups = [];
   store.findInvoice = async () => source;
+  store.findInvoicePage = async () => ({ invoice: source, items: source.items || [], company: {} });
   store.getCompanyInformation = async () => ({});
   store.localStockQuantity = async (itemCode, warehouse) => {
     stockLookups.push([itemCode, warehouse]);
@@ -201,6 +203,7 @@ test('duplicate opens a new unpaid draft with copied invoice details and items',
     assert.equal(rendered.data.items[0].unit_price, 200);
   } finally {
     store.findInvoice = originalFind;
+    store.findInvoicePage = originalPage;
     store.getCompanyInformation = originalCompany;
     store.localStockQuantity = originalStock;
     delete require.cache[routePath];

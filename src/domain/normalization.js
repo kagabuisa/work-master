@@ -11,6 +11,7 @@ const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
 const { paginationOptions, paginationResult } = require('../lib/pagination');
+const { assertUniqueInvoiceItems, assertSingleInvoiceWarehouse } = require('../invoice-items');
 
 function isSubmitted(invoice) {
   return (invoice.docstatus || 'submitted') === 'submitted';
@@ -42,7 +43,7 @@ function buildInvoiceData(payload) {
         db_id: Number.isFinite(dbId) ? dbId : 0,
         item_code: String(item.item_code || '').trim(),
         item_name: String(item.item_name || '').trim(),
-        warehouse: String(item.warehouse || '').trim() || null,
+        warehouse: String(item.warehouse || '').trim() || String(payload.warehouse || '').trim() || null,
         quantity: normalizeQuantity(item.quantity),
         unit_price: invoiceMath.rateValue(item.unit_price),
         stock_at_sale: item.stock_at_sale === '' || item.stock_at_sale == null
@@ -57,6 +58,8 @@ function buildInvoiceData(payload) {
     err.status = 400;
     throw err;
   }
+  assertUniqueInvoiceItems(items);
+  assertSingleInvoiceWarehouse(items, payload.warehouse);
 
   items.forEach((item, index) => {
     item.id = index + 1;

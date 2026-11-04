@@ -64,7 +64,7 @@ test('invoice saves reject historical/current shortages and closed dates, preser
  const footprint=async()=> (await pool.query('SELECT (SELECT count(*) FROM app_invoices)::int AS invoices,(SELECT count(*) FROM app_stock_ledger)::int AS stock_rows,(SELECT count(*) FROM app_gl_entries)::int AS gl_rows,(SELECT count(*) FROM wm_inventory_events)::int AS events')).rows[0];
  const before=await footprint();
  await assert.rejects(save(body([100])),e=>e.code==='insufficient_stock'&&e.stockWarning.available===20);
- await assert.rejects(save(body([11,10])),e=>e.code==='insufficient_stock'&&e.stockWarning.requested===21);
+ await assert.rejects(save(body([11,10])),e=>e.code==='DUPLICATE_INVOICE_ITEM');
  await assert.rejects(save(body([801],today,currentPostingTime())),/Cannot save.*insufficient stock/);
  assert.deepEqual(await footprint(),before);assert.equal(await stock(),800);
  const id=await save(body([10]));const saved=await store.findInvoice(id);

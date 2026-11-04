@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const store = require('../src/store');
 const { seedGoldenData, FIXED } = require('./helpers/golden-seed');
-test('batched invoice costs preserve repeated-item valuation, rollback and concurrent stock protection', {
+test('invoice costs preserve valuation, reject duplicate items, rollback and concurrent stock protection', {
   skip: process.env.GOLDEN_TEST_POSTGRES !== '1',
 }, async () => {
   try {
@@ -15,16 +15,17 @@ test('batched invoice costs preserve repeated-item valuation, rollback and concu
         warehouse: FIXED.warehouse, quantity, unit_price: 180 })) });
     const balance = async () => (await pool.query('SELECT quantity,stock_value,valuation_rate FROM app_stock_balances WHERE item_code=$1 AND warehouse=$2', [FIXED.itemCode,FIXED.warehouse])).rows[0];
     const initial = await balance();
-    const id = await create([2,3]); await store.submitInvoice(id);
+    const id = await create([2]); await store.submitInvoice(id);
     const lines = (await pool.query('SELECT * FROM app_invoice_items WHERE invoice_pk=$1 ORDER BY line_no',[id])).rows;
-    assert.deepEqual(lines.map(r => Number(r.stock_at_sale)), [Number(initial.quantity),Number(initial.quantity)-2]);
+    assert.deepEqual(lines.map(r => Number(r.stock_at_sale)), [Number(initial.quantity)]);
     const movements = (await pool.query("SELECT stock_value_change FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1 ORDER BY id", [id])).rows;
     for (const line of lines) {
       assert.equal(Number(line.cost_amount), -Number(movements[Number(line.line_no) - 1].stock_value_change));
       assert.equal(Number(line.gross_profit),Number(line.line_total)-Number(line.cost_amount));
     }
+    await assert.rejects(create([2,3]), error=>error.code==='DUPLICATE_INVOICE_ITEM');
     const beforeFailure = await balance();
-    const failedId = await create([1,1000]);
+    const failedId = await create([1000]);
     await assert.rejects(store.submitInvoice(failedId), error => error.code === 'INSUFFICIENT_STOCK');
     assert.deepEqual(await balance(),beforeFailure);
     assert.equal((await pool.query("SELECT count(*)::int n FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1",[failedId])).rows[0].n,0);
@@ -46,12 +47,14 @@ test('batch creation preserves 100 line snapshots, rounding and per-row audit id
   try {
     await seedGoldenData();
     const pool = store.getPostgresPool();
+    const codes = Array.from({ length: 100 }, (_, index) => index === 0
+      ? FIXED.itemCode : `BATCH-ITEM-${String(index + 1).padStart(3, '0')}`);
     await pool.query(`INSERT INTO app_master_items(item_code,item_name,category,source,unit_cost)
-      VALUES ($1,$2,'Batch category','Batch source',42.25)
+      SELECT code,'Batch item','Batch category','Batch source',42.25 FROM unnest($1::text[]) code
       ON CONFLICT(item_code) DO UPDATE SET category=EXCLUDED.category,source=EXCLUDED.source,unit_cost=EXCLUDED.unit_cost`,
-    [FIXED.itemCode, FIXED.itemName]);
+    [codes]);
     const items = Array.from({ length: 100 }, (_, index) => ({
-      item_code: FIXED.itemCode, item_name: FIXED.itemName, warehouse: FIXED.warehouse,
+      item_code: codes[index], item_name: 'Batch item', warehouse: FIXED.warehouse,
       quantity: 1 + index / 1000, unit_price: '180.25', stock_at_sale: 500,
       item_category: 'Forged', source: 'Forged', cost: 999,
     }));
@@ -101,14 +104,14 @@ for (const controlled of [false, true]) test(`cash-sale line costs preserve valu
       const before = await balance();
       let id;
       if (existing) {
-        id = await asActor(() => store.createInvoice(payload([0.333,0.667])));
+        id = await asActor(() => store.createInvoice(payload([1])));
         await asActor(() => store.submitCashSaleInvoice(id, payment));
-      } else id = await asActor(() => store.createCashSaleInvoice(payload([0.333,0.667]), payment));
+      } else id = await asActor(() => store.createCashSaleInvoice(payload([1]), payment));
       const invoice = await store.findInvoice(id);
       assert.equal(invoice.docstatus, 'submitted'); assert.equal(invoice.status, 'paid');
-      assert.deepEqual(invoice.items.map(row => row.stock_at_sale), [Number(before.quantity), Number(before.quantity)-0.333]);
+      assert.deepEqual(invoice.items.map(row => row.stock_at_sale), [Number(before.quantity)]);
       const movements = (await pool.query("SELECT * FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1 ORDER BY id",[id])).rows;
-      assert.equal(movements.length, 2);
+      assert.equal(movements.length, 1);
       for (const [index,line] of invoice.items.entries()) {
         assert.equal(line.cost_amount, -Number(movements[index].stock_value_change));
         assert.equal(line.cost_rate, Number(movements[index].outgoing_rate));
@@ -119,12 +122,12 @@ for (const controlled of [false, true]) test(`cash-sale line costs preserve valu
       assert.equal(Number((await pool.query("SELECT sum(debit-credit) delta FROM app_gl_entries WHERE voucher_type='sales_invoice' AND voucher_id=$1",[id])).rows[0].delta),0);
       const state = await balance();
       const footprint = async () => (await pool.query('SELECT (SELECT count(*) FROM app_invoices)::int invoices,(SELECT count(*) FROM app_stock_ledger)::int stock,(SELECT count(*) FROM app_gl_entries)::int gl,(SELECT count(*) FROM app_invoice_payments)::int payments,(SELECT count(*) FROM wm_inventory_events)::int events')).rows[0];
-      const failedId = existing ? await asActor(() => store.createInvoice(payload([0.333,0.667]))) : null;
+      const failedId = existing ? await asActor(() => store.createInvoice(payload([1]))) : null;
       const counts = await footprint();
       // Failure after stock and accounting work must roll back all of it.
       await assert.rejects(asActor(() => existing
         ? store.submitCashSaleInvoice(failedId, {...payment,account_id:999999})
-        : store.createCashSaleInvoice(payload([0.333,0.667]), {...payment,account_id:999999})));
+        : store.createCashSaleInvoice(payload([1]), {...payment,account_id:999999})));
       assert.deepEqual(await balance(),state); assert.deepEqual(await footprint(),counts);
       if (existing) {
         const draft = await store.findInvoice(failedId);

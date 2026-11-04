@@ -73,7 +73,7 @@ for (const controlled of [false, true]) {
         assert.equal(Number((await pool.query('SELECT cost_amount FROM app_invoice_items WHERE invoice_pk=$1', [half])).rows[0].cost_amount), 101);
 
         await receipt('CASH', 1, 100);
-        const cash = payload([item('CASH', '0.005', { unit_price: 100 }), item('CASH', '0.005', { unit_price: 100 })]);
+        const cash = payload([item('CASH', '0.02', { unit_price: 100 })]);
         const payment = { payment_date: currentPostingDate(), amount: math.grandTotal(cash.items, 0, 0), method: 'cash' };
         assert.equal(payment.amount, 2);
         const cashId = await store.createCashSaleInvoice(cash, payment);

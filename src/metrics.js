@@ -59,6 +59,9 @@ function renderMetrics({ ready }) {
   const workload = workloadMetrics();
   const gates = { browsing: workload.browsing, reports: workload.reports,
     reads: workload.reads, report_connections: workload.report_connections };
+  for (const [lane, values] of Object.entries(workload.report_lanes || {})) {
+    gates[`report_${lane}`] = values;
+  }
   const admission = [];
   for (const [gate, values] of Object.entries(gates)) {
     if (!values) continue;
@@ -67,6 +70,23 @@ function renderMetrics({ ready }) {
     }
   }
   metric(lines, 'work_master_workload_admission', 'Interactive read and report admission state.', 'gauge', admission);
+  const reportTimings = Object.values(workload.report_timings || {});
+  metric(lines, 'work_master_report_requests_total', 'Report executions and failures by bounded report identity.',
+    'counter', reportTimings.map(row => ({
+      labels: { lane: row.lane, report: row.label, outcome: row.failed ? 'failed' : 'completed' },
+      value: row.count - row.failed,
+    })).filter(row => row.value > 0)
+      .concat(reportTimings.filter(row => row.failed).map(row => ({
+        labels: { lane: row.lane, report: row.label, outcome: 'failed' }, value: row.failed,
+      }))));
+  metric(lines, 'work_master_report_queue_wait_ms_sum', 'Total report admission queue wait.',
+    'counter', reportTimings.map(row => ({
+      labels: { lane: row.lane, report: row.label }, value: row.queue_wait_total_ms,
+    })));
+  metric(lines, 'work_master_report_execution_ms_sum', 'Total admitted report execution time.',
+    'counter', reportTimings.map(row => ({
+      labels: { lane: row.lane, report: row.label }, value: row.execution_total_ms,
+    })));
 
   const api = monitor.snapshot();
   metric(lines, 'work_master_api_requests_total', 'Versioned API requests by bounded route label.', 'counter',

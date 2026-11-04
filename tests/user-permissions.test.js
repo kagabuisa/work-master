@@ -346,7 +346,7 @@ test('purchase and journal reports query lines with their access scopes', async 
     const calls = [];
     const pool = { query: async (sql, values) => {
       calls.push({ sql, values });
-      return sql.includes('count(*)::int AS total') ? { rows: [{ total: 0 }] } : { rows: [] };
+      return { rows: [{ total: 0, rows: [] }] };
     } };
     await voucherReport(kind, {
       pool, q: 'sample', from: '2026-01-01', to: '2026-01-31', status: 'submitted',
@@ -356,10 +356,13 @@ test('purchase and journal reports query lines with their access scopes', async 
           allowedWarehouses: ['Main'], deniedWarehouses: ['Other'] },
     });
     const rowSql = calls[0].sql;
+    assert.match(rowSql, /WITH report_base AS MATERIALIZED/);
+    assert.match(rowSql, /report_page AS MATERIALIZED/);
+    assert.match(rowSql, /SELECT count\(\*\)::int FROM report_base/);
     assert.match(rowSql, /LEFT JOIN app_\w+ (?:line|account)/);
     assert.match(rowSql, /line\.line_no/);
     assert.match(rowSql, /LIMIT \$\d+ OFFSET \$\d+/);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 1);
     if (kind === 'journals') {
       assert.match(rowSql, /LEFT JOIN app_users creator ON creator\.id::text = j\.created_by_user_id/);
       assert.match(rowSql, /creator\.username AS "user"/);

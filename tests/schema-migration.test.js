@@ -455,3 +455,56 @@ test('balance covering index upgrades v45 without changing verification, repairs
     assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version,SCHEMA_VERSION);
   } finally {await store.closeStore();}
 });
+
+test('stock report indexes are valid and preserve their intended report lookups', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const expected = new Map([
+      ['app_stock_ledger_warehouse_date_id_idx',
+        /\(warehouse, posting_date, id\)/],
+      ['app_stock_ledger_warehouse_movement_cover_idx',
+        /\(warehouse, item_code\) INCLUDE \(item_name, posting_date, qty_change, stock_value_change\)/],
+      ['app_invoices_draft_id_idx',
+        /\(id\) WHERE \(docstatus = 'draft'::text\)/],
+      ['app_purchases_draft_id_idx',
+        /\(id\) WHERE \(docstatus = 'draft'::text\)/],
+      ['app_stock_entries_draft_id_idx',
+        /\(id\) WHERE \(\(docstatus = 'draft'::text\) AND \(entry_type <> 'reconciliation'::text\)\)/],
+    ]);
+
+    for (const [name, definition] of expected) {
+      const index = (await pool.query(`SELECT indisvalid, indisready, pg_get_indexdef(indexrelid) definition
+        FROM pg_index WHERE indexrelid=to_regclass($1)`, [name])).rows[0];
+      assert.equal(index?.indisvalid, true, name);
+      assert.equal(index?.indisready, true, name);
+      assert.match(index.definition, definition, name);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL enable_seqscan=off');
+      const plan = (await client.query(`EXPLAIN (COSTS OFF)
+        SELECT id FROM app_stock_ledger
+        WHERE warehouse=$1
+        ORDER BY posting_date, id
+        LIMIT 50`, [FIXED.warehouse])).rows.map(row => row['QUERY PLAN']).join('\n');
+      assert.match(plan, /app_stock_ledger_warehouse_date_id_idx/);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+
+    await pool.query('DROP INDEX app_invoices_draft_id_idx');
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=56');
+    await store.initStore();
+    assert.equal((await pool.query(`SELECT indisvalid FROM pg_index
+      WHERE indexrelid=to_regclass('app_invoices_draft_id_idx')`)).rows[0].indisvalid, true);
+    assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version, SCHEMA_VERSION);
+  } finally {
+    await store.closeStore();
+  }
+});

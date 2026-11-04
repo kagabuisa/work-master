@@ -31,7 +31,7 @@ test('backdating and cancellation bind to reviewed versions, require explicit Ad
   const admin=await auth.createUser('voucher-admin','VoucherPassword123!',{role:'admin'});
   const user=await auth.createUser('voucher-maker','VoucherPassword123!',{role:'standard'});
   await pool.query('UPDATE app_users SET permission_grants=$1 WHERE id=$2',[JSON.stringify(['vouchers.purchases.view','vouchers.purchases.create','vouchers.purchases.edit','vouchers.stock.view','vouchers.stock.edit','vouchers.journals.view','vouchers.journals.edit']),user.id]);
-  await pool.query('INSERT INTO app_master_suppliers(supplier_id,supplier_name) VALUES($1,$2)',[FIXED.supplierRef,FIXED.supplierName]);
+  await pool.query('INSERT INTO app_master_suppliers(supplier_id,supplier_name) VALUES($1,$2) ON CONFLICT(supplier_id) DO NOTHING',[FIXED.supplierRef,FIXED.supplierName]);
   await pool.query('INSERT INTO app_master_items(item_code,item_name) VALUES($1,$2)',[FIXED.itemCode,FIXED.itemName]);
   await pool.query('INSERT INTO app_master_warehouses(warehouse) VALUES($1)',[FIXED.warehouse]);
   await pool.query("INSERT INTO app_master_price_lists(price_list,currency,price_type,active) VALUES('Voucher Buying','UGX','buying',1)");

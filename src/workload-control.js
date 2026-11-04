@@ -3,6 +3,8 @@ const { performance } = require('node:perf_hooks');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const timings = new AsyncLocalStorage();
 const {markReadQueued,markReadStarted}=require('./read-cache');
+const REPORT_LANES = new Set(['ledger', 'inventory']);
+const REPORT_LABEL = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 function integer(name, fallback, minimum) {
   const value = Number(process.env[name] ?? fallback);
@@ -41,7 +43,7 @@ function createReportGate({ limit = 3, maxQueue = 100, timeoutMs = 30000, label 
     peakActive = Math.max(peakActive, active);
     try {
       if (signal?.aborted) throw signal.reason || Error('Report cancelled.');
-      return await load();
+      return await load({ waitedMs: waited });
     } finally { completed++; release(); }
   };
   run.metrics = () => ({ active, queued: queue.length, limit, max_queue: maxQueue, peak_active: peakActive, peak_queue: peakQueue, completed, rejected, admitted, wait_total_ms: waitTotal, wait_mean_ms: admitted ? waitTotal / admitted : 0, wait_max_ms: waitMax });
@@ -50,7 +52,9 @@ function createReportGate({ limit = 3, maxQueue = 100, timeoutMs = 30000, label 
 // Reports and lists have separate admission queues. Waiting reports never hold
 // a list slot or a database lease. All classified reads share a hard DB budget.
 const expensiveReads = new AsyncLocalStorage();
-let reportGate, browsingGate, readConnections, reportConnections;
+const reportGates = new Map();
+const reportTimings = new Map();
+let browsingGate, readConnections, reportConnections;
 const checkouts = new Map();
 function readBudget() {
   const poolMax = integer('POSTGRES_POOL_MAX', 10, 1);
@@ -65,16 +69,78 @@ function recordConnectionCheckout(kind, ms, failed) {
 function runInteractiveRead(load) {
   return expensiveReads.getStore() ? load() : expensiveReads.run({kind:'interactive'},load);
 }
+function runSessionRead(load) {
+  // Session activity is a small database write that every request needs.
+  // Keep it inside the main pool but out of the expensive-page read queue so
+  // report and list scans cannot block authentication.
+  return expensiveReads.run({kind:'session',admitted:true},load);
+}
 function requestReadBudget(req, _res, next) {
   const stockPreviewBatch = req.method === 'POST' && /^\/api\/invoice-stock-balances\/?$/.test(req.path);
   return ['GET','HEAD'].includes(req.method) || stockPreviewBatch ? runInteractiveRead(next) : next();
 }
-function runHeavyReport(load, options) {
-  if (expensiveReads.getStore()?.kind==='report') return load();
-  if (!reportGate) reportGate = createReportGate({ limit: integer('HEAVY_REPORT_CONCURRENCY', 1, 1),
-    maxQueue: integer('HEAVY_REPORT_QUEUE_MAX', 100, 0), timeoutMs: integer('HEAVY_REPORT_QUEUE_TIMEOUT_MS', 30000, 1) });
+function reportLaneGate(lane) {
+  if (!reportGates.has(lane)) {
+    const prefix = lane.toUpperCase().replace(/-/g, '_');
+    reportGates.set(lane, createReportGate({
+      limit: integer(`HEAVY_REPORT_${prefix}_CONCURRENCY`, integer('HEAVY_REPORT_CONCURRENCY', 1, 1), 1),
+      maxQueue: integer('HEAVY_REPORT_QUEUE_MAX', 100, 0),
+      timeoutMs: integer('HEAVY_REPORT_QUEUE_TIMEOUT_MS', 30000, 1),
+      label: lane === 'inventory' ? 'Inventory reports' : 'Ledger reports',
+    }));
+  }
+  return reportGates.get(lane);
+}
+function recordReportTiming(lane, label, queueWaitMs, executionMs, ok) {
+  const key = `${lane}:${label}`;
+  if (!reportTimings.has(key) && reportTimings.size >= 50) return;
+  const value = reportTimings.get(key) || {
+    lane, label, count: 0, failed: 0, queue_wait_total_ms: 0, queue_wait_max_ms: 0,
+    execution_total_ms: 0, execution_max_ms: 0,
+  };
+  value.count++;
+  value.failed += ok ? 0 : 1;
+  value.queue_wait_total_ms += queueWaitMs;
+  value.queue_wait_max_ms = Math.max(value.queue_wait_max_ms, queueWaitMs);
+  value.execution_total_ms += executionMs;
+  value.execution_max_ms = Math.max(value.execution_max_ms, executionMs);
+  reportTimings.set(key, value);
+}
+function runHeavyReport(load, options = {}) {
+  if (expensiveReads.getStore()?.kind === 'report') return load();
+  const lane = REPORT_LANES.has(options.lane) ? options.lane : 'ledger';
+  const label = REPORT_LABEL.test(options.label || '') ? options.label : 'report';
+  const gate = reportLaneGate(lane);
+  const started = performance.now();
+  let queueWaitMs = 0;
+  let executionMs = 0;
+  let ok = false;
   markReadQueued();
-  return reportGate(() => {markReadStarted();return expensiveReads.run({kind:'report',admitted:true},load);},options);
+  return gate(async ({ waitedMs }) => {
+    queueWaitMs = waitedMs;
+    const executionStarted = performance.now();
+    try {
+      markReadStarted();
+      const result = await expensiveReads.run({ kind: 'report', admitted: true }, load);
+      ok = true;
+      return result;
+    } finally {
+      executionMs = performance.now() - executionStarted;
+    }
+  }, options).catch(error => {
+    if (!queueWaitMs) queueWaitMs = performance.now() - started;
+    throw error;
+  }).finally(() => {
+    const totalMs = performance.now() - started;
+    recordReportTiming(lane, label, queueWaitMs, executionMs, ok);
+    if (process.env.REPORT_TIMINGS === '1') {
+      console.info(JSON.stringify({
+        event: 'report_timing', timestamp: new Date().toISOString(), lane, report: label,
+        success: ok, queue_wait_ms: Math.round(queueWaitMs),
+        execution_ms: Math.round(executionMs), total_ms: Math.round(totalMs),
+      }));
+    }
+  });
 }
 function runExpensiveRead(load, options) {
   if (expensiveReads.getStore()?.admitted) return load();
@@ -93,7 +159,7 @@ function lease(gate) {
   });
 }
 async function acquireReadLease() {
-  if (!expensiveReads.getStore()) return () => {};
+  if (!expensiveReads.getStore() || connectionWorkload() === 'session') return () => {};
   // Reports may occupy only part of the common read budget. Keep one slot for
   // interactive readers when the configured pool/budget permits it.
   let freeReport;
@@ -111,9 +177,31 @@ async function acquireReadLease() {
     return ()=>{if(freed)return;freed=true;freeRead();freeReport?.();};
   } catch(error) {freeReport?.();throw error;}
 }
+function combinedReportMetrics() {
+  const reportLanes = Object.fromEntries([...reportGates].map(([name, gate]) => [name, gate.metrics()]));
+  const gates = Object.values(reportLanes);
+  if (!gates.length) return { reports: null, report_lanes: reportLanes };
+  const reports = gates.reduce((total, gate) => {
+    for (const key of ['active', 'queued', 'limit', 'max_queue', 'peak_active', 'peak_queue',
+      'completed', 'rejected', 'admitted', 'wait_total_ms', 'wait_max_ms']) {
+      total[key] = Number(total[key] || 0) + Number(gate[key] || 0);
+    }
+    return total;
+  }, {});
+  reports.wait_mean_ms = reports.admitted ? reports.wait_total_ms / reports.admitted : 0;
+  reports.lane_count = gates.length;
+  return { reports, report_lanes: reportLanes };
+}
 function workloadMetrics() {
+  const reportMetrics = combinedReportMetrics();
   return { browsing: browsingGate?.metrics() || null, reads: readConnections?.metrics() || null,
-    reports: reportGate?.metrics() || null, report_connections:reportConnections?.metrics()||null,
+    reports: reportMetrics.reports, report_lanes: reportMetrics.report_lanes,
+    report_timings: Object.fromEntries([...reportTimings].map(([key, value]) => [key, {
+      ...value,
+      queue_wait_mean_ms: value.count ? value.queue_wait_total_ms / value.count : 0,
+      execution_mean_ms: value.count ? value.execution_total_ms / value.count : 0,
+    }])),
+    report_connections:reportConnections?.metrics()||null,
     connection_checkouts:Object.fromEntries([...checkouts].map(([kind,v])=>[kind,{...v,mean_ms:v.total_ms/v.count}])),
     read_connection_limit: readBudget() };
 }
@@ -135,4 +223,4 @@ async function measurePosting(operation, load) {
       stages_ms: Object.fromEntries(Object.entries(context.stages).map(([key, value]) => [key, Math.round(value)])) }));
   }
 }
-module.exports = { runInteractiveRead, requestReadBudget, connectionWorkload, recordConnectionCheckout, runExpensiveRead, acquireReadLease, workloadMetrics, createReportGate, runHeavyReport, postingStage, measurePosting };
+module.exports = { runInteractiveRead, runSessionRead, requestReadBudget, connectionWorkload, recordConnectionCheckout, runExpensiveRead, acquireReadLease, workloadMetrics, createReportGate, runHeavyReport, postingStage, measurePosting };

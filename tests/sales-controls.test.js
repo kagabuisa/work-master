@@ -59,7 +59,7 @@ test('PostgreSQL enforces pending approvals and cancellation before stock effect
  try {
   await seedGoldenData();const pool=store.getPostgresPool();
   await pool.query('INSERT INTO app_master_items(item_code,item_name,unit_cost) VALUES($1,$2,50)',[FIXED.itemCode,FIXED.itemName]);
-  await pool.query('INSERT INTO app_master_customers(customer_id,customer_name) VALUES($1,$2)',[FIXED.customerId,FIXED.customerName]);
+  await pool.query('INSERT INTO app_master_customers(customer_id,customer_name) VALUES($1,$2) ON CONFLICT(customer_id) DO NOTHING',[FIXED.customerId,FIXED.customerName]);
   await pool.query("INSERT INTO app_master_warehouses(warehouse,warehouse_type) VALUES($1,'Shop')",[FIXED.warehouse]);
   const user=await require('../src/auth').createUser('sales_control_test','test-password-strong',{role:'standard'});
   await pool.query('UPDATE app_users SET permission_grants=$1 WHERE id=$2',[JSON.stringify(['sales.policy.accountant','sales.approvals.request','vouchers.sales.cancel','vouchers.sales.edit']),user.id]);

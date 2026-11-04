@@ -1,5 +1,6 @@
 'use strict';
-const {runExpensiveRead}=require('../workload-control');
+const {runHeavyReport}=require('../workload-control');
+const {shareRead,readSnapshot}=require('../read-cache');
 
 const { getPostgresPool } = require('../core');
 const { isValidIsoDate } = require('../lib/dates');
@@ -186,7 +187,12 @@ function parseFilters(config, options) {
 }
 
 async function voucherReport(kind, options = {}) {
-  return runExpensiveRead(() => loadVoucherReport(kind,options));
+  const pool = options.pool || getPostgresPool();
+  const keyOptions = Object.fromEntries(
+    Object.entries(options).filter(([name]) => name !== 'pool'));
+  return shareRead(pool, ['voucher-report', kind, keyOptions], () =>
+    runHeavyReport(() => loadVoucherReport(kind, options),
+      {lane:'ledger',label:'voucher-report'}), { scope: 'voucher-report' });
 }
 async function loadVoucherReport(kind, options = {}) {
   const config = reportConfig(kind);
@@ -210,6 +216,20 @@ async function loadVoucherReport(kind, options = {}) {
   if (journal) joins += ` LEFT JOIN app_accounts account ON account.id = line.account_id
     LEFT JOIN app_users creator ON creator.id::text = ${parent}.created_by_user_id`;
   else joins += ' LEFT JOIN app_master_items master ON master.item_code = line.item_code';
+  const baseNeedsAccount = journal && (filters.search || filters.account);
+  const baseNeedsCreator = journal && (filters.search || filters.user);
+  const baseJoins = journal
+    ? `LEFT JOIN app_journal_entry_lines line ON line.journal_entry_id = j.id
+      ${baseNeedsAccount ? 'LEFT JOIN app_accounts account ON account.id = line.account_id' : ''}
+      ${baseNeedsCreator ? 'LEFT JOIN app_users creator ON creator.id::text = j.created_by_user_id' : ''}`
+    : `LEFT JOIN ${lineTable} line ON line.${lineFk} = ${parent}.id
+      ${filters.category ? 'LEFT JOIN app_master_items master ON master.item_code = line.item_code' : ''}`;
+  const hydratedJoins = journal
+    ? `LEFT JOIN app_journal_entry_lines line ON line.id = report_page.line_id
+      LEFT JOIN app_accounts account ON account.id = line.account_id
+      LEFT JOIN app_users creator ON creator.id::text = j.created_by_user_id`
+    : `LEFT JOIN ${lineTable} line ON line.id = report_page.line_id
+      LEFT JOIN app_master_items master ON master.item_code = line.item_code`;
   if (!journal && Array.isArray(options.allowedTypes)) {
     where.push(`EXISTS (SELECT 1 FROM app_master_suppliers supplier
       WHERE supplier.supplier_id = ${parent}.supplier_id
@@ -263,17 +283,16 @@ async function loadVoucherReport(kind, options = {}) {
       where.push(`lower(coalesce(master.category, '')) LIKE ${add(sqlLikePattern(filters.category))}`);
     }
   }
-  const fromSql = `FROM ${table} ${parent} ${joins}`;
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const common = `${parent}.posting_date::text, ${parent}.posting_time::text,
     ${parent}.cost_center, ${parent}.docstatus, ${parent}.remarks, ${parent}.created_at::text,
     line.line_no`;
-  const select = journal ? `j.id AS voucher_id, j.journal_no, creator.username AS "user", ${common}, j.journal_type,
+  const select = journal ? `j.id::text AS voucher_id, j.journal_no, creator.username AS "user", ${common}, j.journal_type,
     j.party_type, j.party_id, j.party_name, j.reference_no,
     j.total_debit::float, j.total_credit::float,
     account.account_code, account.account_name, line.debit::float, line.credit::float,
     line.remarks AS line_remarks`
-    : `${parent}.id AS voucher_id, ${parent}.${order ? 'order_no' : 'purchase_no'}, ${common},
+    : `${parent}.id::text AS voucher_id, ${parent}.${order ? 'order_no' : 'purchase_no'}, ${common},
     ${parent}.due_date::text, ${parent}.supplier_id, ${parent}.supplier_name,
     ${parent}.supplier_reference, ${parent}.price_list, ${parent}.subtotal::float,
     ${parent}.total::float, ${parent}.updated_at::text,
@@ -283,24 +302,55 @@ async function loadVoucherReport(kind, options = {}) {
       JOIN app_purchases received_purchase ON received_purchase.id = receipt.purchase_id
       WHERE receipt.purchase_order_item_id = line.id AND received_purchase.docstatus = 'submitted'), 0)::float
       AS received_quantity`
-    : `${parent}.purchase_order_id, linked_order.order_no AS purchase_order_no,
+    : `${parent}.purchase_order_id::text AS purchase_order_id, linked_order.order_no AS purchase_order_no,
       ${parent}.amount_paid::float,
       greatest(${parent}.total - ${parent}.amount_paid, 0)::float AS balance_due,
       ${parent}.status AS payment_status`}`;
   const extraJoin = !journal && !order
     ? 'LEFT JOIN app_purchase_orders linked_order ON linked_order.id = p.purchase_order_id' : '';
   const pool = options.pool || getPostgresPool();
-  const rowsQuery = pool.query(`SELECT ${select} ${fromSql} ${extraJoin} ${whereSql}
-    ORDER BY ${parent}.posting_date DESC, ${parent}.id DESC, line.line_no
-    LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-  [...params, pagination.limit, pagination.offset]);
-  const countQuery = exportPage ? null : pool.query(`SELECT count(*)::int AS total ${fromSql} ${whereSql}`, params);
-  const [rowsResult, countResult] = await Promise.all([rowsQuery, countQuery]);
+  const queryParams = [...params, pagination.limit, pagination.offset];
+  const sql = `
+    WITH report_base AS MATERIALIZED (
+      SELECT ${parent}.id AS voucher_id, ${parent}.posting_date,
+        line.id AS line_id, line.line_no
+      FROM ${table} ${parent}
+      ${baseJoins}
+      ${whereSql}
+    ),
+    report_page AS MATERIALIZED (
+      SELECT * FROM report_base
+      ORDER BY posting_date DESC, voucher_id DESC, line_no
+      LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
+    ),
+    hydrated AS (
+      SELECT ${select},
+        report_page.posting_date AS sort_date,
+        report_page.voucher_id AS sort_voucher,
+        report_page.line_id AS sort_line
+      FROM report_page
+      JOIN ${table} ${parent} ON ${parent}.id = report_page.voucher_id
+      ${hydratedJoins}
+      ${extraJoin}
+    )
+    SELECT
+      ${exportPage ? 'NULL::bigint' : '(SELECT count(*)::int FROM report_base)'} AS total,
+      COALESCE((
+        SELECT jsonb_agg(to_jsonb(report_row) - 'sort_date' - 'sort_voucher' - 'sort_line')
+        FROM (
+          SELECT * FROM hydrated
+          ORDER BY sort_date DESC, sort_voucher DESC, sort_line
+        ) report_row
+      ), '[]'::jsonb) AS rows`;
+  const queryResult = typeof pool.connect === 'function'
+    ? await readSnapshot(pool, async client => client.query(sql, queryParams))
+    : await pool.query(sql, queryParams);
+  const { rows: [result] } = queryResult;
   return {
-    rows: rowsResult.rows, filters, columns: config.columns,
+    rows: result.rows, filters, columns: config.columns,
     selectedColumns: selectedColumns(config, options),
     hasSavedColumns: Array.isArray(options.savedColumns) && options.savedColumns.length > 0,
-    pagination: exportPage ? null : paginationResult(countResult.rows[0].total, pagination),
+    pagination: exportPage ? null : paginationResult(result.total, pagination),
   };
 }
 

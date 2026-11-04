@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { shareRead, invalidateFinancialReads, clearReadCaches, readSnapshot } = require('../src/read-cache');
+const { shareRead, invalidateFinancialReads, clearReadCaches, readSnapshot, readParallelSnapshot } = require('../src/read-cache');
 const { invoiceTextOnlyPattern, textOnlyPattern, likeMatches } = require('../src/domain/search-sql');
 
 test('queued reads follow commits without retaining completed data or joining an older running snapshot', async () => {
@@ -78,13 +78,47 @@ test('metadata has a bounded lifetime, shares misses, survives financial writes 
   assert.equal(await shareRead(pool, 'failure', async () => 'retried'), 'retried');
 });
 
-test('interactive snapshots scope JIT and roll back/release on errors', async () => {
+test('interactive snapshots scope JIT and timeout, then roll back and release on errors', async () => {
   const commands = []; let released;
-  const client = { query: async sql => { commands.push(sql); }, release: error => { released = { error }; } };
+  const client = {
+    query: async (sql, values) => { commands.push({ sql, values }); },
+    release: error => { released = { error }; },
+  };
   const pool = { connect: async () => client };
   await assert.rejects(readSnapshot(pool, async () => { throw Error('read failed'); }), /read failed/);
-  assert.deepEqual(commands, ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', 'SET LOCAL jit = off', 'ROLLBACK']);
+  assert.deepEqual(commands, [
+    { sql: 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', values: undefined },
+    { sql: 'SET LOCAL jit = off', values: undefined },
+    { sql: "SELECT set_config('statement_timeout', $1, true)", values: ['240000ms'] },
+    { sql: 'ROLLBACK', values: undefined },
+  ]);
   assert.deepEqual(released, { error: undefined });
+});
+
+test('parallel report scans import one exported repeatable-read snapshot', async () => {
+  const commands = [[], []];
+  const releases = [];
+  const clients = commands.map((entries, index) => ({
+    query: async (sql) => {
+      entries.push(sql);
+      if (sql === 'SELECT pg_export_snapshot() AS snapshot') {
+        return { rows: [{ snapshot: '00000003-TEST' }] };
+      }
+      return { rows: [] };
+    },
+    release: error => { releases[index] = error; },
+  }));
+  let next = 0;
+  const pool = { connect: async () => clients[next++] };
+  const result = await readParallelSnapshot(pool, [
+    async () => 'invoice aggregate',
+    async () => 'party aggregate',
+  ], async (_primary, [invoices, parties]) => ({ invoices, parties }));
+  assert.deepEqual(result, { invoices: 'invoice aggregate', parties: 'party aggregate' });
+  assert.match(commands[1].join('\n'), /SET TRANSACTION SNAPSHOT '00000003-TEST'/);
+  assert.equal(commands[0].at(-1), 'COMMIT');
+  assert.equal(commands[1].at(-1), 'COMMIT');
+  assert.deepEqual(releases, [undefined, undefined]);
 });
 
 test('text search optimization conservatively preserves numeric, date, status and wildcard matching', () => {

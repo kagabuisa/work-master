@@ -1,13 +1,14 @@
 const salesControls = require('../sales-controls');
 const { beginInventoryPosting, inventoryMovements } = require('../services/inventory-posting');
+const { assertUniqueInvoiceItems, assertSingleInvoiceWarehouse } = require('../invoice-items');
 'use strict';
 // Sales domain: invoices, payments, debtor reports and invoice hydration.
 const { getPostgresPool, withPostgresTransaction } = require('../core');
-const { measurePosting, postingStage, runExpensiveRead } = require('../workload-control');
-const { shareRead, readSnapshot } = require('../read-cache');
+const { measurePosting, postingStage, runExpensiveRead, runHeavyReport } = require('../workload-control');
+const { shareRead, readSnapshot, readParallelSnapshot } = require('../read-cache');
 const { invoiceSearchSql, invoiceTextOnlyPattern } = require('./search-sql');
 const { PAYMENT_METHODS, DEFAULT_ACCOUNTS } = require('../constants');
-const { assertPostingDate, currentPostingDate, normalizePostingTime, storedPostingTime } = require('../posting-time');
+const { assertPostingDate, currentPostingDate, currentPostingTime, normalizePostingTime, storedPostingTime } = require('../posting-time');
 const { recordAuditFields } = require('../audit');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
@@ -54,8 +55,8 @@ async function invoiceWarehouses() {
   }, { metadata: true });
 }
 
-async function findInvoice(id) {
-  return findPostgresInvoice(id);
+async function findInvoice(id, options = {}) {
+  return findPostgresInvoice(id, options);
 }
 
 async function invoiceForPayment(id) {
@@ -85,8 +86,8 @@ async function updateInvoice(id, payload) {
   return updatePostgresInvoice(id, payload);
 }
 
-async function submitInvoice(id) {
-  return submitPostgresInvoice(id);
+async function submitInvoice(id, options) {
+  return submitPostgresInvoice(id, options);
 }
 
 async function cancelInvoice(id) {
@@ -110,7 +111,7 @@ async function topDebtors(limit = 10) {
 }
 
 async function debtorReport(options = {}) {
-  return runExpensiveRead(() => postgresDebtorReport(options));
+  return postgresDebtorReport(options);
 }
 
 function postgresInvoiceBalancesCte() {
@@ -159,6 +160,67 @@ function postgresInvoiceBalancesCte() {
     )`;
 }
 
+function postgresArLedgerCte() {
+  return `
+    ar_ledger AS (
+      SELECT gl.id, gl.posting_date, gl.account_id, gl.party_type, gl.party_id,
+        gl.party_name, gl.voucher_type, gl.voucher_id, gl.voucher_no, gl.line_no,
+        gl.debit, gl.credit, gl.remarks
+      FROM app_gl_entries gl
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = gl.account_id
+    )`;
+}
+
+function postgresDebtorPostingsCte() {
+  return `
+    ${postgresArLedgerCte()},
+    invoice_postings AS (
+      SELECT invoice.id AS invoice_id, SUM(gl.debit - gl.credit) AS total
+      FROM app_invoices invoice
+      JOIN ar_ledger gl ON gl.voucher_type = 'sales_invoice' AND gl.voucher_id = invoice.id
+      GROUP BY invoice.id
+    ),
+    payment_postings AS (
+      SELECT invoice_id, SUM(amount) AS amount_paid
+      FROM (
+        SELECT invoice.id AS invoice_id, gl.credit - gl.debit AS amount
+        FROM ar_ledger gl
+        JOIN app_journal_entries journal ON journal.id = gl.voucher_id
+        JOIN app_journal_entry_lines ref_line ON ref_line.journal_entry_id = journal.id
+          AND ref_line.line_no = gl.line_no
+        JOIN app_invoices invoice ON invoice.invoice_no =
+          COALESCE(NULLIF(ref_line.reference_no, ''), journal.reference_no)
+        WHERE journal.party_type = 'customer'
+          AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+          AND gl.voucher_type IN (journal.journal_type, journal.journal_type || '_cancellation')
+          AND (NULLIF(journal.party_id, '') = NULLIF(invoice.customer_id, '')
+            OR (COALESCE(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+        UNION ALL
+        SELECT payment.invoice_id, gl.credit - gl.debit AS amount
+        FROM app_invoice_payments payment
+        JOIN ar_ledger gl ON gl.voucher_id = payment.id
+          AND gl.voucher_type IN ('customer_payment', 'customer_payment_cancellation')
+      ) posted
+      GROUP BY invoice_id
+    )`;
+}
+
+function postgresDebtorBalancesCte() {
+  return `
+    ${postgresDebtorPostingsCte()},
+    invoice_balances AS (
+      SELECT invoice.id, invoice.invoice_no, invoice.invoice_date, invoice.due_date,
+        invoice.customer_id, invoice.customer_name, invoice.docstatus,
+        COALESCE(posting.total, 0) AS total,
+        COALESCE(payment.amount_paid, 0) AS amount_paid,
+        COALESCE(posting.total, 0) - COALESCE(payment.amount_paid, 0) AS balance_due
+      FROM app_invoices invoice
+      LEFT JOIN invoice_postings posting ON posting.invoice_id = invoice.id
+      LEFT JOIN payment_postings payment ON payment.invoice_id = invoice.id
+    )`;
+}
+
 async function postgresDebtorReport(options = {}) {
   const search = String(options.search || '').trim().toLowerCase();
   const selectedCustomer = String(options.customer || '').trim();
@@ -180,8 +242,50 @@ async function postgresDebtorReport(options = {}) {
   params.push(currentPostingDate());
   const kampalaToday = `$${params.length}::date`;
   const invoiceDateRange = Boolean(from || to);
-  const groupedSql = `
-    WITH ${postgresInvoiceBalancesCte()}, invoice_grouped AS (
+  const invoiceAggregateSql = !invoiceDateRange ? `
+    WITH ${postgresDebtorPostingsCte()}, invoice_facts AS NOT MATERIALIZED (
+      SELECT
+        COALESCE(NULLIF(invoice.customer_id, ''), invoice.customer_name) AS customer_key,
+        invoice.customer_id, invoice.customer_name, invoice.invoice_date, invoice.due_date,
+        COALESCE(posting.total, 0) AS total,
+        COALESCE(payment.amount_paid, 0) AS amount_paid,
+        COALESCE(posting.total, 0) - COALESCE(payment.amount_paid, 0) AS balance_due
+      FROM app_invoices invoice
+      LEFT JOIN invoice_postings posting ON posting.invoice_id = invoice.id
+      LEFT JOIN payment_postings payment ON payment.invoice_id = invoice.id
+      WHERE invoice.docstatus = 'submitted'
+    ), customer_groups AS MATERIALIZED (
+      SELECT
+        GROUPING(COALESCE(NULLIF(customer_id, ''), customer_name)) AS is_total,
+        COALESCE(NULLIF(customer_id, ''), customer_name) AS customer_key,
+        MAX(customer_id) AS customer_id,
+        MAX(customer_name) AS customer_name,
+        COUNT(*)::int AS invoice_count,
+        COALESCE(SUM(total), 0)::float AS invoice_total,
+        COALESCE(SUM(amount_paid), 0)::float AS paid_total,
+        COALESCE(SUM(balance_due), 0)::float AS balance_due,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) <= 0 THEN balance_due ELSE 0 END), 0)::float AS current,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 1 AND 30 THEN balance_due ELSE 0 END), 0)::float AS days_1_30,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 31 AND 60 THEN balance_due ELSE 0 END), 0)::float AS days_31_60,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 61 AND 90 THEN balance_due ELSE 0 END), 0)::float AS days_61_90,
+        COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) > 90 THEN balance_due ELSE 0 END), 0)::float AS days_over_90
+      FROM invoice_facts
+      GROUP BY GROUPING SETS (
+        (COALESCE(NULLIF(customer_id, ''), customer_name)),
+        ()
+      )
+    )
+    SELECT
+      COALESCE((
+        SELECT json_agg(to_jsonb(customer) - 'is_total')
+        FROM customer_groups customer
+        WHERE is_total = 0
+      ), '[]'::json) AS invoices,
+      (SELECT COALESCE(SUM(balance_due), 0)::float FROM customer_groups WHERE is_total = 1) AS allocated_balance`
+  : `
+    WITH ${postgresDebtorBalancesCte()}, submitted_balances AS MATERIALIZED (
+      SELECT * FROM invoice_balances WHERE docstatus = 'submitted'
+    ), invoice_grouped AS MATERIALIZED (
       SELECT
         COALESCE(NULLIF(customer_id, ''), customer_name) AS customer_key,
         MAX(customer_id) AS customer_id,
@@ -195,10 +299,15 @@ async function postgresDebtorReport(options = {}) {
         COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 31 AND 60 THEN balance_due ELSE 0 END), 0)::float AS days_31_60,
         COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) BETWEEN 61 AND 90 THEN balance_due ELSE 0 END), 0)::float AS days_61_90,
         COALESCE(SUM(CASE WHEN ${kampalaToday} - COALESCE(due_date, invoice_date) > 90 THEN balance_due ELSE 0 END), 0)::float AS days_over_90
-      FROM invoice_balances
+      FROM submitted_balances
       WHERE ${where.join(' AND ')}
       GROUP BY COALESCE(NULLIF(customer_id, ''), customer_name)
-    ), party_ar AS (
+    )
+    SELECT
+      COALESCE((SELECT json_agg(row_to_json(invoice_grouped)) FROM invoice_grouped), '[]'::json) AS invoices,
+      (SELECT COALESCE(SUM(balance_due), 0)::float FROM submitted_balances) AS allocated_balance`;
+  const partyAggregateSql = `
+    WITH ${postgresArLedgerCte()}, party_ar AS (
       SELECT COALESCE(NULLIF(party_id, ''), party_name) AS customer_key,
         MAX(party_id) AS customer_id, MAX(party_name) AS customer_name,
         SUM(debit - credit)::float AS balance_due
@@ -206,6 +315,24 @@ async function postgresDebtorReport(options = {}) {
       WHERE party_type = 'customer'
         AND COALESCE(NULLIF(party_id, ''), party_name) IS NOT NULL
       GROUP BY COALESCE(NULLIF(party_id, ''), party_name)
+    )
+    SELECT
+      COALESCE((SELECT json_agg(row_to_json(party_ar)) FROM party_ar), '[]'::json) AS parties,
+      (SELECT COALESCE(SUM(debit - credit), 0)::float FROM ar_ledger) AS ledger_balance`;
+  const finalParams = [null, null, sqlLikePattern(search), selectedCustomer, pagination.limit,
+    pagination.offset, null, null];
+  const finalSql = `
+    WITH invoice_rows AS (
+      SELECT * FROM jsonb_to_recordset($1::jsonb) AS row(
+        customer_key text, customer_id text, customer_name text,
+        invoice_count integer, invoice_total double precision, paid_total double precision,
+        balance_due double precision, current double precision, days_1_30 double precision,
+        days_31_60 double precision, days_61_90 double precision, days_over_90 double precision
+      )
+    ), party_rows AS (
+      SELECT * FROM jsonb_to_recordset($2::jsonb) AS row(
+        customer_key text, customer_id text, customer_name text, balance_due double precision
+      )
     ), grouped AS (
       SELECT COALESCE(invoices.customer_key, ledger.customer_key) AS customer_key,
         COALESCE(invoices.customer_id, ledger.customer_id) AS customer_id,
@@ -221,95 +348,125 @@ async function postgresDebtorReport(options = {}) {
         COALESCE(invoices.days_over_90, 0) AS days_over_90,
         ${invoiceDateRange ? '0::float' : `COALESCE(ledger.balance_due, invoices.balance_due, 0)
           - COALESCE(invoices.balance_due, 0)`} AS unallocated
-      FROM invoice_grouped invoices
-      ${invoiceDateRange ? 'LEFT' : 'FULL'} JOIN party_ar ledger ON ledger.customer_key = invoices.customer_key
+      FROM invoice_rows invoices
+      ${invoiceDateRange ? 'LEFT' : 'FULL'} JOIN party_rows ledger ON ledger.customer_key = invoices.customer_key
+    ), filtered AS MATERIALIZED (
+    SELECT * FROM grouped
+    WHERE (
+      LOWER(customer_key) LIKE $3
+      OR LOWER(COALESCE(customer_id, '')) LIKE $3
+      OR LOWER(customer_name) LIKE $3
+      OR invoice_count::text LIKE $3
+      OR invoice_total::text LIKE $3
+      OR paid_total::text LIKE $3
+      OR balance_due::text LIKE $3
     )
-  `;
-  const filteredParams = [...params];
-  const filteredWhere = [];
-  if (search) {
-    filteredParams.push(sqlLikePattern(search));
-    filteredWhere.push(`(
-      LOWER(customer_key) LIKE $${filteredParams.length}
-      OR LOWER(COALESCE(customer_id, '')) LIKE $${filteredParams.length}
-      OR LOWER(customer_name) LIKE $${filteredParams.length}
-      OR invoice_count::text LIKE $${filteredParams.length}
-      OR invoice_total::text LIKE $${filteredParams.length}
-      OR paid_total::text LIKE $${filteredParams.length}
-      OR balance_due::text LIKE $${filteredParams.length}
-    )`);
+  ), debtor_filtered AS MATERIALIZED (
+    SELECT * FROM filtered WHERE balance_due > 0
+  )
+    SELECT
+      (SELECT row_to_json(summary) FROM (
+        SELECT
+          COUNT(*)::int AS customer_count,
+          COALESCE(SUM(invoice_total), 0)::float AS invoice_total,
+          COALESCE(SUM(paid_total), 0)::float AS paid_total,
+          COALESCE(SUM(balance_due), 0)::float AS balance_due,
+          COALESCE(SUM(current), 0)::float AS current,
+          COALESCE(SUM(days_1_30), 0)::float AS days_1_30,
+          COALESCE(SUM(days_31_60), 0)::float AS days_31_60,
+          COALESCE(SUM(days_61_90), 0)::float AS days_61_90,
+          COALESCE(SUM(days_over_90), 0)::float AS days_over_90,
+          COALESCE(SUM(unallocated), 0)::float AS unallocated
+        FROM debtor_filtered
+      ) summary) AS summary,
+      (SELECT COUNT(*)::int FROM debtor_filtered) AS total,
+      COALESCE((
+        SELECT json_agg(row_to_json(customer))
+        FROM (
+          SELECT * FROM filtered
+          ORDER BY balance_due DESC, customer_name
+          LIMIT 25
+        ) customer
+      ), '[]'::json) AS customer_results,
+      COALESCE((
+        SELECT json_agg(row_to_json(debtor))
+        FROM (
+          SELECT * FROM debtor_filtered
+          ORDER BY balance_due DESC, customer_name
+          LIMIT $5 OFFSET $6
+        ) debtor
+      ), '[]'::json) AS debtors,
+      (
+        SELECT row_to_json(selected)
+        FROM (SELECT * FROM grouped WHERE customer_key = $4 LIMIT 1) selected
+      ) AS selected,
+      json_build_object(
+        'ledger_balance', $7::float,
+        'allocated_balance', $8::float
+      ) AS reconciliation`;
+  const pool = getPostgresPool();
+  const key = ['debtor-report', search, selectedCustomer, from, to, statementFrom, statementTo,
+    pagination.limit, pagination.offset];
+  async function finishReport(client, invoiceAggregate, partyAggregate) {
+    finalParams[0] = JSON.stringify(invoiceAggregate.invoices);
+    finalParams[1] = JSON.stringify(partyAggregate.parties);
+    finalParams[6] = partyAggregate.ledger_balance;
+    finalParams[7] = invoiceAggregate.allocated_balance;
+    const { rows: [data] } = await client.query(finalSql, finalParams);
+    const selected = data.selected || null;
+    const statementResult = selected ? await postgresCustomerStatement(selected.customer_key, {
+      from: statementFrom || from,
+      to: statementTo || to,
+    }, client) : { statement: null, paymentInvoiceId: null };
+    return {
+      data,
+      selected,
+      statementResult,
+    };
   }
-  const filteredSql = `${groupedSql}
-    SELECT *
-    FROM grouped
-    ${filteredWhere.length ? `WHERE ${filteredWhere.join(' AND ')}` : ''}
-  `;
-  const debtorWhereSql = `${filteredWhere.length ? `WHERE ${filteredWhere.join(' AND ')} AND` : 'WHERE'} balance_due > 0`;
-  const [summaryResult, countResult, customerResult, reconciliationResult] = await Promise.all([
-    getPostgresPool().query(
-      `${groupedSql}
-      SELECT
-        COUNT(*)::int AS customer_count,
-        COALESCE(SUM(invoice_total), 0)::float AS invoice_total,
-        COALESCE(SUM(paid_total), 0)::float AS paid_total,
-        COALESCE(SUM(balance_due), 0)::float AS balance_due,
-        COALESCE(SUM(current), 0)::float AS current,
-        COALESCE(SUM(days_1_30), 0)::float AS days_1_30,
-        COALESCE(SUM(days_31_60), 0)::float AS days_31_60,
-        COALESCE(SUM(days_61_90), 0)::float AS days_61_90,
-        COALESCE(SUM(days_over_90), 0)::float AS days_over_90,
-        COALESCE(SUM(unallocated), 0)::float AS unallocated
-      FROM grouped
-      ${debtorWhereSql}`,
-      filteredParams,
-    ),
-    getPostgresPool().query(
-      `${groupedSql}
-      SELECT COUNT(*)::int AS total
-      FROM grouped
-      ${debtorWhereSql}`,
-      filteredParams,
-    ),
-    getPostgresPool().query(
-      `${filteredSql}
-      ORDER BY balance_due DESC, customer_name
-      LIMIT 25`,
-      filteredParams,
-    ),
-    getPostgresPool().query(`
-      WITH ${postgresInvoiceBalancesCte()}
-      SELECT
-        (SELECT COALESCE(SUM(debit - credit), 0)::float FROM ar_ledger) AS ledger_balance,
-        (SELECT COALESCE(SUM(balance_due), 0)::float FROM invoice_balances
-         WHERE docstatus = 'submitted') AS allocated_balance
-    `),
-  ]);
-  const pageParams = [...filteredParams, pagination.limit, pagination.offset];
-  const debtorRows = await getPostgresPool().query(
-    `${groupedSql}
-    SELECT *
-    FROM grouped
-    ${debtorWhereSql}
-    ORDER BY balance_due DESC, customer_name
-    LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
-    pageParams,
-  );
-  const allMatches = customerResult.rows.map(roundReportMoney);
-  const selected = await resolvePostgresDebtorSelection({
-    selectedCustomer,
-    groupedSql,
-    baseParams: params,
-  });
-  const statementResult = selected ? await postgresCustomerStatement(selected.customer_key, {
-    from: statementFrom || from,
-    to: statementTo || to,
-  }) : { statement: null, paymentInvoiceId: null };
+  const load = async () => {
+    // The wide control-account index is useful as a selective index, but an
+    // index-only scan of the full AR population is slower on the retained
+    // history because it amplifies visibility-map and random heap access.
+    // Keep the planner on the cheaper index/heap or sequential path for this
+    // report only.
+    const disableIndexOnly = async (client) => {
+      await client.query('SET LOCAL enable_indexonlyscan = off');
+      return client;
+    };
+    if (Number(pool.options?.max || 2) < 2) {
+      return readSnapshot(pool, async client => {
+        await disableIndexOnly(client);
+        const invoiceAggregate = (await client.query(invoiceAggregateSql, params)).rows[0];
+        const partyAggregate = (await client.query(partyAggregateSql)).rows[0];
+        return finishReport(client, invoiceAggregate, partyAggregate);
+      });
+    }
+    // These independent scans use two connections but the same exported
+    // repeatable-read snapshot. The joined summary/page uses the primary
+    // connection after both aggregates complete.
+    return readParallelSnapshot(pool, [
+      async client => {
+        await disableIndexOnly(client);
+        return (await client.query(invoiceAggregateSql, params)).rows[0];
+      },
+      async client => {
+        await disableIndexOnly(client);
+        return (await client.query(partyAggregateSql)).rows[0];
+      },
+    ], async (client, [invoiceAggregate, partyAggregate]) =>
+      finishReport(client, invoiceAggregate, partyAggregate));
+  };
+  const result = await shareRead(pool, key, () =>
+    runHeavyReport(load, {lane:'ledger',label:'debtors'}), { scope: 'debtor-report' });
+  const { data, selected, statementResult } = result;
+  const allMatches = data.customer_results.map(roundReportMoney);
   const summary = roundReportMoney({
     ...emptyDebtorSummary(),
-    ...(summaryResult.rows[0] || {}),
+    ...(data.summary || {}),
   });
   summary.customer_count = Number(summary.customer_count || 0);
-  const reconciliation = reconciliationResult.rows[0];
+  const reconciliation = data.reconciliation;
   summary.ledger_balance = roundMoney(reconciliation.ledger_balance);
   summary.allocated_balance = roundMoney(reconciliation.allocated_balance);
   summary.unallocated_balance = roundMoney(reconciliation.ledger_balance - reconciliation.allocated_balance);
@@ -325,14 +482,14 @@ async function postgresDebtorReport(options = {}) {
       statement_range_set: Boolean(statementFrom || statementTo),
     },
     summary,
-    debtors: debtorRows.rows.map(roundReportMoney),
+    debtors: data.debtors.map(roundReportMoney),
     customerResults: allMatches,
     selected: selected ? roundReportMoney({ ...selected }) : null,
     statement: statementResult.statement,
     statementBalance: statementResult.statement && statementResult.statement.length
       ? statementResult.statement[statementResult.statement.length - 1].balance : 0,
     paymentInvoiceId: statementResult.paymentInvoiceId,
-    pagination: paginationResult(Number(countResult.rows[0].total || 0), pagination),
+    pagination: paginationResult(Number(data.total || 0), pagination),
   };
 }
 
@@ -349,12 +506,13 @@ async function resolvePostgresDebtorSelection({ selectedCustomer, groupedSql, ba
   return rows[0] || null;
 }
 
-async function postgresCustomerStatement(customerKey, filters = {}) {
+async function postgresCustomerStatement(customerKey, filters = {}, client = null) {
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
-  const { rows } = await getPostgresPool().query(
+  const query = client ? client.query.bind(client) : getPostgresPool().query.bind(getPostgresPool());
+  const { rows } = await query(
     `
-    WITH ${postgresInvoiceBalancesCte()}
+    WITH ${postgresDebtorBalancesCte()}
     SELECT gl.posting_date::text AS date, gl.voucher_type, gl.voucher_id, gl.voucher_no,
       MAX(gl.remarks) AS description, SUM(gl.debit)::float AS debit,
       SUM(gl.credit)::float AS credit, invoice.id AS invoice_id,
@@ -671,8 +829,8 @@ function postgresInvoiceListRow(row) {
   });
 }
 
-async function findPostgresInvoice(id) {
-  return readSnapshot(getPostgresPool(), async client => {
+async function findPostgresInvoice(id, { client: suppliedClient } = {}) {
+  const load = async client => {
     const { rows } = await client.query(
       'SELECT * FROM app_invoices WHERE id = $1',
       [Number(id)],
@@ -680,7 +838,8 @@ async function findPostgresInvoice(id) {
     if (!rows[0]) return null;
     const invoices = await hydratePostgresInvoices(rows, client);
     return invoices[0] || null;
-  });
+  };
+  return suppliedClient ? load(suppliedClient) : readSnapshot(getPostgresPool(), load);
 }
 
 async function createPostgresInvoice(payload) {
@@ -749,7 +908,7 @@ async function postInvoiceStock(client, invoice, itemRows) {
   return totalCost;
 }
 
-async function createCashSaleInvoice(payload, payment) {
+async function createCashSaleInvoice(payload, payment, options = {}) {
   const invoiceData = buildInvoiceData({ ...payload, is_cash_sale: true, payments: [], amount_paid: 0 });
   return withPostgresTransaction(async (client) => {
     const approval = await salesControls.validateInvoice(client,{...invoiceData,...payload,items:invoiceData.items},{submitting:true});
@@ -787,13 +946,25 @@ async function createCashSaleInvoice(payload, payment) {
       [id],
     );
 
-    const totalCost = await postInvoiceStock(client, { ...invoiceData, id, invoice_no: invoiceNo }, itemRows);
+    let postingInvoice = { ...invoiceData, id, invoice_no: invoiceNo };
+    if (options.refreshCurrentPostingTime && dateOnly(postingInvoice.invoice_date) === currentPostingDate()) {
+      const postingTime = currentPostingTime();
+      if (storedPostingTime(postingInvoice.posting_time) !== postingTime) {
+        await postingStage('posting_time_refresh', () => client.query(
+          'UPDATE app_invoices SET posting_time = $2 WHERE id = $1',
+          [id, postingTime],
+        ));
+        postingInvoice = { ...postingInvoice, posting_time: postingTime };
+      }
+    }
+
+    const totalCost = await postInvoiceStock(client, postingInvoice, itemRows);
 
     await setVoucherDocstatus(client, 'app_invoices', id, 'submitted');
     await syncPostgresInvoicePaymentTotals(client, id);
 
     const invoice = {
-      ...invoiceData,
+      ...postingInvoice,
       id,
       invoice_no: invoiceNo,
       total_cost: roundMoney(totalCost),
@@ -883,17 +1054,19 @@ async function updatePostgresInvoiceInTransaction(client, id, payload) {
     return Number(id);
 }
 
-async function submitPostgresInvoice(id) {
-  await measurePosting('invoice_submit', () => withPostgresTransaction(client => postingStage('submit', () => submitPostgresInvoiceInTransaction(client, id))));
+async function submitPostgresInvoice(id, options = {}) {
+  await measurePosting('invoice_submit', () => withPostgresTransaction(client => postingStage('submit', () => (
+    submitPostgresInvoiceInTransaction(client, id, options)
+  ))));
   return Number(id);
 }
 
-async function submitPostgresInvoiceInTransaction(client, id) {
+async function submitPostgresInvoiceInTransaction(client, id, options = {}) {
   const { rows: invoiceRows } = await postingStage('invoice_lock', () => client.query(
     'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
     [Number(id)],
   ));
-  const invoice = invoiceRows[0];
+  let invoice = invoiceRows[0];
   if (!invoice) {
     const err = new Error('Invoice not found.');
     err.status = 404;
@@ -903,6 +1076,16 @@ async function submitPostgresInvoiceInTransaction(client, id) {
     const err = new Error('Only draft invoices can be submitted.');
     err.status = 400;
     throw err;
+  }
+  if (options.refreshCurrentPostingTime && dateOnly(invoice.invoice_date) === currentPostingDate()) {
+    const postingTime = currentPostingTime();
+    if (storedPostingTime(invoice.posting_time) !== postingTime) {
+      await postingStage('posting_time_refresh', () => client.query(
+        'UPDATE app_invoices SET posting_time = $2 WHERE id = $1',
+        [Number(id), postingTime],
+      ));
+      invoice = { ...invoice, posting_time: postingTime };
+    }
   }
 
   const { rows: itemRows } = await client.query(
@@ -915,6 +1098,8 @@ async function submitPostgresInvoiceInTransaction(client, id) {
     [Number(id)],
   );
 
+  assertUniqueInvoiceItems(itemRows);
+  assertSingleInvoiceWarehouse(itemRows, invoice.warehouse);
   await salesControls.validateInvoice(client,{...invoice,invoice_date:dateOnly(invoice.invoice_date),items:itemRows},{saved:invoice,submitting:true});
   const totalCost = await postInvoiceStock(client, invoice, itemRows);
   await setVoucherDocstatus(client, 'app_invoices', Number(id), 'submitted');
@@ -967,6 +1152,8 @@ async function submitCashSaleInvoice(id, payment) {
       [Number(id)],
     );
 
+    assertUniqueInvoiceItems(itemRows);
+    assertSingleInvoiceWarehouse(itemRows, invoice.warehouse);
     await salesControls.validateInvoice(client,{...invoice,invoice_date:dateOnly(invoice.invoice_date),items:itemRows},{saved:invoice,submitting:true});
     const totalCost = await postInvoiceStock(client, invoice, itemRows);
 

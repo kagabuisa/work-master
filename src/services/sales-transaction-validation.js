@@ -7,6 +7,7 @@ const { apiError } = require('../api/errors');
 const { normalizeQuantity } = require('../lib/quantity');
 const { roundMoney, rateValue, multiplyMoney } = require('../lib/money');
 const { normalizeStockQuantity } = require('./sales-validation');
+const { duplicateInvoiceItemCode, assertSingleInvoiceWarehouse } = require('../invoice-items');
 
 async function lockReferences(client, actor, payload, { creating = false } = {}) {
   const customer = (await client.query('SELECT * FROM app_master_customers WHERE customer_id=$1 FOR SHARE', [payload.customer_id])).rows[0];
@@ -30,6 +31,11 @@ async function lockReferences(client, actor, payload, { creating = false } = {})
   const items = payload.items;
   if (!Array.isArray(items) || !items.length || items.length > 200) throw apiError(422, 'validation_failed', 'Provide between 1 and 200 invoice lines.');
   if (items.some(item => !item || typeof item !== 'object' || Array.isArray(item))) throw apiError(422, 'validation_failed', 'Provide valid invoice line objects.');
+  const duplicateItem = duplicateInvoiceItemCode(items);
+  if (duplicateItem) throw apiError(422, 'validation_failed', `Item ${duplicateItem} is already included in this invoice. Combine the quantities into one line.`);
+  try { assertSingleInvoiceWarehouse(items, payload.warehouse); } catch (error) {
+    throw apiError(422, 'validation_failed', error.message);
+  }
   // Share-lock references in deterministic order. Do not reorder invoice lines
   // or change per-line pricing, rounding, valuation or posting logic.
   const codes = [...new Set(items.map(item => String(item.item_code || '').trim()))].sort();
@@ -87,6 +93,11 @@ async function lockSubmissionItems(client, items) {
   // Website submission revalidates items and stock, not historical customer,
   // employee or price-list active status. Preserve those saved snapshots/rules.
   if (!Array.isArray(items) || !items.length || items.length > 200) throw apiError(422, 'validation_failed', 'Provide between 1 and 200 invoice lines.');
+  const duplicateItem = duplicateInvoiceItemCode(items);
+  if (duplicateItem) throw apiError(422, 'validation_failed', `Item ${duplicateItem} is already included in this invoice. Combine the quantities into one line.`);
+  try { assertSingleInvoiceWarehouse(items); } catch (error) {
+    throw apiError(422, 'validation_failed', error.message);
+  }
   const codes = [...new Set(items.map(item => item.item_code))].sort();
   const rows = (await client.query('SELECT item_code FROM app_master_items WHERE item_code=ANY($1::text[]) AND disabled=false AND docstatus=\'submitted\' ORDER BY item_code FOR SHARE', [codes])).rows;
   if (rows.length !== codes.length || items.some(item => !item.warehouse || normalizeQuantity(item.quantity) <= 0)) {

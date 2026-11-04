@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 55;
+const SCHEMA_VERSION = 61;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -250,6 +250,20 @@ const MIGRATIONS = [
   { version:55, name:'voucher_exception_controls', up:async client=>{
     await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/voucher-controls.sql'),'utf8'));
   } },
+  { version:56, name:'stock_report_lookup_indexes', transactional:false,
+    up:()=>require('./inventory-indexes').createStockReportIndexes(getPostgresPool()) },
+  { version:57, name:'inventory_minute_boundary_and_batch_history', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/inventory-batch-history.sql'),'utf8'));
+  } },
+  { version:58, name:'control_account_party_guards', up:async client => {
+    await client.query(require('node:fs').readFileSync(require('node:path').join(__dirname,'sql/control-account-guards.sql'),'utf8'));
+  } },
+  { version:59, name:'debtor_control_account_cover_index', transactional:false,
+    up:()=>require('./ledger-indexes').createDebtorControlAccountIndex(getPostgresPool()) },
+  { version:60, name:'debtor_control_account_index_include_id', transactional:false,
+    up:()=>require('./ledger-indexes').createDebtorControlAccountIndex(getPostgresPool()) },
+  { version:61, name:'stock_movement_daily_summary',
+    up:client=>require('./stock-daily').initStockDaily(client) },
 ];
 
 async function ensureSchema(pool) {

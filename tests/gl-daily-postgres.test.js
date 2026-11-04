@@ -7,7 +7,7 @@ test('daily balances follow inserts, backdated updates, deletes, rollback, acces
 },async()=>{
  try{
   await seedGoldenData();const p=store.getPostgresPool();
-  const accounts=(await p.query('SELECT id FROM app_accounts ORDER BY id LIMIT 2')).rows;
+  const accounts=(await p.query("SELECT id FROM app_accounts WHERE account_code IN ('1120','3000') ORDER BY account_code")).rows;
   const reconcile=async()=>{
    const r=await p.query(`WITH expected AS (
     SELECT account_id,posting_date,voucher_type,mod(COALESCE(voucher_id,0),16)::int bucket,
@@ -44,9 +44,28 @@ test('daily balances follow inserts, backdated updates, deletes, rollback, acces
    }
   }
   await p.query('DELETE FROM app_gl_entries WHERE voucher_id=9000');await reconcile();
-  // Opposite account line orders must both commit.
-  await Promise.all([0,1].map(n=>store.createJournalEntry({journal_type:'journal_entry',posting_date:'2026-01-01',remarks:'Daily concurrent '+n,
-    lines:[{account_id:accounts[n].id,debit:10,credit:0},{account_id:accounts[1-n].id,debit:0,credit:10}]})));
+  // Opposite account line orders must both commit, and journal diagnostics must
+  // identify each transaction stage without logging payload data.
+  const priorTimings=process.env.POSTING_TIMINGS,priorInfo=console.info,timings=[];
+  process.env.POSTING_TIMINGS='1';
+  console.info=value=>{
+    try{const row=JSON.parse(value);if(row.event==='posting_timing')timings.push(row);else priorInfo(value);}
+    catch{priorInfo(value);}
+  };
+  try{
+   await Promise.all([0,1].map(n=>store.createJournalEntry({journal_type:'journal_entry',posting_date:'2026-01-01',remarks:'Daily concurrent '+n,
+     lines:[{account_id:accounts[n].id,debit:10,credit:0},{account_id:accounts[1-n].id,debit:0,credit:10}]})));
+  }finally{
+   console.info=priorInfo;
+   if(priorTimings===undefined)delete process.env.POSTING_TIMINGS;else process.env.POSTING_TIMINGS=priorTimings;
+  }
+  const journalTimings=timings.filter(row=>row.operation==='journal_post');
+  assert.equal(journalTimings.length,2);
+  for(const row of journalTimings){
+   for(const stage of ['normalize','header_insert','lines','approval_state','submission_status','gl_posting','backdate_approval'])
+    assert.ok(Object.hasOwn(row.stages_ms,stage),stage);
+   assert.ok(!JSON.stringify(row).includes('Daily concurrent'));
+  }
   await reconcile();
   require('../src/read-cache').clearReadCaches();
   const types=await store.generalLedgerFilterOptions();

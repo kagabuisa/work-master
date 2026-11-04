@@ -60,6 +60,14 @@ function invalidateFinancialReads(pool, scopes) {
 }
 function clearReadCaches() { states = new WeakMap(); }
 
+function snapshotTimeoutMs() {
+  const value = Number(process.env.READ_SNAPSHOT_TIMEOUT_MS ?? 240000);
+  if (!Number.isSafeInteger(value) || value < 1000 || value > 2147483647) {
+    throw new Error('READ_SNAPSHOT_TIMEOUT_MS must be an integer from 1000 to 2147483647.');
+  }
+  return value;
+}
+
 async function readSnapshot(pool, read) {
   markReadStarted();
   const client = await pool.connect();
@@ -68,6 +76,10 @@ async function readSnapshot(pool, read) {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     // Interactive page plans can otherwise spend seconds compiling expressions.
     await client.query('SET LOCAL jit = off');
+    // Admission bounds waiting; this bounds execution after admission without
+    // changing the transaction-scoped posting statement timeout.
+    await client.query("SELECT set_config('statement_timeout', $1, true)",
+      [`${snapshotTimeoutMs()}ms`]);
     const result = await read(client);
     await client.query('COMMIT');
     return result;
@@ -76,4 +88,49 @@ async function readSnapshot(pool, read) {
     throw error;
   } finally { client.release(failed); }
 }
-module.exports = { markReadQueued, markReadStarted, readSharingMetrics, shareRead, invalidateFinancialReads, clearReadCaches, readSnapshot };
+
+async function readParallelSnapshot(pool, reads, combine = ((_client, results) => results[0])) {
+  if (!Array.isArray(reads) || !reads.length || reads.some((read) => typeof read !== 'function')) {
+    throw new Error('Parallel snapshot reads must be a non-empty array of functions.');
+  }
+  markReadStarted();
+  const clients = [];
+  const releaseErrors = new Map();
+  try {
+    const primary = await pool.connect();
+    clients.push(primary);
+    await primary.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    await primary.query('SET LOCAL jit = off');
+    await primary.query("SELECT set_config('statement_timeout', $1, true)",
+      [`${snapshotTimeoutMs()}ms`]);
+    const { rows: [{ snapshot }] } = await primary.query('SELECT pg_export_snapshot() AS snapshot');
+
+    for (let index = 1; index < reads.length; index++) {
+      const client = await pool.connect();
+      clients.push(client);
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await client.query(`SET TRANSACTION SNAPSHOT '${String(snapshot).replace(/'/g, "''")}'`);
+      await client.query('SET LOCAL jit = off');
+      await client.query("SELECT set_config('statement_timeout', $1, true)",
+        [`${snapshotTimeoutMs()}ms`]);
+    }
+    const results = await Promise.all(reads.map((read, index) => read(clients[index])));
+    const value = await combine(primary, results);
+    await Promise.all(clients.map((client) => client.query('COMMIT')));
+    return value;
+  } catch (error) {
+    await Promise.all(clients.map(async (client) => {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        releaseErrors.set(client, rollbackError);
+        if (!error.rollbackError) error.rollbackError = rollbackError;
+      }
+    }));
+    throw error;
+  } finally {
+    for (const client of clients) client.release(releaseErrors.get(client));
+  }
+}
+
+module.exports = { markReadQueued, markReadStarted, readSharingMetrics, shareRead, invalidateFinancialReads, clearReadCaches, readSnapshot, readParallelSnapshot };

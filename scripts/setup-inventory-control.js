@@ -26,7 +26,7 @@ async function main(){
   await client.query(`REVOKE ALL ON ${table} FROM ${role}; GRANT SELECT ON ${table} TO ${role}`);
  for(const table of ['wm_gl_owned_entries','wm_gl_owned_daily','wm_gl_owned_scopes'])
   await client.query(`REVOKE ALL ON ${table} FROM ${role}; GRANT SELECT ON ${table} TO ${role}`);
- for(const signature of ['wm_inventory_enabled()','wm_inventory_begin(text,bigint,boolean,text[])','wm_inventory_apply(jsonb)','wm_inventory_count_action(text,jsonb)','wm_inventory_correction_action(text,jsonb)'])
+ for(const signature of ['wm_inventory_enabled()','wm_inventory_begin(text,bigint,boolean,text[])','wm_inventory_apply(jsonb)','wm_inventory_apply_batch(jsonb)','wm_inventory_count_action(text,jsonb)','wm_inventory_correction_action(text,jsonb)'])
   await client.query(`GRANT EXECUTE ON FUNCTION ${signature} TO ${role}`);
  await client.query(`REVOKE DELETE ON app_accounting_periods FROM ${role}`);
  await client.query(`REVOKE UPDATE,DELETE ON app_accounting_period_events FROM ${role}`);

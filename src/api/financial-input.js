@@ -1,6 +1,7 @@
 'use strict';
 const { apiError, bodyFields } = require('./errors');
 const { isValidIsoDate } = require('../lib/dates');
+const { assertUniqueInvoiceItems, assertSingleInvoiceWarehouse } = require('../invoice-items');
 
 function text(value, field, max, { empty = false } = {}) {
   if (typeof value !== 'string' || value.length > max || value.includes('\0')
@@ -63,6 +64,8 @@ function invoiceCreate(body) {
       quantity: decimal(item.quantity, 'quantity', 3, 99999999999.999, { positive: true }),
       unit_price: decimal(item.unit_price, 'unit_price', 6, 999999999999) };
   });
+  assertUniqueInvoiceItems(payload.items);
+  assertSingleInvoiceWarehouse(payload.items, payload.warehouse);
   return payload;
 }
 

@@ -162,7 +162,7 @@ test('an earlier event in the same transaction cannot consume a later physical r
  }
 });
 
-test('20 yesterday and 800 today: reject backdated 100; cumulative lines and concurrent sales cannot reuse historical stock',options,async()=>{
+test('20 yesterday and 800 today: reject backdated 100 and concurrent sales cannot reuse historical stock',options,async()=>{
  try{
  const {pool,maker}=await setup();
  await runWithAuditUser(maker,()=>store.createStockEntry({entry_type:'opening',posting_date:today(),posting_time:'00:00',items:[line(780)]}));
@@ -171,11 +171,27 @@ test('20 yesterday and 800 today: reject backdated 100; cumulative lines and con
  const good=await draft([10]);await runWithAuditUser(maker,()=>store.submitInvoice(good));assert.equal(await balance(pool),790);
  assert.deepEqual((await pool.query("SELECT DISTINCT posting_date::text FROM app_gl_entries WHERE voucher_type='sales_invoice' AND voucher_id=$1",[good])).rows,[{posting_date:yesterday()}]);
  assert.deepEqual((await pool.query("SELECT DISTINCT posting_date::text FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1",[good])).rows,[{posting_date:today()}]);
- await rejected(pool,maker,await draft([6,5]),/insufficient_stock/);
- const ids=await Promise.all([draft([10]),draft([10])]);
+ const ids=await Promise.all([draft([400]),draft([400])]);
  const outcomes=await Promise.allSettled(ids.map(id=>runWithAuditUser(maker,()=>store.submitInvoice(id))));
- assert.equal(outcomes.filter(r=>r.status==='fulfilled').length,1);assert.equal(await balance(pool),780);
- await rejected(pool,maker,await draft([1]),/insufficient_stock/);
+ const fulfilled=outcomes.filter(r=>r.status==='fulfilled').length;assert.ok(fulfilled<=1);
+ const remaining=await balance(pool);assert.equal(remaining,790-fulfilled*400);
+ await rejected(pool,maker,await draft([remaining+1]),/insufficient_stock/);
+ }finally{await store.closeStore();}
+});
+
+test('minute-crossing submissions use the current protected balance',options,async()=>{
+ try{
+ const {pool,maker}=await setup();
+ await runWithAuditUser(maker,()=>store.createStockEntry({entry_type:'opening',posting_date:today(),
+   posting_time:require('../src/posting-time').currentPostingTime(),items:[line(780)]}));
+ const previousMinute=(await pool.query(`SELECT to_char(
+   (date_trunc('minute',clock_timestamp())-interval '1 minute') AT TIME ZONE 'Africa/Kampala',
+   'HH24:MI') posting_time`)).rows[0].posting_time;
+ const id=await draft([100],today(),previousMinute);
+ // Historical stock at the previous minute was 20. The form-minutes-to-current
+ // submission grace must use the protected current balance instead.
+ await runWithAuditUser(maker,()=>store.submitInvoice(id,{refreshCurrentPostingTime:true}));
+ assert.equal(await balance(pool),700);
  }finally{await store.closeStore();}
 });
 

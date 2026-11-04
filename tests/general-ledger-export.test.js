@@ -105,15 +105,22 @@ test('General Ledger database export removes the page limit and retains access r
   try {
     await seedGoldenData();
     const pool = store.getPostgresPool();
-    const account = (await pool.query('SELECT id FROM app_accounts ORDER BY id LIMIT 1')).rows[0].id;
+    const account = (await pool.query(`SELECT account.id FROM app_accounts account
+      WHERE account.id NOT IN (
+        SELECT setting.account_id FROM app_accounting_settings setting
+        WHERE setting.setting_key IN ('accounts_receivable','accounts_payable')
+      )
+      ORDER BY account.id LIMIT 1`)).rows[0].id;
     await pool.query(`INSERT INTO app_gl_entries (posting_date, account_id, debit, credit, voucher_type, voucher_id, voucher_no, line_no)
       SELECT '2026-10-08', $1, 10, 0, 'export_test', sequence, 'EXPORT-' || sequence, 1 FROM generate_series(1,205) sequence`, [account]);
-    await pool.query(`UPDATE app_gl_entries SET party_id='LONUS-TEST', party_name='Lonus Test'
+    await pool.query(`UPDATE app_gl_entries SET party_type='customer', party_id='LONUS-TEST', party_name='Lonus Test'
       WHERE voucher_type='sales_invoice' AND account_id IN
         (SELECT id FROM app_accounts WHERE account_name='Accounts Receivable')`);
     await pool.query(`INSERT INTO app_gl_entries
-      (posting_date, account_id, debit, credit, voucher_type, voucher_id, voucher_no, line_no, party_id, party_name)
-      SELECT posting_date, account_id, 25, 0, voucher_type, voucher_id, voucher_no, 999, party_id, party_name
+      (posting_date, account_id, debit, credit, voucher_type, voucher_id, voucher_no, line_no,
+       party_type, party_id, party_name)
+      SELECT posting_date, account_id, 25, 0, voucher_type, voucher_id, voucher_no, 999,
+        party_type, party_id, party_name
       FROM app_gl_entries WHERE party_id='LONUS-TEST' ORDER BY id LIMIT 1`);
     const expected = await pool.query(`SELECT gl.id FROM app_gl_entries gl WHERE gl.party_id='LONUS-TEST' ORDER BY gl.posting_date,gl.id`);
     assert.ok(expected.rows.length > 1);
@@ -149,7 +156,12 @@ test('opening rows precede transactions and carry historical balances through pa
   try {
     await seedGoldenData();
     const pool=store.getPostgresPool();
-    const accounts=(await pool.query('SELECT id,account_code FROM app_accounts ORDER BY id LIMIT 2')).rows;
+    const accounts=(await pool.query(`SELECT account.id,account.account_code FROM app_accounts account
+      WHERE account.id NOT IN (
+        SELECT setting.account_id FROM app_accounting_settings setting
+        WHERE setting.setting_key IN ('accounts_receivable','accounts_payable')
+      )
+      ORDER BY account.id LIMIT 2`)).rows;
     await pool.query(`INSERT INTO app_gl_entries(posting_date,account_id,debit,credit,voucher_type,voucher_id,voucher_no,line_no,party_id)
       VALUES ('2026-01-01',$1,100,0,'opening_test',9001,'OPEN-1',1,'OPEN-PARTY'),
       ('2026-01-01',$2,0,100,'opening_test',9001,'OPEN-1',2,NULL),
@@ -387,7 +399,12 @@ test('streamed ledger snapshot retains balances across batches and releases its 
   try {
     await seedGoldenData();
     const pool = store.getPostgresPool();
-    const account = (await pool.query('SELECT id FROM app_accounts ORDER BY id LIMIT 1')).rows[0].id;
+    const account = (await pool.query(`SELECT account.id FROM app_accounts account
+      WHERE account.id NOT IN (
+        SELECT setting.account_id FROM app_accounting_settings setting
+        WHERE setting.setting_key IN ('accounts_receivable','accounts_payable')
+      )
+      ORDER BY account.id LIMIT 1`)).rows[0].id;
     await pool.query(`INSERT INTO app_gl_entries (posting_date, account_id, debit, credit, voucher_type, voucher_id, voucher_no, line_no)
       SELECT '2026-10-08', $1, 10, 0, 'stream_test', sequence, 'STREAM-' || sequence, 1 FROM generate_series(1,12) sequence`, [account]);
     await pool.query(`INSERT INTO app_gl_entries

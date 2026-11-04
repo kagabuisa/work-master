@@ -18,7 +18,7 @@ test('bounded invoice reads preserve permissions and a consistent financial snap
     const pool = store.getPostgresPool();
     assert.match((await pool.query('SELECT current_database() name')).rows[0].name, /_hr_test$/);
     await pool.query(`INSERT INTO app_master_customers(customer_id, customer_name, customer_group)
-      VALUES ($1, 'Read customer', ' Retail ')`, [FIXED.customerId]);
+      VALUES ($1, 'Read customer', ' Retail ') ON CONFLICT(customer_id) DO NOTHING`, [FIXED.customerId]);
     await t.test('stock ownership retains creator, assigned employee and reversal membership without resetting balances', async () => {
       const otherId = await runWithAuditUser({id:'READ-B', username:'Read B'}, () => store.createStockEntry({
         entry_type:'opening', posting_date:FIXED.date,

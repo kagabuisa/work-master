@@ -3,6 +3,7 @@
 const { getPostgresPool } = require('../core');
 const { validateInvoiceDraftStock } = require('./invoice-draft-validation');
 const { accountAllowed, requireInvoicePriceList } = require('../access');
+const { assertUniqueInvoiceItems, assertSingleInvoiceWarehouse } = require('../invoice-items');
 
 function requireReceiptAccount(user, value) {
   if (!value) { const error = new Error('Choose a cash or bank account.'); error.status = 400; throw error; }
@@ -122,6 +123,7 @@ async function buildInvoicePayload(body, user) {
     err.status = 400;
     throw err;
   }
+  if (Array.isArray(payload.items)) assertUniqueInvoiceItems(payload.items);
   const { rows: [references] } = await getPostgresPool().query(`SELECT
     (SELECT to_jsonb(c) FROM app_master_customers c WHERE c.customer_id=$1
       AND c.disabled=false AND c.docstatus='submitted') customer,
@@ -155,6 +157,7 @@ async function buildInvoicePayload(body, user) {
   }
   payload.invoicer = invoicer.employee_name;
   payload.items = await validateDbItems(payload.items, payload.warehouse, { checkStock: false });
+  if (payload.items.length) assertSingleInvoiceWarehouse(payload.items, payload.warehouse);
   await validateInvoiceDraftStock(getPostgresPool(), payload);
   return payload;
 }

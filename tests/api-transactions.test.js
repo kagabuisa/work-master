@@ -148,22 +148,26 @@ test('API sales reliability, final validation, lock ordering and financial parit
       assert.equal((await store.findInvoice(main)).amount_paid, 0);
     });
 
-    await t.test('repeated item lines fail save checks and legacy drafts cannot partially submit', async () => {
+    await t.test('duplicate item lines are rejected and legacy drafts cannot partially submit', async () => {
       await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', posting_time: '00:00', items: [
         { item_code: 'SCARCE', item_name: 'Scarce Item', warehouse: 'Main', quantity: 3, valuation_rate: 10 },
       ] });
       const body = payload('SCARCE', 2);
       const beforeCreate=await snapshot();
-      await assert.rejects(create('repeated-lines-rejected',{...body,items:[...body.items,...body.items]}),error=>error.code==='insufficient_stock');
+      await assert.rejects(create('duplicate-lines-rejected',{...body,items:[...body.items,...body.items]}),
+        error=>error.status===422&&/already included in this invoice/.test(error.message));
       assert.deepEqual(await snapshot(),beforeCreate);
-      const id = await create('repeated-lines', { ...body, items: [...body.items, ...body.items].map(item=>({...item,quantity:1})) });
-      // Submission still protects drafts saved before availability changed.
-      await pool.query('UPDATE app_invoice_items SET quantity=2 WHERE invoice_pk=$1',[id]);
+      const id = await create('legacy-duplicate-lines', body);
+      await pool.query(`INSERT INTO app_invoice_items
+        (invoice_pk,invoice_id,invoice_no,line_no,item_code,item_name,warehouse,quantity,unit_price,line_total)
+        SELECT invoice_pk,invoice_id,invoice_no,line_no+1,item_code,item_name,warehouse,quantity,unit_price,line_total
+        FROM app_invoice_items WHERE invoice_pk=$1 ORDER BY line_no LIMIT 1`,[id]);
       const before = await snapshot();
-      await assert.rejects(submit(id, 'repeated-lines-submit'), error => error.code === 'insufficient_stock');
+      await assert.rejects(submit(id, 'legacy-duplicate-lines-submit'),
+        error => error.status === 422 && /already included in this invoice/.test(error.message));
       assert.deepEqual(await snapshot(), before);
       assert.equal((await store.findInvoice(id)).docstatus, 'draft');
-      assert.equal((await pool.query("SELECT 1 FROM wm_api_idempotency WHERE key='repeated-lines-submit'")).rowCount, 0);
+      assert.equal((await pool.query("SELECT 1 FROM wm_api_idempotency WHERE key='legacy-duplicate-lines-submit'")).rowCount, 0);
     });
 
     await t.test('audit and retry-record failures roll back domain postings and permanent references', async () => {

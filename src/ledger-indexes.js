@@ -30,4 +30,26 @@ async function createLedgerReadIndexes(pool) {
   await pool.query('ANALYZE wm_gl_daily (account_id,posting_date)');
 }
 
-module.exports = { createLedgerReadIndexes };
+async function createDebtorControlAccountIndex(pool) {
+  const name = 'app_gl_entries_debtor_account_cover_idx';
+  const lookup = `SELECT i.indisvalid,i.indisready,pg_get_indexdef(i.indexrelid) AS definition FROM pg_index i
+    JOIN pg_class c ON c.oid=i.indexrelid
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE c.relname=$1 AND n.nspname=current_schema()`;
+  const previous = (await pool.query(lookup, [name])).rows[0];
+  if (previous && (!previous.indisvalid
+      || !/INCLUDE \(id, posting_date, party_type, party_id, party_name, voucher_no, remarks, debit, credit\)/.test(previous.definition))) {
+    await pool.query(`DROP INDEX CONCURRENTLY ${name}`);
+  }
+  await pool.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS ${name}
+    ON app_gl_entries(account_id,voucher_type,voucher_id,line_no)
+    INCLUDE(id,posting_date,party_type,party_id,party_name,voucher_no,remarks,debit,credit)`);
+  const index = (await pool.query(lookup, [name])).rows[0];
+  if (!index?.indisvalid || !index.indisready
+      || !/INCLUDE \(id, posting_date, party_type, party_id, party_name, voucher_no, remarks, debit, credit\)/.test(index.definition)) {
+    throw new Error(`Debtor control-account index ${name} is not ready; retry the migration.`);
+  }
+  await pool.query('ANALYZE app_gl_entries (account_id,voucher_type,voucher_id,line_no)');
+}
+
+module.exports = { createDebtorControlAccountIndex, createLedgerReadIndexes };

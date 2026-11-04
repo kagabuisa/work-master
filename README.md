@@ -241,6 +241,14 @@ checks remain under the existing warehouse/stock locks. Stock and accounting
 still commit together. Run the owner migration before restarting a restricted
 runtime; no inventory or accounting history is rewritten.
 
+Schema migration 57 treats a minute-only posting time as the submission instant
+when processing crosses into the next minute within 60 seconds. It also validates
+all item histories for an invoice stock batch in one set-based database call
+before applying the movements in line order. The history-free apply helper is
+private, and the public batch entry point performs the complete availability
+check first. Backdated and genuinely historical movements still use the full
+ledger calculation.
+
 Schema migration 46 builds `app_stock_ledger_balance_cover_idx` concurrently on
 item/warehouse, including quantity and value deltas. The deferred stock-balance
 verification can use this covering index to reduce historical table-page reads;
@@ -391,6 +399,15 @@ and results when preparing another test. Disposable integration-test resources
 remain subject to the cleanup procedure below. This policy is also recorded in
 `AGENTS.md` for future work.
 
+On 2 November 2026, at the user's explicit request, obsolete ERPNext-sized
+benchmark runs and duplicate expanded-history snapshots were removed to reclaim
+storage. The retained test corpus is the isolated expanded-history PostgreSQL
+data under `/mnt/HC_Volume_107155360/wm-expanded-history-20261015/pgdata` and the
+verified `paired-pristine-warehouse-choice.dump` snapshot in its `backups/`
+directory. New current-source tests take priority over historical result
+retention. Do not remove the retained expanded-history data or its snapshot
+without another explicit request.
+
 The job and database have 900 MiB/850 MiB memory limits and 0.8/1.0 CPU limits.
 Full startup requires 15 GiB free on the attached volume, a passing pilot from the
 same source snapshot whose measured storage projection fits with a 6 GiB reserve,
@@ -520,6 +537,19 @@ even if tests failed:
 docker rm -f wm-skipped-postgres
 docker network rm wm-skipped-tests
 ```
+
+Use three verification levels during development:
+
+1. Run only related pure tests with `npm run test:unit -- tests/example.test.js`.
+2. Run affected PostgreSQL files against a reusable disposable `*_hr_test`
+   database with `npm run test:postgres -- tests/example-postgres.test.js`.
+3. Run `npm run test:postgres` without file arguments as the complete
+   merge/release gate.
+
+Targeted PostgreSQL files still run sequentially against one disposable
+database because multiple test files reset the public schema. Reuse the
+disposable PostgreSQL container and network during a development session,
+then remove them after the full gate.
 
 If `POSTGRES_URL` or `DATABASE_URL` is configured, it takes precedence over
 `POSTGRES_DB`; set that URL to the dedicated test database instead. Application
@@ -744,24 +774,76 @@ implementation report for current behavior and measured capacity limits.
 
 ### Report concurrency and posting diagnostics
 
-General-ledger pages/full reads/streaming exports and trial-balance queries share
-a per-process limit, applied before acquiring a database connection. Defaults:
-`HEAVY_REPORT_CONCURRENCY=1`, `HEAVY_REPORT_QUEUE_MAX=100`, and
-`HEAVY_REPORT_QUEUE_TIMEOUT_MS=30000`. Extra work waits in FIFO order; overflow
-or expiry raises a report-busy error (status 503). Identical in-flight page
-requests share one execution. Reports have a separate admission queue and a `HEAVY_REPORT_CONNECTIONS=2` sub-budget within the common read-connection limit. Waiting reports do not occupy list admission slots. Each app process has its own
-limit; budget the combined limits when running multiple instances.
+Heavy reports use two independent per-process admission lanes: ledger reports
+(General Ledger, Trial Balance, Profit and Loss, Balance Sheet, Debtors and
+voucher reports) and inventory reports (Stock Ledger, Stock Movement, Gross
+Profit and stock-entry reports). Each lane defaults to one admitted report, so
+a long inventory scan cannot block a fast ledger summary. The existing
+`HEAVY_REPORT_CONNECTIONS=2` sub-budget still caps combined report database
+connections.
+
+`HEAVY_REPORT_LEDGER_CONCURRENCY` and
+`HEAVY_REPORT_INVENTORY_CONCURRENCY` set each lane independently. When they are
+absent, `HEAVY_REPORT_CONCURRENCY` supplies the per-lane fallback. Both lanes use
+`HEAVY_REPORT_QUEUE_MAX=100` and `HEAVY_REPORT_QUEUE_TIMEOUT_MS=30000`; extra
+work waits in FIFO order, and overflow or expiry returns the bounded report-busy
+`503`. Identical in-flight requests still share one execution. Waiting reports
+do not occupy list admission slots. Budget the combined limits when running
+multiple app processes.
+
+Set `REPORT_TIMINGS=1` to emit bounded `report_timing` records containing only
+the lane, report identity, success, queue-wait, execution and total duration.
+The same values are aggregated in `workload_capacity` and exposed through the
+report timing Prometheus metrics without request filters or financial rows.
 
 Set `POSTING_TIMINGS=1` to emit JSON `posting_timing` records for standard invoice
-creation/submission and website invoice-create requests, including payload
-validation, creation/submission calls, connection wait, invoice lock, stock (including its stock-lock query), line costs,
-payment totals, accounting, commit, and total durations where applicable. Stage
+creation/submission, website invoice-create requests, and manual journal
+creation/submission. Journal records include normalization, reference and
+control validation, header and line persistence, approval state, submission
+status, GL posting, allocations and the applicable transaction stages. Stage
 measurements include database execution and lock waits; they do not distinguish
-those two costs. `submit` includes its child stages, so durations must not be
-added together. Records contain no invoice payload or document identifiers.
+those two costs. Nested stages must not be added together. Records contain no
+document payload or identifiers.
 Request success means the handler returned normally (including handled validation
 responses); transaction success means it committed. Diagnostics are disabled by default. Compare timings under repeatable workloads
 before changing pool sizes or concurrency limits.
+
+The [report performance fix verification](audits/expanded-history-2026-10-15/report-fixes-verification.md)
+records exact before/after report digests, the retained 50-user mixed workload,
+financial and inventory reconciliation, the complete PostgreSQL suite and a
+tested backup restore. The retained benchmark's historical no-party control
+postings were separately reclassified to suspense accounts before the clean
+report and workload baselines were captured.
+
+### Control-account party guard
+
+Schema migration 58 installs statement- and row-level guards on
+`app_gl_entries`. New or changed Accounts Receivable entries require
+`party_type='customer'` and a non-empty customer ID; Accounts Payable entries
+require `party_type='supplier'` and a non-empty supplier ID. The application
+validation remains the primary user-facing check. The database guard covers
+direct SQL, imports, seed scripts and future application paths.
+
+The migration does not scan or rewrite historical GL rows. Existing exceptions
+remain visible through `wm_control_account_exceptions`. Run
+`npm run audit:control-accounts` from a scheduled monitor; it emits JSON and
+exits non-zero when any control-account party violation exists. Production
+monitoring should expect no exception rows.
+
+The approved retained-benchmark cleanup separately reclassified 1,863,842
+historical no-party GL rows into dedicated AR and AP suspense accounts. It did
+not delete vouchers or ledger rows and did not change overall ledger debit or
+credit. The retained mapping allows every changed row to be audited. After
+cleanup, benchmark unallocated AR is zero, the AR ledger and allocated balance
+both equal 9,739,493,974, and the monitoring view reports no exceptions.
+
+Schema migration 59 adds a covering index for the Debtors AR ledger and its
+invoice/payment joins. It is built concurrently and does not change report
+calculations or stored rows.
+
+Migration 60 replaces that index definition if it lacks the ledger primary key
+required for an index-only AR projection. It rebuilds at most the index, never
+the ledger table.
 
 ### Database connection interruptions
 
@@ -802,6 +884,19 @@ disable their triggers. Website invoice validation batches references and items
 in two reads, with fresh stock validation retained in the posting transaction.
 Cost-center display labels use a 30-second metadata cache; permission and posting
 validation continue to read current records.
+
+### Stock movement daily summary
+
+Migration 61 adds `wm_stock_daily`, transactionally maintained from stock-ledger
+statement changes. It stores quantity, incoming, outgoing and value totals by
+warehouse, item, item name and posting date. Stock Movement uses these daily
+totals when no free-text or ownership filter requires detailed matching; those
+filters continue to read `app_stock_ledger` with the existing rules.
+
+The derived table is rebuilt under a write-free ledger lock during migration and
+is included in normal PostgreSQL backups. Insert, update, delete, rollback and
+truncation triggers keep it synchronized with the detailed ledger. The migration
+does not rewrite stock movements, balances, vouchers, ownership or accounting.
 
 Migration 25 adds a concurrent partial index on linked invoice-payment journals.
 Ordinary invoice list/text-search pages materialize eligible unlinked customer
@@ -846,16 +941,31 @@ Lists/searches and heavy reports have separate bounded admission queues. GET/HEA
 | `EXPENSIVE_READ_QUEUE_TIMEOUT_MS` | 15000 | Maximum admission/reader-lease wait |
 | `EXPENSIVE_READ_CONNECTIONS` | 4 | Maximum combined connections for classified reads |
 | `HEAVY_REPORT_CONNECTIONS` | 2 | Report connection sub-limit; capped below the common read limit when possible |
+| `HEAVY_REPORT_LEDGER_CONCURRENCY` | 1 | Concurrent General Ledger, Trial Balance, P&L, Balance Sheet, Debtors and voucher reports |
+| `HEAVY_REPORT_INVENTORY_CONCURRENCY` | 1 | Concurrent Stock Ledger, Stock Movement, Gross Profit and stock-entry reports |
 | `POSTGRES_POSTING_RESERVE` | 3 | Minimum pool capacity excluded from those reads |
+| `READ_SNAPSHOT_TIMEOUT_MS` | 240000 | Maximum execution time for one admitted read-only report snapshot |
 
 The read limit is the smaller of `EXPENSIVE_READ_CONNECTIONS` and
 `POSTGRES_POOL_MAX - reserve`; very small pools retain at least one reader slot.
 With the default ten-connection pool, classified reads hold at most four connections; at most two are held by heavy reports. The configured reserve bounds reads, but login POSTs, financial transactions and background tasks share the remaining capacity. Each process has its own limits: include export workers and other app instances in the overall database connection budget. Nested work must reuse a checked-out
 transaction client rather than acquire another reader connection while holding
-one. Reports retain their own `HEAVY_REPORT_*` limits as well.
+one. Reports retain their own `HEAVY_REPORT_*` limits as well. The repeatable-read
+statement deadline is local to the report snapshot and does not change the
+posting transaction timeout. A timed-out read rolls back and releases its
+connection through the existing snapshot cleanup path.
 
 `POSTGRES_POOL_METRICS_MS` also emits structured `workload_capacity` records with
 pool waiting, active reader connections, separate report/list queue peaks and refusals, and checkout count/mean/max/failures by workload class. Checkout timing includes reader admission, pool wait and audit setup, not just PostgreSQL execution; it contains no SQL or request payloads.
+Database-backed browser session validation uses the pool capacity outside the
+classified page-read budget, so a small session-activity update does not wait
+behind a report or stock scan. Stock Entries and Stock Ledger execute their
+count/page work on one read-only snapshot and connection. Invoice detail loads
+the invoice, payment history and company metadata in the same snapshot.
+Invoice warehouse choices share one bounded metadata read. Stock Movement uses
+in-flight read sharing while retaining its single database round trip. These
+changes do not retain completed financial rows or weaken request-time permission
+checks.
 Increasing connection counts on a CPU-saturated server requires measurement.
 Migration 26 refreshes invoice/journal statistics, increases search-expression
 statistics and lowers their automatic analyze threshold to 2% plus 1,000 modified
@@ -943,6 +1053,15 @@ Schema migration 27 builds a partial index on nonblank journal-line invoice refe
 
 The expanded-history paired test can resume after the query fixes using `audits/expanded-history-2026-10-15/resume-after-query-fixes.py`, after `invoice-fix-release.json` records passing release checks. This controller archives the previous preliminary database state, restores the verified paired fixture into the isolated expanded database, reruns preliminary traffic and reconciliation, and compares browsing/posting p95 before launching Scenario A. Scenario B restores the paired fixture again and has its own preliminary gate. The original successful database, archives and failed preliminary results are retained. Controllers stop for review on failed gates; this does not constitute production performance approval.
 
+The expanded-history endurance driver resolves the Africa/Kampala posting date
+for every journal, invoice, and receipt workflow by default, so a run that
+crosses local midnight advances to the new day instead of becoming a backdated
+approval workload. Override it only when deliberately testing a fixed date and
+its approval workflow: `BENCHMARK_POSTING_DATE=YYYY-MM-DD`.
+The normal 10→20-user profile assigns at most two users to each of ten stocked
+warehouses. Keep deliberate shared-item/shared-warehouse contention separate
+from representative capacity measurements.
+
 ### Invoice ownership lookup migration
 
 Schema migration 28 builds concurrent indexes on invoice creator/ID and assigned employee/ID, excluding NULL ownership keys. Creator and assignment page candidates are fetched separately through these indexes and combined without duplicates before pagination; other filters apply to both routes. This improves owner-restricted list filtering without changing access rules. Startup waits for both indexes and invoice statistics refresh; allow build time and storage on large databases. Invalid concurrent indexes are repaired on retry. There is no accounting-data rewrite.
@@ -995,6 +1114,24 @@ Migration 37 adds database checks to controlled posting while preserving existin
 Run `npm run db:migrate` with the schema-owner credentials before starting the updated controlled runtime. Migration 38 builds `app_stock_ledger_posting_event_idx` on non-NULL `posting_event_id` values using `CREATE INDEX CONCURRENTLY`, outside a transaction, and checks that the index is ready and valid. It also refreshes statistics for that column. It does not rewrite vouchers, stock movements, accounting or inventory protections. New databases receive the same index through their migrations.
 
 If the build is interrupted, rerun the owner migration: an invalid index with that name is dropped concurrently and rebuilt before the migration is recorded. Allow storage and time for PostgreSQL to scan the ledger; a concurrent build can wait for existing transactions. Runtime credentials cannot perform this migration. Rebuild/restart the updated app after the owner migration completes.
+
+### Stock report lookup indexes (migration 56)
+
+Run `npm run db:migrate` with the schema-owner credentials before starting the
+updated runtime. Migration 56 concurrently builds warehouse-leading stock-ledger
+indexes for warehouse/date pages and warehouse movement summaries, plus partial
+draft-ID indexes for invoices, purchases and stock entries. The stock-movement
+report now groups its filtered history once and derives its count, summary and
+visible page from that result instead of repeating the aggregation three times.
+The reconciliation page can locate the small draft subset without scanning all
+historical vouchers.
+
+The migration validates each index after the concurrent build and repairs an
+invalid interrupted build on retry. It refreshes table statistics but does not
+rewrite vouchers, stock movements or accounting. Allow additional index-build
+time and storage on large databases; existing application writes can continue
+while concurrent builds run, but the owner migration must finish before starting
+the updated runtime.
 
 
 The [larger submission-only study](audits/invoice-submission-deep-study-2026-10-17/report.md)

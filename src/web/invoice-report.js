@@ -1,5 +1,6 @@
 'use strict';
-const {runExpensiveRead}=require('../workload-control');
+const {runHeavyReport}=require('../workload-control');
+const {shareRead,readSnapshot,readParallelSnapshot}=require('../read-cache');
 
 const { getPostgresPool } = require('../core');
 const { isValidIsoDate } = require('../lib/dates');
@@ -112,7 +113,10 @@ function dateFilter(value, label) {
 }
 
 async function invoiceReport(options = {}) {
-  return runExpensiveRead(() => loadInvoiceReport(options));
+  const pool = getPostgresPool();
+  return shareRead(pool, ['invoice-report', options], () =>
+    runHeavyReport(() => loadInvoiceReport(options),
+      {lane:'ledger',label:'invoice-report'}), { scope: 'invoice-report' });
 }
 async function loadInvoiceReport(options = {}) {
   const exportPage = options.exportPage === true;
@@ -185,69 +189,118 @@ const params = [];
     where.push(`lower(coalesce(nullif(master.category, ''), line.item_category, ''))
       LIKE ${add(sqlLikePattern(filters.category.toLowerCase()))}`);
   }
-  const fromSql = `FROM app_invoices invoice
+  const baseFromSql = `FROM app_invoices invoice
     LEFT JOIN app_invoice_items line ON line.invoice_pk = invoice.id
-    LEFT JOIN app_master_items master ON master.item_code = line.item_code`;
+    ${filters.category ? 'LEFT JOIN app_master_items master ON master.item_code = line.item_code' : ''}`;
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const rowsQuery = getPostgresPool().query(`
-      SELECT invoice.id AS invoice_id, invoice.invoice_no, invoice.non_system_invoice,
+  const queryParams = [...params, pagination.limit, pagination.offset];
+  const pool = getPostgresPool();
+  const pageSql = `
+      SELECT invoice.id::text AS invoice_id, line.id::text AS line_id
+      ${baseFromSql}
+      ${whereSql}
+      ORDER BY invoice.invoice_date DESC, invoice.id DESC, line.line_no
+      LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
+  const countSql = `SELECT count(*)::int AS total ${baseFromSql} ${whereSql}`;
+  const finish = async (client, pageResult, countResult) => {
+    const page = pageResult.rows;
+    const pageJson = page.map((row, index) => ({ ...row, ordinal: index + 1 }));
+    const { rows } = await client.query(`
+    WITH report_page AS (
+      SELECT * FROM jsonb_to_recordset($1::jsonb) AS row(
+        invoice_id bigint, line_id bigint, ordinal integer
+      )
+    ), page_invoices AS MATERIALIZED (
+      SELECT DISTINCT invoice.id AS invoice_id
+      FROM report_page
+      JOIN app_invoices invoice ON invoice.id = report_page.invoice_id
+    ), direct_payments AS MATERIALIZED (
+      SELECT payment.invoice_id, sum(payment.amount) AS amount_paid
+      FROM app_invoice_payments payment
+      JOIN page_invoices page ON page.invoice_id = payment.invoice_id
+      WHERE payment.docstatus = 'submitted'
+      GROUP BY payment.invoice_id
+    ), journal_payments AS MATERIALIZED (
+      SELECT invoice.id AS invoice_id, sum(journal_line.credit - journal_line.debit) AS amount_paid
+      FROM page_invoices page
+      JOIN app_invoices invoice ON invoice.id = page.invoice_id
+      JOIN app_journal_entries journal ON journal.docstatus = 'submitted'
+        AND journal.party_type = 'customer'
+        AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
+      JOIN app_journal_entry_lines journal_line ON journal_line.journal_entry_id = journal.id
+        AND COALESCE(NULLIF(journal_line.reference_no, ''), journal.reference_no) = invoice.invoice_no
+      JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
+        AND setting.account_id = journal_line.account_id
+      WHERE (nullif(journal.party_id, '') = nullif(invoice.customer_id, '')
+          OR (coalesce(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
+        AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment
+          WHERE payment.journal_entry_id = journal.id)
+      GROUP BY invoice.id
+      HAVING sum(journal_line.credit - journal_line.debit) > 0
+    ), payment_totals AS MATERIALIZED (
+      SELECT page.invoice_id,
+        coalesce(direct_payments.amount_paid, 0) + coalesce(journal_payments.amount_paid, 0) AS amount_paid
+      FROM page_invoices page
+      LEFT JOIN direct_payments ON direct_payments.invoice_id = page.invoice_id
+      LEFT JOIN journal_payments ON journal_payments.invoice_id = page.invoice_id
+    ), hydrated AS (
+      SELECT invoice.id::text AS invoice_id, invoice.invoice_no, invoice.non_system_invoice,
         invoice.invoice_date::text, invoice.posting_time::text, invoice.due_date::text,
         invoice.customer_id, invoice.customer_name, invoice.customer_phone,
         invoice.price_list, invoice.cost_center, invoice.invoicer_id, invoice.invoicer,
         invoice.is_cash_sale, invoice.created_at::text, invoice.updated_at::text,
         invoice.subtotal::float, invoice.discount_amount::float, invoice.tax_amount::float,
         invoice.total::float, invoice.docstatus, invoice.notes,
-        line.line_no, line.item_code, line.item_name,
-        coalesce(nullif(master.category, ''), line.item_category) AS item_category,
-        line.item_category AS item_category_at_sale, line.source,
-        line.warehouse, line.quantity::float, line.stock_at_sale::float,
-        line.unit_price::text, line.line_total::float, line.cost::float AS item_cost,
-        line.cost_rate::float, line.cost_amount::float, line.gross_profit::float,
+        page_line.line_no, page_line.item_code, page_line.item_name,
+        coalesce(nullif(master.category, ''), page_line.item_category) AS item_category,
+        page_line.item_category AS item_category_at_sale, page_line.source,
+        page_line.warehouse, page_line.quantity::float, page_line.stock_at_sale::float,
+        page_line.unit_price::text, page_line.line_total::float, page_line.cost::float AS item_cost,
+        page_line.cost_rate::float, page_line.cost_amount::float, page_line.gross_profit::float,
         CASE WHEN invoice.docstatus = 'draft' THEN 0
-          ELSE payment_total.amount_paid END::float AS amount_paid,
+          ELSE payment_totals.amount_paid END::float AS amount_paid,
         greatest(invoice.total - CASE WHEN invoice.docstatus = 'draft' THEN 0
-          ELSE payment_total.amount_paid END, 0)::float AS balance_due,
-        CASE WHEN invoice.docstatus = 'draft' OR payment_total.amount_paid <= 0 THEN 'unpaid'
-          WHEN payment_total.amount_paid >= invoice.total THEN 'paid'
-          ELSE 'partial' END AS payment_status
-      ${fromSql}
-      LEFT JOIN LATERAL (
-        SELECT coalesce(sum(payment.amount), 0) AS amount_paid
-        FROM app_invoice_payments payment
-        WHERE payment.invoice_id = invoice.id AND payment.docstatus = 'submitted'
-      ) payments ON true
-      LEFT JOIN LATERAL (
-        SELECT coalesce(sum(journal_payment.amount), 0) AS amount_paid
-        FROM (
-          SELECT journal.id, sum(journal_line.credit - journal_line.debit) AS amount
-          FROM app_journal_entries journal
-          JOIN app_journal_entry_lines journal_line ON journal_line.journal_entry_id = journal.id
-          JOIN app_accounting_settings setting ON setting.setting_key = 'accounts_receivable'
-            AND setting.account_id = journal_line.account_id
-          WHERE journal.docstatus = 'submitted' AND journal.party_type = 'customer'
-            AND journal.journal_type IN ('cash_receipt', 'payment_journal', 'journal_entry')
-            AND COALESCE(NULLIF(journal_line.reference_no, ''), journal.reference_no) = invoice.invoice_no
-            AND (nullif(journal.party_id, '') = nullif(invoice.customer_id, '')
-              OR (coalesce(journal.party_id, '') = '' AND journal.party_name = invoice.customer_name))
-            AND NOT EXISTS (SELECT 1 FROM app_invoice_payments payment
-              WHERE payment.journal_entry_id = journal.id)
-          GROUP BY journal.id
-          HAVING sum(journal_line.credit - journal_line.debit) > 0
-        ) journal_payment
-      ) journal_payments ON true
-      CROSS JOIN LATERAL (
-        SELECT coalesce(payments.amount_paid, 0) + coalesce(journal_payments.amount_paid, 0) AS amount_paid
-      ) payment_total
-      ${whereSql}
-      ORDER BY invoice.invoice_date DESC, invoice.id DESC, line.line_no
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `, [...params, pagination.limit, pagination.offset]);
-  const countQuery = exportPage ? null : getPostgresPool().query(
-    `SELECT count(*)::int AS total ${fromSql} ${whereSql}`, params);
-  const [rowsResult, countResult] = await Promise.all([rowsQuery, countQuery]);
+          ELSE payment_totals.amount_paid END, 0)::float AS balance_due,
+        CASE WHEN invoice.docstatus = 'draft' OR payment_totals.amount_paid <= 0 THEN 'unpaid'
+          WHEN payment_totals.amount_paid >= invoice.total THEN 'paid'
+          ELSE 'partial' END AS payment_status,
+        report_page.ordinal AS sort_ordinal
+      FROM report_page
+      JOIN app_invoices invoice ON invoice.id = report_page.invoice_id
+      JOIN payment_totals ON payment_totals.invoice_id = invoice.id
+      LEFT JOIN app_invoice_items page_line ON page_line.id = report_page.line_id
+      LEFT JOIN app_master_items master ON master.item_code = page_line.item_code
+    )
+    SELECT invoice_id, invoice_no, non_system_invoice, invoice_date, posting_time,
+      due_date, customer_id, customer_name, customer_phone, price_list, cost_center,
+      invoicer_id, invoicer, is_cash_sale, created_at, updated_at, subtotal,
+      discount_amount, tax_amount, total, docstatus, notes, line_no, item_code,
+      item_name, item_category, item_category_at_sale, source, warehouse, quantity,
+      stock_at_sale, unit_price, line_total, item_cost, cost_rate, cost_amount,
+      gross_profit, amount_paid, balance_due, payment_status
+    FROM hydrated
+    ORDER BY sort_ordinal`,
+    [JSON.stringify(pageJson)]);
+    return {
+      rows,
+      total: exportPage ? null : countResult.rows[0].total,
+    };
+  };
+  const result = Number(pool.options?.max || 2) < 2
+    ? await readSnapshot(pool, async client => {
+      const pageResult = await client.query(pageSql, queryParams);
+      const countResult = exportPage ? { rows: [{ total: null }] }
+        : await client.query(countSql, params);
+      return finish(client, pageResult, countResult);
+    })
+    : await readParallelSnapshot(pool, [
+      async client => client.query(pageSql, queryParams),
+      async client => exportPage ? { rows: [{ total: null }] } : client.query(countSql, params),
+    ], async (client, [pageResult, countResult]) =>
+      finish(client, pageResult, countResult));
   return {
-    rows: rowsResult.rows,
-    pagination: exportPage ? null : paginationResult(countResult.rows[0].total, pagination),
+    rows: result.rows,
+    pagination: exportPage ? null : paginationResult(result.total, pagination),
     filters,
     columns: availableColumns,
     selectedColumns: selectedColumns(options, availableColumns),

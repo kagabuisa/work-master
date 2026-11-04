@@ -13,16 +13,43 @@ const {can}=require('../../authorize');
 const {countAction,correctionAction,loadCount}=require('../../inventory-counts');
 const arrays=value=>Array.isArray(value)?value:value===undefined?[]:[value];
 const stamp=value=>value?new Date(value).toLocaleString('en-GB',{timeZone:'Africa/Kampala',hour12:false}):'—';
-async function indexData(user){
- const pool=getPostgresPool();
- const enabled=(await pool.query('SELECT wm_inventory_enabled() AS enabled')).rows[0].enabled;
- const warehouses=(await pool.query(`SELECT w.warehouse,c.active_count,c.closed_through FROM app_master_warehouses w LEFT JOIN wm_inventory_control c USING(warehouse) WHERE NOT w.disabled AND NOT w.is_group ORDER BY w.warehouse`)).rows.filter(row=>warehouseAllowed(user,row.warehouse));
- const counts=(await pool.query('SELECT c.*,s.entry_no FROM wm_inventory_counts c JOIN app_stock_entries s ON s.id=c.reconciliation_id ORDER BY c.id DESC LIMIT 200')).rows.filter(row=>warehouseAllowed(user,row.warehouse));
- const pending=(await pool.query(`SELECT 'Sales invoice' kind,i.invoice_no reference,x.warehouse FROM app_invoices i JOIN app_invoice_items x ON x.invoice_pk=i.id WHERE i.docstatus='draft'
- UNION SELECT 'Purchase',p.purchase_no,x.warehouse FROM app_purchases p JOIN app_purchase_items x ON x.purchase_id=p.id WHERE p.docstatus='draft'
- UNION SELECT 'Stock entry',s.entry_no,x.warehouse FROM app_stock_entries s JOIN app_stock_entry_items x ON x.stock_entry_id=s.id WHERE s.docstatus='draft' AND s.entry_type<>'reconciliation'
- UNION SELECT 'Physical correction',source_reference,warehouse FROM wm_inventory_corrections WHERE state IN('draft','approved') AND treatment='physical' LIMIT 200`)).rows.filter(row=>warehouseAllowed(user,row.warehouse));
- return {enabled,warehouses,counts,pending,stamp};
+async function indexData(user,pool=getPostgresPool()){
+ // This page is requested by every concurrent user in the mixed benchmark.
+ // Keep the whole snapshot in one statement so it acquires one shared read
+ // connection instead of re-entering the read queue for each section.
+ const {data}= (await pool.query(`
+   WITH warehouse_rows AS (
+     SELECT w.warehouse,c.active_count,c.closed_through
+     FROM app_master_warehouses w
+     LEFT JOIN wm_inventory_control c USING(warehouse)
+     WHERE NOT w.disabled AND NOT w.is_group
+   ), count_rows AS (
+     SELECT c.*,s.entry_no
+     FROM wm_inventory_counts c
+     JOIN app_stock_entries s ON s.id=c.reconciliation_id
+     ORDER BY c.id DESC LIMIT 200
+   ), pending_rows AS (
+     SELECT 'Sales invoice' kind,i.invoice_no reference,x.warehouse
+     FROM app_invoices i JOIN app_invoice_items x ON x.invoice_pk=i.id
+     WHERE i.docstatus='draft'
+     UNION SELECT 'Purchase',p.purchase_no,x.warehouse
+     FROM app_purchases p JOIN app_purchase_items x ON x.purchase_id=p.id
+     WHERE p.docstatus='draft'
+     UNION SELECT 'Stock entry',s.entry_no,x.warehouse
+     FROM app_stock_entries s JOIN app_stock_entry_items x ON x.stock_entry_id=s.id
+     WHERE s.docstatus='draft' AND s.entry_type<>'reconciliation'
+     UNION SELECT 'Physical correction',source_reference,warehouse
+     FROM wm_inventory_corrections
+     WHERE state IN('draft','approved') AND treatment='physical' LIMIT 200
+   )
+   SELECT jsonb_build_object(
+     'enabled',wm_inventory_enabled(),
+     'warehouses',(SELECT COALESCE(jsonb_agg(to_jsonb(w) ORDER BY w.warehouse),'[]'::jsonb) FROM warehouse_rows w),
+     'counts',(SELECT COALESCE(jsonb_agg(to_jsonb(c) ORDER BY c.id DESC),'[]'::jsonb) FROM count_rows c),
+     'pending',(SELECT COALESCE(jsonb_agg(to_jsonb(p)),'[]'::jsonb) FROM pending_rows p)
+   ) AS data`)).rows[0];
+ const visible=rows=>rows.filter(row=>warehouseAllowed(user,row.warehouse));
+ return {enabled:Boolean(data.enabled),warehouses:visible(data.warehouses),counts:visible(data.counts),pending:visible(data.pending),stamp};
 }
 router.get('/counts',async(req,res,next)=>{try{res.render('inventory-counts',{...await indexData(req.currentUser),error:req.query.error||null});}catch(error){next(error);}});
 router.post('/counts',async(req,res,next)=>{try{
@@ -157,3 +184,4 @@ router.post('/corrections',async(req,res,next)=>{try{
 }catch(error){if(error.status||error.code==='P0001'||error.code==='23505')res.redirect(303,`/stock/reconciliations/corrections?error=${encodeURIComponent(error.code==='23505'?'That source reference already has a correction.':error.message)}`);else next(error);}});
 router.post('/corrections/:id/:action',async(req,res,next)=>{try{await correctionAction(req.currentUser,req.params.action,{id:req.params.id,reason:req.body.reason});res.redirect(303,'/stock/reconciliations/corrections');}catch(error){if(error.status||error.code==='P0001')res.redirect(303,`/stock/reconciliations/corrections?error=${encodeURIComponent(error.message)}`);else next(error);}});
 module.exports=router;
+module.exports.indexData=indexData;

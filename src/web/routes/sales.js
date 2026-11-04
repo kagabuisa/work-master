@@ -7,12 +7,13 @@ const invoiceMath = require('../../shared/invoice-math');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { invoiceFormState, duplicateInvoiceFormState } = require('../../invoice-form-state');
 const { warehouseAccessOptions } = require('../helpers');
+const { shareRead } = require('../../read-cache');
 const { findDbCustomer } = require('../parties');
 const { cachedInvoiceList, clearInvoiceCaches } = require('../cache');
 const { invoiceReport, validateSavedColumns, loadSavedColumns, saveDefaultColumns,
   resetDefaultColumns, csvLine, EXPORT_PAGE_SIZE } = require('../invoice-report');
 const { selectedCategories, warehouseAllowed, invoicePriceListAllowed, allowedNamedListValues, deniedNamedListValues, requireInvoicePriceList, accountAllowed } = require('../../access');
-const { findInvoice, getCompanyInformation, findMasterItem, findMasterRecord, localStockQuantity, createInvoice, submitInvoice, createCashSaleInvoice, submitCashSaleInvoice, updateInvoice, cancelInvoice, updateInvoiceNonSystemNumber, updateVoucherPostingTime, deleteDraftVoucher, addInvoicePayment, cancelInvoicePayment, invoiceForPayment, invoiceWarehouses, masterWarehouses } = require('../../store');
+const { findInvoice, findInvoicePage, findMasterItem, findMasterRecord, localStockQuantity, createInvoice, submitInvoice, createCashSaleInvoice, submitCashSaleInvoice, updateInvoice, cancelInvoice, updateInvoiceNonSystemNumber, updateVoucherPostingTime, deleteDraftVoucher, addInvoicePayment, cancelInvoicePayment, invoiceForPayment, invoiceWarehouses, masterWarehouses, getPostgresPool } = require('../../store');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 
 const { requireReceiptAccount, validateDbItems, buildInvoicePayload, normalizeStockQuantity } = require('../../services/sales-validation');
@@ -54,14 +55,18 @@ router.get('/invoices/new', async (req, res, next) => {
 router.post('/invoices', async (req, res, next) => measurePosting('invoice_request', async () => {
   let id;
   try {
+    const requestPostingDate = currentPostingDate();
+    const requestPostingTime = currentPostingTime();
     const payload = await postingStage('payload_validation', () => buildInvoicePayload(req.body, req.currentUser));
+    const refreshCurrentPostingTime = payload.invoice_date === requestPostingDate
+      && (!String(req.body.posting_time || '').trim() || String(req.body.posting_time).slice(0, 5) === requestPostingTime);
     if (req.body.action === 'cash_sale') {
       requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
       const payment = cashSalePayment(payload, req.body);
-      id = await createCashSaleInvoice(payload, payment);
+      id = await createCashSaleInvoice(payload, payment, { refreshCurrentPostingTime });
     } else if (req.body.action === 'submit_invoice') {
       id = await postingStage('create_call', () => createInvoice({ ...payload, payments: [], amount_paid: 0 }));
-      await postingStage('submit_call', () => submitInvoice(id));
+      await postingStage('submit_call', () => submitInvoice(id, { refreshCurrentPostingTime }));
     } else {
       id = await postingStage('create_call', () => createInvoice({ ...payload, payments: [], amount_paid: 0 }));
     }
@@ -192,14 +197,17 @@ router.get('/invoices/report/export', async (req, res, next) => {
 });
 
 async function invoiceWarehouseOptions(user) {
-  const [usedWarehouses, masterRows] = await Promise.all([
-    invoiceWarehouses().catch(() => []),
-    masterWarehouses({ limit: 200, ...warehouseAccessOptions(user) }).catch(() => []),
-  ]);
-  return [...new Set([
-    ...usedWarehouses,
-    ...masterRows.map((row) => row.warehouse || row).filter(Boolean),
-  ])].filter((name) => warehouseAllowed(user, name)).sort();
+  const access = warehouseAccessOptions(user);
+  return shareRead(getPostgresPool(), ['invoice-warehouse-options', access], async () => {
+    const [usedWarehouses, masterRows] = await Promise.all([
+      invoiceWarehouses().catch(() => []),
+      masterWarehouses({ limit: 200, ...access }).catch(() => []),
+    ]);
+    return [...new Set([
+      ...usedWarehouses,
+      ...masterRows.map((row) => row.warehouse || row).filter(Boolean),
+    ])].filter((name) => warehouseAllowed(user, name)).sort();
+  }, { metadata: true });
 }
 
 router.get('/invoices/:id/edit', async (req, res, next) => {
@@ -501,13 +509,13 @@ router.get('/invoices/:id/print', async (req, res, next) => {
 
 
 async function loadInvoice(id) {
-  const invoice = await findInvoice(id);
-  if (!invoice) {
+  const data = await findInvoicePage(id);
+  if (!data) {
     const err = new Error('Invoice not found.');
     err.status = 404;
     throw err;
   }
-  return { invoice, items: invoice.items || [], company: await getCompanyInformation() };
+  return data;
 }
 
 async function renderInvoiceFormError(res, body, savedInvoice, err) {

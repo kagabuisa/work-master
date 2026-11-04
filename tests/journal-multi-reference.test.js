@@ -13,6 +13,27 @@ test('multiple customer references allocate, validate and reverse each invoice i
     const pool = store.getPostgresPool();
     const settings = (await pool.query('SELECT setting_key, account_id FROM app_accounting_settings')).rows;
     const account = (key) => Number(settings.find((row) => row.setting_key === key).account_id);
+    await pool.query(`INSERT INTO app_master_customers(customer_id,customer_name,customer_group,docstatus)
+      VALUES('CUST-MULTI','Customer Multi','Retail','submitted')`);
+    await pool.query(`INSERT INTO app_master_customers(customer_id,customer_name,customer_group,docstatus)
+      VALUES('OTHER','Other Customer','Retail','submitted') ON CONFLICT DO NOTHING`);
+    await assert.rejects(store.createJournalEntry({ journal_type: 'journal_entry', posting_date: '2026-10-02',
+      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('bank'), credit: 10 }] }),
+    /Accounts Receivable lines require a valid customer/);
+    await assert.rejects(store.createJournalEntry({ journal_type: 'journal_entry', posting_date: '2026-10-02',
+      party_type: 'customer', party_id: 'CUST-MULTI',
+      lines: [{ account_id: account('accounts_payable'), debit: 10 }, { account_id: account('bank'), credit: 10 }] }),
+    /Accounts Payable lines require a valid supplier/);
+    const controlDraft = await store.createJournalEntry({ journal_type: 'journal_entry', posting_date: '2026-10-02',
+      party_type: 'customer', party_id: 'CUST-MULTI', party_name: 'Customer Multi',
+      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('bank'), credit: 10 }] },
+    { submit: false });
+    await assert.rejects(store.updateJournalEntry(controlDraft, { journal_type: 'journal_entry',
+      posting_date: '2026-10-02',
+      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('bank'), credit: 10 }] }),
+    /Accounts Receivable lines require a valid customer/);
+    await pool.query('UPDATE app_journal_entries SET party_type=NULL,party_id=NULL,party_name=NULL WHERE id=$1',[controlDraft]);
+    await assert.rejects(store.submitJournalEntry(controlDraft), /Accounts Receivable lines require a valid customer/);
     for (const [reference, amount] of [['INV-MULTI-A', 100], ['INV-MULTI-B', 200]]) {
       const { rows } = await pool.query(`INSERT INTO app_invoices
         (invoice_no, invoice_date, customer_id, customer_name, subtotal, total, docstatus)

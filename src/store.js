@@ -9,6 +9,7 @@ const { recordAuditFields } = require('./audit');
 require('./environment').loadEnvironment();
 
 const { getPostgresPool, closeStore, withPostgresTransaction } = require('./core');
+const { readSnapshot } = require('./read-cache');
 
 const {
   masterItemsWithStock,
@@ -70,9 +71,13 @@ function normalizeCompanyInformation(payload = {}) {
   ]));
 }
 
-async function getCompanyInformation() {
-  const { rows } = await getPostgresPool().query('SELECT * FROM app_company_information WHERE id = 1');
+async function queryCompanyInformation(queryable = getPostgresPool()) {
+  const { rows } = await queryable.query('SELECT * FROM app_company_information WHERE id = 1');
   return { ...normalizeCompanyInformation(rows[0]?.details), ...recordAuditFields(rows[0]) };
+}
+
+async function getCompanyInformation() {
+  return queryCompanyInformation();
 }
 
 async function saveCompanyInformation(payload) {
@@ -268,6 +273,14 @@ async function updateInvoiceNonSystemNumber(value, input) {
   return id;
 }
 
+async function findInvoicePage(id) {
+  return readSnapshot(getPostgresPool(), async client => {
+    const invoice = await findInvoice(id, { client });
+    if (!invoice) return null;
+    return { invoice, items: invoice.items || [], company: await queryCompanyInformation(client) };
+  });
+}
+
 const { postGlEntry, reverseVoucherGlEntries, applyPostgresStockMovement } = require('./domain/posting');
 
 const { normalizeNonSystemInvoice } = require('./domain/normalization');
@@ -281,6 +294,7 @@ module.exports = {
   paginatedInvoices,
   invoiceWarehouses,
   findInvoice,
+  findInvoicePage,
   invoiceForPayment,
   createInvoice,
   createCashSaleInvoice,

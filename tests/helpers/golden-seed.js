@@ -44,6 +44,13 @@ async function seedGoldenData({ actorFactory } = {}) {
 
 async function seedGoldenTransactions() {
   const date = FIXED.date;
+  const pool = store.getPostgresPool();
+  await pool.query(`INSERT INTO app_master_customers(customer_id,customer_name,customer_group,phone,docstatus)
+    VALUES($1,$2,'Retail',$3,'submitted') ON CONFLICT(customer_id) DO NOTHING`,
+  [FIXED.customerId,FIXED.customerName,FIXED.customerPhone]);
+  await pool.query(`INSERT INTO app_master_suppliers(supplier_id,supplier_name,supplier_type,docstatus)
+    VALUES($1,$2,'Local','submitted') ON CONFLICT(supplier_id) DO NOTHING`,
+  [FIXED.supplierRef,FIXED.supplierName]);
 
   const openingId = await store.createStockEntry({
     entry_type: 'opening',

@@ -6,6 +6,27 @@ const {countAction,correctionAction,loadCount}=require('../src/inventory-counts'
 const {runWithAuditUser}=require('../src/audit');
 const {withPostgresTransaction}=require('../src/core');
 const {approveVoucher}=require('./helpers/voucher-approval');
+test('inventory count index loads all sections in one read and filters every section by warehouse',async()=>{
+ const {indexData}=require('../src/web/routes/inventory-counts');
+ const calls=[];
+ const data={
+  enabled:true,
+  warehouses:[{warehouse:'Allowed'},{warehouse:'Denied'}],
+  counts:[{id:1,warehouse:'Allowed'},{id:2,warehouse:'Denied'}],
+  pending:[{kind:'Sales invoice',reference:'INV-1',warehouse:'Allowed'},{kind:'Purchase',reference:'PUR-1',warehouse:'Denied'}],
+ };
+ const pool={query:async sql=>{calls.push(sql);return {rows:[{data}]};}};
+ const user={role:'standard',permissions:[],permission_grants:[],permission_denials:[],scopes:{},
+  record_access:{warehouse:'Allowed'}};
+ const result=await indexData(user,pool);
+ assert.equal(calls.length,1,'the index must use one database round trip');
+ assert.match(calls[0],/wm_inventory_enabled\(\)/);
+ assert.match(calls[0],/FROM pending_rows/);
+ assert.equal(result.enabled,true);
+ assert.deepEqual(result.warehouses,[{warehouse:'Allowed'}]);
+ assert.deepEqual(result.counts,[{id:1,warehouse:'Allowed'}]);
+ assert.deepEqual(result.pending,[{kind:'Sales invoice',reference:'INV-1',warehouse:'Allowed'}]);
+});
 test('controlled warehouse counts close history, require independent approval, and post corrections without duplicating stock', {skip:process.env.RECONCILIATION_TEST_POSTGRES!=='1'},async()=>{
  try{
  await seedGoldenData();const pool=store.getPostgresPool();
@@ -144,7 +165,7 @@ test('count locks drain preceding postings, both transfer warehouses freeze, app
  await pool.query('GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO wm_count_test_runtime');
  for(const table of ['wm_inventory_policy','wm_inventory_control','wm_inventory_counts','wm_inventory_count_lines','wm_inventory_closures','wm_inventory_events','wm_inventory_count_audit','wm_inventory_corrections','wm_inventory_correction_audit','app_stock_ledger','app_stock_balances'])await pool.query(`REVOKE ALL ON ${table} FROM wm_count_test_runtime;GRANT SELECT ON ${table} TO wm_count_test_runtime`);
 
- for(const signature of ['wm_inventory_enabled()','wm_inventory_begin(text,bigint,boolean,text[])','wm_inventory_apply(jsonb)'])await pool.query(`GRANT EXECUTE ON FUNCTION ${signature} TO wm_count_test_runtime`);
+ for(const signature of ['wm_inventory_enabled()','wm_inventory_begin(text,bigint,boolean,text[])','wm_inventory_apply(jsonb)','wm_inventory_apply_batch(jsonb)'])await pool.query(`GRANT EXECUTE ON FUNCTION ${signature} TO wm_count_test_runtime`);
  await pool.query("INSERT INTO app_master_customers(customer_id,customer_name) VALUES('COUNT-CUST','Count customer');INSERT INTO app_master_employees(employee_id,employee_name) VALUES('COUNT-EMP','Count employee');INSERT INTO app_master_price_lists(price_list,currency,price_type,active) VALUES('COUNT-SELL','UGX','selling',1)");
  await runWithAuditUser(maker,()=>withPostgresTransaction(async client=>{
    await client.query('SET LOCAL ROLE wm_count_test_runtime');

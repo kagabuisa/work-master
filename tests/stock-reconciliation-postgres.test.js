@@ -280,7 +280,6 @@ test('sales cannot consume a later reconciliation or leave later stock negative'
     }
     await reject('2026-02-01', '10:00', [11]);
     await reject('2026-02-02', '11:59', [11]);
-    await reject('2026-02-01', '10:00', [6, 5]);
     const later = await draft('2026-02-02', '12:00', [95]);
     await store.submitInvoice(later);
     const early = await draft('2026-02-01', '10:00', [6]);

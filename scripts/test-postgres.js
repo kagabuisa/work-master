@@ -2,6 +2,8 @@
 
 require('../src/environment').loadEnvironment();
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 const { getPostgresPool, closeStore } = require('../src/core');
 
 async function main() {
@@ -27,9 +29,21 @@ async function main() {
     'ITEM_DETAILS', 'JOURNAL', 'PRICING', 'RECONCILIATION', 'SCHEMA']) {
     env[`${area}_TEST_POSTGRES`] = '1';
   }
-  const files = require('../package.json').scripts.test.split(/\s+/).slice(2);
+  const allFiles = require('../package.json').scripts.test.split(/\s+/).slice(2);
+  const requested = process.argv.slice(2);
+  const root = path.resolve(__dirname, '..');
+  const testsRoot = path.join(root, 'tests');
+  const files = requested.length ? requested.map((value) => {
+    const resolved = path.resolve(root, value);
+    if (!resolved.startsWith(testsRoot + path.sep) || path.extname(resolved) !== '.js'
+      || !fs.statSync(resolved, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`Test path must be an existing JavaScript file under tests/: ${value}`);
+    }
+    return path.relative(root, resolved);
+  }) : allFiles;
   // Several integration tests reset public. Run files sequentially so their
   // schema resets and fixtures cannot interfere with another test file.
+  console.log(`Running ${files.length === allFiles.length ? 'complete' : 'selected'} PostgreSQL suite (${files.length} files).`);
   const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ...files],
     { env, stdio: 'inherit' });
   if (result.error) throw result.error;

@@ -22,7 +22,19 @@ test('financial input rejects lossy decimals, invalid dates, unbounded and undoc
     { is_cash_sale: true }, { check_stock:'true' }, { notes: 'x'.repeat(4001) }, { notes: '\0' }, { items: [] },
     { items: Array(201).fill(draft().items[0]) }, { items: [{ ...draft().items[0], warehouse: '' }] },
     { items: [{ ...draft().items[0], unit_price: '1.0000001' }] }]) assert.throws(() => invoiceCreate(draft(extra)), { status: 400 });
-  assert.equal(invoiceCreate(draft({ items: Array(200).fill(draft().items[0]) })).items.length, 200);
+  assert.throws(() => invoiceCreate(draft({ items: [draft().items[0], draft().items[0]] })), {
+    status: 400, code: 'DUPLICATE_INVOICE_ITEM',
+  });
+  assert.throws(() => invoiceCreate(draft({ items: [
+    draft().items[0],
+    { ...draft().items[0], item_code: 'I2', warehouse: 'Other' },
+  ] })), { status: 400, code: 'MULTIPLE_INVOICE_WAREHOUSES' });
+  assert.throws(() => invoiceCreate(draft({ warehouse: 'Main', items: [
+    { ...draft().items[0], warehouse: 'Other' },
+  ] })), { status: 400, code: 'INVOICE_WAREHOUSE_MISMATCH' });
+  assert.equal(invoiceCreate(draft({ items: Array.from({ length: 200 }, (_, index) => ({
+    ...draft().items[0], item_code: `I${index + 1}`,
+  })) })).items.length, 200);
   for (const extra of [{ method: 'bank' }, { invoice_id: '1' }, { reference: 'unprotected' },
     { account_id: '9007199254740992' }, { amount: '0' }, { external_reference: '' }, { external_source: ' provider' }]) {
     assert.throws(() => paymentCreate(receipt(1, 'test', extra)), { status: 400 });
@@ -423,14 +435,19 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       assert(metrics.series.some(row => row.status_class === '5xx' && row.route === '/invoices/:id/payments'));
       assert(!JSON.stringify(metrics.series).includes('main-receipt'));
     });
-    await t.test('all drafts reject combined quantities without optional stock-check flags or partial writes',async()=>{
+    await t.test('all drafts reject duplicate item lines without optional stock-check flags or partial writes',async()=>{
       const before=await snapshot();
-      assert.equal((await create('checked-stock-fail',draft({check_stock:true,items:[{item_code:'I1',quantity:'60',unit_price:'10'},{item_code:'I1',quantity:'60',unit_price:'10'}]}))).body.error.code,'insufficient_stock');
-      assert.deepEqual(await snapshot(),before);
-      for(const flag of [undefined,false]){const payload=draft({items:[{item_code:'I1',quantity:'60',unit_price:'10'},{item_code:'I1',quantity:'60',unit_price:'10'}]});if(flag!==undefined)payload.check_stock=flag;assert.equal((await create('mandatory-stock-'+String(flag),payload)).body.error.code,'insufficient_stock');assert.deepEqual(await snapshot(),before);}
+      for(const flag of [undefined,false,true]){
+        const payload=draft({items:[{item_code:'I1',quantity:'1',unit_price:'10'},{item_code:'I1',quantity:'2',unit_price:'10'}]});
+        if(flag!==undefined)payload.check_stock=flag;
+        const duplicate=await create('duplicate-item-'+String(flag),payload);
+        assert.equal(duplicate.status,400);
+        assert.match(duplicate.body.error.message,/already included in this invoice/);
+        assert.deepEqual(await snapshot(),before);
+      }
       const made=await create('checked-stock-ok',draft({check_stock:true}));assert.equal(made.status,201);
       assert.deepEqual((await snapshot()).stock,before.stock);
-      assert.equal((await request('/invoices/'+made.body.data.id,{key:'checked-edit-fail',body:draft({check_stock:true,items:[{item_code:'I1',quantity:'101',unit_price:'10'}]})})).status,422);
+      assert.equal((await request('/invoices/'+made.body.data.id,{key:'checked-edit-fail',body:draft({check_stock:true,items:[{item_code:'I1',quantity:'1',unit_price:'10'},{item_code:'I1',quantity:'2',unit_price:'10'}]})})).status,400);
       assert.equal((await pool.query("SELECT COUNT(*) FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1",[made.body.data.id])).rows[0].count,'0');
     });
     await t.test('draft editing is permission checked, transactional and safely replayable', async () => {

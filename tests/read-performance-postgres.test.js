@@ -49,7 +49,7 @@ test('optimized reads preserve filtered running balances, opening balances, sear
         }
       }
     });
-    const accounts = (await pool.query('SELECT id,account_code FROM app_accounts ORDER BY id LIMIT 2')).rows;
+    const accounts = (await pool.query("SELECT id,account_code FROM app_accounts WHERE account_code IN ('1120','3000') ORDER BY account_code")).rows;
     const account = accounts[0];
     await pool.query(`INSERT INTO app_gl_entries(posting_date,account_id,debit,credit,voucher_type,voucher_id,voucher_no,line_no,party_name)
       SELECT date '2026-01-01'+(n%7)::int, CASE WHEN n%2=0 THEN $1::bigint ELSE $2::bigint END,
