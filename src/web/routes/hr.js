@@ -4,6 +4,8 @@ const hr=require('../../hr');
 const {employeeDetailFields}=require('../../hr-employee-fields');
 const {getCompanyInformation}=require('../../store');
 const {sendEmployeeDetailsPdf}=require('../employee-details-pdf');
+const {sendEmployeeStatementPdf}=require('../employee-statement-pdf');
+const {employeeStatementCsv}=require('../../hr-employee-statement');
 const {can}=require('../../authorize');
 const {currentPostingDate:todayString}=require('../../posting-time');
 const money=value=>`Ugx ${Number(value||0).toLocaleString('en-UG',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -30,6 +32,25 @@ router.get('/employees/:id/pdf',handle(async(req,res)=>{
   const data=await hr.employeeProfile(req.params.id,req.currentUser,includePayPlans);
   const opts=await hr.options(req.currentUser);
   await sendEmployeeDetailsPdf(res,{...data,includePayPlans,accounts:opts.accounts,managerName:opts.employees.find(e=>e.employee_id===data.employee.manager_id)?.employee_name},{company:await getCompanyInformation(),formatDate:res.locals.formatDate});
+}));
+router.get('/employees/statement',handle(async(req,res)=>{
+  const employee=String(req.query.employee||'').trim();
+  if(!employee) fail('Choose an employee.',400);
+  const params=new URLSearchParams();
+  for(const key of ['from','to','source','order'])if(req.query[key])params.set(key,String(req.query[key]));
+  res.redirect(303,`/hr/employees/${encodeURIComponent(employee)}/statement${params.size?`?${params}`:''}`);
+}));
+router.get('/employees/:id/statement',handle(async(req,res)=>{
+  const report=await hr.employeeStatement(req.params.id,{
+    from:req.query.from,to:req.query.to,source:req.query.source,order:req.query.order,
+  },req.currentUser);
+  if(req.query.format==='pdf') return sendEmployeeStatementPdf(res,report,await getCompanyInformation(),res.locals.formatDate);
+  if(req.query.format==='csv'){
+    const employee=String(report.employee.employee_name||'employee').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'employee';
+    res.attachment(`${employee}-statement.csv`);res.type('text/csv');
+    return res.send(employeeStatementCsv(report));
+  }
+  return render(req,res,'employee-statement',`Statement — ${report.employee.employee_name}`,{report});
 }));
 router.get('/employees/:id',handle(async(req,res)=>{
   const data=await hr.employeeProfile(req.params.id,req.currentUser,can(req.currentUser,'hr.payroll.view'));

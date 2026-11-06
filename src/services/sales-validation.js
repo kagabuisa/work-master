@@ -93,7 +93,7 @@ function normalizeItemQuantity(value) {
 }
 
 
-async function buildInvoicePayload(body, user) {
+async function buildInvoicePayload(body, user, options = {}) {
   const payload = {
     ...(Object.hasOwn(body,'action_request') ? {action_request:body.action_request,why_cancel:body.why_cancel,approval_revision:body.approval_revision} : {}),
     invoice_date: body.invoice_date,
@@ -143,7 +143,7 @@ async function buildInvoicePayload(body, user) {
   if (!priceList || priceList.active !== 1 || priceList.currency !== 'UGX' || !['selling', 'both'].includes(priceList.price_type)) {
     const err = new Error('Select an active UGX selling price list.'); err.status = 400; throw err;
   }
-  requireInvoicePriceList(user, payload.price_list);
+  if (!options.skipPriceListPermission) requireInvoicePriceList(user, payload.price_list);
   if (payload.cost_center) {
     const costCenter = references.cost_center;
     if (!costCenter || costCenter.is_group || costCenter.disabled === true) {

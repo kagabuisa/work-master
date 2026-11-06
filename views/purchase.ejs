@@ -18,17 +18,17 @@
     <section class="invoice-card ui-surface">
       <div class="section-title ui-section-heading">
         <h2>Purchase Invoice</h2>
-        <% if (purchase.docstatus === 'draft') { %>
+        <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'draft') { %>
           <div class="actions">
             <% if (can('vouchers.purchases.edit')) { %><a class="button button-light" href="/purchases/<%= purchase.id %>/edit">Edit</a><% } %>
             <% if (can('vouchers.purchases.delete')) { %><form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this draft purchase? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
             <% if (can('vouchers.purchases.submit')) { %><form method="post" action="/purchases/<%= purchase.id %>/submit" class="inline-form" data-confirm="Submit this purchase? This receives the stock and creates the amount payable."><button type="submit">Submit &amp; Receive Stock</button></form><% } %>
           </div>
-        <% } else if (purchase.docstatus === 'submitted' && can('vouchers.purchases.cancel')) { %>
+        <% } else if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'submitted' && can('vouchers.purchases.cancel')) { %>
           <form method="post" action="/purchases/<%= purchase.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase? Stock and ledger entries will be reversed.">
             <button type="submit" class="button-light">Cancel Purchase</button>
           </form>
-        <% } else if (purchase.docstatus === 'cancelled' && currentUser.role === 'admin') { %>
+        <% } else if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'cancelled' && currentUser.role === 'admin') { %>
           <form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this cancelled purchase? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form>
         <% } %>
       </div>
@@ -71,7 +71,7 @@
               <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (lineAuditTime(payment.created_at)) { %> <small><%= lineAuditTime(payment.created_at) %></small><% } %></td>
               <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (lineAuditTime(payment.updated_at)) { %> <small><%= lineAuditTime(payment.updated_at) %></small><% } %></td>
               <td>
-                <% if (purchase.docstatus === 'submitted' && payment.docstatus !== 'cancelled' && (!payment.journal_entry_id || payment.method !== 'journal') && can('payments.purchases.cancel')) { %>
+                <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'submitted' && payment.docstatus !== 'cancelled' && (!payment.journal_entry_id || payment.method !== 'journal') && can('payments.purchases.cancel')) { %>
                   <form method="post" action="/purchases/<%= purchase.id %>/payments/<%= payment.payment_no %>/cancel" class="inline-form" data-confirm="Cancel this payment? Its ledger entry will be reversed.">
                     <button type="submit" class="button-light">Cancel</button>
                   </form>
@@ -81,7 +81,7 @@
           <% }) %>
         </tbody>
       </table></div>
-      <% if (purchase.docstatus === 'submitted' && purchase.total > purchase.amount_paid && can('payments.purchases.record')) { %>
+      <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'submitted' && purchase.total > purchase.amount_paid && can('payments.purchases.record')) { %>
         <form method="post" action="/purchases/<%= purchase.id %>/payments" class="payment-form">
           <%- include('voucher-posting-fields', { postingFields: { date: today, dateName: 'payment_date', label: 'Payment Date' } }) %>
           <label>Amount<input type="number" name="amount" min="0.01" max="<%= purchase.total - purchase.amount_paid %>" step="0.01" required></label>
@@ -97,7 +97,10 @@
         </form>
       <% } %>
     </section>
-<%- include('voucher-approval') %>
+<%- include('voucher-approval', {
+  sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false
+}) %>
+    <%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
     <% if (true) { %><%- include('record-audit', { record: purchase }) %><% } %>
   </main>
 </body>

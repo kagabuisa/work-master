@@ -9,17 +9,17 @@
     </div>
   </div>
   <div class="invoice-drawer-actions">
-    <% if (journalStatus === 'draft') { %>
+    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && journalStatus === 'draft') { %>
       <% if (can('vouchers.journals.edit')) { %><a class="button button-light" href="/journals/<%= journal.id %>/edit">Edit Draft</a><% } %>
       <% if (can('vouchers.journals.submit')) { %><form method="post" action="/journals/<%= journal.id %>/submit" class="inline-form"><button type="submit">Submit Journal</button></form><% } %>
     <% } %>
-    <% if (journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button button-light" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
-    <% if (journal.can_cancel && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
+    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button button-light" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
+    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && journal.can_cancel && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
       <form method="post" action="/journals/<%= journal.id %>/cancel" class="inline-form" data-confirm="Cancel this journal? This will reverse its ledger entries.">
         <button type="submit" class="button-light">Cancel Journal</button>
       </form>
     <% } %>
-    <% if (journalStatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/journals/<%= journal.id %>/delete" class="inline-form" data-confirm="Delete this cancelled journal? Its ledger reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
+    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && journalStatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/journals/<%= journal.id %>/delete" class="inline-form" data-confirm="Delete this cancelled journal? Its ledger reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">
@@ -48,6 +48,9 @@
     </table>
     <% if (journal.remarks) { %><p class="notes"><%= journal.remarks %></p><% } %>
   </section>
-<%- include('voucher-approval') %>
+<%- include('voucher-approval', {
+  sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false
+}) %>
+<%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
   <% if (true) { %><%- include('record-audit', { record: journal }) %><% } %>
 </div>

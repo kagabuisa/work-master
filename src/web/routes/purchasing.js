@@ -32,6 +32,8 @@ const { updateVoucherPostingTime, deleteDraftVoucher } = require('../../store');
 const { registerVoucherReportRoutes } = require('./voucher-report-routes');
 const { voucherOwnerId } = require('../../voucher-ownership');
 const { warehouseAccessOptions } = require('../helpers');
+const { voucherSharing, changeVoucherShare, deleteVoucherShares } = require('../../voucher-sharing');
+const { validateSharedVoucherEdit } = require('../../shared-voucher-edit');
 
 const router = express.Router();
 
@@ -98,6 +100,40 @@ async function fillPurchaseFromOrder(user, purchase, orderId) {
     cost_center: order.cost_center, items };
 }
 
+async function voucherShareView(req, type, record) {
+  return {
+    sharing: await voucherSharing(req.currentUser, type, record),
+    sharedAccessOnly: Boolean(req.voucherSharedRead),
+    sharedWriteAccess: Boolean(req.voucherSharedWrite),
+  };
+}
+
+async function changeShare(req, res, next, type, loader) {
+  const inlineSharing = req.get('x-requested-with') === 'XMLHttpRequest';
+  try {
+    await changeVoucherShare(req.currentUser, type, req.params.id,
+      req.body.action === 'revoke' ? 'revoke' : 'share', req.body.user_id, req.body.permission || 'read');
+    if (inlineSharing) {
+      const record = await loader(req.params.id);
+      const sharing = await voucherSharing(req.currentUser, type, record);
+      return res.render('voucher-sharing', { sharing }, (error, html) => {
+        if (error) return next(error);
+        res.set('Cache-Control', 'private, no-store');
+        res.json({ html });
+      });
+    }
+    res.redirect(303, `/${type === 'purchase-orders' ? 'purchase-orders' : 'purchases'}/${req.params.id}`);
+  } catch (error) {
+    if (inlineSharing) return res.status(error.status || 500).json({
+      error: error.status ? error.message : 'Could not save sharing. Please try again.',
+    });
+    if (error.status === 400) {
+      return res.redirect(303, `/${type === 'purchase-orders' ? 'purchase-orders' : 'purchases'}/${req.params.id}?error=${encodeURIComponent(error.message)}`);
+    }
+    next(error);
+  }
+}
+
 router.get('/purchase-orders', async (req, res, next) => {
   try {
     const result = await listPurchaseOrders({ ...req.query, ownerId: voucherOwnerId(req.currentUser),
@@ -122,9 +158,12 @@ router.post('/purchase-orders', async (req, res) => {
 });
 
 router.get('/purchase-orders/:id', async (req, res, next) => {
-  try { res.render('purchase-order', { order: await loadPurchaseOrder(req.params.id,
-    { ownerId: voucherOwnerId(req.currentUser) }),
-    money: purchaseMoney, error: req.query.error || null }); }
+  try {
+    const order = await loadPurchaseOrder(req.params.id, req.voucherSharedRead
+      ? {} : { ownerId: voucherOwnerId(req.currentUser) });
+    res.render('purchase-order', { order, money: purchaseMoney,
+      error: req.query.error || null, ...await voucherShareView(req, 'purchase-orders', order) });
+  }
   catch (err) { next(err); }
 });
 
@@ -132,15 +171,29 @@ router.get('/purchase-orders/:id/edit', async (req, res, next) => {
   try {
     const purchase = await loadPurchaseOrder(req.params.id);
     if (purchase.docstatus !== 'draft') { const err = new Error('Only draft purchase orders can be edited.'); err.status = 400; throw err; }
-    res.render('purchase-order-form', { purchase, error: null });
+    res.render('purchase-order-form', { purchase, error: null, sharing: null,
+      sharedAccessOnly: Boolean(req.voucherSharedRead), sharedWriteAccess: Boolean(req.voucherSharedWrite) });
   } catch (err) { next(err); }
 });
 
 router.post('/purchase-orders/:id', async (req, res) => {
   const purchase = { ...purchasePayload(req.body, { singleWarehouse: true }), id: Number(req.params.id) };
-  try { await updatePurchaseOrder(req.params.id, purchase); res.redirect(303, `/purchase-orders/${req.params.id}`); }
-  catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message }); }
+  try {
+    if (req.voucherSharedWrite) {
+      const existing = await loadPurchaseOrder(req.params.id);
+      await validateSharedVoucherEdit(req.currentUser, 'purchase-orders', existing, purchase);
+    }
+    await updatePurchaseOrder(req.params.id, purchase,
+      req.voucherSharedWrite ? { sharedUser: req.currentUser } : {});
+    res.redirect(303, `/purchase-orders/${req.params.id}`);
+  }
+  catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message,
+    sharing: null, sharedAccessOnly: Boolean(req.voucherSharedRead),
+    sharedWriteAccess: Boolean(req.voucherSharedWrite) }); }
 });
+
+router.post('/purchase-orders/:id/share', (req, res, next) => (
+  changeShare(req, res, next, 'purchase-orders', (id) => loadPurchaseOrder(id))));
 
 for (const [action, handler] of [['submit', submitPurchaseOrder], ['cancel', cancelPurchaseOrder]]) {
   router.post(`/purchase-orders/:id/${action}`, async (req, res) => {
@@ -150,7 +203,8 @@ for (const [action, handler] of [['submit', submitPurchaseOrder], ['cancel', can
 }
 
 router.post('/purchase-orders/:id/delete', async (req, res, next) => {
-  try { await deleteDraftPurchaseOrder(req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/purchase-orders'); }
+  try { await deleteDraftPurchaseOrder(req.params.id, { allowCancelled: req.currentUser.role === 'admin' });
+    await deleteVoucherShares('purchase-orders', req.params.id); res.redirect(303, '/purchase-orders'); }
   catch (err) { next(err); }
 });
 
@@ -209,7 +263,8 @@ router.get('/purchases/payments/:id/drawer', async (req, res, next) => {
 router.get('/purchases/:id', async (req, res, next) => {
   try {
     const purchase = await loadPurchase(req.params.id);
-    res.render('purchase', { purchase, today: currentPostingDate(), money: purchaseMoney, error: req.query.error || null });
+    res.render('purchase', { purchase, today: currentPostingDate(), money: purchaseMoney,
+      error: req.query.error || null, ...await voucherShareView(req, 'purchases', purchase) });
   } catch (err) { next(err); }
 });
 
@@ -224,15 +279,20 @@ router.post('/purchases/:id/posting-time', async (req, res, next) => {
 });
 
 router.post('/purchases/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('purchases', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/purchases'); }
+  try { await deleteDraftVoucher('purchases', req.params.id, { allowCancelled: req.currentUser.role === 'admin' });
+    await deleteVoucherShares('purchases', req.params.id); res.redirect(303, '/purchases'); }
   catch (error) { next(error); }
 });
+
+router.post('/purchases/:id/share', (req, res, next) => (
+  changeShare(req, res, next, 'purchases', (id) => loadPurchase(id))));
 
 router.get('/purchases/:id/drawer', async (req, res, next) => {
   try {
     const purchase = await loadPurchase(req.params.id);
     res.set('Cache-Control', 'private, max-age=10');
-    res.render('purchase-drawer', { purchase, today: currentPostingDate(), money: purchaseMoney, error: req.query.error || null });
+    res.render('purchase-drawer', { purchase, today: currentPostingDate(), money: purchaseMoney,
+      error: req.query.error || null, ...await voucherShareView(req, 'purchases', purchase) });
   } catch (err) { next(err); }
 });
 
@@ -244,21 +304,28 @@ router.get('/purchases/:id/edit', async (req, res, next) => {
       err.status = 400;
       throw err;
     }
-    const purchaseOrders = purchase.purchase_order_id ? [] : await receivableOrdersForUser(req.currentUser);
+    const purchaseOrders = purchase.purchase_order_id || req.voucherSharedRead
+      ? [] : await receivableOrdersForUser(req.currentUser);
     if (req.query.purchase_order_id) {
       if (purchase.purchase_order_id) {
         const err = new Error('This invoice is already linked to a purchase order.'); err.status = 400; throw err;
       }
       Object.assign(purchase, await fillPurchaseFromOrder(req.currentUser, purchase, req.query.purchase_order_id));
     }
-    res.render('purchase-form', { purchase, purchaseOrders, error: null });
+    res.render('purchase-form', { purchase, purchaseOrders, error: null, sharing: null,
+      sharedAccessOnly: Boolean(req.voucherSharedRead), sharedWriteAccess: Boolean(req.voucherSharedWrite) });
   } catch (err) { next(err); }
 });
 
 router.post('/purchases/:id', async (req, res) => {
   const purchase = { ...purchasePayload(req.body), id: Number(req.params.id) };
   try {
-    await updatePurchase(req.params.id, purchase);
+    if (req.voucherSharedWrite) {
+      const existing = await loadPurchase(req.params.id);
+      await validateSharedVoucherEdit(req.currentUser, 'purchases', existing, purchase);
+    }
+    await updatePurchase(req.params.id, purchase,
+      req.voucherSharedWrite ? { sharedUser: req.currentUser } : {});
     res.redirect(`/purchases/${req.params.id}`);
   } catch (err) {
     const duplicateReference = err.code === '23505' && err.constraint === 'app_purchases_supplier_reference_idx';
@@ -266,6 +333,9 @@ router.post('/purchases/:id', async (req, res) => {
       purchase,
       error: duplicateReference ? 'This supplier reference is already used on another purchase.' : err.message,
       draftPurchase: err.draftPurchase || null,
+      sharing: null,
+      sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite),
     });
   }
 });

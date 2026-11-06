@@ -12,6 +12,7 @@ const { MAINTENANCE_LOCK, maintenanceBusy } = require('./maintenance-lock');
 const DATA_ROOT = path.resolve(__dirname, '..', 'data');
 const BACKUP_ROOT = path.join(DATA_ROOT, 'transaction-reset-backups');
 const GROUPS = [
+  ['Voucher sharing', ['app_voucher_shares']],
   ['Voucher approvals', ['app_voucher_approval_events','app_voucher_approvals']],
   ['Sales', ['app_sales_approval_events', 'app_invoices', 'app_invoice_items', 'app_invoice_payments']],
   ['Purchases', ['app_purchases', 'app_purchase_items', 'app_purchase_payments']],

@@ -1,3 +1,6 @@
+<% if (typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) { %>
+  <% if ((invoice.docstatus || 'submitted') === 'draft' && typeof sharedWriteAccess !== 'undefined' && sharedWriteAccess) { %><a class="button button-light" href="/invoices/<%= invoice.id %>/edit">Edit</a><% } %>
+<% } else { %>
 <% if ((invoice.docstatus || 'submitted') === 'draft') { %>
   <% const listAllowed = typeof invoicePriceListAllowed !== 'function' || invoicePriceListAllowed(invoice.price_list); %>
   <% if (can('vouchers.sales.edit')) { %><a class="button button-light" href="/invoices/<%= invoice.id %>/edit">Edit</a><% } %>
@@ -23,4 +26,5 @@
 <% if (can('vouchers.sales.create')) { %>
   <a class="button button-light" href="/invoices/<%= invoice.id %>/duplicate">Duplicate</a>
   <a class="button button-light" href="/invoices/new" aria-label="New Sales Invoice">New</a>
+<% } %>
 <% } %>

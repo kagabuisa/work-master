@@ -370,7 +370,7 @@ async function createJournalEntry(payload, options = {}) {
   });
 }
 
-async function updateJournalEntry(id, payload) {
+async function updateJournalEntry(id, payload, options = {}) {
   const journal = normalizeJournalEntryPayload(payload);
   require('../posting-time').assertPostingDate(journal.posting_date);
   return withPostgresTransaction(async (client) => {
@@ -379,6 +379,9 @@ async function updateJournalEntry(id, payload) {
     if (!existing.rows[0]) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
     if (existing.rows[0].docstatus !== 'draft') {
       const error = new Error('Only draft journals can be edited.'); error.status = 400; throw error;
+    }
+    if (options.sharedUser) {
+      await require('../voucher-sharing').assertVoucherShareWrite(client, options.sharedUser, 'journals', id);
     }
     await validateJournalControlAccounts(client, journal);
     if (journal.party_type === 'supplier') await validatePurchaseAllocations(client, journal);

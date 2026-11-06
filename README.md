@@ -212,6 +212,8 @@ Schema migration 39 adds indexed Stock Entry delivery metadata and per-user read
 
 Schema migration 40 adds Read-only / Read & write sharing levels; all existing Stock Entry shares remain Read-only. On controlled-inventory deployments, run the owner migration before restarting the runtime. No ledger records are rewritten.
 
+Schema migration 62 adds `app_voucher_shares` for Sales Invoices, Purchase Invoices, Purchase Orders, Journal Entries, and Stock Reconciliations, plus the **Shared vouchers** account list. Existing Stock Entry shares remain in their existing table and are included in the unified list. On restricted-runtime deployments, run the owner migration before restarting. Transaction resets remove these shares without rewriting voucher or ledger history.
+
 Schema migration 41 adds the journal-creator and ledger/daily-balance read indexes
 described below. Build the updated image first with `docker compose build invoice-app`.
 Then apply it with the owner credentials before restarting a restricted runtime:
@@ -451,10 +453,13 @@ only its copy database when its job exits.
 
 ### Application release gate
 
-Run `npm run release:check` before deploying. It runs `npm audit --omit=dev`
-and the complete `npm run test:postgres` suite, including all PostgreSQL integration
-flags, migration upgrades, golden accounting, HR, browser access, and API checks.
-GitHub Actions runs the same release command on pushes and pull requests.
+Full-suite release verification is temporarily paused at the user's request until
+they explicitly reinstate it. Do not run `npm run release:check` or the complete
+`npm run test:postgres` suite automatically during routine development; use focused
+tests appropriate to the change. The release command remains available for an
+explicitly requested verification and is still configured in GitHub Actions.
+When run, it includes `npm audit --omit=dev`, every PostgreSQL integration flag,
+migration upgrades, golden accounting, HR, browser access, and API checks.
 
 Use a dedicated database ending in `_hr_test`, owned by the test database user.
 Both full-suite and focused accounting runners require that suffix and check the
@@ -494,12 +499,14 @@ configured owner connection. Integration-account creation supports
 
 ### Local Docker integration tests
 
-When Node.js is unavailable on the host, run the complete suite against a fresh,
-isolated local PostgreSQL container. The following uses disposable database data,
-an internal network with no published ports, and the current source mounted
-read-only. It does not load the application's `.env`. The writable temporary
-`data` directory lets upload tests run under the app image's non-root user.
-Build the app image with `docker compose build invoice-app` first if it is absent.
+When Node.js is unavailable on the host and full or isolated PostgreSQL
+verification is explicitly requested or needed to diagnose a broad failure, run
+the following against a fresh, isolated local PostgreSQL container. The procedure
+uses disposable database data, an internal network with no published ports, and
+the current source mounted read-only. It does not load the application's `.env`.
+The writable temporary `data` directory lets upload tests run under the app
+image's non-root user. Build the app image with
+`docker compose build invoice-app` first if it is absent.
 
 ```bash
 docker network create --internal wm-skipped-tests
@@ -543,8 +550,8 @@ Use three verification levels during development:
 1. Run only related pure tests with `npm run test:unit -- tests/example.test.js`.
 2. Run affected PostgreSQL files against a reusable disposable `*_hr_test`
    database with `npm run test:postgres -- tests/example-postgres.test.js`.
-3. Run `npm run test:postgres` without file arguments as the complete
-   merge/release gate.
+3. When full-suite verification is reinstated or explicitly requested, run
+   `npm run test:postgres` without file arguments as the complete release gate.
 
 Targeted PostgreSQL files still run sequentially against one disposable
 database because multiple test files reset the public schema. Reuse the
@@ -568,6 +575,7 @@ database before upgrading. The current migration list is in `src/migrate.js`.
 - Stock entries, customer payments, cancellations, and manual journals post to the local double-entry ledger.
 - Creates combined Purchase vouchers: choose a supplier, items, warehouse, quantities, and costs; save a draft, then submit to receive stock and create the payable. Record one or more supplier payments on the same voucher. Purchases require active supplier, item, and warehouse master records.
 - Creates Purchase Order vouchers with supplier, expected delivery date, warehouse, items, quantities, and costs. Orders can be saved as drafts, submitted, or cancelled. They require active buying master records. Submitting an order does not receive stock or create a payable; record the delivery separately as a Purchase voucher.
+- Shares individual Sales Invoices, Purchase Invoices, Purchase Orders, Journal Entries, Stock Entries, and Stock Reconciliations as Read-only or Read & write. Recipients find them under **Account → Shared vouchers**.
 - Includes accounting reports for General Ledger, Trial Balance, Profit and Loss, and Balance Sheet.
 
 Purchase vouchers currently cover stock items and supplier payments. They support cancellation, which reverses stock and ledger entries, but do not yet calculate purchase tax or discounts or support returns or payment edits after submission. Existing Purchase Receipt stock entries remain in the stock ledger; do not record the same delivery again as a Purchase voucher.
@@ -685,7 +693,7 @@ Import the current ERPNext chart of accounts with `npm run sync:erpnext-accounts
 
 ## HR and payroll
 
-The app includes an HR module for employee employment profiles and dated pay plans, daily/bulk attendance, leave allocations/approvals, advances, simple loans, approved recoveries, reimbursements, monthly payroll, payslips, CSV payroll registers, and partial payments/reversals. Schema migrations 13–14 create the HR tables, their record-audit triggers, working-week calendar, and payroll review tracking at startup. Existing employee masters, cost centers, and accounts are reused; ERPNext HR transactions and opening balances are not imported automatically.
+The app includes an HR module for employee employment profiles and dated pay plans, daily/bulk attendance, leave allocations/approvals, advances, simple loans, approved recoveries, reimbursements, monthly payroll, payslips, single net employee statements with salary components and PDF/CSV downloads, CSV payroll registers, and partial payments/reversals. Schema migrations 13–14 create the HR tables, their record-audit triggers, working-week calendar, and payroll review tracking at startup. Existing employee masters, cost centers, and accounts are reused; ERPNext HR transactions and opening balances are not imported automatically.
 
 Migration 48 adds nullable payslip Employee Money snapshots and an employee/date index for the underlying transactions. It preserves existing payroll and ledger records without backfilling historical balances. New payroll postings capture employee balances atomically; draft summaries remain provisional. Readers need Employee Money Read and the applicable record scopes. With runtime database credentials, apply the owner migration before restarting the updated app, using `docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js` after building the image. Older posted payslips report that historical balances were not saved. See the [payslip guidance](docs/app-guide.md#monthly-payroll-and-payment).
 

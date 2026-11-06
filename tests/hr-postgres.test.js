@@ -356,6 +356,40 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       await hr.payrollAction(runId,'submit',admin);
       data=await hr.payrollDetails(runId,admin);assert.deepEqual([Number(data.slips[0].gross_pay),Number(data.slips[0].net_pay),Number(data.slips[0].employer_cost)],[110000,80000,5000]);
       assert.equal((await hr.moneyList(admin))[0].balance,15000);
+      const statement=await hr.employeeStatement('HR-E1',{},admin);
+      assert.deepEqual([statement.openingBalance,statement.totalDebit,statement.totalCredit,statement.closingBalance],[0,70000,135000,-65000]);
+      assert.deepEqual(statement.summary,{
+        grossSalaryEarned:110000,
+        totalDeductions:30000,
+        loanRecovery:20000,
+        netSalaryPaid:0,
+        advancesIssued:40000,
+        receiptsReceived:5000,
+        recoveryCharges:0,
+        employeeBalance:15000,
+        salaryOutstanding:80000,
+        reimbursementBalance:0,
+      });
+      assert.deepEqual(statement.payrollByPeriod,[{period:'2026-01',salary:110000,deductions:30000,paid:0,outstanding:80000}]);
+      assert(statement.statement.some(row=>row.type==='Advance / loan'));
+      assert(statement.statement.some(row=>row.type==='Receipt'));
+      assert(statement.statement.some(row=>row.type==='Payroll recovery'));
+      assert(statement.statement.some(row=>row.type==='Salary'&&row.description.includes('Basic salary')&&row.href===`/hr/payslips/${slip.id}`));
+      assert(statement.statement.some(row=>row.type==='Deduction'&&row.description.includes('Tax')));
+      assert(statement.statement.some(row=>row.type==='Deduction'&&row.description.includes('Approved salary advance')));
+      assert.deepEqual(statement.sourceOptions.map(option=>option.key),['salary','deductions','advances','receipts','recoveries']);
+      assert.deepEqual(statement.sourceGroups.map(group=>group.key),['salary','deductions','advances','receipts','recoveries']);
+      const advances=await hr.employeeStatement('HR-E1',{source:'advances',order:'date'},admin);
+      assert(advances.statement.length>0);
+      assert(advances.statement.every(row=>row.source==='advances'));
+      assert.equal(advances.closingBalance,40000);
+      const ranged=await hr.employeeStatement('HR-E1',{from:'2026-01-03',to:'2026-01-31'},admin);
+      assert.deepEqual([ranged.openingBalance,ranged.totalDebit,ranged.totalCredit,ranged.closingBalance],[20000,50000,135000,-65000]);
+      const moneyOnly=await hr.employeeStatement('HR-E1',{},{
+        role:'finance',permissions:['hr.employees.view','hr.money.view'],
+      });
+      assert(moneyOnly.statement.some(row=>row.type==='Advance / loan'));
+      assert(!moneyOnly.statement.some(row=>row.type==='Salary'));
       const hidden=await store.generalLedgerReport({}, {exportAll:true,...hrLedgerAccessOptions({role:'finance',permissions:[]})});
       assert.equal(hidden.rows.filter(r=>r.voucher_type.startsWith('hr_')).length,0);
       const visible=await store.generalLedgerReport({}, {exportAll:true,...hrLedgerAccessOptions(admin)});
@@ -370,6 +404,9 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       assert.equal((await hr.payrollList(restricted)).length,0);
       const payment=await hr.payPayroll(runId,{slip_id:slip.id,amount:40000,posting_date:'2026-02-01',bank_account_id:ids.bank,reference:'SAL1'},admin);
       assert.equal(Number((await hr.payrollDetails(runId,admin)).slips[0].paid_amount),40000);
+      const paidStatement=await hr.employeeStatement('HR-E1',{},admin);
+      assert.deepEqual([paidStatement.totalDebit,paidStatement.totalCredit,paidStatement.closingBalance],[110000,135000,-25000]);
+      assert(paidStatement.statement.some(row=>row.type==='Salary payment'&&row.reference==='HRP-'+payment));
       await assert.rejects(()=>hr.payPayroll(runId,{slip_id:slip.id,amount:40001,posting_date:'2026-02-01',bank_account_id:ids.bank,reference:'TOO MUCH'},admin),/exceeds/);
       await assert.rejects(()=>hr.payrollAction(runId,'cancel',admin,{posting_date:'2026-02-01',reason:'Reverse'}),/payments first/);
       const racing=await Promise.allSettled([1,2].map(i=>hr.payPayroll(runId,{slip_id:slip.id,amount:30000,posting_date:'2026-02-01',bank_account_id:ids.bank,reference:`RACE-${i}`},admin)));
@@ -382,6 +419,9 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       await hr.cancelPayment('money',advance,payout1,{posting_date:'2026-02-01'},admin);
       await hr.cancelPayment('money',advance,payout2,{posting_date:'2026-02-01'},admin);
       await hr.moneyAction(advance,'cancel',admin,{posting_date:'2026-02-01'});
+      const finalStatement=await hr.employeeStatement('HR-E1',{},admin);
+      assert.equal(finalStatement.closingBalance,0);
+      assert(finalStatement.statement.filter(row=>row.type==='Reversal').length>=6);
       const totals=(await pool.query("SELECT sum(debit)::float AS debit,sum(credit)::float AS credit FROM app_gl_entries WHERE voucher_type LIKE 'hr_%'")).rows[0];assert.equal(totals.debit,totals.credit);
       assert.equal(Number((await pool.query("SELECT sum(debit-credit) AS net FROM app_gl_entries WHERE account_id=$1",[ids.advance])).rows[0].net),0);
       const payrollNet=(await pool.query("SELECT sum(debit-credit)::float AS net FROM app_gl_entries WHERE voucher_type IN('hr_payroll','hr_payroll_cancellation') AND account_id=$1",[ids.salary])).rows[0];assert.equal(payrollNet.net,0);
@@ -410,10 +450,11 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
     const express=require('express');const app=express();
     app.set('view engine','ejs');app.set('views',require('node:path').join(__dirname,'../views'));
     app.locals.assetVersion='test';
+    app.locals.scriptJson=require('../src/web/script-json').scriptJson;
     app.locals.dateTimeSettings={date_format:'YYYY-MM-DD',time_format:'24h'};
     app.use(express.urlencoded({extended:true}));
     app.use((req,res,next)=>{
-      const user=req.get('x-test-user')==='payroll-reader'?restrictedUserFor('HR-E1'):req.get('x-test-user')==='scoped'?restrictedUserFor('HR-E2'):req.get('x-test-user')==='ordinary'?{role:'standard',permissions:['masters.employees.view']}:req.get('x-test-user')==='profile-reader'?{role:'finance',permissions:['hr.employees.view']}:req.get('x-test-user')==='profile-scoped'?{role:'finance',permissions:['hr.employees.view'],record_access:{employee_id:'HR-E2'}}:admin;
+      const user=req.get('x-test-user')==='payroll-reader'?restrictedUserFor('HR-E1'):req.get('x-test-user')==='scoped'?restrictedUserFor('HR-E2'):req.get('x-test-user')==='ordinary'?{role:'standard',permissions:['masters.employees.view']}:req.get('x-test-user')==='profile-reader'?{role:'finance',permissions:['hr.employees.view']}:req.get('x-test-user')==='profile-scoped'?{role:'finance',permissions:['hr.employees.view'],record_access:{employee_id:'HR-E2'}}:req.get('x-test-user')==='statement-reader'?{role:'finance',permissions:['hr.employees.view','hr.money.view']}:admin;
       user.username=user.username||'Test user';req.currentUser=user;res.locals.currentUser=user;res.locals.can=p=>require('../src/authorize').can(user,p);
       res.locals.availableReports=[];res.locals.formatDate=require('../src/date-time-format').formatDate;
       res.locals.formatTimestamp=v=>String(v||'');
@@ -437,7 +478,7 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       assert.match(await removal.text(),/cannot be removed/);
       const runId=await runWithAuditUser(admin,()=>hr.createPayroll({company:'HR Company',period:'2026-02',posting_date:'2026-02-28',employee_ids:['HR-E1']},admin));
       const slip=(await hr.payrollDetails(runId,admin)).slips[0];
-      for(const url of ['/hr/employees','/hr/employees/HR-E1','/hr/settings','/hr/attendance','/hr/leave','/hr/money','/hr/payroll',`/hr/payroll/${runId}`,`/hr/payroll/${runId}/payslips/${slip.id}`,'/hr/payslips',`/hr/payslips/${slip.id}`]) {
+      for(const url of ['/hr/employees','/hr/employees/HR-E1','/hr/employees/HR-E1/statement','/hr/settings','/hr/attendance','/hr/leave','/hr/money','/hr/payroll',`/hr/payroll/${runId}`,`/hr/payroll/${runId}/payslips/${slip.id}`,'/hr/payslips',`/hr/payslips/${slip.id}`]) {
         const response=await fetch(base+url);const html=await response.text();assert.equal(response.status,200,`${url}: ${html.slice(0,400)}`);assert.match(html,url==='/hr/employees'?/Employees/:/Human Resources/);
       }
       const denied=await fetch(base+'/hr/payroll',{headers:{'x-test-user':'ordinary'}});assert.equal(denied.status,403);
@@ -475,6 +516,45 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       assert.equal((await fetch(base+'/hr/employees/HR-E1/pdf',{headers:{'x-test-user':'profile-scoped'}})).status,403);
       assert.equal((await fetch(base+'/hr/employees/HR-E1/pdf',{headers:{'x-test-user':'profile-reader'}})).status,200);
       assert.equal((await fetch(base+'/hr/employees/MISSING/pdf')).status,404);
+      const statementHtml=await (await fetch(base+'/hr/employees/HR-E1/statement')).text();
+      assert.match(statementHtml,/Employee Statement/);assert.match(statementHtml,/Closing balance/);
+      assert.match(statementHtml,/Transaction Details/);
+      assert.match(statementHtml,/Gross Salary Earned/);assert.match(statementHtml,/Payroll Summary/);
+      assert.match(statementHtml,/Loan Summary/);assert.match(statementHtml,/Account Balances/);
+      assert.ok(!statementHtml.includes('Statement Summary'));
+      assert.match(statementHtml,/Download PDF/);assert.match(statementHtml,/Download CSV/);
+      assert.match(statementHtml,/name="source"/);assert.match(statementHtml,/name="order"/);
+      assert.match(statementHtml,/data-employee-statement-search/);assert.match(statementHtml,/name="employee" value="HR-E1"/);
+      assert.match(statementHtml,/Net balance/);
+      assert.match(statementHtml,/value="date" selected/);
+      assert.match(statementHtml,/ui-statement-ledger-actions/);
+      const selectedStatement=await fetch(base+'/hr/employees/statement?employee=HR-E1&source=advances&order=date',{redirect:'manual'});
+      assert.equal(selectedStatement.status,303);
+      assert.equal(selectedStatement.headers.get('location'),'/hr/employees/HR-E1/statement?source=advances&order=date');
+      assert.equal((await fetch(base+'/hr/employees/statement')).status,400);
+      assert.equal((await fetch(base+'/hr/employees/HR-E1/statement',{headers:{'x-test-user':'profile-reader'}})).status,403);
+      assert.equal((await fetch(base+'/hr/employees/HR-E1/statement',{headers:{'x-test-user':'payroll-reader'}})).status,403);
+      assert.equal((await fetch(base+'/hr/employees/HR-E1/statement',{headers:{'x-test-user':'scoped'}})).status,403);
+      const moneyStatement=await fetch(base+'/hr/employees/HR-E1/statement',{headers:{'x-test-user':'statement-reader'}});
+      const moneyStatementHtml=await moneyStatement.text();
+      assert.equal(moneyStatement.status,200);assert.match(moneyStatementHtml,/Employee Statement/);
+      assert.match(moneyStatementHtml,/Closing balance/);
+      const statementCsv=await fetch(base+'/hr/employees/HR-E1/statement?format=csv');
+      assert.equal(statementCsv.status,200);assert.match(statementCsv.headers.get('content-type'),/text\/csv/);
+      assert.match(await statementCsv.text(),/"Date","Source","Type","Reference","Description","Debit","Credit","Balance"/);
+      const advanceStatement=await fetch(base+'/hr/employees/HR-E1/statement?source=advances&order=date');
+      const advanceHtml=await advanceStatement.text();
+      assert.equal(advanceStatement.status,200);
+      assert.match(advanceHtml,/value="advances" selected/);
+      assert.match(advanceHtml,/value="date" selected/);
+      const advanceCsv=await fetch(base+'/hr/employees/HR-E1/statement?source=advances&order=date&format=csv');
+      const advanceCsvText=await advanceCsv.text();
+      assert.match(advanceCsvText,/"Advances & loans"/);
+      assert.ok(!advanceCsvText.includes('"Salary payments"'));
+      const statementPdf=await fetch(base+'/hr/employees/HR-E1/statement?format=pdf');
+      assert.equal(statementPdf.status,200);assert.match(statementPdf.headers.get('content-type'),/application\/pdf/);
+      assert.equal((await statementPdf.arrayBuffer()).byteLength>1000,true);
+      assert.equal((await fetch(base+'/hr/employees/MISSING/statement')).status,404);
       for(const field of require('../src/hr-employee-fields').employeeDetailFields) assert.ok(employeeHtml.includes(`name="${field.name}"`),`${field.label} appears in the form`);
       assert.match(employeeHtml,/<textarea name="education" rows="6" maxlength="10000"/);
       const invalidProfile=await fetch(base+'/hr/employees/HR-E1/profile',{method:'POST',body:new URLSearchParams({date_of_birth:'invalid',nationality:'Retained value'})});

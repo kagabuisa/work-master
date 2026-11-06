@@ -1,6 +1,7 @@
 'use strict';
 
 const { getPostgresPool, withPostgresTransaction } = require('./core');
+const { readSnapshot } = require('./read-cache');
 const { auditActor } = require('./audit');
 const { can } = require('./authorize');
 const { employeeDetailFields } = require('./hr-employee-fields');
@@ -8,6 +9,7 @@ const { postGlEntry, reverseVoucherGlEntries } = require('./domain/posting');
 const { validateCostCenter } = require('./cost-centers');
 const { accountAllowed, assignedMasterRecordAllowed } = require('./access');
 const { buildMoneySnapshot, payslipMoneySummary, withoutMoneySnapshot } = require('./hr-money-summary');
+const { buildEmployeeStatementReport } = require('./hr-employee-statement');
 const { fail, date, amount, cents, monthPeriod, assertEmployee, employeeAllowed, assertAccount, payrollComponentAccountAllowed, calculatePay } = require('./hr-policy');
 
 const key = (value) => { const n=Number(value); if (!Number.isSafeInteger(n) || n<1) fail('Record not found.',404); return n; };
@@ -319,6 +321,243 @@ async function moneyList(user) {
   const opts=await options(user); const allowed=new Set(opts.employees.map(e=>e.employee_id));
   return rows.filter(m=>allowed.has(m.employee_id)&&moneyAccountsAllowed(user,m)&&(!m.cost_center||assignedMasterRecordAllowed(user,'cost-centers',m.cost_center))).map(moneyRow);
 }
+
+function payrollComponents(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function moneyStatementEntryAllowed(user, row) {
+  return accountAllowed(user, String(row.balance_account_id))
+    && (!row.offset_account_id || accountAllowed(user, String(row.offset_account_id)))
+    && (!row.money_cost_center || assignedMasterRecordAllowed(user, 'cost-centers', row.money_cost_center))
+    && (!row.bank_account_id || accountAllowed(user, String(row.bank_account_id)));
+}
+
+function salarySlipAllowed(user, slip) {
+  if (!accountAllowed(user, String(slip.payable_account_id))
+      || !employeeAllowed(user, slip.employee_id, slip.cost_center)) return false;
+  const components = payrollComponents(slip.components);
+  return components.length > 0 && components.every((component) => (
+    accountAllowed(user, String(component.account_id))
+    && (!component.payable_account_id || accountAllowed(user, String(component.payable_account_id)))
+  ));
+}
+
+async function employeeStatement(id, filters = {}, user) {
+  const from = filters.from ? date(filters.from, 'From date') : '';
+  const to = filters.to ? date(filters.to, 'To date') : '';
+  if (from && to && from > to) fail('From date cannot be after To date.');
+  const access = {
+    money: can(user, 'hr.money.view'),
+    salary: can(user, 'hr.payroll.view'),
+  };
+  if (!access.money && !access.salary) fail('Employee Money Read or Payroll Read is required to open an employee statement.', 403);
+
+  return readSnapshot(getPostgresPool(), async (client) => {
+    const employee = (await client.query(`SELECT e.employee_id,e.employee_name,e.company,e.status,e.department,
+      e.designation,p.cost_center FROM app_master_employees e
+      LEFT JOIN app_hr_profiles p USING(employee_id) WHERE e.employee_id=$1`, [String(id)])).rows[0];
+    if (!employee) fail('Employee not found.', 404);
+    assertEmployee(user, employee.employee_id, employee.cost_center);
+
+    let moneyRows = [];
+    if (access.money) {
+      moneyRows = (await client.query(`
+        SELECT gl.id AS entry_id, gl.posting_date::text AS date, gl.voucher_type, gl.voucher_id,
+          gl.voucher_no, gl.remarks, gl.debit::float, gl.credit::float,
+          m.id AS money_id, m.kind AS money_kind, m.reason AS money_reason,
+          m.account_id AS balance_account_id, m.offset_account_id, m.cost_center AS money_cost_center,
+          NULL::bigint AS payment_id, NULL::text AS direction, NULL::text AS payment_reference,
+          NULL::bigint AS bank_account_id, NULL::text AS payroll_period
+        FROM app_gl_entries gl
+        JOIN app_hr_money m ON gl.voucher_id=m.id AND gl.account_id=m.account_id
+          AND gl.voucher_type IN ('hr_money','hr_money_cancellation')
+        WHERE gl.party_type='employee' AND gl.party_id=$1
+
+        UNION ALL
+
+        SELECT gl.id AS entry_id, gl.posting_date::text AS date, gl.voucher_type, gl.voucher_id,
+          gl.voucher_no, gl.remarks, gl.debit::float, gl.credit::float,
+          m.id AS money_id, m.kind AS money_kind, m.reason AS money_reason,
+          m.account_id AS balance_account_id, m.offset_account_id, m.cost_center AS money_cost_center,
+          p.id AS payment_id, p.direction, p.reference AS payment_reference,
+          p.bank_account_id, NULL::text AS payroll_period
+        FROM app_gl_entries gl
+        JOIN app_hr_payments p ON p.id=gl.voucher_id
+        JOIN app_hr_money m ON m.id=p.money_id AND gl.account_id=m.account_id
+        WHERE gl.party_type='employee' AND gl.party_id=$1
+          AND gl.voucher_type IN ('hr_payment','hr_payment_cancellation')
+
+        UNION ALL
+
+        SELECT rec.id AS entry_id, r.posting_date::text AS date, 'hr_payroll' AS voucher_type,
+          r.id AS voucher_id, 'PAY-' || r.id AS voucher_no, NULL::text AS remarks,
+          0::float AS debit, rec.amount::float AS credit,
+          m.id AS money_id, m.kind AS money_kind, m.reason AS money_reason,
+          m.account_id AS balance_account_id, m.offset_account_id, m.cost_center AS money_cost_center,
+          NULL::bigint AS payment_id, NULL::text AS direction, NULL::text AS payment_reference,
+          NULL::bigint AS bank_account_id, r.period AS payroll_period
+        FROM app_hr_recoveries rec
+        JOIN app_hr_slips s ON s.id=rec.slip_id AND s.employee_id=$1
+        JOIN app_hr_runs r ON r.id=s.run_id
+        JOIN app_hr_money m ON m.id=rec.money_id
+        WHERE r.docstatus IN ('submitted','cancelled')
+          AND EXISTS (SELECT 1 FROM app_gl_entries paid
+            WHERE paid.voucher_type='hr_payroll' AND paid.voucher_id=r.id
+              AND paid.account_id=m.account_id AND paid.party_type='employee'
+              AND paid.party_id=$1 AND paid.credit>0)
+
+        UNION ALL
+
+        SELECT (-rec.id)::bigint AS entry_id,
+          (SELECT max(cancelled.posting_date)::text FROM app_gl_entries cancelled
+            WHERE cancelled.voucher_type='hr_payroll_cancellation' AND cancelled.voucher_id=r.id
+              AND cancelled.account_id=m.account_id AND cancelled.party_type='employee'
+              AND cancelled.party_id=$1) AS date,
+          'hr_payroll_cancellation' AS voucher_type, r.id AS voucher_id,
+          'PAY-' || r.id AS voucher_no, 'Cancellation of PAY-' || r.id AS remarks,
+          rec.amount::float AS debit, 0::float AS credit,
+          m.id AS money_id, m.kind AS money_kind, m.reason AS money_reason,
+          m.account_id AS balance_account_id, m.offset_account_id, m.cost_center AS money_cost_center,
+          NULL::bigint AS payment_id, NULL::text AS direction, NULL::text AS payment_reference,
+          NULL::bigint AS bank_account_id, r.period AS payroll_period
+        FROM app_hr_recoveries rec
+        JOIN app_hr_slips s ON s.id=rec.slip_id AND s.employee_id=$1
+        JOIN app_hr_runs r ON r.id=s.run_id AND r.docstatus='cancelled'
+        JOIN app_hr_money m ON m.id=rec.money_id
+        WHERE EXISTS (SELECT 1 FROM app_gl_entries cancelled
+          WHERE cancelled.voucher_type='hr_payroll_cancellation' AND cancelled.voucher_id=r.id
+            AND cancelled.account_id=m.account_id AND cancelled.party_type='employee'
+            AND cancelled.party_id=$1)
+      `, [employee.employee_id])).rows.filter((row) => moneyStatementEntryAllowed(user, row));
+    }
+
+    const salaryRows = [];
+    if (access.salary) {
+      const slips = (await client.query(`
+        SELECT s.id AS slip_id, s.employee_id, s.cost_center, s.components, s.docstatus,
+          r.id AS run_id, r.period, r.posting_date::text AS payroll_date,
+          r.payable_account_id, r.docstatus AS run_status,
+          (SELECT max(cancelled.posting_date)::text FROM app_gl_entries cancelled
+            WHERE cancelled.voucher_type='hr_payroll_cancellation' AND cancelled.voucher_id=r.id
+              AND cancelled.party_type='employee' AND cancelled.party_id=$1) AS cancellation_date
+        FROM app_hr_slips s
+        JOIN app_hr_runs r ON r.id=s.run_id
+        WHERE s.employee_id=$1 AND s.docstatus IN ('submitted','cancelled')
+          AND EXISTS (SELECT 1 FROM app_gl_entries posted
+            WHERE posted.voucher_type='hr_payroll' AND posted.voucher_id=r.id
+              AND posted.party_type='employee' AND posted.party_id=$1)
+        ORDER BY r.posting_date,s.id
+      `, [employee.employee_id])).rows.filter((slip) => salarySlipAllowed(user, slip));
+      for (const slip of slips) {
+        const components = payrollComponents(slip.components);
+        components.forEach((component, index) => {
+          if (!['earning', 'deduction'].includes(component.kind)) return;
+          const amount = Number(component.calculated_amount || 0);
+          if (!(amount > 0)) return;
+          salaryRows.push({
+            entry_id: Number(slip.slip_id) * 1000 + index * 2,
+            date: slip.payroll_date,
+            voucher_type: 'hr_payroll',
+            voucher_id: slip.run_id,
+            voucher_no: `PAY-${slip.run_id}`,
+            run_id: slip.run_id,
+            period: slip.period,
+            slip_id: slip.slip_id,
+            component_kind: component.kind,
+            component_label: component.label,
+            debit: component.kind === 'deduction' ? amount : 0,
+            credit: component.kind === 'earning' ? amount : 0,
+          });
+          if (slip.run_status === 'cancelled' && slip.cancellation_date) {
+            salaryRows.push({
+              entry_id: Number(slip.slip_id) * 1000 + index * 2 + 1,
+              date: slip.cancellation_date,
+              voucher_type: 'hr_payroll_cancellation',
+              voucher_id: slip.run_id,
+              voucher_no: `PAY-${slip.run_id}`,
+              run_id: slip.run_id,
+              period: slip.period,
+              slip_id: slip.slip_id,
+              component_kind: component.kind,
+              component_label: component.label,
+              debit: component.kind === 'earning' ? amount : 0,
+              credit: component.kind === 'deduction' ? amount : 0,
+            });
+          }
+        });
+      }
+
+      const payments = (await client.query(`
+        SELECT p.id AS payment_id, p.posting_date::text AS payment_date, p.amount::float,
+          p.reference AS payment_reference, p.bank_account_id, p.docstatus,
+          s.id AS slip_id, s.employee_id, s.cost_center, s.components,
+          r.id AS run_id, r.period, r.payable_account_id,
+          (SELECT max(cancelled.posting_date)::text FROM app_gl_entries cancelled
+            WHERE cancelled.voucher_type='hr_payment_cancellation' AND cancelled.voucher_id=p.id
+              AND cancelled.party_type='employee' AND cancelled.party_id=$1) AS cancellation_date
+        FROM app_hr_payments p
+        JOIN app_hr_slips s ON s.id=p.slip_id AND s.employee_id=$1
+        JOIN app_hr_runs r ON r.id=s.run_id
+        WHERE p.slip_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM app_gl_entries posted
+            WHERE posted.voucher_type='hr_payment' AND posted.voucher_id=p.id
+              AND posted.party_type='employee' AND posted.party_id=$1)
+        ORDER BY p.posting_date,p.id
+      `, [employee.employee_id])).rows.filter((payment) => (
+        salarySlipAllowed(user, payment)
+        && accountAllowed(user, String(payment.bank_account_id))
+      ));
+      for (const payment of payments) {
+        salaryRows.push({
+          entry_id: Number(payment.payment_id) * 2,
+          date: payment.payment_date,
+          voucher_type: 'hr_payment',
+          voucher_id: payment.payment_id,
+          voucher_no: `HRP-${payment.payment_id}`,
+          run_id: payment.run_id,
+          period: payment.period,
+          slip_id: payment.slip_id,
+          payment_reference: payment.payment_reference,
+          debit: Number(payment.amount),
+        });
+        if (payment.docstatus === 'cancelled' && payment.cancellation_date) {
+          salaryRows.push({
+            entry_id: Number(payment.payment_id) * 2 + 1,
+            date: payment.cancellation_date,
+            voucher_type: 'hr_payment_cancellation',
+            voucher_id: payment.payment_id,
+            voucher_no: `HRP-${payment.payment_id}`,
+            run_id: payment.run_id,
+            period: payment.period,
+            slip_id: payment.slip_id,
+            payment_reference: payment.payment_reference,
+            credit: Number(payment.amount),
+          });
+        }
+      }
+    }
+
+    return buildEmployeeStatementReport({
+      employee,
+      moneyRows,
+      salaryRows,
+      from,
+      to,
+      source: filters.source,
+      order: filters.order,
+      access,
+    });
+  });
+}
+
 async function lockedMoney(client,id,user,asOf=null) {
   const base=(await client.query('SELECT employee_id FROM app_hr_money WHERE id=$1',[key(id)])).rows[0];
   if(!base) fail('Employee transaction not found.',404);
@@ -648,5 +887,5 @@ async function cancelPayment(ownerKind,ownerId,paymentId,payload,user) {
 }
 
 module.exports={settings,options,saveSettings,employeeProfile,saveProfile,createEmployee,savePayPlan,attendanceList,attendanceBatch,attendanceAction,
-  leaveDays,leaveList,allocateLeave,createLeave,leaveAction,moneyList,createMoney,moneyAction,payMoney,moneyPayments,moneyRegisterPayments,
+  leaveDays,leaveList,allocateLeave,createLeave,leaveAction,moneyList,employeeStatement,createMoney,moneyAction,payMoney,moneyPayments,moneyRegisterPayments,
   payrollList,createPayroll,payrollDetails,payslipList,payslipDetails,updateSlip,payrollAction,payPayroll,cancelPayment};

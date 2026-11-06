@@ -6,9 +6,15 @@
     </div>
   </header>
   <div class="invoice-drawer-actions">
-    <%- include('invoice-actions', { invoice }) %>
+    <%- include('invoice-actions', { invoice,
+      sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false,
+      sharedWriteAccess: typeof sharedWriteAccess !== 'undefined' ? sharedWriteAccess : false }) %>
   </div>
   <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
-  <%- include('invoice-detail', { invoice, items, today, money, returnTo, showVoucherNumber: false }) %>
-  <%- include('invoice-approval',{invoice,requestSurface:'drawer'}) %>
+  <%- include('invoice-detail', { invoice, items, today, money, returnTo, showVoucherNumber: false,
+    sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false }) %>
+  <%- include('invoice-approval',{invoice,requestSurface:'drawer',
+    sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false}) %>
+  <%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
+  <%- include('record-audit', { record: invoice }) %>
 </div>

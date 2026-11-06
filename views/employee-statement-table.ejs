@@ -1,0 +1,75 @@
+<div class="ui-table-scroll" role="region" aria-label="<%= label %>" tabindex="0">
+  <table class="ui-table statement-table">
+    <thead>
+      <tr>
+        <th class="row-number">#</th>
+        <th>Date</th>
+        <th>Source</th>
+        <th>Type</th>
+        <th>Reference</th>
+        <th>Description</th>
+        <th class="ui-amount"><%= debitLabel %></th>
+        <th class="ui-amount"><%= creditLabel %></th>
+        <th class="ui-amount"><%= balanceLabel %></th>
+      </tr>
+    </thead>
+    <% if (ledger.filters.from) { %>
+      <tbody class="ui-opening-row">
+        <tr><th colspan="8">Opening balance</th><td class="ui-amount"><strong><%= money(ledger.openingBalance) %></strong></td></tr>
+      </tbody>
+    <% } %>
+    <% if (!ledger.statement.length) { %>
+      <tbody><tr><td colspan="9" class="empty">No statement entries in the selected period.</td></tr></tbody>
+    <% } else if (order === 'source') { %>
+      <% ledger.sourceGroups.forEach((group) => { %>
+        <tbody>
+          <tr class="ui-account-divider"><th colspan="9" scope="rowgroup"><%= group.label %> · <%= group.entries.length %> <%= group.entries.length===1?'entry':'entries' %></th></tr>
+          <% group.entries.forEach((entry, index) => { %>
+            <tr>
+              <td class="row-number"><%= index + 1 %></td>
+              <td><%= formatDate(entry.date) %></td>
+              <td><%= entry.sourceLabel %></td>
+              <td><span class="transaction-type"><%= entry.type %></span></td>
+              <td>
+                <% if (entry.href) { %><a href="<%= entry.href %>"><%= entry.reference %></a>
+                <% } else { %><%= entry.reference %><% } %>
+              </td>
+              <td class="ui-wrap-text"><%= entry.description %></td>
+              <td class="ui-amount"><%= entry.debit ? money(entry.debit) : '' %></td>
+              <td class="ui-amount"><%= entry.credit ? money(entry.credit) : '' %></td>
+              <td class="ui-amount"></td>
+            </tr>
+          <% }) %>
+          <tr class="ui-total-row">
+            <th colspan="6" scope="row">Source subtotal · <%= group.label %></th>
+            <td class="ui-amount"><%= money(group.totalDebit) %></td>
+            <td class="ui-amount"><%= money(group.totalCredit) %></td>
+            <td class="ui-amount"><strong><%= money(Number(group.totalDebit)-Number(group.totalCredit)) %></strong></td>
+          </tr>
+        </tbody>
+      <% }) %>
+    <% } else { %>
+      <tbody>
+        <% ledger.statement.forEach((entry) => { %>
+          <tr>
+            <td class="row-number"><%= entry.number %></td>
+            <td><%= formatDate(entry.date) %></td>
+            <td><%= entry.sourceLabel %></td>
+            <td><span class="transaction-type"><%= entry.type %></span></td>
+            <td>
+              <% if (entry.href) { %><a href="<%= entry.href %>"><%= entry.reference %></a>
+              <% } else { %><%= entry.reference %><% } %>
+            </td>
+            <td class="ui-wrap-text"><%= entry.description %></td>
+            <td class="ui-amount"><%= entry.debit ? money(entry.debit) : '' %></td>
+            <td class="ui-amount"><%= entry.credit ? money(entry.credit) : '' %></td>
+            <td class="ui-amount"><strong><%= money(entry.balance) %></strong></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    <% } %>
+    <tfoot>
+      <tr class="ui-total-row"><th colspan="8" scope="row">Closing balance</th><td class="ui-amount"><strong><%= money(ledger.closingBalance) %></strong></td></tr>
+    </tfoot>
+  </table>
+</div>

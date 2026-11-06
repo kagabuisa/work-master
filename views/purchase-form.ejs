@@ -14,7 +14,10 @@
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><% if (typeof draftPurchase !== 'undefined' && draftPurchase && can('vouchers.purchases.view')) { %>This purchase order already has a draft purchase invoice: <a href="/purchases/<%= draftPurchase.id %>"><%= draftPurchase.purchase_no %></a>. Edit or submit this draft, or delete it before creating another.<% } else { %><%= error %><% } %></strong></section><% } %>
-    <% if (!purchase.purchase_order_id && typeof purchaseOrders !== 'undefined' && purchaseOrders.length) { %>
+    <% if (typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) { %>
+      <section class="notice" role="status"><strong>Shared draft</strong><p>You can save changes to this draft. Submit, payment, posting, and sharing actions remain unavailable.</p></section>
+    <% } %>
+    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && !purchase.purchase_order_id && typeof purchaseOrders !== 'undefined' && purchaseOrders.length) { %>
       <form method="get" action="<%= purchase.id ? `/purchases/${purchase.id}/edit` : '/purchases/new' %>" class="invoice-card report-filters ui-toolbar ui-filter-row ui-surface">
         <label>Receive from Purchase Order<select name="purchase_order_id" required><option value="">Choose a submitted order</option><% purchaseOrders.forEach((order) => { %><option value="<%= order.id %>"><%= order.order_no %> · <%= order.supplier_id %></option><% }) %></select></label>
         <button type="submit">Load Order Items</button>
@@ -36,7 +39,7 @@
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
         <label class="wide">Remarks<input name="remarks" value="<%= purchase.remarks || '' %>"></label>
       </section>
-      <%- include('voucher-request-fields',{requestKind:'purchases',requestRecord:purchase}) %>
+      <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %><%- include('voucher-request-fields',{requestKind:'purchases',requestRecord:purchase}) %><% } %>
       <div id="purchase-lookup-status" class="notice" hidden>
         <p role="status" data-lookup-message></p>
         <button type="button" class="button-light" data-lookup-retry hidden>Retry lookup</button>

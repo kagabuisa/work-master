@@ -211,6 +211,7 @@ app.use(async (req, res, next) => {
 app.use('/reports', reportsRouter);
 app.use(require('./src/web/routes/accounting-periods'));
 
+app.use(require('./src/web/routes/voucher-sharing'));
 app.use(require('./src/web/routes/voucher-controls'));
 app.use(purchasingRouter);
 

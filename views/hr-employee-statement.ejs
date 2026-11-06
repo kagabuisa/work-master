@@ -1,0 +1,122 @@
+<%
+  const statementParams = new URLSearchParams();
+  if (report.filters.from) statementParams.set('from', report.filters.from);
+  if (report.filters.to) statementParams.set('to', report.filters.to);
+  if (report.filters.source) statementParams.set('source', report.filters.source);
+  if (report.filters.order === 'source') statementParams.set('order', 'source');
+  const exportQuery = statementParams.toString();
+  const periodStart = report.filters.from || report.statement[0]?.date || '';
+  const periodEnd = report.filters.to || report.statement.at(-1)?.date || '';
+  const periodLabel = periodStart || periodEnd
+    ? `${periodStart ? formatDate(periodStart) : 'Beginning'} – ${periodEnd ? formatDate(periodEnd) : 'Latest'}`
+    : 'All transactions';
+  const generated = typeof today !== 'undefined' && today ? formatDate(today) : '';
+%>
+<section class="invoice-card report-section debtor-full-statement employee-statement employee-statement-dashboard ui-surface" data-employee-statement>
+  <header class="ui-statement-hero">
+    <div class="ui-statement-identity">
+      <h1>Employee Statement</h1>
+      <p>
+        <strong><%= report.employee.employee_name %></strong>
+        <span>Employee ID: <%= report.employee.employee_id %></span>
+        <% if (report.employee.department) { %><span>Department: <%= report.employee.department %></span><% } %>
+        <% if (report.employee.designation) { %><span>Position: <%= report.employee.designation %></span><% } %>
+      </p>
+    </div>
+    <div class="ui-statement-meta">
+      <span><span aria-hidden="true">▣</span> Period: <strong><%= periodLabel %></strong></span>
+      <% if (generated) { %><span><span aria-hidden="true">▤</span> Generated: <strong><%= generated %></strong></span><% } %>
+    </div>
+  </header>
+
+  <form class="ui-toolbar ui-filter-row employee-statement-filters" method="get" action="/hr/employees/statement" data-employee-statement-filters>
+    <label>
+      Employee
+      <input type="search" value="<%= report.employee.employee_name %>" placeholder="Search employee name or ID"
+        autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+        aria-controls="employee-statement-results" data-employee-statement-search>
+      <input type="hidden" name="employee" value="<%= report.employee.employee_id %>" data-employee-statement-id>
+      <div class="results" id="employee-statement-results" role="listbox" aria-label="Matching employees" data-employee-statement-results></div>
+      <span class="field-hint" role="status" aria-live="polite" data-employee-statement-status hidden></span>
+    </label>
+    <label>From<input type="date" name="from" value="<%= report.filters.from %>"></label>
+    <label>To<input type="date" name="to" value="<%= report.filters.to %>"></label>
+    <label>Source<select name="source"><option value="">All sources</option><% report.sourceOptions.forEach(option=>{ %><option value="<%= option.key %>" <%= report.filters.source===option.key?'selected':'' %>><%= option.label %> (<%= option.count %>)</option><% }) %></select></label>
+    <label>Order by<select name="order"><option value="date" <%= report.filters.order==='date'?'selected':'' %>>Date</option><option value="source" <%= report.filters.order==='source'?'selected':'' %>>Source</option></select></label>
+    <button type="submit">Apply</button>
+    <% if(exportQuery){ %><a class="button button-light" href="/hr/employees/<%= encodeURIComponent(report.employee.employee_id) %>/statement">Clear</a><% } %>
+  </form>
+
+  <section class="ui-statement-kpis" aria-label="Employee statement totals">
+    <article class="is-blue">
+      <span class="ui-statement-kpi-icon" aria-hidden="true">▤</span>
+      <div><span>Gross Salary Earned</span><strong><%= money(report.summary.grossSalaryEarned) %></strong><small>Selected period</small></div>
+    </article>
+    <article class="is-rose">
+      <span class="ui-statement-kpi-icon" aria-hidden="true">−</span>
+      <div><span>Total Deductions</span><strong><%= money(report.summary.totalDeductions) %></strong><small>Selected period</small></div>
+    </article>
+    <article class="is-violet">
+      <span class="ui-statement-kpi-icon" aria-hidden="true">≡</span>
+      <div><span>Loan Recovery</span><strong><%= money(report.summary.loanRecovery) %></strong><small>Payroll recoveries</small></div>
+    </article>
+    <article class="is-green">
+      <span class="ui-statement-kpi-icon" aria-hidden="true">▣</span>
+      <div><span>Net Salary Paid</span><strong><%= money(report.summary.netSalaryPaid) %></strong><small>Selected period</small></div>
+    </article>
+    <article class="is-amber">
+      <span class="ui-statement-kpi-icon" aria-hidden="true">◎</span>
+      <div><span>Employee Balance</span><strong><%= money(report.summary.employeeBalance) %></strong><small><%= report.summary.employeeBalance > 0 ? 'Owed by employee' : report.summary.employeeBalance < 0 ? 'Owed to employee' : 'Settled' %></small></div>
+    </article>
+  </section>
+
+  <div class="ui-statement-layout">
+    <section class="ui-surface ui-results ui-statement-transactions">
+      <div class="ui-section-heading">
+        <div><p class="ui-section-eyebrow">Ledger</p><h2>Transaction Details</h2></div>
+        <div class="ui-statement-ledger-actions">
+          <span class="ui-section-meta"><%= report.statement.length %> transactions</span>
+          <div class="statement-actions no-print">
+            <a class="button button-light" href="/hr/employees/<%= encodeURIComponent(report.employee.employee_id) %>/statement?<%= exportQuery ? exportQuery+'&' : '' %>format=pdf">Download PDF</a>
+            <a class="button button-light" href="/hr/employees/<%= encodeURIComponent(report.employee.employee_id) %>/statement?<%= exportQuery ? exportQuery+'&' : '' %>format=csv">Download CSV</a>
+            <button class="button button-light" type="button" data-employee-statement-print>Print</button>
+          </div>
+        </div>
+      </div>
+      <%- include('employee-statement-table',{ledger:report,label:'Employee statement transactions',debitLabel:'Debit',creditLabel:'Credit',balanceLabel:report.filters.order==='source'?'Source net':'Net balance',order:report.filters.order}) %>
+    </section>
+
+    <aside class="ui-statement-aside">
+      <section class="ui-surface ui-statement-panel">
+        <div class="ui-section-heading"><div><p class="ui-section-eyebrow">Payroll</p><h2>Payroll Summary</h2></div></div>
+        <% if(report.payrollByPeriod.length){ %>
+          <div class="ui-table-scroll"><table class="ui-table"><thead><tr><th>Period</th><th>Salary</th><th>Deductions</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody>
+          <% report.payrollByPeriod.forEach(row=>{ %><tr><td><%= row.period %></td><td class="ui-amount"><%= money(row.salary) %></td><td class="ui-amount"><%= money(row.deductions) %></td><td class="ui-amount"><%= money(row.paid) %></td><td class="ui-amount"><%= money(row.outstanding) %></td></tr><% }) %>
+          </tbody><tfoot><tr class="ui-total-row"><th>Net salary payable</th><td colspan="4" class="ui-amount"><%= money(report.summary.salaryOutstanding) %></td></tr></tfoot></table></div>
+        <% }else{ %><p class="empty">No payroll activity in this period.</p><% } %>
+      </section>
+
+      <section class="ui-surface ui-statement-panel">
+        <div class="ui-section-heading"><div><p class="ui-section-eyebrow">Employee money</p><h2>Loan Summary</h2></div></div>
+        <dl class="ui-statement-values">
+          <div><dt>Advances and loans</dt><dd><%= money(report.summary.advancesIssued) %></dd></div>
+          <div><dt>Recovery charges</dt><dd><%= money(report.summary.recoveryCharges) %></dd></div>
+          <div><dt>Receipts and repayments</dt><dd><%= money(report.summary.receiptsReceived) %></dd></div>
+          <div><dt>Payroll recoveries</dt><dd><%= money(report.summary.loanRecovery) %></dd></div>
+          <div class="is-emphasis"><dt>Outstanding employee balance</dt><dd><%= money(report.summary.employeeBalance) %></dd></div>
+        </dl>
+      </section>
+
+      <section class="ui-surface ui-statement-panel">
+        <div class="ui-section-heading"><div><p class="ui-section-eyebrow">Closing</p><h2>Account Balances</h2></div></div>
+        <dl class="ui-statement-values">
+          <div><dt>Salary payable to employee</dt><dd><%= money(report.summary.salaryOutstanding) %></dd></div>
+          <div><dt>Employee loan balance</dt><dd><%= money(report.summary.employeeBalance) %></dd></div>
+          <div><dt>Reimbursements payable</dt><dd><%= money(report.summary.reimbursementBalance) %></dd></div>
+          <div class="is-emphasis"><dt>Net balance</dt><dd><%= money(report.closingBalance) %></dd></div>
+        </dl>
+      </section>
+    </aside>
+  </div>
+</section>
+<script id="employee-statement-options" type="application/json"<% if(typeof cspNonce!=='undefined'){ %> nonce="<%= cspNonce %>"<% } %>><%- scriptJson(opts.employees.map(employee=>({id:employee.employee_id,name:employee.employee_name,company:employee.company||'',status:employee.status||'',costCenter:employee.cost_center||''}))) %></script>

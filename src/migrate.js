@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 61;
+const SCHEMA_VERSION = 62;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -264,6 +264,8 @@ const MIGRATIONS = [
     up:()=>require('./ledger-indexes').createDebtorControlAccountIndex(getPostgresPool()) },
   { version:61, name:'stock_movement_daily_summary',
     up:client=>require('./stock-daily').initStockDaily(client) },
+  { version:62, name:'voucher_sharing',
+    up:client=>require('./voucher-sharing').initVoucherSharing(client) },
 ];
 
 async function ensureSchema(pool) {

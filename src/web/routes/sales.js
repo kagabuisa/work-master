@@ -15,6 +15,8 @@ const { invoiceReport, validateSavedColumns, loadSavedColumns, saveDefaultColumn
 const { selectedCategories, warehouseAllowed, invoicePriceListAllowed, allowedNamedListValues, deniedNamedListValues, requireInvoicePriceList, accountAllowed } = require('../../access');
 const { findInvoice, findInvoicePage, findMasterItem, findMasterRecord, localStockQuantity, createInvoice, submitInvoice, createCashSaleInvoice, submitCashSaleInvoice, updateInvoice, cancelInvoice, updateInvoiceNonSystemNumber, updateVoucherPostingTime, deleteDraftVoucher, addInvoicePayment, cancelInvoicePayment, invoiceForPayment, invoiceWarehouses, masterWarehouses, getPostgresPool } = require('../../store');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
+const { voucherSharing, changeVoucherShare, deleteVoucherShares } = require('../../voucher-sharing');
+const { validateSharedVoucherEdit } = require('../../shared-voucher-edit');
 
 const { requireReceiptAccount, validateDbItems, buildInvoicePayload, normalizeStockQuantity } = require('../../services/sales-validation');
 
@@ -221,6 +223,9 @@ router.get('/invoices/:id/edit', async (req, res, next) => {
     res.render('new-invoice', {
       ...data,
       today: data.invoice.invoice_date,
+      sharing: null,
+      sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite),
     });
   } catch (err) {
     next(err);
@@ -275,9 +280,18 @@ router.post('/invoices/:id/non-system-invoice', async (req, res, next) => {
 router.post('/invoices/:id', async (req, res, next) => {
   try {
     const action = String(req.body.action || '').trim();
-    const payload = await buildInvoicePayload(req.body, req.currentUser);
+    const sharedWrite = Boolean(req.voucherSharedWrite);
+    const payload = await buildInvoicePayload(req.body, req.currentUser, { skipPriceListPermission: sharedWrite });
+    if (sharedWrite) {
+      if (!['', 'save_draft'].includes(action)) {
+        const err = new Error('Shared write access only allows saving a draft.'); err.status = 403; throw err;
+      }
+      const { invoice } = await loadInvoice(req.params.id);
+      await validateSharedVoucherEdit(req.currentUser, 'sales', invoice, payload);
+    }
     if (action === 'cash_sale') requireReceiptAccount(req.currentUser, req.body.cash_sale_account_id);
-    const id = await updateInvoice(req.params.id, { ...payload, payments: [], amount_paid: 0 });
+    const id = await updateInvoice(req.params.id, { ...payload, payments: [], amount_paid: 0 },
+      sharedWrite ? { sharedUser: req.currentUser } : {});
     if (action === 'cash_sale') {
       const payment = cashSalePayment(payload, req.body);
       await submitCashSaleInvoice(id, payment);
@@ -294,11 +308,17 @@ router.post('/invoices/:id', async (req, res, next) => {
         next(err);
         return;
       }
-      await renderInvoiceFormError(res, req.body, savedInvoice, err);
+      await renderInvoiceFormError(res, req.body, savedInvoice, err, {
+        sharedAccessOnly: Boolean(req.voucherSharedRead),
+        sharedWriteAccess: Boolean(req.voucherSharedWrite),
+      });
     } catch (loadErr) {
       // The store may still be unavailable; keep the user's edits without
       // requiring another successful read just to display the form.
-      await renderInvoiceFormError(res, req.body, { id: req.params.id, invoice_no: req.params.id }, err);
+      await renderInvoiceFormError(res, req.body, { id: req.params.id, invoice_no: req.params.id }, err, {
+        sharedAccessOnly: Boolean(req.voucherSharedRead),
+        sharedWriteAccess: Boolean(req.voucherSharedWrite),
+      });
     }
   }
 });
@@ -425,15 +445,43 @@ router.get('/invoices/payments/:id/drawer', async (req, res, next) => {
 router.get('/invoices/:id', async (req, res, next) => {
   try {
     const data = await loadInvoice(req.params.id);
-    res.render('invoice', { ...data, today: currentPostingDate(), money, error: req.query.error || null });
+    res.render('invoice', { ...data, today: currentPostingDate(), money, error: req.query.error || null,
+      sharing: await voucherSharing(req.currentUser, 'sales', data.invoice),
+      sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite) });
   } catch (err) {
     next(err);
   }
 });
 
 router.post('/invoices/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('sales', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); clearInvoiceCaches(); res.redirect(303, '/invoices'); }
+  try { await deleteDraftVoucher('sales', req.params.id, { allowCancelled: req.currentUser.role === 'admin' });
+    await deleteVoucherShares('sales', req.params.id); clearInvoiceCaches(); res.redirect(303, '/invoices'); }
   catch (error) { next(error); }
+});
+
+router.post('/invoices/:id/share', async (req, res, next) => {
+  const inlineSharing = req.get('x-requested-with') === 'XMLHttpRequest';
+  try {
+    await changeVoucherShare(req.currentUser, 'sales', req.params.id,
+      req.body.action === 'revoke' ? 'revoke' : 'share', req.body.user_id, req.body.permission || 'read');
+    if (inlineSharing) {
+      const { invoice } = await loadInvoice(req.params.id);
+      const sharing = await voucherSharing(req.currentUser, 'sales', invoice);
+      return res.render('voucher-sharing', { sharing }, (error, html) => {
+        if (error) return next(error);
+        res.set('Cache-Control', 'private, no-store');
+        res.json({ html });
+      });
+    }
+    res.redirect(303, `/invoices/${req.params.id}`);
+  } catch (error) {
+    if (inlineSharing) return res.status(error.status || 500).json({
+      error: error.status ? error.message : 'Could not save sharing. Please try again.',
+    });
+    if (error.status === 400) return res.redirect(303, `/invoices/${req.params.id}?error=${encodeURIComponent(error.message)}`);
+    next(error);
+  }
 });
 
 router.get('/invoices/:id/drawer', async (req, res, next) => {
@@ -449,6 +497,9 @@ router.get('/invoices/:id/drawer', async (req, res, next) => {
       money,
       error: req.query.error || null,
       returnTo,
+      sharing: await voucherSharing(req.currentUser, 'sales', data.invoice),
+      sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite),
     });
   } catch (err) {
     next(err);
@@ -518,7 +569,7 @@ async function loadInvoice(id) {
   return data;
 }
 
-async function renderInvoiceFormError(res, body, savedInvoice, err) {
+async function renderInvoiceFormError(res, body, savedInvoice, err, options = {}) {
   if (res.locals?.loadReceiptAccounts) {
     try { await res.locals.loadReceiptAccounts(); }
     catch { res.locals.receiptAccounts = []; } // Preserve entered data during an outage.
@@ -526,6 +577,9 @@ async function renderInvoiceFormError(res, body, savedInvoice, err) {
   const status = err instanceof SyntaxError ? 400 : err.status || 500;
   res.status(status).render('new-invoice', {
     ...invoiceFormState(body, savedInvoice),
+    sharing: null,
+    sharedAccessOnly: Boolean(options.sharedAccessOnly),
+    sharedWriteAccess: Boolean(options.sharedWriteAccess),
     stockWarning: err.stockWarning || null,
     formError: status < 500 ? (err instanceof SyntaxError ? 'Could not read the invoice items. Review them and try again.' : err.message) : 'Could not save the invoice. Please try again.',
   });

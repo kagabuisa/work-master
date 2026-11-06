@@ -32,7 +32,8 @@
     <% } %>
     <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %><section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft.</section><% } %>
     <% if (stockEntryReadOnly && entry) { %>
-      <%- include('stock-entry-detail', { entry, items, money }) %>
+      <%- include('stock-entry-detail', { entry, items, money,
+        sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false }) %>
     <% } else { %>
 
     <form method="post" action="<%= editingStockEntry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form ui-surface" id="stock-entry-form" data-prevent-enter-submit <%= stockEntryReadOnly ? '' : 'data-voucher-form' %>>

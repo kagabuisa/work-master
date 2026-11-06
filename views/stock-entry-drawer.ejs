@@ -8,5 +8,6 @@
   <div class="invoice-drawer-actions">
     <%- include('stock-entry-actions', { entry }) %>
   </div>
-  <%- include('stock-entry-detail', { entry, items, money }) %>
+  <%- include('stock-entry-detail', { entry, items, money,
+    sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false }) %>
 </div>

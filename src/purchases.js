@@ -290,7 +290,7 @@ async function createPurchase(payload) {
   });
 }
 
-async function updatePurchase(id, payload) {
+async function updatePurchase(id, payload, options = {}) {
   const purchaseId = Number(id);
   if (!Number.isSafeInteger(purchaseId) || purchaseId < 1) throw notFound();
   const purchase = normalizePurchase(payload);
@@ -299,6 +299,9 @@ async function updatePurchase(id, payload) {
     const existing = await client.query('SELECT docstatus, purchase_order_id FROM app_purchases WHERE id = $1 FOR UPDATE', [purchaseId]);
     if (!existing.rows.length) throw notFound();
     if (existing.rows[0].docstatus !== 'draft') throw badRequest('Only draft purchases can be edited.');
+    if (options.sharedUser) {
+      await require('./voucher-sharing').assertVoucherShareWrite(client, options.sharedUser, 'purchases', purchaseId);
+    }
     if (existing.rows[0].purchase_order_id
       && Number(existing.rows[0].purchase_order_id) !== purchase.purchase_order_id) {
       throw badRequest('This invoice is already linked to a purchase order.');

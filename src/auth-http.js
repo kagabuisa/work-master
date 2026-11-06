@@ -6,6 +6,7 @@ const { can, permissionCheck, scopeCheck } = require('./authorize');
 const { getPostgresPool } = require('./store');
 const { activePermissionPriceLists } = require('./permission-price-lists');
 const { stockEntryShareAccess } = require('./stock-entry-workflow');
+const { voucherShareAccess } = require('./voucher-sharing');
 const { rateLimit, hash } = require('./api/security');
 const { browserSecuritySettings } = require('./browser-security');
 const { recordAccessChoices, selectedLabels, validateRecordAccess,
@@ -584,6 +585,27 @@ function installAuth(app) {
         const access = await stockEntryShareAccess(req.currentUser, sharedEntryPath[1]);
         req.stockEntrySharedRead = Boolean(access);
         req.stockEntrySharedWrite = access === 'write';
+      }
+      const sharedVoucherPath = (() => {
+        const routes = [
+          [/^\/invoices\/([1-9][0-9]*)(?:\/drawer|\/edit)?$/, 'sales'],
+          [/^\/purchases\/([1-9][0-9]*)(?:\/drawer|\/edit)?$/, 'purchases'],
+          [/^\/purchase-orders\/([1-9][0-9]*)(?:\/edit)?$/, 'purchase-orders'],
+          [/^\/journals\/([1-9][0-9]*)(?:\/drawer|\/edit)?$/, 'journals'],
+          [/^\/stock\/reconciliations\/([1-9][0-9]*)(?:\/edit)?$/, 'stock-reconciliations'],
+        ];
+        for (const [pattern, type] of routes) {
+          const match = req.path.match(pattern);
+          if (match) return { type, id: match[1] };
+        }
+        return null;
+      })();
+      if (sharedVoucherPath && ['GET', 'POST'].includes(req.method)) {
+        const access = await voucherShareAccess(req.currentUser, sharedVoucherPath.type, sharedVoucherPath.id);
+        req.voucherSharedRead = Boolean(access);
+        req.voucherSharedWrite = access === 'write';
+        req.voucherSharedType = sharedVoucherPath.type;
+        req.voucherSharedId = Number(sharedVoucherPath.id);
       }
       if (!permissionCheck(req)) {
         if (req.method === 'GET' && /^\/journals(?:\/\d+(?:\/drawer)?)?$/.test(req.path)) {

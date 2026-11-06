@@ -5,6 +5,150 @@ const {calculatePay,monthPeriod,amount,permissionForHr,HR_AREAS,employeeAllowed,
 const {leaveDays}=require('../src/hr');
 const {permissionCheck}=require('../src/authorize');
 const {BUILT_IN_ROLES,ROLE_RECORD_TYPES}=require('../src/auth');
+const {buildEmployeeStatementReport,employeeStatementCsv}=require('../src/hr-employee-statement');
+const {sendEmployeeStatementPdf}=require('../src/web/employee-statement-pdf');
+
+test('employee statements combine payroll and employee-money activity into one net ledger',()=>{
+  const employee={employee_id:'E-1',employee_name:'Employee One',company:'Test Company',cost_center:'Shop'};
+  const report=buildEmployeeStatementReport({
+    employee,
+    from:'2026-02-01',
+    to:'2026-02-28',
+    moneyRows:[
+      {entry_id:1,date:'2026-01-02',voucher_type:'hr_payment',voucher_id:1,voucher_no:'HRP-1',
+        money_id:1,money_kind:'loan',money_reason:'Staff loan',direction:'payout',debit:1000,credit:0},
+      {entry_id:2,date:'2026-01-03',voucher_type:'hr_payment',voucher_id:2,voucher_no:'HRP-2',
+        money_id:1,money_kind:'loan',money_reason:'Staff loan',direction:'return',payment_reference:'RETURN-1',debit:0,credit:200},
+      {entry_id:3,date:'2026-02-03',voucher_type:'hr_money',voucher_id:3,voucher_no:'HRM-3',
+        money_id:3,money_kind:'recovery',money_reason:'Stock shortage',debit:100,credit:0},
+    ],
+    salaryRows:[
+      {entry_id:4,date:'2026-01-31',voucher_type:'hr_payroll',voucher_id:3,voucher_no:'PAY-3',
+        run_id:3,period:'2026-01',slip_id:9,component_kind:'earning',component_label:'Basic salary',credit:1000,debit:0},
+      {entry_id:5,date:'2026-01-31',voucher_type:'hr_payroll',voucher_id:3,voucher_no:'PAY-3',
+        run_id:3,period:'2026-01',slip_id:9,component_kind:'deduction',component_label:'PAYE',credit:0,debit:100},
+      {entry_id:6,date:'2026-02-05',voucher_type:'hr_payment',voucher_id:4,voucher_no:'HRP-4',
+        run_id:3,period:'2026-01',slip_id:9,payment_reference:'SAL-4',debit:300,credit:0},
+    ],
+  });
+  assert.deepEqual([report.openingBalance,report.totalDebit,report.totalCredit,report.closingBalance],[-100,400,0,300]);
+  assert.equal(report.statement.length,2);
+  assert.deepEqual(report.statement.map((entry)=>entry.type),['Recovery / charge','Salary payment']);
+  assert.equal(report.statement[0].href,'/hr/money#money-3');
+  assert.equal(report.statement[1].href,'/hr/payslips/9');
+  const csv=employeeStatementCsv(report);
+  assert.match(csv,/"Date","Source","Type","Reference","Description","Debit","Credit","Balance"/);
+  assert.match(csv,/Closing balance/);
+  assert.equal(permissionForHr('/hr/employees/E-1/statement','GET'),'hr.employees.view');
+  assert.equal(permissionForHr('/hr/employees/statement','GET'),'hr.employees.view');
+  assert.equal(permissionCheck({path:'/hr/employees/E-1/statement',method:'GET',
+    currentUser:{role:'finance',permissions:['hr.employees.view']}}),true);
+});
+
+test('employee statements filter and group by transaction source',()=>{
+  const report=buildEmployeeStatementReport({
+    employee:{employee_id:'E-1',employee_name:'Employee One'},
+    source:'receipts',
+    order:'date',
+    moneyRows:[
+      {entry_id:1,date:'2026-01-02',voucher_type:'hr_payment',voucher_id:1,voucher_no:'HRP-1',
+        money_id:1,money_kind:'loan',money_reason:'Staff loan',direction:'payout',debit:1000,credit:0},
+      {entry_id:2,date:'2026-01-03',voucher_type:'hr_payment',voucher_id:2,voucher_no:'HRP-2',
+        money_id:1,money_kind:'loan',money_reason:'Staff loan',direction:'return',payment_reference:'RETURN-1',debit:0,credit:200},
+    ],
+    salaryRows:[{entry_id:3,date:'2026-01-31',voucher_type:'hr_payroll',voucher_id:3,voucher_no:'PAY-3',
+      run_id:3,period:'2026-01',slip_id:9,component_kind:'earning',component_label:'Basic salary',credit:1000}],
+  });
+  assert.deepEqual(report.sourceOptions.map(option=>option.key),['salary','advances','receipts']);
+  assert.deepEqual(report.statement.map(entry=>entry.type),['Receipt']);
+  assert.deepEqual(report.sourceGroups.map(group=>group.label),['Receipts & repayments']);
+  assert.equal(report.closingBalance,-200);
+  assert.equal(report.filters.source,'receipts');
+  assert.equal(report.filters.order,'date');
+});
+
+test('employee statement screen renders one debtor-style ledger without unsafe raw content',async()=>{
+  const employee={employee_id:'E/<1>',employee_name:'Employee <One>',company:'Test Company',cost_center:'Shop'};
+  const report=buildEmployeeStatementReport({
+    employee,
+    moneyRows:[{entry_id:1,date:'2026-01-02',voucher_type:'hr_money',voucher_id:1,voucher_no:'HRM-1',
+      money_id:1,money_kind:'recovery',money_reason:'<script>alert(1)</script>',debit:100,credit:0}],
+    salaryRows:[{entry_id:2,date:'2026-01-31',voucher_type:'hr_payroll',voucher_id:2,voucher_no:'PAY-2',
+      run_id:2,period:'2026-01',slip_id:8,component_kind:'earning',component_label:'Basic salary',credit:200,debit:0}],
+  });
+  const html=await require('ejs').renderFile(require('node:path').join(__dirname,'../views/hr-employee-statement.ejs'),{
+    report,
+    opts:{employees:[{employee_id:'E-1',employee_name:'Employee One',company:'Test Company',status:'Active'}]},
+    scriptJson:require('../src/web/script-json').scriptJson,
+    money:value=>Number(value||0).toLocaleString('en-UG'),
+    formatDate:String,
+    costCenterName:String,
+  });
+  assert.match(html,/Employee Statement/);
+  assert.match(html,/Gross Salary Earned/);
+  assert.match(html,/Payroll Summary/);
+  assert.match(html,/Loan Summary/);
+  assert.match(html,/Account Balances/);
+  assert.ok(!html.includes('Statement Summary'));
+  assert.match(html,/Salary/);
+  assert.match(html,/Recovery \/ charge/);
+  assert.match(html,/name="source"/);
+  assert.match(html,/name="order"/);
+  assert.match(html,/value="date" selected/);
+  assert.match(html,/data-employee-statement-search/);
+  assert.match(html,/name="employee" value="E\/&lt;1&gt;"/);
+  assert.match(html,/employee-statement-options/);
+  assert.ok(!html.includes('Source subtotal'));
+  assert.match(html,/ui-statement-ledger-actions/);
+  assert.ok(!html.includes('Salary accrued'));
+  assert.equal((html.match(/statement-table/g)||[]).length,1);
+  assert.ok(!html.includes('Opening balance'));
+  assert.match(html,/Download PDF/);
+  assert.match(html,/data-employee-statement-print/);
+  assert.match(html,/Employee &lt;One&gt;/);
+  assert.match(html,/&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.ok(!html.includes('<script>alert(1)</script>'));
+  const sourceHtml=await require('ejs').renderFile(require('node:path').join(__dirname,'../views/hr-employee-statement.ejs'),{
+    report:{...report,filters:{...report.filters,order:'source'}},
+    opts:{employees:[]},
+    scriptJson:require('../src/web/script-json').scriptJson,
+    money:value=>Number(value||0).toLocaleString('en-UG'),
+    formatDate:String,
+    costCenterName:String,
+  });
+  assert.match(sourceHtml,/Source subtotal · Salary/);
+  assert.match(sourceHtml,/Source net/);
+});
+
+test('employee statement PDFs handle empty, multi-page and long descriptions',async()=>{
+  const response=()=>({headers:{},set(name,value){this.headers[name]=value;},attachment(value){this.filename=value;},
+    type(value){this.contentType=value;},send(value){this.body=value;}});
+  const employee={employee_id:'E-1',employee_name:'Employee / One'};
+  const report=buildEmployeeStatementReport({
+    employee,
+    moneyRows:[{entry_id:1,date:'2026-01-02',voucher_type:'hr_money',voucher_id:1,voucher_no:'HRM-1',
+      money_id:1,money_kind:'recovery',money_reason:'Charge',debit:100,credit:0}],
+    salaryRows:[{entry_id:2,date:'2026-01-31',voucher_type:'hr_payroll',voucher_id:2,voucher_no:'PAY-2',
+      run_id:2,period:'2026-01',slip_id:8,credit:200,debit:0}],
+  });
+  const longDescription='Detailed employee transaction description '.repeat(120);
+  for(const variant of ['empty','normal','many','long']){
+    const current=structuredClone(report);
+    if(variant==='empty'){
+      current.statement=[];
+    } else if(variant==='many'){
+      current.statement=Array.from({length:260},(_,index)=>({...report.statement[0],description:`Employee transaction ${index+1}`,balance:index+1}));
+    } else if(variant==='long'){
+      current.statement=[{...report.statement[0],description:longDescription}];
+    }
+    const res=response();
+    await sendEmployeeStatementPdf(res,current,{name:'Test Company',address:'Kampala'},String);
+    assert.equal(res.body.subarray(0,5).toString(),'%PDF-');
+    assert.equal(res.filename,'Employee-One-statement.pdf');
+    assert.equal(res.contentType,'application/pdf');
+    assert.ok((res.body.toString('latin1').match(/\/Type \/Page\b/g)||[]).length>=1);
+  }
+});
 
 test('payslip summaries require Employee Money Read and enforce saved and current scopes',async()=>{
   const {payslipMoneySummary,withoutMoneySnapshot}=require('../src/hr-money-summary');

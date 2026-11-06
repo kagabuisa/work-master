@@ -62,7 +62,7 @@ async function createPurchaseOrder(payload) {
   });
 }
 
-async function updatePurchaseOrder(value, payload) {
+async function updatePurchaseOrder(value, payload, options = {}) {
   const id = orderId(value);
   const order = normalizePurchaseOrder(payload);
   require('./posting-time').assertPostingDate(order.posting_date);
@@ -70,6 +70,9 @@ async function updatePurchaseOrder(value, payload) {
     const existing = await client.query('SELECT docstatus FROM app_purchase_orders WHERE id = $1 FOR UPDATE', [id]);
     if (!existing.rows.length) throw error('Purchase order not found.', 404);
     if (existing.rows[0].docstatus !== 'draft') throw error('Only draft purchase orders can be edited.');
+    if (options.sharedUser) {
+      await require('./voucher-sharing').assertVoucherShareWrite(client, options.sharedUser, 'purchase-orders', id);
+    }
     await resolvePurchaseMasters(client, order);
     await client.query(`UPDATE app_purchase_orders SET posting_date=$1, posting_time=$2, due_date=$3,
       supplier_id=$4, supplier_name=$5, price_list=$6, supplier_reference=$7, remarks=$8,

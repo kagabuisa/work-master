@@ -54,14 +54,22 @@ async function sharedStockEntry(user, id, pool) {
 }
 
 async function requireSharedStockEntryWrite(client, user, id) {
-  const { rows } = await client.query(`SELECT 1 FROM app_stock_entry_shares
-    WHERE stock_entry_id=$1 AND user_id=$2 AND permission='write' FOR SHARE`, [id, user?.id || null]);
-  if (!rows.length) throw workflowError('Read & write sharing permission is required.', 403);
+  const stockShare = await client.query(`SELECT 1 FROM app_stock_entry_shares
+    WHERE stock_entry_id=$1 AND user_id=$2 AND permission='write' FOR SHARE`,
+  [id, user?.id || null]);
+  if (stockShare.rowCount) return;
+  const voucherShare = await client.query(`SELECT 1 FROM app_voucher_shares
+    WHERE voucher_type='stock-reconciliations' AND voucher_id=$1
+      AND user_id=$2 AND permission='write' FOR SHARE`,
+  [id, user?.id || null]);
+  if (!voucherShare.rowCount) throw workflowError('Read & write sharing permission is required.', 403);
 }
 
 async function validateSharedStockEntryEdit(client, user, entry, payload) {
   await requireSharedStockEntryWrite(client, user, entry.id);
-  if (payload.action !== 'save_draft' || ['reconciliation', 'cancel'].includes(payload.entry_type)) {
+  const changesDocumentType = payload.entry_type !== entry.entry_type
+    || payload.entry_type === 'cancel';
+  if (payload.action !== 'save_draft' || changesDocumentType) {
     throw workflowError('Shared write access allows saving drafts and updating delivery status, not posting or cancellation.', 403);
   }
   const { warehouseAllowed, assignedMasterRecordAllowed } = require('./access');

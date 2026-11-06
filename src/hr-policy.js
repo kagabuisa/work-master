@@ -75,7 +75,8 @@ function permissionForHr(path, method) {
   if (!HR_AREAS.some((a) => a.key === area)) return null;
   if (method === 'GET') {
     if ((area === 'settings' || area === 'attendance' || area === 'leave' || area === 'money') && p.length === 2) return `hr.${area}.view`;
-    if (area === 'employees' && (p.length === 2 || p.length === 3)) return 'hr.employees.view';
+    if (area === 'employees' && (p.length === 2 || p.length === 3
+        || p.length === 4 && action === 'statement')) return 'hr.employees.view';
     if (area === 'employees' && p.length === 4 && action === 'pdf') return 'hr.employees.view';
     if (area === 'payroll' && p.length === 4 && action === 'export' && /^\d+$/.test(id)) return 'hr.payroll.view';
     if (area === 'payroll' && (p.length === 2 || p.length === 3 || p.length === 5 && action === 'payslips' && /^\d+$/.test(p[4]))) return 'hr.payroll.view';

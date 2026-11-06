@@ -35,12 +35,22 @@ const {
 const { photoCountReport, savePhotoCount, saveAllPhotoCounts } = require('../../photo-count');
 const router = express.Router();
 const { DELIVERY_STATUSES, canManageStockEntry, stockEntrySharing, changeStockEntryWorkflow } = require('../../stock-entry-workflow');
+const { voucherSharing, changeVoucherShare, deleteVoucherShares } = require('../../voucher-sharing');
+const { validateSharedVoucherEdit } = require('../../shared-voucher-edit');
 
 async function workflowView(req, entry) {
   return { deliveryStatuses: DELIVERY_STATUSES, canManageWorkflow: canManageStockEntry(req.currentUser, entry),
     canUpdateDelivery: canManageStockEntry(req.currentUser, entry) || Boolean(req.stockEntrySharedWrite),
     sharing: await stockEntrySharing(req.currentUser, entry), sharedAccessOnly: Boolean(req.stockEntrySharedRead),
     sharedWriteAccess: Boolean(req.stockEntrySharedWrite) };
+}
+
+async function reconciliationShareView(req, entry) {
+  return {
+    sharing: await voucherSharing(req.currentUser, 'stock-reconciliations', entry),
+    sharedAccessOnly: Boolean(req.voucherSharedRead),
+    sharedWriteAccess: Boolean(req.voucherSharedWrite),
+  };
 }
 router.use('/reconciliations', require('./inventory-counts'));
 router.use(require('./inventory-counts'));
@@ -324,18 +334,21 @@ router.get('/reconciliations/:id/edit', async (req, res, next) => {
     if (data.entry.docstatus !== 'draft') {
       const err = new Error('Draft stock reconciliation not found.'); err.status = 404; throw err;
     }
-    res.render('stock-reconciliation', reconciliationView(data.entry, data.items));
+    res.render('stock-reconciliation', { ...reconciliationView(data.entry, data.items),
+      sharing: null, sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite) });
   } catch (err) { next(err); }
 });
 
 router.get('/reconciliations/:id', async (req, res, next) => {
   try {
     const linked = await getPostgresPool().query('SELECT id FROM wm_inventory_counts WHERE reconciliation_id=$1', [req.params.id]);
-    if (linked.rows.length) return res.redirect(303, `/stock/reconciliations/counts/${linked.rows[0].id}`);
+    if (linked.rows.length && !req.voucherSharedRead) return res.redirect(303, `/stock/reconciliations/counts/${linked.rows[0].id}`);
     const data = await loadReconciliation(req.params.id);
     const balances = data.entry.docstatus === 'draft' ? await reconciliationBalances(data.items) : [];
     res.render('stock-reconciliation', {
       ...reconciliationView(data.entry, data.items, req.query.error || null, '', balances), readOnly: true,
+      ...await reconciliationShareView(req, data.entry),
     });
   } catch (err) { next(err); }
 });
@@ -346,17 +359,26 @@ router.post('/reconciliations/:id', async (req, res, next) => {
     if (current.entry.docstatus !== 'draft') {
       const err = new Error('Draft stock reconciliation not found.'); err.status = 404; throw err;
     }
-    await updateStockEntry(req.params.id, await reconciliationPayload(req.body, req.currentUser, current.items));
+    const payload = await reconciliationPayload(req.body, req.currentUser, current.items);
+    if (req.voucherSharedWrite) {
+      await validateSharedVoucherEdit(req.currentUser, 'stock-reconciliations', current.entry, payload);
+    }
+    await updateStockEntry(req.params.id, payload, req.voucherSharedWrite
+      ? { deliveryUser: req.currentUser, sharedWrite: true } : {});
     res.redirect(303, `/stock/reconciliations/${req.params.id}`);
   } catch (err) {
     if (err.status === 404) return next(err);
     const items = parseStockEntryPayload(req.body).items;
-    res.status(err.status || 500).render('stock-reconciliation', reconciliationView({
-      id: Number(req.params.id), entry_no: `REC-${String(req.params.id).padStart(6, '0')}`,
-      posting_date: req.body.posting_date, posting_time: req.body.posting_time,
-      cost_center: req.body.cost_center,
-      remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
-    }, items, err.message, req.body.warehouse));
+    res.status(err.status || 500).render('stock-reconciliation', {
+      ...reconciliationView({
+        id: Number(req.params.id), entry_no: `REC-${String(req.params.id).padStart(6, '0')}`,
+        posting_date: req.body.posting_date, posting_time: req.body.posting_time,
+        cost_center: req.body.cost_center,
+        remarks: req.body.remarks, docstatus: 'draft', entry_type: 'reconciliation',
+      }, items, err.message, req.body.warehouse),
+      sharing: null, sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite),
+    });
   }
 });
 
@@ -385,8 +407,35 @@ router.post('/reconciliations/:id/submit', async (req, res, next) => {
 });
 
 router.post('/reconciliations/:id/delete', async (req, res, next) => {
-  try { await loadReconciliation(req.params.id); await deleteDraftVoucher('stock', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/stock'); }
+  try { await loadReconciliation(req.params.id); await deleteDraftVoucher('stock', req.params.id, { allowCancelled: req.currentUser.role === 'admin' });
+    await deleteVoucherShares('stock-reconciliations', req.params.id); res.redirect(303, '/stock'); }
   catch (err) { next(err); }
+});
+
+router.post('/reconciliations/:id/share', async (req, res, next) => {
+  const inlineSharing = req.get('x-requested-with') === 'XMLHttpRequest';
+  try {
+    await changeVoucherShare(req.currentUser, 'stock-reconciliations', req.params.id,
+      req.body.action === 'revoke' ? 'revoke' : 'share', req.body.user_id, req.body.permission || 'read');
+    if (inlineSharing) {
+      const data = await loadReconciliation(req.params.id);
+      const sharing = await voucherSharing(req.currentUser, 'stock-reconciliations', data.entry);
+      return res.render('voucher-sharing', { sharing }, (error, html) => {
+        if (error) return next(error);
+        res.set('Cache-Control', 'private, no-store');
+        res.json({ html });
+      });
+    }
+    res.redirect(303, `/stock/reconciliations/${req.params.id}`);
+  } catch (error) {
+    if (inlineSharing) return res.status(error.status || 500).json({
+      error: error.status ? error.message : 'Could not save sharing. Please try again.',
+    });
+    if (error.status === 400) {
+      return res.redirect(303, `/stock/reconciliations/${req.params.id}?error=${encodeURIComponent(error.message)}`);
+    }
+    next(error);
+  }
 });
 
 router.post('/reconciliations/:id/cancel', async (req, res, next) => {

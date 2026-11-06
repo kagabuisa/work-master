@@ -67,5 +67,6 @@
   <% } %>
 </section>
 
-<%- include('invoice-payments', { invoice, payments, docstatus, balanceDue, today, money, returnTo: typeof returnTo !== 'undefined' ? returnTo : '' }) %>
-<% if (true) { %><%- include('record-audit', { record: invoice }) %><% } %>
+<%- include('invoice-payments', { invoice, payments, docstatus, balanceDue, today, money,
+  returnTo: typeof returnTo !== 'undefined' ? returnTo : '',
+  sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false }) %>

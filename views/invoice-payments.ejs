@@ -39,7 +39,7 @@
           <td class="tracking-info"><%= payment.created_by || 'Unknown' %><% if (paymentAuditTime(payment.created_at)) { %> <small><%= paymentAuditTime(payment.created_at) %></small><% } %></td>
           <td class="tracking-info"><%= payment.updated_by || 'Unknown' %><% if (paymentAuditTime(payment.updated_at)) { %> <small><%= paymentAuditTime(payment.updated_at) %></small><% } %></td>
           <td>
-            <% if (docstatus === 'submitted' && payment.docstatus !== 'cancelled' && !payment.journal_id && can('payments.sales.cancel')) { %>
+            <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && docstatus === 'submitted' && payment.docstatus !== 'cancelled' && !payment.journal_id && can('payments.sales.cancel')) { %>
               <form method="post" action="/invoices/<%= invoice.id %>/payments/<%= payment.id %>/cancel" class="inline-form" data-confirm="Cancel this payment? Its ledger entry will be reversed.">
                 <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
                 <button type="submit" class="button-light">Cancel</button>
@@ -51,7 +51,7 @@
     </tbody>
   </table></div>
 
-  <% if (docstatus === 'submitted' && balanceDue > 0 && can('payments.sales.record')) { %>
+  <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && docstatus === 'submitted' && balanceDue > 0 && can('payments.sales.record')) { %>
     <form method="post" action="/invoices/<%= invoice.id %>/payments" class="payment-form">
       <% if (returnTo) { %><input type="hidden" name="return_to" value="<%= returnTo %>"><% } %>
       <%- include('voucher-posting-fields', { postingFields: { date: today, dateName: 'payment_date', label: 'Payment Date' } }) %>

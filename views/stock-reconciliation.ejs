@@ -24,7 +24,7 @@
       <div class="reconciliation-heading-row">
         <div class="reconciliation-heading-controls">
           <span class="badge <%= status %>"><%= status === 'new' ? 'New' : status === 'draft' ? 'Draft' : status === 'cancelled' ? 'Cancelled' : 'Submitted' %></span>
-          <% if (isReadOnly && saved) { %>
+          <% if (isReadOnly && saved && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %>
             <div class="actions reconciliation-record-actions">
               <% if (status === 'draft' && can('vouchers.stock.edit')) { %><a class="button" href="/stock/reconciliations/<%= entry.id %>/edit">Edit count</a><% } %>
               <% if (status === 'draft' && can('vouchers.stock.submit')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/submit" data-confirm="Submit this reconciliation and post its stock differences?"><button type="submit">Submit reconciliation</button></form><% } %>
@@ -40,6 +40,9 @@
     <% } %>
 
     <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
+    <% if (typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) { %>
+      <section class="notice" role="status"><strong>Shared <%= isReadOnly ? 'reconciliation' : 'draft' %></strong><p><%= isReadOnly ? 'You can review this reconciliation.' : 'You can save changes to this draft. Submit, cancel, delete, attachments, and sharing actions remain unavailable.' %></p></section>
+    <% } %>
 
     <% if (isReadOnly && saved) { %>
       <div class="reconciliation-record-meta">
@@ -112,11 +115,12 @@
         <div class="actions reconciliation-save-actions">
           <span id="reconciliation-status" role="status"></span>
           <button type="submit" class="button-light" name="action" value="save_draft" data-voucher-save>Save draft</button>
-          <% if (can('vouchers.stock.submit')) { %><button type="submit" name="action" value="submit">Submit reconciliation</button><% } %>
+          <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && can('vouchers.stock.submit')) { %><button type="submit" name="action" value="submit">Submit reconciliation</button><% } %>
         </div>
       <% } %>
     </form>
-    <%- include('reconciliation-attachments', { saved, entry }) %>
+    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %><%- include('reconciliation-attachments', { saved, entry }) %><% } %>
+    <%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
     <% if (saved) { %><%- include('record-audit', { record: entry }) %><% } %>
   </main>
   <script<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>>window.RECONCILIATION_INITIAL = <%- scriptJson({ entry: entry || null, items: items || [], balances: typeof balances === 'undefined' ? [] : balances, warehouse: warehouse || '', readOnly: isReadOnly, canEditRate: currentUser.role === 'admin' }) %>;</script>

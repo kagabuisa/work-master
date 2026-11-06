@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Shared vouchers</title>
+  <%- include('partials-head') %>
+</head>
+<body>
+  <main class="shell ui-page">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Account</p>
+        <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Shared vouchers' }] }) %>
+      </div>
+      <nav><%- include('module-nav') %></nav>
+    </header>
+    <section class="invoice-card ui-surface">
+      <%- include('ui-section-heading', { heading: {
+        title: 'Shared vouchers',
+        meta: `${result.pagination.total} ${result.pagination.total === 1 ? 'voucher' : 'vouchers'}`,
+        help: 'Vouchers shared directly with your account. Read-only allows viewing. Read & write also allows saving changes to drafts. Actions such as submit, cancel, delete, payment changes, posting-time changes, and sharing still require their normal permission and ownership.'
+      } }) %>
+      <div class="ui-table-scroll" role="region" aria-label="Shared vouchers table" tabindex="0">
+        <table class="ui-table">
+          <thead><tr><th>Voucher</th><th>Type</th><th>Date</th><th>Customer / Supplier / Warehouse</th><th class="ui-amount">Amount</th><th>Status</th><th>Access</th></tr></thead>
+          <tbody>
+            <% if (!result.rows.length) { %>
+              <tr><td colspan="7" class="empty">No vouchers have been shared with your account.</td></tr>
+            <% } %>
+            <% result.rows.forEach(row => { %>
+              <tr>
+                <td><a href="<%= row.href %>"><%= row.number %></a></td>
+                <td><%= row.label %></td>
+                <td><%= formatDate(row.posting_date) %></td>
+                <td><%= row.party || '—' %></td>
+                <td class="ui-amount"><%= money(row.amount || 0) %></td>
+                <td><span class="badge <%= row.docstatus %>"><%= row.docstatus === 'draft' ? 'Draft' : row.docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
+                <td><%= row.permission === 'write' ? 'Read & write' : 'Read-only' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <%- include('pagination', { pagination: result.pagination, query, basePath: '/shared-vouchers' }) %>
+    </section>
+  </main>
+</body>
+</html>

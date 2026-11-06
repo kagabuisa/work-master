@@ -26,7 +26,7 @@ async function main() {
 
   const env = { ...process.env };
   for (const area of ['API', 'ACCOUNTING', 'AUDIT', 'DEBTOR', 'GL_EXPORT', 'GOLDEN', 'HR',
-    'ITEM_DETAILS', 'JOURNAL', 'PRICING', 'RECONCILIATION', 'SCHEMA']) {
+    'ITEM_DETAILS', 'JOURNAL', 'PRICING', 'RECONCILIATION', 'SCHEMA', 'VOUCHER_SHARING']) {
     env[`${area}_TEST_POSTGRES`] = '1';
   }
   const allFiles = require('../package.json').scripts.test.split(/\s+/).slice(2);

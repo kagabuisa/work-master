@@ -18,10 +18,10 @@
         <% if (can('vouchers.sales.create')) { %><a class="button" href="/invoices/new" aria-label="New Sales Invoice">New</a><% } %>
         <div class="actions page-actions">
           <button type="button" class="button-light" id="refresh-invoice-prices">Refresh Prices</button>
-          <% if (editing && savedListAllowed && can('vouchers.sales.submit') && can('payments.sales.record')) { %>
+          <% if (editing && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && savedListAllowed && can('vouchers.sales.submit') && can('payments.sales.record')) { %>
             <button type="button" data-edit-submit-action data-cash-sale-url="/invoices/<%= invoice.id %>/submit-cash-sale" data-cash-sale-total="<%= invoice.total %>" data-cash-sale-date="<%= invoice.invoice_date %>" data-cash-sale-invoice="<%= invoice.invoice_no %>" data-cash-sale-customer="<%= invoice.customer_id %>" data-cash-sale-accounts="<%= JSON.stringify(typeof receiptAccounts !== 'undefined' ? receiptAccounts : []) %>">Submit Cash Sale</button>
           <% } %>
-          <% if (editing && savedListAllowed && can('vouchers.sales.submit')) { %>
+          <% if (editing && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && savedListAllowed && can('vouchers.sales.submit')) { %>
             <form method="post" action="/invoices/<%= invoice.id %>/submit" class="inline-form" data-edit-submit-action data-confirm="Submit this credit invoice? Stock will be reduced and the total will remain outstanding on the customer's account.">
               <button type="submit" class="button-light">Submit Invoice</button>
             </form>
@@ -46,6 +46,9 @@
     <% } %>
     <% if (typeof formError !== 'undefined' && formError) { %>
       <section class="notice warning" role="alert"><strong><%= formError %></strong><p>Your entries are preserved below. Review them and save again.</p></section>
+    <% } %>
+    <% if (typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) { %>
+      <section class="notice" role="status"><strong>Shared draft</strong><p>You can save changes to this draft. Submit, payment, and posting actions remain unavailable.</p></section>
     <% } %>
     <section class="notice warning" id="invoice-form-error" role="alert" hidden>
       <strong></strong>
@@ -105,7 +108,7 @@
           <div id="item-results" class="results"></div>
         </div>
       </section>
-      <% if(can('sales.approvals.request')) { %>
+      <% if(!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && can('sales.approvals.request')) { %>
         <input type="hidden" name="approval_revision" value="<%= invoice && invoice.approval_revision || 0 %>">
         <%- include('invoice-request-fields',{requestInvoice:invoice,requestPrefix:'invoice-editor-request'}) %>
       <% } %>

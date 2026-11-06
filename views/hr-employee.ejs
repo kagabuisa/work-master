@@ -6,7 +6,7 @@
 </div><% } %></div>
 <% if(!newEmployee){ %><div class="hr-employee-overview">
 <dl><div><dt>Employee ID</dt><dd><%= employee.employee_id %></dd></div><div><dt>Company</dt><dd><%= employee.company||'Not specified' %></dd></div><div><dt>Department</dt><dd><%= employee.department||'Not specified' %></dd></div><div><dt>Position</dt><dd><%= employee.designation||'Not specified' %></dd></div></dl>
-<div class="hr-employee-overview-actions"><span class="hr-employee-status <%= employee.status==='Active'?'is-active':employee.status==='Left'?'is-left':'' %>"><span aria-hidden="true"></span><%= employee.status||'Status not specified' %></span><a class="inline-link hr-no-print" href="/settings/employees">Employee list ↗</a></div>
+<div class="hr-employee-overview-actions"><span class="hr-employee-status <%= employee.status==='Active'?'is-active':employee.status==='Left'?'is-left':'' %>"><span aria-hidden="true"></span><%= employee.status||'Status not specified' %></span><% if(can('hr.money.view')||can('hr.payroll.view')){ %><a class="button button-light hr-no-print" href="/hr/employees/<%= encodeURIComponent(employee.employee_id) %>/statement">View statement</a><% } %><a class="inline-link hr-no-print" href="/settings/employees">Employee list ↗</a></div>
 </div><% } %>
 <% if(typeof profileError!=='undefined' && profileError){ %><p class="notice warning" role="alert"><%= profileError %></p><% } %>
 <form action="<%= newEmployee?'/settings/employees':'/hr/employees/'+encodeURIComponent(employee.employee_id)+'/profile' %>" method="post" class="hr-employee-profile" data-static-labels>

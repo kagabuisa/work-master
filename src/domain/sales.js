@@ -82,8 +82,8 @@ async function createInvoice(payload) {
   return createPostgresInvoice(payload);
 }
 
-async function updateInvoice(id, payload) {
-  return updatePostgresInvoice(id, payload);
+async function updateInvoice(id, payload, options = {}) {
+  return updatePostgresInvoice(id, payload, options);
 }
 
 async function submitInvoice(id, options) {
@@ -1000,11 +1000,11 @@ async function createCashSaleInvoice(payload, payment, options = {}) {
   });
 }
 
-async function updatePostgresInvoice(id, payload) {
-  return withPostgresTransaction(client => updatePostgresInvoiceInTransaction(client, id, payload));
+async function updatePostgresInvoice(id, payload, options = {}) {
+  return withPostgresTransaction(client => updatePostgresInvoiceInTransaction(client, id, payload, options));
 }
 
-async function updatePostgresInvoiceInTransaction(client, id, payload) {
+async function updatePostgresInvoiceInTransaction(client, id, payload, options = {}) {
   const invoiceData = buildInvoiceData(payload);
     const { rows } = await client.query(
       'SELECT * FROM app_invoices WHERE id = $1 FOR UPDATE',
@@ -1020,6 +1020,9 @@ async function updatePostgresInvoiceInTransaction(client, id, payload) {
       const err = new Error('Only draft invoices can be edited.');
       err.status = 400;
       throw err;
+    }
+    if (options.sharedUser) {
+      await require('../voucher-sharing').assertVoucherShareWrite(client, options.sharedUser, 'sales', id);
     }
     await salesControls.persistValidation(client,Number(id),{...invoiceData,...payload,items:invoiceData.items},{saved:invoice});
     await client.query(

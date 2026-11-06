@@ -495,7 +495,7 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
   return withPostgresTransaction(async (client) => {
     const costCenter = await validateCostCenter(client, payload.cost_center);
     const { rows: existingRows } = await client.query(
-      `SELECT id, entry_no, docstatus, created_by_user_id, cost_center,
+      `SELECT id, entry_no, entry_type, docstatus, created_by_user_id, cost_center,
         COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
           WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status
         FROM app_stock_entries WHERE id = $1 FOR UPDATE`,

@@ -1,5 +1,5 @@
 <% const vc=typeof voucherControl!=='undefined'?voucherControl:null;
-if(vc && currentUser && (vc.voucher_kind!=='journals' || ['cash_receipt','journal_entry','payment_journal'].includes(vc.record.journal_type))) { %>
+if(vc && currentUser && !(typeof sharedAccessOnly!=='undefined'&&sharedAccessOnly) && (vc.voucher_kind!=='journals' || ['cash_receipt','journal_entry','payment_journal'].includes(vc.record.journal_type))) { %>
 <% const requested=vc.action_request||''; const approved=Boolean(vc.allow&&requested&&vc.allow===requested); %>
 <section class="ui-surface ui-approval-workflow">
 <%- include('ui-section-heading',{heading:{title:'Action request and approval',meta:requested?(approved?'Approved':'Waiting for decision'):'No request',help:'Backdate and Cancel are mutually exclusive approvals. Save one requested action, then an Admin approves the exact request.'}}) %>

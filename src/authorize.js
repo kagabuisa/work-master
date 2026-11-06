@@ -45,6 +45,40 @@ function sharedStockWriteRequest(req) {
   ));
 }
 
+function sharedVoucherPath(req) {
+  const paths = [
+    [/^\/invoices\/([1-9][0-9]*)(?:\/drawer)?$/, 'sales'],
+    [/^\/invoices\/([1-9][0-9]*)\/edit$/, 'sales'],
+    [/^\/purchases\/([1-9][0-9]*)(?:\/drawer)?$/, 'purchases'],
+    [/^\/purchases\/([1-9][0-9]*)\/edit$/, 'purchases'],
+    [/^\/purchase-orders\/([1-9][0-9]*)$/, 'purchase-orders'],
+    [/^\/purchase-orders\/([1-9][0-9]*)\/edit$/, 'purchase-orders'],
+    [/^\/journals\/([1-9][0-9]*)(?:\/drawer)?$/, 'journals'],
+    [/^\/journals\/([1-9][0-9]*)\/edit$/, 'journals'],
+    [/^\/stock\/reconciliations\/([1-9][0-9]*)$/, 'stock-reconciliations'],
+    [/^\/stock\/reconciliations\/([1-9][0-9]*)\/edit$/, 'stock-reconciliations'],
+  ];
+  for (const [pattern, type] of paths) {
+    const match = req.path.match(pattern);
+    if (match) return { type, id: Number(match[1]) };
+  }
+  return null;
+}
+
+function sharedVoucherWriteRequest(req) {
+  if (!req.voucherSharedWrite) return false;
+  const route = sharedVoucherPath(req);
+  if (!route) return false;
+  if (req.method === 'GET') return req.path.endsWith('/edit');
+  return req.method === 'POST' && !req.path.endsWith('/edit')
+    && ['', 'save_draft'].includes(String(req.body?.action || ''));
+}
+
+function sharedVoucherReadRequest(req) {
+  if (!req.voucherSharedRead || req.method !== 'GET') return false;
+  return !req.path.endsWith('/edit') && Boolean(sharedVoucherPath(req));
+}
+
 function permissionCheck(req) {
   const user = req.currentUser;
   const parts = req.path.split('/').filter(Boolean);
@@ -59,6 +93,8 @@ function permissionCheck(req) {
     return method==='POST' && (controlRoute[2]==='action-approval'?user?.role==='admin':has(`vouchers.${kind}.view`));
   }
   if (sharedStockWriteRequest(req)) return true;
+  if (sharedVoucherWriteRequest(req)) return true;
+  if (sharedVoucherReadRequest(req)) return true;
 
   if (method === 'GET' && req.stockEntrySharedRead
       && /^\/stock\/entries\/[1-9][0-9]*(?:\/drawer)?$/.test(req.path)) return true;
@@ -163,6 +199,7 @@ function permissionCheck(req) {
     );
     if (parts[2] === 'action-request') return method === 'POST' && has('sales.approvals.request');
     if (parts[2] === 'action-approval') return method === 'POST' && has('sales.approvals.approve');
+    if (parts[2] === 'share') return method === 'POST' && parts.length === 3 && has(prefix + 'view');
     if (parts[2] === 'payments') return has('payments.sales.' + (parts[4] === 'cancel' ? 'cancel' : 'record'));
     if (parts[2] === 'edit') return has(prefix + 'edit');
     if (parts[2] === 'duplicate') return method === 'GET' && all(prefix + 'view', prefix + 'create');
@@ -188,6 +225,7 @@ function permissionCheck(req) {
       || method === 'POST' && (parts.length === 3 && parts[2] === 'columns'
         || parts.length === 4 && parts[2] === 'columns' && parts[3] === 'reset'));
     if (parts[1] === 'payments') return has(prefix + 'view');
+    if (parts[2] === 'share') return method === 'POST' && has(prefix + 'view');
     if (parts[2] === 'payments') return has('payments.purchases.' + (parts[4] === 'cancel' ? 'cancel' : 'record'));
     if (parts[2] === 'edit') return has(prefix + 'edit');
     if (parts[2] === 'posting-time') return method === 'POST' && has(prefix + 'edit');
@@ -205,6 +243,7 @@ function permissionCheck(req) {
       || method === 'POST' && (parts.length === 3 && parts[2] === 'columns'
         || parts.length === 4 && parts[2] === 'columns' && parts[3] === 'reset'));
     if (parts[2] === 'edit') return method === 'GET' && has(prefix + 'edit');
+    if (parts[2] === 'share') return method === 'POST' && has(prefix + 'view');
     if (parts[2] === 'submit') return method === 'POST' && has(prefix + 'submit');
     if (parts[2] === 'cancel') return method === 'POST' && has(prefix + 'cancel');
     if (parts[2] === 'delete') return method === 'POST' && has(prefix + 'delete');
@@ -249,6 +288,7 @@ function permissionCheck(req) {
         return parts.length === 6 && parts[5] === 'delete' && method === 'POST' && has(prefix + 'edit');
       }
       if (parts[3] === 'edit') return parts.length === 4 && method === 'GET' && has(prefix + 'edit');
+      if (parts[3] === 'share') return parts.length === 4 && method === 'POST' && has(prefix + 'view');
       if (parts[3] === 'submit') return parts.length === 4 && method === 'POST' && has(prefix + 'submit');
       if (parts[3] === 'delete') return parts.length === 4 && method === 'POST' && has(prefix + 'delete');
       if (parts[3] === 'cancel') return parts.length === 4 && method === 'POST' && has(prefix + 'cancel');
@@ -287,6 +327,7 @@ function permissionCheck(req) {
       || method === 'POST' && (parts.length === 3 && parts[2] === 'columns'
         || parts.length === 4 && parts[2] === 'columns' && parts[3] === 'reset'));
     if (parts[2] === 'cancel') return has('vouchers.journals.cancel');
+    if (parts[2] === 'share') return method === 'POST' && has('vouchers.journals.view');
     if (parts[2] === 'delete') return method === 'POST' && has('vouchers.journals.delete');
     if (parts[2] === 'submit') return has('vouchers.journals.submit');
     if (parts[2] === 'posting-time') return method === 'POST' && has('vouchers.journals.edit');
@@ -300,6 +341,9 @@ function permissionCheck(req) {
     if (parts.length === 3 && parts[2] === 'edit') return method === 'GET' && has('accounts.manage');
     if (parts.length === 2 && method === 'POST') return has('accounts.manage');
     return false;
+  }
+  if (parts[0] === 'shared-vouchers') {
+    return parts.length === 1 && method === 'GET';
   }
   if (parts[0] === 'reports') {
     if (parts[1] === 'daily-activity' && (parts.length === 3 && parts[2] === 'new'
@@ -358,6 +402,8 @@ async function scopeCheck(req) {
   if (parts[0] === 'stock' && parts[1] === 'reconciliations' && ['counts', 'corrections'].includes(parts[2])) parts.splice(1, 1);
   const method = req.method;
   if (sharedStockWriteRequest(req)) return true;
+  if (sharedVoucherWriteRequest(req)) return true;
+  if (sharedVoucherReadRequest(req)) return true;
   if (method === 'GET' && (req.path === '/stock/shared' || req.stockEntrySharedRead
       && /^\/stock\/entries\/[1-9][0-9]*(?:\/drawer)?$/.test(req.path))) return true;
   if (user.role === 'admin') return true;

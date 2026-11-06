@@ -26,6 +26,8 @@ const {
 } = require('../../store');
 const { findDbCustomer, findDbSupplier, findDbEmployee } = require('../parties');
 const { registerVoucherReportRoutes } = require('./voucher-report-routes');
+const { voucherSharing, changeVoucherShare, deleteVoucherShares } = require('../../voucher-sharing');
+const { validateSharedVoucherEdit } = require('../../shared-voucher-edit');
 
 const router = express.Router();
 
@@ -133,6 +135,21 @@ function journalTypeLabel(type) {
     return 'Payment Journal';
   }
   return 'Journal Entry';
+}
+
+async function journalShareView(req, journal) {
+  return {
+    sharing: await voucherSharing(req.currentUser, 'journals', journal),
+    sharedAccessOnly: Boolean(req.voucherSharedRead),
+    sharedWriteAccess: Boolean(req.voucherSharedWrite),
+  };
+}
+
+function sharedJournalAccounts(journal) {
+  return [...new Map((journal.lines || []).map((line) => [String(line.account_id), {
+    id: Number(line.account_id), account_name: line.account_name,
+    account_code: line.account_code || '',
+  }])).values()];
 }
 
 router.get('/accounts', async (req, res, next) => {
@@ -304,11 +321,14 @@ router.post('/journals', async (req, res, next) => {
 
 router.get('/journals/:id/edit', async (req, res, next) => {
   try {
-    const [accounts, journal] = await Promise.all([
-      postableAccountingAccounts(accountAccessOptions(req.currentUser)), findJournalEntry(req.params.id)]);
+    const journal = await findJournalEntry(req.params.id);
     if (!journal) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
     if (journal.docstatus !== 'draft') { const error = new Error('Only draft journals can be edited.'); error.status = 400; throw error; }
-    res.render('journal-entry', { accounts, journal, today: todayString(), error: null, readOnly: false, money, journalTypeLabel });
+    const accounts = req.voucherSharedRead ? sharedJournalAccounts(journal)
+      : await postableAccountingAccounts(accountAccessOptions(req.currentUser));
+    res.render('journal-entry', { accounts, journal, today: todayString(), error: null, readOnly: false,
+      money, journalTypeLabel, sharing: null, sharedAccessOnly: Boolean(req.voucherSharedRead),
+      sharedWriteAccess: Boolean(req.voucherSharedWrite) });
   } catch (err) { next(err); }
 });
 
@@ -316,8 +336,24 @@ router.post('/journals/:id', async (req, res, next) => {
   try {
     const payload = parseJournalEntryPayload(req.body);
     await validateJournalParty(payload);
-    await validateJournalReferencesForUser(req.currentUser, payload);
-    await updateJournalEntry(req.params.id, payload);
+    if (req.voucherSharedWrite) {
+      const existing = await findJournalEntry(req.params.id);
+      if (!existing) { const error = new Error('Journal entry not found.'); error.status = 404; throw error; }
+      await validateSharedVoucherEdit(req.currentUser, 'journals', existing, payload);
+      const existingReferences = new Set([
+        existing.reference_no,
+        ...(existing.lines || []).map((line) => line.reference_no),
+      ].filter(Boolean));
+      const addedReferences = payload.lines.filter((line) => line.reference_no
+        && !existingReferences.has(line.reference_no));
+      if (addedReferences.length) {
+        await validateJournalReferencesForUser(req.currentUser, { ...payload, lines: addedReferences });
+      }
+    } else {
+      await validateJournalReferencesForUser(req.currentUser, payload);
+    }
+    await updateJournalEntry(req.params.id, payload,
+      req.voucherSharedWrite ? { sharedUser: req.currentUser } : {});
     res.redirect(`/journals/${req.params.id}`);
   } catch (err) { next(err); }
 });
@@ -365,6 +401,7 @@ router.get('/journals/:id', async (req, res, next) => {
       readOnly: true,
       money,
       journalTypeLabel,
+      ...await journalShareView(req, journal),
     });
   } catch (err) {
     next(err);
@@ -382,8 +419,33 @@ router.post('/journals/:id/posting-time', async (req, res, next) => {
 });
 
 router.post('/journals/:id/delete', async (req, res, next) => {
-  try { await deleteDraftVoucher('journals', req.params.id, { allowCancelled: req.currentUser.role === 'admin' }); res.redirect(303, '/journals'); }
+  try { await deleteDraftVoucher('journals', req.params.id, { allowCancelled: req.currentUser.role === 'admin' });
+    await deleteVoucherShares('journals', req.params.id); res.redirect(303, '/journals'); }
   catch (error) { next(error); }
+});
+
+router.post('/journals/:id/share', async (req, res, next) => {
+  const inlineSharing = req.get('x-requested-with') === 'XMLHttpRequest';
+  try {
+    await changeVoucherShare(req.currentUser, 'journals', req.params.id,
+      req.body.action === 'revoke' ? 'revoke' : 'share', req.body.user_id, req.body.permission || 'read');
+    if (inlineSharing) {
+      const journal = await findJournalEntry(req.params.id);
+      const sharing = await voucherSharing(req.currentUser, 'journals', journal);
+      return res.render('voucher-sharing', { sharing }, (error, html) => {
+        if (error) return next(error);
+        res.set('Cache-Control', 'private, no-store');
+        res.json({ html });
+      });
+    }
+    res.redirect(303, `/journals/${req.params.id}`);
+  } catch (error) {
+    if (inlineSharing) return res.status(error.status || 500).json({
+      error: error.status ? error.message : 'Could not save sharing. Please try again.',
+    });
+    if (error.status === 400) return res.redirect(303, `/journals/${req.params.id}?error=${encodeURIComponent(error.message)}`);
+    next(error);
+  }
 });
 
 router.get('/journals/:id/drawer', async (req, res, next) => {
@@ -395,7 +457,7 @@ router.get('/journals/:id/drawer', async (req, res, next) => {
       throw err;
     }
     res.set('Cache-Control', 'private, max-age=10');
-    res.render('journal-drawer', { journal, money, journalTypeLabel });
+    res.render('journal-drawer', { journal, money, journalTypeLabel, ...await journalShareView(req, journal) });
   } catch (err) {
     next(err);
   }

@@ -76,7 +76,7 @@
           </label>
         <% } %>
       </section>
-      <% if(!journalReadOnly) { %>
+      <% if(!journalReadOnly && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %>
       <%- include('voucher-request-fields',{requestKind:'journals',requestRecord:journal}) %><% } %>
 
       <% if (!journalReadOnly) { %>
@@ -176,7 +176,7 @@
           <button type="submit" name="action" value="save_draft" data-voucher-save>Save Draft</button>
           <% if (!journal.id && can('vouchers.journals.submit')) { %><button type="submit" name="action" value="submit">Post Journal</button><% } %>
         <% } %>
-        <% if (journalReadOnly) { %>
+        <% if (journalReadOnly && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %>
           <% if (journalStatus === 'draft' && can('vouchers.journals.edit')) { %><a class="button" href="/journals/<%= journal.id %>/edit">Edit Draft</a><% } %>
           <% if (journalStatus === 'draft' && can('vouchers.journals.submit')) { %><button type="submit" formaction="/journals/<%= journal.id %>/submit" formmethod="post">Submit Journal</button><% } %>
           <% if (journalStatus === 'draft' && can('vouchers.journals.delete')) { %><button type="submit" formaction="/journals/<%= journal.id %>/delete" formmethod="post" class="button-light" data-confirm="Delete this draft journal? This cannot be undone.">Delete Draft</button><% } %>
@@ -190,7 +190,10 @@
         <% } %>
       </div>
     </form>
-    <% if(journalReadOnly) { %><%- include('voucher-approval') %><% } %>
+    <% if(journalReadOnly) { %><%- include('voucher-approval', {
+      sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false
+    }) %><% } %>
+    <%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
     <% if (journal && journal.id) { %><%- include('record-audit', { record: journal }) %><% } %>
   </main>
   <% if (!journalReadOnly) { %>
