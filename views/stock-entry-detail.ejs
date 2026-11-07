@@ -10,12 +10,28 @@
       <% if (entry.entry_type !== 'reconciliation') { %>
         <% if ((typeof canUpdateDelivery !== 'undefined' ? canUpdateDelivery : typeof canManageWorkflow !== 'undefined' && canManageWorkflow) && entryStatus !== 'cancelled') { %>
           <form method="post" action="/stock/entries/<%= entry.id %>/delivery" class="ui-attribute-control">
-            <%- include('stock-entry-delivery-field', { deliveryField: { value: entry.delivery_status || '', disabled: false } }) %>
-            <button type="submit" class="button-light">Save delivery status</button>
+            <%- include('stock-entry-delivery-field', { deliveryField: {
+              value: typeof attemptedDeliveryStatus !== 'undefined' ? attemptedDeliveryStatus : entry.delivery_status || '',
+              details: typeof attemptedDeliveryDetails !== 'undefined' ? attemptedDeliveryDetails : entry.delivery_details || {},
+              entryId: entry.id,
+              today: typeof today !== 'undefined' ? today : '',
+              disabled: false,
+            } }) %>
+            <button type="submit" class="button-light">Update Status</button>
           </form>
         <% } else { %><p><span>Delivery status</span><strong><%= entry.delivery_status || 'Not set' %></strong></p><% } %>
       <% } %>
     </div>
+    <% const deliveryDetails = entry.delivery_details || {}; %>
+    <% if (entry.entry_type !== 'reconciliation' && Object.values(deliveryDetails).some(Boolean)) { %>
+      <div class="ui-voucher-attributes delivery-detail-summary" role="region" aria-label="Delivery details">
+        <% if (deliveryDetails.picked_employee_name || deliveryDetails.picked_date) { %><p><span>Picked &amp; packed</span><strong><%= [deliveryDetails.picked_employee_name, deliveryDetails.picked_date ? formatDate(deliveryDetails.picked_date) : ''].filter(Boolean).join(' · ') %></strong></p><% } %>
+        <% if (deliveryDetails.in_transit_date) { %><p><span>In Transit</span><strong><%= formatDate(deliveryDetails.in_transit_date) %></strong></p><% } %>
+        <% if (deliveryDetails.transporter_name || deliveryDetails.delivered_date) { %><p><span>Delivered</span><strong><%= [deliveryDetails.transporter_name, deliveryDetails.transporter_phone, deliveryDetails.delivered_date ? formatDate(deliveryDetails.delivered_date) : ''].filter(Boolean).join(' · ') %></strong></p><% } %>
+        <% if (deliveryDetails.received_by_employee_name || deliveryDetails.received_date) { %><p><span>Received &amp; Confirmed By</span><strong><%= [deliveryDetails.received_by_employee_name, deliveryDetails.received_date ? formatDate(deliveryDetails.received_date) : ''].filter(Boolean).join(' · ') %></strong></p><% } %>
+        <% if (entry.delivery_status === 'Received + DDR') { %><p><span>Receipt note</span><strong>Delivery Difference Report required</strong></p><% } %>
+      </div>
+    <% } %>
     <% if (entry.cost_center) { %><div class="ui-voucher-attributes"><p><span>Cost Center</span><strong><%= costCenterName(entry.cost_center) %></strong></p></div><% } %>
     <% if (entry.entry_type === 'purchase' && (entry.supplier_name || entry.supplier_reference)) { %>
       <div class="invoice-meta sales-invoice-meta">

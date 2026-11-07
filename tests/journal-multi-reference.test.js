@@ -26,11 +26,11 @@ test('multiple customer references allocate, validate and reverse each invoice i
     /Accounts Payable lines require a valid supplier/);
     const controlDraft = await store.createJournalEntry({ journal_type: 'journal_entry', posting_date: '2026-10-02',
       party_type: 'customer', party_id: 'CUST-MULTI', party_name: 'Customer Multi',
-      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('bank'), credit: 10 }] },
+      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('sales_income'), credit: 10 }] },
     { submit: false });
     await assert.rejects(store.updateJournalEntry(controlDraft, { journal_type: 'journal_entry',
       posting_date: '2026-10-02',
-      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('bank'), credit: 10 }] }),
+      lines: [{ account_id: account('accounts_receivable'), debit: 10 }, { account_id: account('sales_income'), credit: 10 }] }),
     /Accounts Receivable lines require a valid customer/);
     await pool.query('UPDATE app_journal_entries SET party_type=NULL,party_id=NULL,party_name=NULL WHERE id=$1',[controlDraft]);
     await assert.rejects(store.submitJournalEntry(controlDraft), /Accounts Receivable lines require a valid customer/);
@@ -42,7 +42,8 @@ test('multiple customer references allocate, validate and reverse each invoice i
         voucher_no: reference, party_type: 'customer', party_id: 'CUST-MULTI', party_name: 'Customer Multi',
         lines: [{ account_id: account('accounts_receivable'), debit: amount }, { account_id: account('sales_income'), credit: amount }] });
     }
-    const payload = { journal_type: 'cash_receipt', party_type: 'customer', party_id: 'CUST-MULTI', party_name: 'Customer Multi', posting_date: '2026-10-02', lines: [
+    const payload = { journal_type: 'cash_receipt', party_type: 'customer', party_id: 'CUST-MULTI',
+      party_name: 'Customer Multi', received_from: 'Cash payer', posting_date: '2026-10-02', lines: [
       { account_id: account('accounts_receivable'), credit: 100, reference_no: 'INV-MULTI-A' },
       { account_id: account('accounts_receivable'), credit: 150, reference_no: 'INV-MULTI-B' },
       { account_id: account('bank'), debit: 250 },
@@ -53,6 +54,7 @@ test('multiple customer references allocate, validate and reverse each invoice i
     const id = await store.createJournalEntry(payload, { submit: false });
     const draft = await store.findJournalEntry(id);
     await store.updateJournalEntry(id, { ...payload, lines: draft.lines });
+    assert.equal(draft.received_from, 'Cash payer');
     assert.deepEqual(draft.lines.map((line) => line.reference_no), ['INV-MULTI-A', 'INV-MULTI-B', null]);
     assert.deepEqual(await balances(), [100, 200]);
     assert.ok((await store.paginatedInvoices({includeTotal:false})).rows.every(invoice=>invoice.amount_paid===0));

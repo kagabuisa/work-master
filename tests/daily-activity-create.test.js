@@ -2,7 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { draft, createDailyActivity, dailyActivityFormOptions } = require('../src/web/daily-activity-create');
+const { draft, createDailyActivity, dailyActivityFormOptions,
+  dailyActivityStockEntryOptions } = require('../src/web/daily-activity-create');
 const { permissionCheck } = require('../src/authorize');
 const { renderView } = require('./helpers/render-view');
 const input = { date: '2026-10-12', shop: 'Main', warehouse: 'Main Warehouse', unit_type: 'Shop',
@@ -33,8 +34,39 @@ test('daily activity creation requires Read and Create and is denied to Standard
     assert.equal(check('standard', grants, method, route), false);
     assert.equal(check('admin', [], method, route), true);
   }
+  assert.equal(check('privileged', grants, 'GET', '/reports/daily-activity/new/stock-entries'), true);
+  assert.equal(check('privileged', [grants[0]], 'GET', '/reports/daily-activity/new/stock-entries'), false);
+  assert.equal(check('privileged', grants, 'POST', '/reports/daily-activity/new/stock-entries'), false);
   assert.equal(check('admin', [], 'DELETE', '/reports/daily-activity/new'), false);
   assert.equal(check('admin', [], 'POST', '/reports/daily-activity/DAR-1'), false);
+});
+
+test('daily activity stock entry autocomplete returns submitted entries involving the selected warehouse', async () => {
+  let query;
+  const options = await dailyActivityStockEntryOptions({
+    warehouse: 'Main Warehouse', q: 'STK-000001',
+  }, { role: 'admin' }, {
+    query: async (sql, params) => {
+      query = { sql, params };
+      return { rows: [{ id: '12', entry_no: 'STK-000001', entry_type: 'order',
+        posting_date: '2026-10-12' }] };
+    },
+  });
+  assert.deepEqual(query.params, ['Main Warehouse', '%stk-000001%']);
+  assert.match(query.sql, /COALESCE\(entry\.docstatus, 'submitted'\)='submitted'/);
+  assert.match(query.sql, /selected_line\.warehouse=\$1 OR selected_line\.target_warehouse=\$1/);
+  assert.deepEqual(options, [{
+    id: 12,
+    value: 'STK-000001',
+    entry_no: 'STK-000001',
+    posting_date: '2026-10-12',
+    entry_type: 'order',
+    label: '2026-10-12 · Order',
+    href: '/stock/entries/12',
+  }]);
+  assert.deepEqual(await dailyActivityStockEntryOptions({ warehouse: '' }, { role: 'admin' }), []);
+  await assert.rejects(() => dailyActivityStockEntryOptions({ warehouse: 'Other Warehouse' },
+    { role: 'standard', record_access: { warehouse: 'Main Warehouse' } }), { status: 403 });
 });
 
 test('new daily activity form renders required fields and preserves rejected input safely', async () => {
@@ -45,6 +77,16 @@ test('new daily activity form renders required fields and preserves rejected inp
   });
   assert.match(html, /action="\/reports\/daily-activity"/);
   assert.match(html, /Save draft/);
+  assert.equal((html.match(/class="ui-form-row-scroll"/g) || []).length, 4);
+  assert.equal((html.match(/class="ui-form-row"/g) || []).length, 4);
+  assert.equal((html.match(/class="[^"]*app-outline-field/g) || []).length, 14);
+  const reportDate = html.indexOf('app-floating-label">Date</span>');
+  const reportShop = html.indexOf('app-floating-label">Shop/Unit</span>');
+  const reportUnitType = html.indexOf('app-floating-label">Unit type</span>');
+  const reportWarehouse = html.indexOf('app-floating-label">Warehouse</span>');
+  assert.ok(reportDate < reportShop && reportShop < reportUnitType && reportUnitType < reportWarehouse);
+  assert.match(html, /data-daily-activity-stock-entry/);
+  assert.match(html, /daily-activity-stock-entry\.js/);
   assert.match(html, /&lt;script&gt;bad&lt;\/script&gt;/);
   assert.match(html, /Check required fields/);
 });

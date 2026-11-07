@@ -65,7 +65,19 @@ test('Postgres journal allocations persist, update invoice balances, reverse tog
       await pool.query(`INSERT INTO app_purchases (purchase_no, posting_date, supplier_id, supplier_name, subtotal, total, docstatus)
         VALUES ($1, '2026-10-01', 'SUP-1', 'Supplier One', $2, $2, 'submitted')`, [no, total]);
     }
-    const payload = { journal_type: 'payment_journal', cost_center: 'JOURNAL-CC', party_type: 'supplier', party_id: 'SUP-1', party_name: 'Supplier One', posting_date: '2026-10-02', lines: [
+    await store.postGlEntry(pool, { posting_date: '2026-10-01', voucher_type: 'purchase',
+      voucher_id: 9001, voucher_no: 'PUR-BALANCE-SEED', lines: [
+        { account_key: 'accounts_payable', credit: 300, party_type: 'supplier', party_id: 'SUP-1', party_name: 'Supplier One' },
+        { account_key: 'cost_of_goods_sold', debit: 300 },
+      ] });
+    await store.postGlEntry(pool, { posting_date: '2026-10-01', voucher_type: 'journal_entry',
+      voucher_id: 9002, voucher_no: 'BANK-BALANCE-SEED', lines: [
+        { account_key: 'bank', debit: 250 },
+        { account_key: 'opening_equity', credit: 250 },
+      ] });
+    const payload = { journal_type: 'payment_journal', cost_center: 'JOURNAL-CC',
+      party_type: 'supplier', party_id: 'SUP-1', party_name: 'Supplier One',
+      paid_to: 'Supplier One Representative', posting_date: '2026-10-02', lines: [
       { account_id: accountId('accounts_payable'), debit: 100, reference_no: 'PUR-A' },
       { account_id: accountId('accounts_payable'), debit: 150, reference_no: 'PUR-B' },
       { account_id: accountId('bank'), credit: 250 },
@@ -75,6 +87,7 @@ test('Postgres journal allocations persist, update invoice balances, reverse tog
     assert.equal((await balances())[0].amount_paid, 0);
     const loaded = await store.findJournalEntry(id);
     assert.equal(loaded.cost_center, 'JOURNAL-CC');
+    assert.equal(loaded.paid_to, 'Supplier One Representative');
     assert.deepEqual(loaded.lines.map((line) => line.reference_no), ['PUR-A', 'PUR-B', null]);
     const reorderedLines = payload.lines.map((line, index) => ({ ...line, id: loaded.lines[index].id })).reverse();
     await store.updateJournalEntry(id, { ...payload, lines: reorderedLines });
@@ -102,7 +115,9 @@ test('Postgres journal allocations persist, update invoice balances, reverse tog
     await store.cancelJournalEntry(id);
     assert.deepEqual((await balances()).map((row) => row.amount_paid), [0, 0]);
     assert.equal((await pool.query("SELECT COUNT(*)::int AS count FROM app_purchase_payments WHERE docstatus='submitted'")).rows[0].count, 0);
-    assert.equal((await pool.query('SELECT account_id FROM app_gl_entries GROUP BY account_id HAVING SUM(debit-credit) <> 0')).rowCount, 0);
+    assert.equal((await pool.query(`SELECT account_id FROM app_gl_entries
+      WHERE voucher_type IN ('payment_journal','payment_journal_cancellation')
+      GROUP BY account_id HAVING SUM(debit-credit) <> 0`)).rowCount, 0);
     const concurrent = await Promise.allSettled([store.createJournalEntry(payload), store.createJournalEntry(payload)]);
     assert.equal(concurrent.filter((result) => result.status === 'fulfilled').length, 1);
     assert.match(concurrent.find((result) => result.status === 'rejected').reason.message, /exceeds the outstanding/);
@@ -134,6 +149,19 @@ test('invoice supplier payments generate journals, repair legacy postings once, 
     const account = (await pool.query(`INSERT INTO app_accounts
       (account_code, account_name, account_type, account_detail_type, normal_balance, is_group, is_active)
       VALUES ('1999', 'Supplier Payments Bank', 'asset', 'Bank', 'debit', false, true) RETURNING id, account_name`)).rows[0];
+    const payable = (await pool.query("SELECT id FROM app_accounts WHERE account_code='2100'")).rows[0].id;
+    const cash = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
+    await store.postGlEntry(pool, { posting_date: '2026-10-01', voucher_type: 'purchase',
+      voucher_id: id, voucher_no: 'PUR-PAY', lines: [
+        { account_id: payable, credit: 100, party_type: 'supplier', party_id: 'SUP-1', party_name: 'Supplier One' },
+        { account_key: 'cost_of_goods_sold', debit: 100 },
+      ] });
+    await store.postGlEntry(pool, { posting_date: '2026-10-01', voucher_type: 'journal_entry',
+      voucher_id: 9004, voucher_no: 'PAYMENT-BALANCE-SEED', lines: [
+        { account_id: account.id, debit: 40 },
+        { account_id: cash, debit: 30 },
+        { account_key: 'opening_equity', credit: 70 },
+      ] });
     const payload = { payment_date: '2026-10-02', amount: 40, account_id: String(account.id), reference: 'BANK-REF' };
     const user = { role: 'standard', scopes: { accounts: { mode: 'selected', values: [String(account.id)] } } };
     const { requireReceiptAccount } = require('../src/services/sales-validation');
@@ -194,6 +222,8 @@ test('invoice supplier payments generate journals, repair legacy postings once, 
     assert.equal((await pool.query("SELECT * FROM app_gl_entries WHERE voucher_type='purchase_payment'")).rowCount, 0);
     assert.equal((await pool.query('SELECT * FROM app_journal_entries')).rowCount, 2);
     await purchases.cancelPurchase(id);
-    assert.equal((await pool.query('SELECT account_id FROM app_gl_entries GROUP BY account_id HAVING SUM(debit-credit) <> 0')).rowCount, 0);
+    assert.equal((await pool.query(`SELECT account_id FROM app_gl_entries
+      WHERE voucher_type IN ('purchase','purchase_cancellation','payment_journal','payment_journal_cancellation')
+      GROUP BY account_id HAVING SUM(debit-credit) <> 0`)).rowCount, 0);
   } finally { await store.closeStore(); }
 });

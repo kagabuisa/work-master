@@ -18,19 +18,9 @@
     <section class="invoice-card ui-surface">
       <div class="section-title ui-section-heading">
         <h2>Purchase Invoice</h2>
-        <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'draft') { %>
-          <div class="actions">
-            <% if (can('vouchers.purchases.edit')) { %><a class="button button-light" href="/purchases/<%= purchase.id %>/edit">Edit</a><% } %>
-            <% if (can('vouchers.purchases.delete')) { %><form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this draft purchase? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
-            <% if (can('vouchers.purchases.submit')) { %><form method="post" action="/purchases/<%= purchase.id %>/submit" class="inline-form" data-confirm="Submit this purchase? This receives the stock and creates the amount payable."><button type="submit">Submit &amp; Receive Stock</button></form><% } %>
-          </div>
-        <% } else if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'submitted' && can('vouchers.purchases.cancel')) { %>
-          <form method="post" action="/purchases/<%= purchase.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase? Stock and ledger entries will be reversed.">
-            <button type="submit" class="button-light">Cancel Purchase</button>
-          </form>
-        <% } else if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'cancelled' && currentUser.role === 'admin') { %>
-          <form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this cancelled purchase? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form>
-        <% } %>
+        <div class="actions">
+          <%- include('purchase-actions', { record: purchase, kind: 'purchases' }) %>
+        </div>
       </div>
       <div class="invoice-meta">
         <div><span>Supplier</span><strong><%= purchase.supplier_id %></strong></div>
@@ -40,7 +30,7 @@
       <div class="ui-voucher-attributes" aria-label="Purchase details">
         <% if (purchase.price_list) { %><p><span>Price List</span><strong><%= purchase.price_list %></strong></p><% } %>
         <% if (purchase.cost_center) { %><p><span>Cost Center</span><strong><%= costCenterName(purchase.cost_center) %></strong></p><% } %>
-        <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p><span>Purchase Order</span><a href="/purchase-orders/<%= purchase.purchase_order_id %>">PO-<%= String(purchase.purchase_order_id).padStart(6, '0') %></a></p><% } %>
+        <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p><span>Purchase Order</span><a href="/purchase-orders/<%= purchase.purchase_order_id %>" data-voucher-drawer="/purchase-orders/<%= purchase.purchase_order_id %>/drawer"><%= purchase.purchase_order_no || `PO-${String(purchase.purchase_order_id).padStart(6, '0')}` %></a></p><% } %>
       </div>
       <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
       <div class="ui-table-scroll" role="region" aria-label="Purchase table" tabindex="0"><table class="ui-table">

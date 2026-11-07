@@ -28,6 +28,7 @@ function parseStockEntryPayload(body) {
     cost_center: body.cost_center,
     remarks: body.remarks,
     delivery_status: body.delivery_status,
+    delivery_details: deliveryDetailsFromBody(body),
     supplier_name: body.supplier_name,
     supplier_contact: body.supplier_contact,
     supplier_phone: body.supplier_phone,
@@ -44,4 +45,24 @@ function parseStockEntryPayload(body) {
   };
 }
 
-module.exports = { arrayField, parseStockEntryPayload };
+function deliveryDetailsFromBody(body = {}) {
+  const text = (value, maximum) => String(value || '').trim().slice(0, maximum);
+  const fields = {
+    picked_employee_id: [100, text],
+    picked_employee_name: [140, text],
+    picked_date: [10, text],
+    in_transit_date: [10, text],
+    transporter_name: [140, text],
+    transporter_phone: [40, text],
+    delivered_date: [10, text],
+    received_date: [10, text],
+    received_by_employee_id: [100, text],
+    received_by_employee_name: [140, text],
+    received_confirmed: [0, value => ['1', 'on', 'true'].includes(String(value || '').toLowerCase())],
+  };
+  return Object.fromEntries(Object.entries(fields)
+    .filter(([name]) => Object.prototype.hasOwnProperty.call(body, name))
+    .map(([name, [maximum, normalize]]) => [name, normalize(body[name], maximum)]));
+}
+
+module.exports = { arrayField, deliveryDetailsFromBody, parseStockEntryPayload };

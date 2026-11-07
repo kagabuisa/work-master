@@ -155,6 +155,18 @@ function normalizeJournalEntryPayload(payload) {
     err.status = 400;
     throw err;
   }
+  const receivedFrom = String(payload.received_from || '').trim();
+  if (receivedFrom.length > 150) {
+    const err = new Error('Received from must be 150 characters or fewer.');
+    err.status = 400;
+    throw err;
+  }
+  const paidTo = String(payload.paid_to || '').trim();
+  if (paidTo.length > 150) {
+    const err = new Error('Paid to must be 150 characters or fewer.');
+    err.status = 400;
+    throw err;
+  }
 
   return {
     journal_type: journalType,
@@ -165,6 +177,8 @@ function normalizeJournalEntryPayload(payload) {
     party_id: String(payload.party_id || '').trim() || null,
     party_name: String(payload.party_name || '').trim() || null,
     reference_no: String(payload.reference_no || '').trim() || null,
+    received_from: journalType === 'cash_receipt' ? receivedFrom || null : null,
+    paid_to: journalType === 'payment_journal' ? paidTo || null : null,
     remarks: String(payload.remarks || '').trim() || null,
     total_debit: totalDebit,
     total_credit: totalCredit,
@@ -177,6 +191,32 @@ function validateJournalAccountSides(lines) {
     .map((line) => String(line.account_id)));
   if (lines.some((line) => Number(line.credit) > 0 && debitAccounts.has(String(line.account_id)))) {
     const err = new Error('The same account cannot be used for both debit and credit in one journal.');
+    err.status = 400;
+    throw err;
+  }
+}
+
+function validateJournalProjectedBalances(lines, accounts) {
+  const accountsById = new Map((accounts || []).map((account) => [String(account.id), account]));
+  const changesByAccount = new Map();
+  for (const line of lines || []) {
+    const accountId = String(line.account_id);
+    if (!accountsById.has(accountId)) continue;
+    changesByAccount.set(accountId,
+      roundMoney((changesByAccount.get(accountId) || 0) + Number(line.debit || 0) - Number(line.credit || 0)));
+  }
+  for (const [accountId, change] of changesByAccount) {
+    const account = accountsById.get(accountId);
+    const normalBalance = String(account?.normal_balance || '').trim().toLowerCase();
+    if (!['debit', 'credit'].includes(normalBalance)) continue;
+    const projectedBalance = roundMoney(Number(account.balance || 0) + change);
+    if ((normalBalance === 'debit' && projectedBalance >= 0)
+      || (normalBalance === 'credit' && projectedBalance <= 0)) continue;
+
+    const resultingBalance = normalBalance === 'debit' ? 'credit' : 'debit';
+    const accountLabel = [account.account_name || account.name, account.account_code && `(${account.account_code})`]
+      .filter(Boolean).join(' ');
+    const err = new Error(`${accountLabel || `Account ${account.id}`} would have a ${resultingBalance} balance of ${Math.abs(projectedBalance)} after posting, but its normal balance is ${normalBalance}.`);
     err.status = 400;
     throw err;
   }
@@ -597,6 +637,7 @@ module.exports = {
   normalizeNonSystemInvoice,
   normalizeJournalEntryPayload,
   validateJournalAccountSides,
+  validateJournalProjectedBalances,
   normalizeAccountingAccountPayload,
   formatTrialBalanceRow,
   journalTypeLabel,

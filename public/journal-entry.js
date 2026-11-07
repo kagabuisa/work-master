@@ -1,5 +1,7 @@
 const journalForm = document.querySelector('#journal-entry-form');
 const journalType = document.querySelector('#journal-type');
+const receivedFromField = document.querySelector('#received-from-field');
+const paidToField = document.querySelector('#paid-to-field');
 const partyType = document.querySelector('#party-type');
 const partySearch = document.querySelector('#party-search');
 const partyResults = document.querySelector('#party-results');
@@ -49,6 +51,7 @@ addJournalRow.addEventListener('click', () => {
 });
 
 journalType.addEventListener('change', () => {
+  updateJournalTypeFields();
   if (hasEnteredAmounts()) {
     updateJournalTotals();
     return;
@@ -299,6 +302,7 @@ function showAccountResults(picker) {
   accountMenu.innerHTML = matches.slice(0, 40).map((account) => `
     <button type="button" role="option" data-account-option="${escapeAttr(account.id)}">
       <strong>${escapeHtml(account.name)}</strong>
+      <span>${escapeHtml([account.code, account.normal_balance && `${account.normal_balance} normal`].filter(Boolean).join(' · '))}</span>
     </button>
   `).join('') || '<p>No matching accounts.</p>';
   if (matches.length > 40) accountMenu.insertAdjacentHTML('beforeend', '<p>Showing first 40 accounts. Refine your search.</p>');
@@ -347,6 +351,7 @@ function selectAccount(picker, id) {
 if (!hasEnteredAmounts()) {
   applyJournalTypeTemplate();
 }
+updateJournalTypeFields();
 configurePartySearch();
 configureReferenceSearch();
 preloadParties();
@@ -373,6 +378,15 @@ function applyJournalTypeTemplate() {
     rows[1].querySelector('[name="credit"]').placeholder = 'Credit';
   }
   updateJournalRowNumbers();
+}
+
+function updateJournalTypeFields() {
+  if (receivedFromField) {
+    receivedFromField.hidden = journalType.value !== 'cash_receipt';
+  }
+  if (paidToField) {
+    paidToField.hidden = journalType.value !== 'payment_journal';
+  }
 }
 
 function configurePartySearch() {

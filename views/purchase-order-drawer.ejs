@@ -1,0 +1,48 @@
+<% const orderWarehouses = [...new Set((order.items || []).map((item) => item.warehouse).filter(Boolean))]; %>
+<% const mixedWarehouses = orderWarehouses.length > 1; %>
+<% const orderWarehouse = order.warehouse || (orderWarehouses.length === 1 ? orderWarehouses[0] : ''); %>
+<div class="invoice-drawer-content" data-voucher-title="<%= order.order_no %>" data-voucher-eyebrow="Purchase Order">
+  <div class="invoice-drawer-heading">
+    <div><p class="eyebrow">Purchase Order</p></div>
+  </div>
+  <div class="invoice-drawer-actions">
+    <%- include('purchase-actions', { record: order, kind: 'purchase-orders' }) %>
+  </div>
+  <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
+  <section class="invoice-card">
+    <div class="invoice-meta">
+      <div><span>Supplier</span><strong><%= order.supplier_id %></strong></div>
+      <div><span>Order Date/Time</span><strong><%= formatDateTime(order.posting_date, order.posting_time || '00:00') %></strong><% if (order.due_date) { %><p>Expected <%= formatDate(order.due_date) %></p><% } %></div>
+      <div><span>Status</span><strong><span class="badge <%= order.status_class || order.docstatus %>"><%= order.status_label || order.docstatus %></span></strong></div>
+      <% if (order.cost_center) { %><div><span>Cost Center</span><strong><%= costCenterName(order.cost_center) %></strong></div><% } %>
+    </div>
+    <div class="ui-voucher-attributes" aria-label="Purchase order details">
+      <p><span>Price List</span><strong><%= order.price_list %></strong></p>
+      <p><span>Warehouse</span><strong><%= orderWarehouse || 'Multiple warehouses' %></strong></p>
+      <% if (order.cost_center) { %><p><span>Cost Center</span><strong><%= costCenterName(order.cost_center) %></strong></p><% } %>
+    </div>
+    <% if (order.supplier_reference) { %><p>Supplier reference: <strong><%= order.supplier_reference %></strong></p><% } %>
+    <div class="ui-table-scroll" role="region" aria-label="Purchase Order table" tabindex="0"><table>
+      <thead><tr><th>#</th><th>Item</th><% if (mixedWarehouses) { %><th>Warehouse</th><% } %><th>Qty Ordered</th><th>Qty Received</th><th>Remaining</th><th>Unit Cost</th><th>Total</th></tr></thead>
+      <tbody>
+        <% (order.items || []).forEach((item, index) => { %>
+          <tr>
+            <td><%= index + 1 %></td><td><strong><%= item.item_code %></strong></td>
+            <% if (mixedWarehouses) { %><td><%= item.warehouse %></td><% } %>
+            <td><%= Number(item.quantity).toLocaleString() %></td>
+            <td><%= Number(item.received || 0).toLocaleString() %></td>
+            <td><%= Math.max(0, Math.round((Number(item.quantity) - Number(item.received || 0)) * 1000) / 1000).toLocaleString() %></td>
+            <td><%= money(item.unit_price) %></td><td><%= money(item.line_total) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table></div>
+    <dl class="totals"><div class="grand"><dt>Total</dt><dd><%= money(order.total) %></dd></div></dl>
+    <% if (order.remarks) { %><p class="notes"><%= order.remarks %></p><% } %>
+    <% if (order.invoices && order.invoices.length && can('vouchers.purchases.view')) { %>
+      <p>Purchase invoices: <% order.invoices.forEach((invoice, index) => { %><% if (index) { %>, <% } %><a href="/purchases/<%= invoice.id %>" data-voucher-drawer="/purchases/<%= invoice.id %>/drawer"><%= invoice.purchase_no %></a> (<%= invoice.docstatus %>)<% }) %></p>
+    <% } %>
+  </section>
+  <%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
+  <%- include('record-audit', { record: order }) %>
+</div>

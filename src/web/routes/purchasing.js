@@ -28,7 +28,7 @@ const {
   cancelPurchaseOrder,
   deleteDraftPurchaseOrder,
 } = require('../../purchase-orders');
-const { updateVoucherPostingTime, deleteDraftVoucher } = require('../../store');
+const { updateVoucherPostingTime, deleteDraftVoucher, getCompanyInformation } = require('../../store');
 const { registerVoucherReportRoutes } = require('./voucher-report-routes');
 const { voucherOwnerId } = require('../../voucher-ownership');
 const { warehouseAccessOptions } = require('../helpers');
@@ -134,6 +134,51 @@ async function changeShare(req, res, next, type, loader) {
   }
 }
 
+function duplicateOrderState(order) {
+  return {
+    posting_date: currentPostingDate(),
+    posting_time: currentPostingTime(),
+    due_date: '',
+    supplier_id: order.supplier_id,
+    supplier_name: order.supplier_name,
+    price_list: order.price_list,
+    warehouse: order.warehouse,
+    cost_center: order.cost_center,
+    supplier_reference: '',
+    remarks: order.remarks,
+    items: (order.items || []).map((item) => ({
+      item_code: item.item_code,
+      item_name: item.item_name,
+      warehouse: item.warehouse,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      line_total: item.line_total,
+    })),
+  };
+}
+
+function duplicatePurchaseState(purchase) {
+  return {
+    posting_date: currentPostingDate(),
+    posting_time: currentPostingTime(),
+    due_date: '',
+    supplier_id: purchase.supplier_id,
+    supplier_name: purchase.supplier_name,
+    price_list: purchase.price_list,
+    cost_center: purchase.cost_center,
+    supplier_reference: '',
+    remarks: purchase.remarks,
+    items: (purchase.items || []).map((item) => ({
+      item_code: item.item_code,
+      item_name: item.item_name,
+      warehouse: item.warehouse,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      line_total: item.line_total,
+    })),
+  };
+}
+
 router.get('/purchase-orders', async (req, res, next) => {
   try {
     const result = await listPurchaseOrders({ ...req.query, ownerId: voucherOwnerId(req.currentUser),
@@ -155,6 +200,41 @@ router.post('/purchase-orders', async (req, res) => {
   const purchase = purchasePayload(req.body, { singleWarehouse: true });
   try { res.redirect(303, `/purchase-orders/${await createPurchaseOrder(purchase)}`); }
   catch (err) { res.status(err.status || 500).render('purchase-order-form', { purchase, error: err.message }); }
+});
+
+router.get('/purchase-orders/:id/drawer', async (req, res, next) => {
+  try {
+    const order = await loadPurchaseOrder(req.params.id, req.voucherSharedRead
+      ? {} : { ownerId: voucherOwnerId(req.currentUser) });
+    res.set('Cache-Control', 'private, max-age=10');
+    res.render('purchase-order-drawer', { order, money: purchaseMoney,
+      error: req.query.error || null, ...await voucherShareView(req, 'purchase-orders', order) });
+  } catch (err) { next(err); }
+});
+
+router.get('/purchase-orders/:id/duplicate', async (req, res, next) => {
+  try {
+    const order = await loadPurchaseOrder(req.params.id, { ownerId: voucherOwnerId(req.currentUser) });
+    res.set('Cache-Control', 'private, no-store');
+    res.render('purchase-order-form', {
+      purchase: duplicateOrderState(order),
+      duplicateOf: order.order_no,
+      error: null,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/purchase-orders/:id/print', async (req, res, next) => {
+  try {
+    const order = await loadPurchaseOrder(req.params.id, { ownerId: voucherOwnerId(req.currentUser) });
+    res.set('Cache-Control', 'private, no-store');
+    res.render('purchase-print', {
+      kind: 'purchase-orders',
+      record: order,
+      money: purchaseMoney,
+      company: await getCompanyInformation(),
+    });
+  } catch (err) { next(err); }
 });
 
 router.get('/purchase-orders/:id', async (req, res, next) => {
@@ -257,6 +337,32 @@ router.get('/purchases/payments/:id/drawer', async (req, res, next) => {
     const purchase = await loadPurchase(purchaseId);
     res.set('Cache-Control', 'private, max-age=10');
     res.render('purchase-drawer', { purchase, today: currentPostingDate(), money: purchaseMoney, error: req.query.error || null });
+  } catch (err) { next(err); }
+});
+
+router.get('/purchases/:id/duplicate', async (req, res, next) => {
+  try {
+    const purchase = await loadPurchase(req.params.id);
+    res.set('Cache-Control', 'private, no-store');
+    res.render('purchase-form', {
+      purchase: duplicatePurchaseState(purchase),
+      purchaseOrders: await receivableOrdersForUser(req.currentUser),
+      duplicateOf: purchase.purchase_no,
+      error: null,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/purchases/:id/print', async (req, res, next) => {
+  try {
+    const purchase = await loadPurchase(req.params.id);
+    res.set('Cache-Control', 'private, no-store');
+    res.render('purchase-print', {
+      kind: 'purchases',
+      record: purchase,
+      money: purchaseMoney,
+      company: await getCompanyInformation(),
+    });
   } catch (err) { next(err); }
 });
 

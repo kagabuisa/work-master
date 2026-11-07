@@ -1,7 +1,7 @@
 'use strict';
 // /accounts and /journals routes. Mounted at the app root.
 const express = require('express');
-const { money, todayString } = require('../format');
+const { money, amountInWords, todayString } = require('../format');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
 const { ACCOUNT_DETAIL_TYPES } = require('../../account-detail-types');
 const { accountAccessOptions } = require('../helpers');
@@ -20,9 +20,11 @@ const {
   submitJournalEntry,
   findJournalEntry,
   journalReferenceOptions,
+  cashReceiptOutstandingBalance,
   cancelJournalEntry,
   updateVoucherPostingTime,
   deleteDraftVoucher,
+  getCompanyInformation,
 } = require('../../store');
 const { findDbCustomer, findDbSupplier, findDbEmployee } = require('../parties');
 const { registerVoucherReportRoutes } = require('./voucher-report-routes');
@@ -48,6 +50,8 @@ function parseJournalEntryPayload(body) {
     party_id: body.party_id,
     party_name: body.party_name,
     reference_no: body.reference_no,
+    received_from: body.received_from,
+    paid_to: body.paid_to,
     remarks: body.remarks,
     lines: accountIds.map((accountId, index) => ({
       id: ids[index],
@@ -327,9 +331,65 @@ router.get('/journals/:id/edit', async (req, res, next) => {
     const accounts = req.voucherSharedRead ? sharedJournalAccounts(journal)
       : await postableAccountingAccounts(accountAccessOptions(req.currentUser));
     res.render('journal-entry', { accounts, journal, today: todayString(), error: null, readOnly: false,
-      money, journalTypeLabel, sharing: null, sharedAccessOnly: Boolean(req.voucherSharedRead),
-      sharedWriteAccess: Boolean(req.voucherSharedWrite) });
+      money, journalTypeLabel, ...await journalShareView(req, journal) });
   } catch (err) { next(err); }
+});
+
+router.get('/journals/:id/duplicate', async (req, res, next) => {
+  try {
+    const source = await findJournalEntry(req.params.id);
+    if (!source) {
+      const error = new Error('Journal entry not found.');
+      error.status = 404;
+      throw error;
+    }
+    const accounts = await postableAccountingAccounts(accountAccessOptions(req.currentUser));
+    const journal = {
+      journal_type: source.journal_type,
+      posting_date: currentPostingDate(),
+      posting_time: currentPostingTime(),
+      cost_center: source.cost_center,
+      party_type: source.party_type,
+      party_id: source.party_id,
+      party_name: source.party_name,
+      reference_no: source.reference_no,
+      received_from: source.received_from,
+      paid_to: source.paid_to,
+      remarks: source.remarks,
+      total_debit: source.total_debit,
+      total_credit: source.total_credit,
+      lines: (source.lines || []).map(({ id, ...line }) => line),
+    };
+    res.render('journal-entry', {
+      accounts, journal, today: todayString(), error: null, readOnly: false,
+      money, journalTypeLabel, sharing: null, duplicateOf: source.journal_no,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/journals/:id/print', async (req, res, next) => {
+  try {
+    const journal = await findJournalEntry(req.params.id);
+    if (!journal) {
+      const error = new Error('Journal entry not found.');
+      error.status = 404;
+      throw error;
+    }
+    const receiptBalance = await cashReceiptOutstandingBalance(journal);
+    res.render('journal-print', {
+      journal,
+      receiptBalance,
+      company: await getCompanyInformation(),
+      money,
+      amountInWords,
+      preparedBy: journal.created_by || req.currentUser.username,
+      journalTypeLabel,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.post('/journals/:id', async (req, res, next) => {

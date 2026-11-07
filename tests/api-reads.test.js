@@ -64,6 +64,8 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
     const cash = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
     const bank = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1120'")).rows[0].id;
     const ar = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1100'")).rows[0].id;
+    const inventory = (await pool.query("SELECT id FROM app_accounts WHERE account_code='1200'")).rows[0].id;
+    const openingEquity = (await pool.query("SELECT id FROM app_accounts WHERE account_code='3000'")).rows[0].id;
     const permissions = ['vouchers.sales.view', 'vouchers.sales.create', 'payments.sales.record',
       'masters.customers.view', 'masters.suppliers.view', 'masters.items.view', 'masters.warehouses.view',
       'masters.price-lists.view', 'masters.cost-centers.view'];
@@ -106,6 +108,14 @@ test('versioned reads isolate master data, stock, invoices, receipts and sales s
        qty_change,qty_after_transaction,incoming_rate,stock_value_change,stock_value_after_transaction)
       SELECT '2026-09-30',item_code,item_name,warehouse,'stock_opening',0,'READ-OPENING',
         quantity,quantity,valuation_rate,stock_value,stock_value FROM app_stock_balances`);
+    const openingStockValue = (await pool.query(
+      'SELECT COALESCE(SUM(stock_value), 0) AS value FROM app_stock_balances',
+    )).rows[0].value;
+    await pool.query(`INSERT INTO app_gl_entries
+      (posting_date,account_id,debit,credit,voucher_type,voucher_id,voucher_no,line_no,remarks)
+      VALUES ('2026-09-30',$1,$2,0,'stock_opening',0,'READ-OPENING',1,'Opening inventory'),
+        ('2026-09-30',$3,0,$2,'stock_opening',0,'READ-OPENING',2,'Opening inventory equity')`,
+    [inventory, openingStockValue, openingEquity]);
     const payload = (customer = 'C1', warehouse = 'Main', priceList = 'Retail') => ({
       invoice_date: '2026-10-01', customer_id: customer, customer_name: customer === 'C3' ? 'Secret Customer' : 'Alpha Customer',
       price_list: priceList, invoicer_id: 'E1', invoicer: 'Permitted Invoicer',

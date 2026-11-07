@@ -3,6 +3,35 @@
   const accountResults = document.querySelector('.gl-account-results');
   const partyInput = document.querySelector('[data-gl-party]');
   const partyResults = document.querySelector('.gl-party-results');
+  const filterForm = document.querySelector('[data-general-ledger-filters]');
+  const resetLink = document.querySelector('[data-general-ledger-reset]');
+
+  function clearFilters() {
+    if (!filterForm) return;
+    ['q', 'account', 'party', 'from', 'to'].forEach((name) => {
+      const input = filterForm.querySelector(`[name="${name}"]`);
+      if (input) input.value = '';
+    });
+    const voucherType = filterForm.querySelector('[name="voucher_type"]');
+    if (voucherType) voucherType.value = '';
+    const partyScope = filterForm.querySelector('[name="party_scope"]');
+    if (partyScope) partyScope.value = 'related';
+    const groupBy = filterForm.querySelector('[name="group_by"]');
+    if (groupBy) groupBy.value = 'date';
+    filterForm.querySelectorAll('input[type="hidden"][name="voucher_id"]').forEach((input) => input.remove());
+    if (accountResults) accountResults.innerHTML = '';
+    if (partyResults) partyResults.innerHTML = '';
+  }
+
+  resetLink?.addEventListener('click', (event) => {
+    event.preventDefault();
+    clearFilters();
+    window.location.assign(resetLink.href);
+  });
+
+  window.addEventListener('pageshow', () => {
+    if (!window.location.search) clearFilters();
+  });
 
   bindLookup(accountInput, accountResults, '/api/general-ledger/accounts', (row) => `
     <button type="button" data-value="${escapeAttr(row.value)}">

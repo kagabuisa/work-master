@@ -14,6 +14,11 @@ const { optionalValue, requiredValue } = require('../lib/values');
 const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } = require('../lib/dates');
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
 const { paginationOptions, paginationResult } = require('../lib/pagination');
+const { validateJournalProjectedBalances } = require('./normalization');
+
+const JOURNAL_BALANCE_VOUCHER_TYPES = new Set([
+  'journal_entry', 'cash_receipt', 'payment_journal', 'sales_invoice',
+]);
 
 async function postSalesInvoiceGlEntry(client, invoice) {
   const lines = salesInvoiceAccountingLines(invoice);
@@ -180,7 +185,7 @@ async function postCustomerPaymentGlEntry(client, invoice, payment) {
   });
 }
 
-async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
+async function createOrUpdateCustomerReceiptEntry(client, invoice, payment) {
   if (!payment) {
     return null;
   }
@@ -219,17 +224,19 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
     const { rows } = await client.query(
       `
       UPDATE app_journal_entries
-      SET journal_type = 'payment_journal',
+      SET journal_type = 'cash_receipt',
         posting_date = $1,
         party_type = 'customer',
         party_id = $2,
         party_name = $3,
         reference_no = $4,
         remarks = $5,
-        total_debit = $6,
-        total_credit = $6,
-        cost_center = $8
-      WHERE id = $7
+        received_from = $6,
+        paid_to = NULL,
+        total_debit = $7,
+        total_credit = $7,
+        cost_center = $9
+      WHERE id = $8
       RETURNING journal_no
       `,
       [
@@ -238,6 +245,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
         invoice.customer_name || null,
         invoice.invoice_no || null,
         remarks,
+        invoice.customer_name || null,
         amount,
         savedJournalId,
         invoice.cost_center || null,
@@ -262,9 +270,9 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       `
       INSERT INTO app_journal_entries (
         journal_type, posting_date, party_type, party_id, party_name, reference_no,
-        remarks, total_debit, total_credit, posting_time, cost_center
+        remarks, total_debit, total_credit, received_from, posting_time, cost_center
       )
-      VALUES ('payment_journal', $1, 'customer', $2, $3, $4, $5, $6, $6, $7, $8)
+      VALUES ('cash_receipt', $1, 'customer', $2, $3, $4, $5, $6, $6, $7, $8, $9)
       RETURNING id
       `,
       [
@@ -274,6 +282,7 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
         invoice.invoice_no || null,
         remarks,
         amount,
+        invoice.customer_name || null,
         currentPostingTime(),
         invoice.cost_center || null,
       ],
@@ -289,10 +298,14 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
   await setVoucherDocstatus(client, 'app_journal_entries', savedJournalId, 'submitted');
   await syncGeneratedJournalEntryLines(client, savedJournalId, journalLines, accountIds);
 
+  await client.query(
+    'DELETE FROM app_gl_entries WHERE voucher_type = $1 AND voucher_id = $2',
+    ['customer_payment', Number(payment.id)],
+  );
   await postGlEntry(client, {
     posting_date: dateOnly(payment.payment_date),
     cost_center: invoice.cost_center,
-    voucher_type: 'payment_journal',
+    voucher_type: 'cash_receipt',
     voucher_id: savedJournalId,
     voucher_no: journalNo,
     party_type: 'customer',
@@ -309,10 +322,6 @@ async function createOrUpdatePaymentJournalEntry(client, invoice, payment) {
       remarks: line.remarks,
     })),
   });
-  await client.query(
-    'DELETE FROM app_gl_entries WHERE voucher_type = $1 AND voucher_id = $2',
-    ['customer_payment', Number(payment.id)],
-  );
 
   await client.query(
     `
@@ -517,6 +526,9 @@ async function postGlEntry(client, entry) {
   );
 
   const accountIds = await resolveAccountingAccounts(client, lines);
+  if (!entry.is_reversal && JOURNAL_BALANCE_VOUCHER_TYPES.has(entry.voucher_type)) {
+    await validateJournalProjectedBalancePosting(client, entry, lines, accountIds);
+  }
   const values = lines.map((line,index) => ({
     account_id: accountIds[index], party_type: line.party_type || entry.party_type || null,
     party_id: line.party_id || entry.party_id || null, party_name: line.party_name || entry.party_name || null,
@@ -533,6 +545,33 @@ async function postGlEntry(client, entry) {
     ORDER BY line.line_no`, [entry.posting_date,entry.voucher_type,Number(entry.voucher_id),entry.voucher_no || null,
       Boolean(entry.is_reversal),entry.reversal_of_voucher_type || null,entry.reversal_of_voucher_id || null,JSON.stringify(values)]);
 
+}
+
+async function validateJournalProjectedBalancePosting(client, entry, lines, accountIds) {
+  const uniqueAccountIds = [...new Set(accountIds.map(Number)
+    .filter((id) => Number.isSafeInteger(id) && id > 0))];
+  if (!uniqueAccountIds.length) return;
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended(
+       current_database() || ':journal_normal_balance:' || locked_account.account_id::text, 0))
+     FROM unnest($1::bigint[]) AS locked_account(account_id)
+     ORDER BY locked_account.account_id`,
+    [uniqueAccountIds],
+  );
+  const { rows } = await client.query(
+    `SELECT account.id, account.account_code, account.account_name, account.normal_balance,
+       COALESCE(SUM(gl.debit - gl.credit), 0)::text AS balance
+     FROM app_accounts account
+     LEFT JOIN app_gl_entries gl ON gl.account_id = account.id AND gl.posting_date <= $2
+     WHERE account.id = ANY($1::bigint[])
+     GROUP BY account.id, account.account_code, account.account_name, account.normal_balance`,
+    [uniqueAccountIds, entry.posting_date],
+  );
+  validateJournalProjectedBalances(lines.map((line, index) => ({
+    account_id: accountIds[index],
+    debit: line.debit,
+    credit: line.credit,
+  })), rows);
 }
 
 async function reverseVoucherGlEntries(client, voucherType, voucherId, postingDate) {
@@ -1184,7 +1223,7 @@ module.exports = {
   createOrUpdateSalesInvoiceJournalEntry,
   nonZeroAccountingLines,
   postCustomerPaymentGlEntry,
-  createOrUpdatePaymentJournalEntry,
+  createOrUpdateCustomerReceiptEntry,
   postStockEntryGlEntry,
   stockEntryGlLines,
   stockVoucherType,

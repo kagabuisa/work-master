@@ -53,14 +53,14 @@ test('optimized reads preserve filtered running balances, opening balances, sear
     const account = accounts[0];
     await pool.query(`INSERT INTO app_gl_entries(posting_date,account_id,debit,credit,voucher_type,voucher_id,voucher_no,line_no,party_name)
       SELECT date '2026-01-01'+(n%7)::int, CASE WHEN n%2=0 THEN $1::bigint ELSE $2::bigint END,
-        CASE WHEN n%3=0 THEN 0 ELSE n::numeric/100 END,CASE WHEN n%3=0 THEN n::numeric/100 ELSE 0 END,
+        CASE WHEN n%2=0 THEN n::numeric/100 ELSE 0 END,CASE WHEN n%2=0 THEN 0 ELSE n::numeric/100 END,
         'read_test',n,'READ-'||n,1,CASE WHEN n%2=0 THEN 'Alpha' ELSE 'Beta' END
       FROM generate_series(1,211) n`, accounts.map(x => x.id));
     // Several pages on one date, then backdated entries with higher IDs.
     await pool.query(`INSERT INTO app_gl_entries(posting_date,account_id,debit,credit,voucher_type,voucher_id,voucher_no,line_no,party_name)
       SELECT CASE WHEN n<=120 THEN date '2026-01-04' ELSE date '2025-12-31' END,
         CASE WHEN n%2=0 THEN $1::bigint ELSE $2::bigint END,
-        CASE WHEN n%3=0 THEN 0 ELSE n END,CASE WHEN n%3=0 THEN n ELSE 0 END,
+        CASE WHEN n%2=0 THEN n ELSE 0 END,CASE WHEN n%2=0 THEN 0 ELSE n END,
         'read_test',1000+n,'READ-BACKDATED-'||n,1,CASE WHEN n%2=0 THEN 'Alpha' ELSE 'Beta' END
       FROM generate_series(1,140) n`, accounts.map(x => x.id));
     await require('../src/audit').runWithAuditUser({id:'READ-A',username:'Read A'}, () => store.createJournalEntry({

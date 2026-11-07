@@ -27,7 +27,7 @@ Create the first login account on the app server:
 npm run user:create -- admin
 ```
 
-The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after thirty minutes of inactivity by default, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL.
+The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after thirty minutes of inactivity by default, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL. Browser and API login verify a successful password once, then compare the verified password-hash version again after locking the user row so a concurrent password change or reset cannot issue a stale session.
 
 The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Daily Activity, Debtors, Stock Ledger, Stock Movement, and General Ledger have their own Read permission rows. Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are Admin-only; saved role permissions and individual grants cannot grant them to non-admin users. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Legacy report grants do not override the Admin-only financial report rule.
 
@@ -83,6 +83,7 @@ Browser login and session settings are validated at startup:
 | `BROWSER_LOGIN_USERNAME_LIMIT` | `5` | Attempts against one normalized username in the window. |
 | `BROWSER_SESSION_IDLE_MINUTES` | `30` | Server and browser inactivity limit. |
 | `BROWSER_SESSION_DAYS` | `7` | Absolute session lifetime. |
+| `UV_THREADPOOL_SIZE` | `8` | Node worker threads for asynchronous password hashing and other native work. |
 
 Choose the IP limit for the largest group expected to share one office or mobile
 network. The per-username limit remains the account lockout boundary.
@@ -214,6 +215,29 @@ Schema migration 40 adds Read-only / Read & write sharing levels; all existing S
 
 Schema migration 62 adds `app_voucher_shares` for Sales Invoices, Purchase Invoices, Purchase Orders, Journal Entries, and Stock Reconciliations, plus the **Shared vouchers** account list. Existing Stock Entry shares remain in their existing table and are included in the unified list. On restricted-runtime deployments, run the owner migration before restarting. Transaction resets remove these shares without rewriting voucher or ledger history.
 
+Schema migration 63 adds persisted Stock Entry delivery details and the
+**Received + DDR** status. Picked and packed records the responsible employee and
+picked date; Delivered records the transporter, telephone, and delivery date;
+All Received and Received + DDR record the receipt date and the employee under
+Received & Confirmed By. Apply the owner migration before starting the updated runtime.
+Existing delivery statuses remain valid and start with empty delivery details.
+
+Schema migration 64 adds a nullable manual **Received from** value to Journal
+Entries for printed Cash Receipts. Existing journals remain unchanged and print a
+blank receipt field until a payer name is entered. Apply the owner migration
+before starting a restricted runtime.
+
+Schema migration 65 adds a nullable manual **Paid to** value for printed Payment
+Vouchers. Existing payment journals remain unchanged and print a blank payee field
+until a name is entered. Apply the owner migration before starting a restricted
+runtime.
+
+Schema migration 66 converts generated customer invoice-payment journals from
+Payment Journals to Cash Receipts. It updates the linked journal header, General
+Ledger voucher types and cancellation reversals, and fills **Received from** from
+the saved customer name. Manual Payment Journals and unrelated journals are not
+changed. Apply the owner migration before starting a restricted runtime.
+
 Schema migration 41 adds the journal-creator and ledger/daily-balance read indexes
 described below. Build the updated image first with `docker compose build invoice-app`.
 Then apply it with the owner credentials before restarting a restricted runtime:
@@ -304,7 +328,7 @@ PERF_COOKIE='wm_session=your-staging-session-token' npm run perf:http -- --url=h
 
 The command reports response status counts, failures, requests per second, and 50th/95th/99th percentile latency. It issues only GET requests and stops after the requested count. A redirect to login counts as a failure; set `PERF_COOKIE` in the shell without putting a real session token in source control. Run the same scenario with production-sized staging data at several concurrency levels, and compare the latency and error rate. Results include the app's short-lived caches, so compare a cold run and a warm run when diagnosing database load.
 
-The invoice list limits each page to at most 200 rows. Normal lists and conservative text searches select their invoice IDs before computing payment totals; numeric and payment-state searches retain computed filtering. Normal pages fetch one extra row for Next navigation; exact totals are available on demand. Creator and assigned-employee access use separate indexed candidate routes before deduplication and pagination. Payment journals are narrowed by header and line references, preserving customer matching, cancellation history and linked-payment exclusion. Identical in-flight requests share only matching filter/access scopes; completed financial results are not retained. Each app process and export worker has its own PostgreSQL pool: budget all instances within the database connection limit. Test the expected data volume and mixed concurrency in staging.
+The invoice list limits each page to at most 200 rows. Normal lists and conservative text searches select their invoice IDs before computing payment totals; numeric and payment-state searches retain computed filtering. Normal pages fetch one extra row for Next navigation; exact totals are available on demand. Creator and assigned-employee access use separate indexed candidate routes before deduplication and pagination. Customer receipt and payment journals are narrowed by header and line references, preserving customer matching, cancellation history and linked-payment exclusion. Identical in-flight requests share only matching filter/access scopes; completed financial results are not retained. Each app process and export worker has its own PostgreSQL pool: budget all instances within the database connection limit. Test the expected data volume and mixed concurrency in staging.
 
 Benchmark invoice lists, text searches, and CSV/XLSX/PDF ledger exports over a historical date range:
 
@@ -682,7 +706,7 @@ Generated private credentials and redacted acceptance evidence are in ignored `d
 
 The current MySQL user is still used only for reading ERPNext tables. Stock and accounting entries created by this app are local to the app's Postgres database and are not written back to ERPNext.
 
-The **Reports → Daily Activity** page lists local Daily Activity drafts stored in PostgreSQL. Users with Daily Activity Read and Create can choose **New Daily Activity** and **Save draft**; this generates a DAR number, records the creating app user, and opens the saved detail page. It validates enabled local shops and warehouses and applies user record restrictions. Saving does not post stock or accounting entries. Existing ERPNext vouchers remain available through the separate **ERPNext reference** view, which is read-only. Local drafts can currently be created and viewed; editing and submission are not provided. Schema migration 17 creates the local table and audit trigger automatically at startup.
+The **Reports → Daily Activity** page lists local Daily Activity drafts stored in PostgreSQL. Users with Daily Activity Read and Create can choose **New Daily Activity** and **Save draft**; this generates a DAR number, records the creating app user, and opens the saved detail page. It validates enabled local shops and warehouses and applies user record restrictions. The Stock entry field autocompletes submitted stock entries that involve the selected warehouse; saved reports link to those entries when the user has Stock Entry Read permission. Saving does not post stock or accounting entries. Existing ERPNext vouchers remain available through the separate **ERPNext reference** view, which is read-only. Local drafts can currently be created and viewed; editing and submission are not provided. Schema migration 17 creates the local table and audit trigger automatically at startup.
 
 Schema migration 11 adds journal row invoice references and links supplier payment allocations to their journals. It runs automatically on app startup.
 

@@ -1,7 +1,12 @@
 'use strict';
 
 const { getPostgresPool, withPostgresTransaction } = require('./core');
-const DELIVERY_STATUSES = ['Picked & packed', 'In Transit', 'Delivered', 'All Received'];
+const { currentPostingDate } = require('./posting-time');
+const { isValidIsoDate } = require('./lib/dates');
+const DELIVERY_STATUSES = ['Picked & packed', 'In Transit', 'Delivered', 'All Received', 'Received + DDR'];
+const DELIVERY_DETAIL_FIELDS = ['picked_employee_id', 'picked_employee_name', 'picked_date',
+  'in_transit_date', 'transporter_name', 'transporter_phone', 'delivered_date', 'received_date',
+  'received_by_employee_id', 'received_by_employee_name'];
 
 async function initStockEntryWorkflow(client) {
   // Keep operational delivery metadata separate from inventory documents, whose
@@ -100,24 +105,85 @@ async function stockEntrySharing(user, entry) {
   return { shares: shares.rows, users: users.rows };
 }
 
-async function saveStockEntryDelivery(client, user, entry, value) {
+function cleanDeliveryText(value, maximum = 140) {
+  return String(value || '').trim().slice(0, maximum);
+}
+
+async function activeDeliveryEmployee(client, employeeId, user) {
+  const id = cleanDeliveryText(employeeId, 100);
+  if (!id) throw workflowError('Choose the employee responsible for this delivery step.');
+  const { rows } = await client.query(`SELECT employee_id, employee_name FROM app_master_employees
+    WHERE employee_id=$1 AND NOT disabled AND COALESCE(status, 'Active')='Active'
+      AND docstatus='submitted'`, [id]);
+  const { assignedMasterRecordAllowed } = require('./access');
+  if (!rows[0] || !assignedMasterRecordAllowed(user, 'employees', id)) throw workflowError('Choose an active employee.');
+  return rows[0];
+}
+
+function validDeliveryDate(value, message) {
+  if (!isValidIsoDate(value)) throw workflowError(message);
+  if (value > currentPostingDate()) throw workflowError('Delivery dates cannot be in the future.');
+  return value;
+}
+
+async function normalizeDeliveryDetails(client, user, status, submitted = {}, existing = {}) {
+  const details = {
+    ...Object.fromEntries(DELIVERY_DETAIL_FIELDS.map(field => [field, cleanDeliveryText(existing?.[field])])),
+    received_confirmed: Boolean(existing?.received_confirmed),
+  };
+  for (const field of DELIVERY_DETAIL_FIELDS) {
+    if (submitted?.[field] !== undefined) details[field] = cleanDeliveryText(submitted[field]);
+  }
+  if (submitted?.received_confirmed !== undefined) {
+    details.received_confirmed = ['1', 'on', 'true'].includes(String(submitted.received_confirmed).toLowerCase());
+  }
+  if (status === 'Picked & packed') {
+    const employee = await activeDeliveryEmployee(client, details.picked_employee_id, user);
+    details.picked_employee_id = employee.employee_id;
+    details.picked_employee_name = employee.employee_name;
+    details.picked_date = validDeliveryDate(details.picked_date, 'Enter the date picked and packed.');
+  } else if (status === 'In Transit') {
+    details.in_transit_date = currentPostingDate();
+  } else if (status === 'Delivered') {
+    details.transporter_name = cleanDeliveryText(details.transporter_name, 140);
+    details.transporter_phone = cleanDeliveryText(details.transporter_phone, 40);
+    if (!details.transporter_name) throw workflowError('Enter the transporter name.');
+    if (!details.transporter_phone) throw workflowError('Enter the transporter phone number.');
+    details.delivered_date = validDeliveryDate(details.delivered_date, 'Enter the delivery date.');
+  } else if (['All Received', 'Received + DDR'].includes(status)) {
+    details.received_date = validDeliveryDate(details.received_date, 'Enter the date the stock was received.');
+    const employee = await activeDeliveryEmployee(client, details.received_by_employee_id, user);
+    details.received_by_employee_id = employee.employee_id;
+    details.received_by_employee_name = employee.employee_name;
+    details.received_confirmed = true;
+  }
+  return details;
+}
+
+async function saveStockEntryDelivery(client, user, entry, value, submittedDetails = {}) {
   if (entry.entry_type === 'reconciliation') throw workflowError('Stock reconciliations do not have a delivery status.');
   if (!canManageStockEntry(user, entry)) await requireSharedStockEntryWrite(client, user, entry.id);
   if (entry.docstatus === 'cancelled') throw workflowError('Cancelled stock entries cannot change delivery status.');
   if (!DELIVERY_STATUSES.includes(value) && value !== '') throw workflowError('Choose a valid delivery status.');
-  await client.query(`INSERT INTO app_stock_entry_delivery(stock_entry_id,delivery_status,updated_by_user_id)
-    VALUES ($1,$2,$3) ON CONFLICT (stock_entry_id) DO UPDATE
-    SET delivery_status=EXCLUDED.delivery_status, updated_by_user_id=EXCLUDED.updated_by_user_id, updated_at=now()`, [entry.id, value, user.id]);
+  const current = (await client.query(`SELECT delivery_details FROM app_stock_entry_delivery
+    WHERE stock_entry_id=$1 FOR UPDATE`, [entry.id])).rows[0]?.delivery_details || {};
+  const details = await normalizeDeliveryDetails(client, user, value, submittedDetails, current);
+  await client.query(`INSERT INTO app_stock_entry_delivery(
+      stock_entry_id,delivery_status,delivery_details,updated_by_user_id)
+    VALUES ($1,$2,$3::jsonb,$4) ON CONFLICT (stock_entry_id) DO UPDATE
+    SET delivery_status=EXCLUDED.delivery_status, delivery_details=EXCLUDED.delivery_details,
+      updated_by_user_id=EXCLUDED.updated_by_user_id, updated_at=now()`,
+  [entry.id, value, JSON.stringify(details), user.id]);
 }
 
-async function changeStockEntryWorkflow(user, id, action, value, permission = 'read') {
+async function changeStockEntryWorkflow(user, id, action, value, permission = 'read', deliveryDetails = {}) {
   id = Number(id);
   if (!Number.isSafeInteger(id) || id < 1) throw workflowError('Stock entry not found.', 404);
   return withPostgresTransaction(async client => {
     const entry = (await client.query('SELECT * FROM app_stock_entries WHERE id=$1 FOR UPDATE', [id])).rows[0];
     if (!entry || entry.entry_type === 'reconciliation') throw workflowError('Stock entry not found.', 404);
     if (action === 'delivery') {
-      await saveStockEntryDelivery(client, user, entry, value);
+      await saveStockEntryDelivery(client, user, entry, value, deliveryDetails);
       return;
     }
     if (!canManageStockEntry(user, entry)) throw workflowError('Only the stock entry owner or an admin can manage sharing.', 403);

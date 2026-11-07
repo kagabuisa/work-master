@@ -13,7 +13,7 @@ test('generic voucher shares allow exact read and draft-write routes only', asyn
   const routes = [
     ['/invoices/12', '/invoices/12/drawer', '/invoices/12/edit'],
     ['/purchases/12', '/purchases/12/drawer', '/purchases/12/edit'],
-    ['/purchase-orders/12', null, '/purchase-orders/12/edit'],
+    ['/purchase-orders/12', '/purchase-orders/12/drawer', '/purchase-orders/12/edit'],
     ['/journals/12', '/journals/12/drawer', '/journals/12/edit'],
     ['/stock/reconciliations/12', null, '/stock/reconciliations/12/edit'],
   ];
@@ -31,7 +31,7 @@ test('generic voucher shares allow exact read and draft-write routes only', asyn
       assert.equal(permissionCheck({ currentUser: user, voucherSharedWrite: true,
         path: detail, method: 'POST', body: { action } }), true);
     }
-    for (const suffix of ['submit', 'cancel', 'delete', 'posting-time', 'share']) {
+    for (const suffix of ['submit', 'cancel', 'delete', 'posting-time', 'share', 'print', 'duplicate']) {
       assert.equal(permissionCheck({ currentUser: user, voucherSharedWrite: true,
         path: `${detail}/${suffix}`, method: 'POST', body: {} }), false, `${detail}/${suffix}`);
     }
@@ -39,6 +39,11 @@ test('generic voucher shares allow exact read and draft-write routes only', asyn
   assert.equal(permissionCheck({ currentUser: user, voucherSharedRead: true,
     path: '/invoices/12/print', method: 'GET', body: {} }), false);
   assert.equal(permissionCheck({ currentUser: user, path: '/shared-vouchers', method: 'GET' }), true);
+  const journalViewer = { ...user, permissions: ['vouchers.journals.view'] };
+  assert.equal(permissionCheck({ currentUser: journalViewer, path: '/journals/12/print', method: 'GET', body: {} }), true);
+  assert.equal(permissionCheck({ currentUser: journalViewer, path: '/journals/12/duplicate', method: 'GET', body: {} }), false);
+  const journalCreator = { ...journalViewer, permissions: ['vouchers.journals.view', 'vouchers.journals.create'] };
+  assert.equal(permissionCheck({ currentUser: journalCreator, path: '/journals/12/duplicate', method: 'GET', body: {} }), true);
 });
 
 test('all five voucher details render owner sharing while recipients receive read-only actions', async () => {
@@ -92,6 +97,7 @@ test('all five voucher details render owner sharing while recipients receive rea
     });
     assert.match(owner, /data-entry-sharing-panel/, view);
     assert.match(owner, /Remove access for reader/, view);
+    if (view === 'journal-entry.ejs') assert.match(owner, /href="#voucher-sharing">Share<\/a>/, view);
     assert.ok(owner.indexOf('data-entry-sharing-panel') < owner.indexOf('data-tracking-toggle'),
       `${view} sharing must precede tracking`);
     const shared = await renderView(path.join(__dirname, '..', 'views', view), {
@@ -100,6 +106,28 @@ test('all five voucher details render owner sharing while recipients receive rea
     assert.doesNotMatch(shared, /data-entry-sharing-panel|name="permission"|Remove access for/, view);
     assert.doesNotMatch(shared, /\/submit(?:-cash-sale)?["']|\/cancel["']|\/delete["']|\/duplicate["']/, view);
   }
+});
+
+test('journal draft editors expose owner sharing controls', async () => {
+  const sharing = {
+    type: 'journals', label: 'Journal Entry', endpoint: '/journals/12/share', voucher_id: 12,
+    users: [{ id: 9, username: 'reader' }], shares: [],
+  };
+  const html = await renderView(path.join(__dirname, '..', 'views', 'journal-entry.ejs'), {
+    assetVersion: 'test', availableReports: [], currentUser: { role: 'admin', scopes: {} },
+    can: () => true, money: String, formatTimestamp: String, today: '2026-01-15', error: null,
+    scriptJson: JSON.stringify, currentPostingTime: () => '10:00', journalTypeLabel: () => 'Journal Entry',
+    accounts: [], sharing, readOnly: false,
+    journal: {
+      id: 12, journal_no: 'JRN-000012', journal_type: 'journal_entry', docstatus: 'draft',
+      posting_date: '2026-01-15', posting_time: '10:00', can_cancel: true,
+      total_debit: 100, total_credit: 100,
+      lines: [{ account_id: 5, account_name: 'Cash', debit: 100 }, { account_id: 6, account_name: 'Equity', credit: 100 }],
+    },
+  });
+  assert.match(html, /href="#voucher-sharing">Share<\/a>/);
+  assert.match(html, /action="\/journals\/12\/share"/);
+  assert.match(html, />Save Draft<\/button>/);
 });
 
 test('sharing is the final section before tracking in every voucher preview and drawer', async () => {
@@ -126,6 +154,10 @@ test('sharing is the final section before tracking in every voucher preview and 
     supplier_id: 'SUPPLIER', status: 'unpaid', total: 100, amount_paid: 0,
     items: [], payments: [], ...common,
   };
+  const order = {
+    id: 12, order_no: 'PO-000012', docstatus: 'draft', posting_date: '2026-01-15',
+    supplier_id: 'SUPPLIER', price_list: 'Buying', total: 100, items: [], ...common,
+  };
   const journal = {
     id: 12, journal_no: 'JRN-000012', docstatus: 'draft', journal_type: 'journal_entry',
     posting_date: '2026-01-15', lines: [], can_cancel: true,
@@ -144,6 +176,11 @@ test('sharing is the final section before tracking in every voucher preview and 
     ['purchase-drawer.ejs', {
       purchase, sharing: {
         ...sharing, label: 'Purchase Invoice', endpoint: '/purchases/12/share',
+      },
+    }],
+    ['purchase-order-drawer.ejs', {
+      order, sharing: {
+        ...sharing, label: 'Purchase Order', endpoint: '/purchase-orders/12/share',
       },
     }],
     ['journal-drawer.ejs', {
@@ -328,10 +365,29 @@ test('sharing persists across every voucher type and shared users can save only 
     });
     let token = await auth.createSession(recipient.id);
     const root = `http://127.0.0.1:${server.address().port}`;
-    const request = (url, options = {}) => fetch(root + url, {
+    const requestAs = (sessionToken) => (url, options = {}) => fetch(root + url, {
       ...options, redirect: 'manual',
-      headers: { Cookie: `wm_session=${token}`, Accept: 'application/json', ...options.headers },
+      headers: { Cookie: `wm_session=${sessionToken}`, Accept: 'application/json', ...options.headers },
     });
+    const request = requestAs(token);
+    await auth.saveUserPermissionOverrides(owner.id, [
+      'vouchers.journals.view', 'vouchers.journals.create', 'vouchers.journals.edit',
+    ], []);
+    const ownerRequest = requestAs(await auth.createSession(owner.id));
+    const ownerJournalEdit = await ownerRequest(`${paths.journals}/edit`);
+    assert.equal(ownerJournalEdit.status, 200);
+    const ownerJournalEditBody = await ownerJournalEdit.json();
+    assert.equal(ownerJournalEditBody.sharing.endpoint, `${paths.journals}/share`);
+    const journalPrint = await ownerRequest(`${paths.journals}/print`);
+    assert.equal(journalPrint.status, 200);
+    assert.equal((await journalPrint.json()).view, 'journal-print');
+    const journalDuplicate = await ownerRequest(`${paths.journals}/duplicate`);
+    assert.equal(journalDuplicate.status, 200);
+    const journalDuplicateBody = await journalDuplicate.json();
+    assert.equal(journalDuplicateBody.view, 'journal-entry');
+    assert.equal(journalDuplicateBody.journal.id, undefined);
+    assert.equal(journalDuplicateBody.journal.posting_date, draftDate);
+    assert.equal(journalDuplicateBody.journal.lines.length, 2);
 
     for (const [type, url] of Object.entries(paths)) {
       const response = await request(url);

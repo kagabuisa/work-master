@@ -1,0 +1,95 @@
+<% const isOrder = kind === 'purchase-orders'; %>
+<% const voucherTitle = isOrder ? 'Purchase Order' : 'Purchase Invoice'; %>
+<% const voucherNo = isOrder ? record.order_no : record.purchase_no; %>
+<% const status = record.status_label || record.docstatus || 'draft'; %>
+<% const warehouses = [...new Set((record.items || []).map((item) => item.warehouse).filter(Boolean))]; %>
+<% const showWarehouse = warehouses.length !== 1; %>
+<!doctype html>
+<html lang="en">
+<head>
+  <title><%= voucherTitle %> <%= voucherNo %></title>
+  <%- include('partials-head') %>
+</head>
+<body class="print-page">
+  <main class="print-sheet">
+    <div class="print-actions no-print">
+      <button type="button" data-print-page>Print</button>
+    </div>
+    <header class="invoice-document-header">
+      <div class="invoice-header-company"><%- include('invoice-company') %></div>
+      <div class="invoice-voucher-info">
+        <h1><%= voucherTitle %></h1>
+        <p><%= voucherNo %></p>
+      </div>
+    </header>
+    <section class="invoice-meta">
+      <div><span>Supplier</span><strong><%= record.supplier_id %></strong></div>
+      <div><span><%= isOrder ? 'Order' : 'Posting' %> Date/Time</span><strong><%= formatDateTime(record.posting_date, record.posting_time || '00:00') %></strong><% if (record.due_date) { %><p><%= isOrder ? 'Expected' : 'Due' %> <%= formatDate(record.due_date) %></p><% } %></div>
+      <div><span>Status</span><strong><%= status %></strong></div>
+    </section>
+    <section class="invoice-meta">
+      <div><span>Price List</span><strong><%= record.price_list || '—' %></strong></div>
+      <% if (record.cost_center) { %><div><span>Cost Center</span><strong><%= costCenterName(record.cost_center) %></strong></div><% } %>
+      <div><span>Warehouse</span><strong><%= warehouses.length ? warehouses.join(', ') : '—' %></strong></div>
+    </section>
+    <% if (record.supplier_reference) { %><p class="notes">Supplier reference: <strong><%= record.supplier_reference %></strong></p><% } %>
+    <table class="print-invoice-table print-items-table">
+      <thead>
+        <tr>
+          <th class="row-number">#</th>
+          <th>Item Code</th>
+          <% if (showWarehouse) { %><th>Warehouse</th><% } %>
+          <th><%= isOrder ? 'Qty Ordered' : 'Qty Received' %></th>
+          <% if (isOrder) { %><th>Qty Received</th><th>Remaining</th><% } %>
+          <th>Unit Cost</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% (record.items || []).forEach((item, index) => { %>
+          <tr>
+            <td class="row-number"><%= index + 1 %></td>
+            <td><%= item.item_code %></td>
+            <% if (showWarehouse) { %><td><%= item.warehouse %></td><% } %>
+            <td><%= Number(item.quantity).toLocaleString() %></td>
+            <% if (isOrder) { %>
+              <td><%= Number(item.received || 0).toLocaleString() %></td>
+              <td><%= Math.max(0, Math.round((Number(item.quantity) - Number(item.received || 0)) * 1000) / 1000).toLocaleString() %></td>
+            <% } %>
+            <td><%= money(item.unit_price) %></td>
+            <td><%= money(item.line_total) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr class="grand"><th colspan="<%= isOrder ? (showWarehouse ? 8 : 7) : (showWarehouse ? 5 : 4) %>">Total</th><td><%= money(record.total) %></td></tr>
+        <% if (!isOrder) { %>
+          <tr><th colspan="<%= showWarehouse ? 5 : 4 %>">Paid</th><td><%= money(record.amount_paid) %></td></tr>
+          <tr><th colspan="<%= showWarehouse ? 5 : 4 %>">Balance</th><td><%= money(record.total - record.amount_paid) %></td></tr>
+        <% } %>
+      </tfoot>
+    </table>
+    <% if (record.remarks) { %><p class="notes"><%= record.remarks %></p><% } %>
+    <% if (!isOrder && Array.isArray(record.payments) && record.payments.length) { %>
+      <section class="print-payments">
+        <h2>Supplier Payments</h2>
+        <table class="print-invoice-table print-payment-table">
+          <thead><tr><th class="row-number">#</th><th>Date</th><th>Account</th><th>Payment Reference</th><th>Status</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% record.payments.forEach((payment, index) => { %>
+              <tr>
+                <td class="row-number"><%= index + 1 %></td>
+                <td><%= formatDate(payment.payment_date) %></td>
+                <td><%= payment.account_name || payment.method %></td>
+                <td><%= payment.reference || '' %></td>
+                <td><%= payment.docstatus === 'cancelled' ? 'Cancelled' : 'Recorded' %></td>
+                <td><%= money(payment.amount) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </section>
+    <% } %>
+  </main>
+</body>
+</html>

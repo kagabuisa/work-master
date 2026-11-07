@@ -25,14 +25,14 @@
             <div class="cash-sale-summary-details">
               <span data-cash-invoice></span>
               <span data-cash-customer></span>
+              <span data-cash-date></span>
             </div>
           </section>
           <div class="cash-sale-section-heading">
             <span class="cash-sale-section-number">01</span>
-            <div><h3>Payment details</h3><p>Choose where the payment will be received.</p></div>
+            <div><h3>Payment details</h3><p>Choose where the payment will be received. The payment uses the invoice posting date.</p></div>
           </div>
           <div class="cash-sale-fields">
-            <label>Payment date<input type="date" name="payment_date" required></label>
             <label>Receive into<select name="cash_sale_account_id" required>
               <option value="">Choose cash or bank account</option>
             </select></label>
@@ -76,10 +76,11 @@
     lastTrigger = trigger;
     form.reset();
     form.action = trigger.dataset.cashSaleUrl;
-    form.elements.payment_date.value = trigger.dataset.cashSaleDate || '';
     layer.querySelector('[data-cash-total]').textContent = `Ugx ${Number(trigger.dataset.cashSaleTotal || 0).toLocaleString('en-UG')}`;
     layer.querySelector('[data-cash-invoice]').textContent = trigger.dataset.cashSaleInvoice || 'Sales invoice';
     layer.querySelector('[data-cash-customer]').textContent = trigger.dataset.cashSaleCustomer || '';
+    layer.querySelector('[data-cash-date]').textContent = trigger.dataset.cashSaleDate
+      ? `Payment date ${trigger.dataset.cashSaleDate}` : 'Payment date follows the invoice date';
 
     accountSelect.replaceChildren(new Option('Choose cash or bank account', ''));
     let accounts = [];
@@ -100,7 +101,7 @@
     layer.removeAttribute('aria-hidden');
     layer.classList.add('is-open');
     document.body.classList.add('drawer-open');
-    form.elements.payment_date.focus({ preventScroll: true });
+    accountSelect.focus({ preventScroll: true });
   }
 
   document.addEventListener('click', (event) => {

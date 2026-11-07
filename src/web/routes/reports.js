@@ -3,7 +3,8 @@
 const express = require('express');
 const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity');
 const { localDailyActivityReport, localDailyActivityVoucher } = require('../local-daily-activity');
-const { createDailyActivity, dailyActivityFormOptions, UNIT_TYPES, DELIVERY_OPTIONS } = require('../daily-activity-create');
+const { createDailyActivity, dailyActivityFormOptions, dailyActivityStockEntryOptions,
+  UNIT_TYPES, DELIVERY_OPTIONS } = require('../daily-activity-create');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 const { accountAccessOptions, hrLedgerAccessOptions, warehouseAccessOptions } = require('../helpers');
 const { ADMIN_REPORT_SLUGS } = require('../../report-permissions');
@@ -61,6 +62,16 @@ router.get('/daily-activity/new', async (req, res, next) => {
     dailyActivityForm(res, { date: todayString(), unit_type: 'Shop', sales: '0', expense: '0',
       packages_received: '0', leads: '0', delivery_differences: 'No' }, options);
   } catch (err) { dailyActivityError(err, req, res, next); }
+});
+
+router.get('/daily-activity/new/stock-entries', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'private, no-store');
+    res.json(await dailyActivityStockEntryOptions(req.query, req.currentUser));
+  } catch (err) {
+    if ([400, 403].includes(err.status)) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.post('/daily-activity', async (req, res, next) => {

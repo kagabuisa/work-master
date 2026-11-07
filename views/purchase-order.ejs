@@ -11,19 +11,7 @@
   <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
   <section class="invoice-card ui-surface">
     <div class="section-title ui-section-heading"><h2>Purchase Order</h2><div class="actions">
-      <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && order.docstatus === 'draft') { %>
-        <% if (can('vouchers.purchase-orders.edit')) { %><a class="button button-light" href="/purchase-orders/<%= order.id %>/edit">Edit</a><% } %>
-        <% if (can('vouchers.purchase-orders.delete')) { %><form method="post" action="/purchase-orders/<%= order.id %>/delete" class="inline-form" data-confirm="Delete this draft purchase order? This cannot be undone."><button type="submit" class="button-light">Delete Draft</button></form><% } %>
-        <% if (can('vouchers.purchase-orders.submit')) { %><form method="post" action="/purchase-orders/<%= order.id %>/submit" class="inline-form" data-confirm="Submit this purchase order?"><button type="submit">Submit Order</button></form><% } %>
-      <% } else if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && order.docstatus === 'submitted' && can('vouchers.purchase-orders.cancel') && !(order.invoices || []).some((invoice) => invoice.docstatus === 'submitted')) { %>
-        <form method="post" action="/purchase-orders/<%= order.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase order?"><button type="submit" class="button-light">Cancel Order</button></form>
-      <% } %>
-      <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && order.docstatus === 'cancelled' && currentUser.role === 'admin') { %>
-        <% if ((order.invoices || []).length) { %><span class="field-hint">Delete linked purchase invoices before deleting this order.</span><% } else { %><form method="post" action="/purchase-orders/<%= order.id %>/delete" class="inline-form" data-confirm="Delete this cancelled purchase order? This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
-      <% } %>
-      <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && order.docstatus === 'submitted' && order.items.some((item) => Number(item.quantity) > Number(item.received || 0)) && can('vouchers.purchases.create')) { %>
-        <a class="button" href="/purchases/new?purchase_order_id=<%= order.id %>">Receive into Purchase Invoice</a>
-      <% } %>
+      <%- include('purchase-actions', { record: order, kind: 'purchase-orders' }) %>
     </div></div>
     <div class="invoice-meta">
       <div><span>Supplier</span><strong><%= order.supplier_id %></strong></div>
@@ -46,7 +34,7 @@
     </table></div>
     <dl class="totals"><div class="grand"><dt>Total</dt><dd><%= money(order.total) %></dd></div></dl>
     <% if (order.remarks) { %><p class="notes"><%= order.remarks %></p><% } %>
-    <% if (order.invoices && order.invoices.length && can('vouchers.purchases.view')) { %><p>Purchase invoices: <% order.invoices.forEach((invoice, index) => { %><% if (index) { %>, <% } %><a href="/purchases/<%= invoice.id %>"><%= invoice.purchase_no %></a> (<%= invoice.docstatus %>)<% }) %></p><% } %>
+    <% if (order.invoices && order.invoices.length && can('vouchers.purchases.view')) { %><p>Purchase invoices: <% order.invoices.forEach((invoice, index) => { %><% if (index) { %>, <% } %><a href="/purchases/<%= invoice.id %>" data-voucher-drawer="/purchases/<%= invoice.id %>/drawer"><%= invoice.purchase_no %></a> (<%= invoice.docstatus %>)<% }) %></p><% } %>
   </section>
   <%- include('voucher-sharing', { sharing: typeof sharing !== 'undefined' ? sharing : null }) %>
   <%- include('record-audit', { record: order }) %>

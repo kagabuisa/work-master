@@ -1,7 +1,7 @@
 <% if (typeof sharing !== 'undefined' && sharing) { %>
 <% const sharedIds = new Set(sharing.shares.map(share => String(share.user_id))); %>
 <% const availableUsers = sharing.users.filter(user => !sharedIds.has(String(user.id))); %>
-<section class="ui-surface ui-form-section ui-access-panel" data-entry-sharing-panel data-entry-id="<%= sharing.voucher_id || '' %>">
+<section id="voucher-sharing" class="ui-surface ui-form-section ui-access-panel" data-entry-sharing-panel data-entry-id="<%= sharing.voucher_id || '' %>">
   <%- include('ui-section-heading', { heading: { title: 'Sharing', meta: `${sharing.shares.length} ${sharing.shares.length === 1 ? 'person' : 'people'}`, help: 'Read-only allows viewing. Read & write allows saving changes to drafts. Sharing does not grant submit, cancel, delete, posting-time changes, payment actions, or onward sharing rights. Only the owner or an admin can manage access.' } }) %>
   <form method="post" action="<%= sharing.endpoint %>" class="ui-access-invite" data-entry-sharing-form data-share-mode="invite">
     <label>Share with<select name="user_id" required <%= availableUsers.length ? '' : 'disabled' %>>

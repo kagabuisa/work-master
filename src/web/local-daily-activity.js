@@ -8,24 +8,27 @@ const { shareRead, readSnapshot } = require('../read-cache');
 
 function displayRow(row) {
   return { ...row, source: 'local', status_label: statusLabel(row.docstatus),
-    href: `/reports/daily-activity/${encodeURIComponent(row.name)}` };
+    href: `/reports/daily-activity/${encodeURIComponent(row.name)}`,
+    stock_entry_href: row.stock_entry_id
+      ? `/stock/entries/${encodeURIComponent(row.stock_entry_id)}` : null };
 }
 async function localDailyActivityReport(query = {}, user) {
   const filters = normalizeFilters(query);
   const values = [filters.from, filters.to];
-  const where = ['date >= $1', 'date <= $2'];
+  const where = ['report.date >= $1', 'report.date <= $2'];
   function add(sql, value) { values.push(value); where.push(sql.replaceAll('?', '$' + values.length)); }
-  if (filters.status) add('docstatus = ?', Number(filters.status));
-  if (filters.shop) add('shop ILIKE ?', `%${filters.shop}%`);
-  if (filters.search) add('(name ILIKE ? OR shop ILIKE ? OR expense_details ILIKE ? OR remarks ILIKE ? OR comments_or_remarks ILIKE ?)', `%${filters.search}%`);
+  if (filters.status) add('report.docstatus = ?', Number(filters.status));
+  if (filters.shop) add('report.shop ILIKE ?', `%${filters.shop}%`);
+  if (filters.search) add('(report.name ILIKE ? OR report.shop ILIKE ? OR report.expense_details ILIKE ? '
+    + 'OR report.remarks ILIKE ? OR report.comments_or_remarks ILIKE ?)', `%${filters.search}%`);
   const allowedWarehouses = allowedNamedListValues(user, 'warehouses');
-  if (allowedWarehouses !== null) add('warehouse = ANY(?::text[])', allowedWarehouses);
+  if (allowedWarehouses !== null) add('report.warehouse = ANY(?::text[])', allowedWarehouses);
   const deniedWarehouses = deniedNamedListValues(user, 'warehouses');
-  if (deniedWarehouses.length) add('warehouse <> ALL(?::text[])', deniedWarehouses);
+  if (deniedWarehouses.length) add('report.warehouse <> ALL(?::text[])', deniedWarehouses);
   const allowedShops = allowedMasterRecordIds(user, 'cost-centers');
-  if (allowedShops !== null) add('shop = ANY(?::text[])', allowedShops);
+  if (allowedShops !== null) add('report.shop = ANY(?::text[])', allowedShops);
   const deniedShops = deniedMasterRecordIds(user, 'cost-centers');
-  if (deniedShops.length) add('shop <> ALL(?::text[])', deniedShops);
+  if (deniedShops.length) add('report.shop <> ALL(?::text[])', deniedShops);
   const offset = (filters.page - 1) * 50;
   values.push(50, offset);
   const whereSql = where.join(' AND ');
@@ -41,13 +44,15 @@ async function localDailyActivityReport(query = {}, user) {
             COALESCE(SUM(sales), 0)::float AS sales,
             COALESCE(SUM(expense), 0)::float AS expense,
             COALESCE(SUM(banked), 0)::float AS banked
-          FROM app_daily_activity_reports
+          FROM app_daily_activity_reports report
           WHERE ${whereSql}`,
         values.slice(0, -2));
         const { rows } = await client.query(`
-          SELECT * FROM app_daily_activity_reports
+          SELECT report.*, stock.id AS stock_entry_id
+          FROM app_daily_activity_reports report
+          LEFT JOIN app_stock_entries stock ON stock.entry_no=report.stock_entry_number
           WHERE ${whereSql}
-          ORDER BY date DESC, created_at DESC, id DESC
+          ORDER BY report.date DESC, report.created_at DESC, report.id DESC
           LIMIT $${values.length - 1} OFFSET $${values.length}`,
         values);
         return { summary, rows };
@@ -77,7 +82,10 @@ async function localDailyActivityReport(query = {}, user) {
 }
 async function localDailyActivityVoucher(name, user) {
   if (!/^DAR-\d{6,}$/.test(name || '')) return null;
-  const { rows } = await getPostgresPool().query('SELECT * FROM app_daily_activity_reports WHERE name=$1', [name]);
+  const { rows } = await getPostgresPool().query(`SELECT report.*, stock.id AS stock_entry_id
+    FROM app_daily_activity_reports report
+    LEFT JOIN app_stock_entries stock ON stock.entry_no=report.stock_entry_number
+    WHERE report.name=$1`, [name]);
   return rows[0] && recordAllowed(user, rows[0]) ? displayRow(rows[0]) : null;
 }
 module.exports = { localDailyActivityReport, localDailyActivityVoucher };

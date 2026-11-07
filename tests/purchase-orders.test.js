@@ -38,6 +38,8 @@ test('purchase order actions require their own permissions', () => {
     ['/purchase-orders', 'GET', 'view'],
     ['/purchase-orders/new', 'GET', 'create'],
     ['/purchase-orders', 'POST', 'create'],
+    ['/purchase-orders/1/drawer', 'GET', 'view'],
+    ['/purchase-orders/1/print', 'GET', 'view'],
     ['/purchase-orders/1/edit', 'GET', 'edit'],
     ['/purchase-orders/1', 'POST', 'edit'],
     ['/purchase-orders/1/submit', 'POST', 'submit'],
@@ -46,6 +48,14 @@ test('purchase order actions require their own permissions', () => {
   ]) {
     assert.equal(permissionCheck(request(route, method, [`vouchers.purchase-orders.${action}`])), true);
     assert.equal(permissionCheck(request(route, method, ['vouchers.purchases.' + action])), false);
+  }
+  for (const base of ['purchase-orders', 'purchases']) {
+    const prefix = `vouchers.${base}.`;
+    assert.equal(permissionCheck(request(`/${base}/1/duplicate`, 'GET', [prefix + 'view'])), false);
+    assert.equal(permissionCheck(request(`/${base}/1/duplicate`, 'GET', [prefix + 'create'])), false);
+    assert.equal(permissionCheck(request(`/${base}/1/duplicate`, 'GET', [prefix + 'view', prefix + 'create'])), true);
+    assert.equal(permissionCheck(request(`/${base}/1/print`, 'GET', [prefix + 'view'])), true);
+    assert.equal(permissionCheck(request(`/${base}/1/drawer`, 'GET', [prefix + 'view'])), true);
   }
 });
 
@@ -210,6 +220,77 @@ test('purchase order form posts to order routes and detail exposes status action
   });
   assert.match(draftInvoice, /action="\/purchases\/9\/edit"/);
   assert.match(draftInvoice, /Load Order Items/);
+});
+
+test('purchase orders and invoices expose the standard action order in full and drawer views', async () => {
+  const base = { assetVersion: 'test', currentUser: { role: 'admin' }, can: () => true,
+    availableReports: [], formatDate: (value) => value,
+    formatDateTime: (date, time) => `${date} ${time}`, money: (value) => String(value),
+    error: null };
+  const item = { item_code: 'ITEM-1', item_name: 'Item', warehouse: 'Main', quantity: 2,
+    received: 1, unit_price: 100, line_total: 200 };
+  const common = { posting_date: '2026-10-02', posting_time: '11:30',
+    supplier_id: 'SUP-1', supplier_name: 'Supplier', price_list: 'Buying',
+    total: 200, items: [item] };
+  const order = { id: 3, order_no: 'PO-000003', docstatus: 'submitted', ...common };
+  const purchase = { id: 4, purchase_no: 'PURINV-000004', docstatus: 'submitted',
+    amount_paid: 0, payments: [], status: 'unpaid', ...common };
+  const actions = ['>Print</a>', '>Cancel</button>', '>Duplicate</a>', '>New</a>'];
+  const assertActionOrder = (html) => {
+    const indexes = actions.map((label) => html.indexOf(label));
+    assert.ok(indexes.every((index) => index >= 0), `Missing standard purchasing actions: ${html}`);
+    assert.deepEqual(indexes, [...indexes].sort((left, right) => left - right));
+  };
+  const views = [
+    ['purchase-order.ejs', { order }],
+    ['purchase-order-drawer.ejs', { order }],
+    ['purchase.ejs', { purchase, today: '2026-10-02' }],
+    ['purchase-drawer.ejs', { purchase, today: '2026-10-02' }],
+  ];
+  for (const [view, locals] of views) {
+    assertActionOrder(await renderView(path.join(__dirname, '..', 'views', view), { ...base, ...locals }));
+  }
+});
+
+test('purchase order cancel remains visible but disabled while linked invoices are submitted', async () => {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'purchase-order-drawer.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin' }, can: () => true, availableReports: [],
+    formatDate: String, formatDateTime: (date, time) => `${date} ${time}`, money: String, error: null,
+    order: { id: 7, order_no: 'PO-000007', docstatus: 'submitted', posting_date: '2026-10-02',
+      posting_time: '11:30', supplier_id: 'SUP-1', supplier_name: 'Supplier', price_list: 'Buying',
+      status_label: 'Partially Received', status_class: 'partial', total: 200,
+      items: [{ item_code: 'ITEM-1', warehouse: 'Main', quantity: 2, received: 1,
+        unit_price: 100, line_total: 200 }],
+      invoices: [{ id: 8, purchase_no: 'PURINV-000008', docstatus: 'submitted' }] },
+  });
+  assert.match(html, /button[^>]*disabled[^>]*>Cancel<\/button>/);
+  assert.match(html, /Cancel the linked purchase invoices before cancelling this order\./);
+});
+
+test('purchasing print views render order and invoice documents', async () => {
+  const base = { assetVersion: 'test', currentUser: { role: 'admin' }, can: () => true,
+    availableReports: [], formatDate: (value) => value,
+    formatDateTime: (date, time) => `${date} ${time}`, money: (value) => String(value), company: null };
+  const common = { posting_date: '2026-10-02', posting_time: '11:30',
+    supplier_id: 'SUP-1', supplier_name: 'Supplier', price_list: 'Buying', total: 200,
+    items: [{ item_code: 'ITEM-1', warehouse: 'Main', quantity: 2, received: 1,
+      unit_price: 100, line_total: 200 }] };
+  const order = await renderView(path.join(__dirname, '..', 'views', 'purchase-print.ejs'), {
+    ...base, kind: 'purchase-orders', record: { order_no: 'PO-000003', docstatus: 'submitted', ...common },
+  });
+  assert.match(order, /Purchase Order/);
+  assert.match(order, /Qty Ordered/);
+  assert.match(order, />Remaining</);
+  const purchase = await renderView(path.join(__dirname, '..', 'views', 'purchase-print.ejs'), {
+    ...base, kind: 'purchases', record: { purchase_no: 'PURINV-000004', docstatus: 'submitted',
+      amount_paid: 50, payments: [{ payment_date: '2026-10-03', account_name: 'Bank',
+        reference: 'PAY-1', amount: 50 }], ...common },
+  });
+  assert.match(purchase, /Purchase Invoice/);
+  assert.match(purchase, /Qty Received/);
+  assert.match(purchase, />Balance</);
+  assert.match(purchase, /Supplier Payments/);
+  assert.match(purchase, /PAY-1/);
 });
 
 test('receivable orders filter permissions in one query before limiting results', async () => {

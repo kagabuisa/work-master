@@ -4,6 +4,8 @@
 <% const journalReferences = [...new Set([journal.reference_no, ...journalLines.map((line) => line.reference_no)].filter(Boolean))]; %>
 <% const journalStatus = journal.docstatus || (journalReadOnly ? 'submitted' : 'draft'); %>
 <% const manualJournal = Boolean(journal.can_cancel); %>
+<% const showReceivedFrom = journal.journal_type === 'cash_receipt'; %>
+<% const showPaidTo = journal.journal_type === 'payment_journal'; %>
 <% const lineAuditTime = (value) => value ? `${formatTimestamp(value, 'UTC')} UTC` : ''; %>
 <html lang="en">
 <head>
@@ -18,7 +20,8 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Journals', href: '/journals' }, { label: journal.id ? journal.journal_no : 'New Journal Entry' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'accounts' }) %><%- include('journal-new-button') %>
+        <%- include('module-nav', { activeModule: 'accounts' }) %><%- include('journal-actions', { journal }) %>
+        <% if (journal.id && typeof sharing !== 'undefined' && sharing) { %><a class="button button-light" href="#voucher-sharing">Share</a><% } %>
       </nav>
     </header>
 
@@ -62,6 +65,18 @@
           </label>
         <% } %>
         <input type="hidden" name="party_name" id="party-name" value="<%= journal.party_name || '' %>">
+        <label id="received-from-field" <% if (!showReceivedFrom) { %>hidden<% } %>>
+          Received from
+          <input name="received_from" id="received-from" maxlength="150"
+            value="<%= journal.received_from || '' %>" placeholder="Enter the payer's name"
+            <%= journalReadOnly ? 'readonly' : '' %>>
+        </label>
+        <label id="paid-to-field" <% if (!showPaidTo) { %>hidden<% } %>>
+          Paid to
+          <input name="paid_to" id="paid-to" maxlength="150"
+            value="<%= journal.paid_to || '' %>" placeholder="Enter the payee's name"
+            <%= journalReadOnly ? 'readonly' : '' %>>
+        </label>
         <% if (journalReadOnly) { %>
           <label>
             References
@@ -101,7 +116,7 @@
       </section>
 
       <% if (!journalReadOnly) { %>
-        <script id="journal-account-data" type="application/json"<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name }))) %></script>
+        <script id="journal-account-data" type="application/json"<% if (typeof cspNonce !== 'undefined') { %> nonce="<%= cspNonce %>"<% } %>><%- scriptJson(accounts.map((account) => ({ id: String(account.id), code: account.account_code, name: account.account_name, normal_balance: account.normal_balance }))) %></script>
       <% } %>
       <datalist id="journal-purchase-invoices"></datalist>
       <div class="ui-table-scroll" role="region" aria-label="Journal Entry table" tabindex="0"><table class="editable" id="journal-lines">
@@ -182,9 +197,7 @@
           <% if (journalStatus === 'draft' && can('vouchers.journals.delete')) { %><button type="submit" formaction="/journals/<%= journal.id %>/delete" formmethod="post" class="button-light" data-confirm="Delete this draft journal? This cannot be undone.">Delete Draft</button><% } %>
           <% if (journalStatus === 'cancelled' && currentUser.role === 'admin') { %><button type="submit" formaction="/journals/<%= journal.id %>/delete" formmethod="post" class="button-light" data-confirm="Delete this cancelled journal? Its ledger reversal history will remain. This cannot be undone.">Delete Voucher</button><% } %>
           <% if (journalStatus !== 'draft' && can('reports.general-ledger.view')) { %><a class="button" href="/reports/general-ledger?voucher_type=<%= journal.journal_type %>&q=<%= encodeURIComponent(journal.journal_no || '') %>">View GL</a><% } %>
-          <% if (manualJournal && journalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
-            <button type="submit" formaction="/journals/<%= journal.id %>/cancel" formmethod="post" class="button-light" data-confirm="Cancel this journal? This will reverse its ledger entries.">Cancel Journal</button>
-          <% } else if (!manualJournal) { %>
+          <% if (!manualJournal) { %>
             <span class="field-hint">Automatically generated journals are cancelled from their source document.</span>
           <% } %>
         <% } %>

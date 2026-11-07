@@ -102,6 +102,7 @@ router.get('/invoices', async (req, res, next) => {
       search,
       warehouses,
       money,
+      returnTo: req.originalUrl,
     });
   } catch (err) {
     next(err);
@@ -375,7 +376,7 @@ router.post('/invoices/:id/submit-cash-sale', async (req, res, next) => {
       throw err;
     }
     const id = await submitCashSaleInvoice(req.params.id, {
-      payment_date: req.body.payment_date || invoice.invoice_date || currentPostingDate(),
+      payment_date: invoice.invoice_date,
       amount,
       account_id: req.body.cash_sale_account_id,
       reference: req.body.cash_sale_reference || '',
@@ -410,7 +411,10 @@ router.post('/invoices/:id/cancel', async (req, res, next) => {
   try {
     const id = await cancelInvoice(req.params.id);
     clearInvoiceCaches();
-    res.redirect(`/invoices/${id}`);
+    const requestedReturn = String(req.body.return_to || '');
+    const returnTo = requestedReturn === '/invoices' || requestedReturn.startsWith('/invoices?')
+      ? requestedReturn : `/invoices/${id}`;
+    res.redirect(returnTo);
   } catch (err) {
     if (err.status === 400) {
       res.redirect(`/invoices/${req.params.id}?error=${encodeURIComponent(err.message)}`);
@@ -605,7 +609,7 @@ function cashSalePayment(payload, body = {}) {
     throw err;
   }
   return {
-    payment_date: body.payment_date || payload.invoice_date || currentPostingDate(),
+    payment_date: payload.invoice_date,
     amount,
     account_id: body.cash_sale_account_id,
     reference: body.cash_sale_reference || '',

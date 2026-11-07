@@ -53,6 +53,22 @@ test('server rejects low rates, invoice discount bypasses, and approval forgery'
  const pendingChanged=await controls.validateInvoice(client,payload,{...options,saved:{invoice_date:'2020-01-01',action_request:'Backdate',why_cancel:'Late documents',approval_revision:2}});
  assert.equal(pendingChanged.approval_revision,3);
 });
+test('Admin can cancel sales invoices without Allow = Cancel approval',async()=>{
+ const {runWithAuditUser}=require('../src/audit');
+ const clientFor=(role,permissions=[])=>({query:async(sql)=>{
+  if(sql.includes('SELECT u.id,u.username,u.role'))return {rows:[{
+   id:'1',username:role+'-user',role,active:true,permission_grants:[],permission_denials:[],
+   record_access:{},permissions,scopes:{},
+  }]};
+  throw new Error(`Unexpected query: ${sql}`);
+ }});
+ await runWithAuditUser({id:1,username:'admin-user'},()=>controls.cancellationAllowed(clientFor('admin'),{allow:''}));
+ await assert.rejects(
+  runWithAuditUser({id:2,username:'accountant-user'},()=>controls.cancellationAllowed(
+   clientFor('standard',['vouchers.sales.cancel','sales.policy.accountant']),{allow:''})),
+  /Allow = Cancel/,
+ );
+});
 test('PostgreSQL enforces pending approvals and cancellation before stock effects', {skip:process.env.SCHEMA_TEST_POSTGRES!=='1'},async()=>{
  const store=require('../src/store'),{seedGoldenData,FIXED}=require('./helpers/golden-seed'),{runWithAuditUser}=require('../src/audit');
  let server;
@@ -107,6 +123,20 @@ test('discount forms and mutually exclusive invoice approval controls render saf
  const form=await renderView(path.join(__dirname,'../views/approved-discount-form.ejs'),locals);assert.match(form,/Approved selling rate/);
  const list=await renderView(path.join(__dirname,'../views/approved-discounts.ejs'),{...locals,rows:[],q:'',page:1,hasNext:false});assert.match(list,/No discounts match/);
  const approval=await renderView(path.join(__dirname,'../views/invoice-approval.ejs'),{...locals,invoice:{id:1,docstatus:'submitted',action_request:'Cancel',why_cancel:'<unsafe>'}});assert.match(approval,/&lt;unsafe&gt;/);assert.match(approval,/action-approval/);assert.match(approval,/ui-approval-status-grid/);assert.match(approval,/Keep unapproved/);assert.match(approval,/Save decision/);assert.doesNotMatch(approval,/Request: <strong>None/);
+});
+test('invoice list exposes cancellation and preserves the filtered return path',async()=>{
+ const {renderView}=require('./helpers/render-view');const path=require('node:path');
+ const invoice={id:12,invoice_no:'INV-000012',docstatus:'submitted',invoice_date:'2026-01-15',posting_time:'10:00',customer_id:'CUSTOMER',total:100,amount_paid:0,status:'unpaid',allow:''};
+ const common={assetVersion:'test',availableReports:[],currentUser:{id:7,role:'standard',username:'cashier'},invoices:[invoice],pagination:{total:1,offset:0},query:{q:'CUSTOMER'},search:'CUSTOMER',warehouses:[],money:String,formatDate:String,formatDateTime:(date,time)=>`${date} ${time}`,returnTo:'/invoices?q=CUSTOMER'};
+ const html=await renderView(path.join(__dirname,'../views/invoices.ejs'),{...common,can:key=>['vouchers.sales.view','vouchers.sales.cancel'].includes(key)});
+ assert.match(html,/action="\/invoices\/12\/cancel"/);
+ assert.match(html,/name="return_to" value="\/invoices\?q=CUSTOMER"/);
+ assert.match(html,/>Cancel<\/button>/);
+ const accountant=await renderView(path.join(__dirname,'../views/invoices.ejs'),{...common,can:key=>['vouchers.sales.view','vouchers.sales.cancel','sales.policy.accountant'].includes(key)});
+ assert.match(accountant,/Request Cancel and obtain Allow = Cancel/);
+ assert.match(accountant,/disabled>Cancel<\/button>/);
+ const reader=await renderView(path.join(__dirname,'../views/invoices.ejs'),{...common,can:key=>key==='vouchers.sales.view'});
+ assert.doesNotMatch(reader,/action="\/invoices\/12\/cancel"/);
 });
 test('minimum comparison preserves six decimals at large selling rates',()=>{
  const {scaledRate}=require('../src/shared/sales-controls');

@@ -186,6 +186,7 @@ const {
   generalLedgerAccountOptions,
   generalLedgerPartyOptions,
   journalReferenceOptions,
+  cashReceiptOutstandingBalance,
   trialBalanceReport,
   profitAndLossReport,
   balanceSheetReport,
@@ -217,7 +218,7 @@ async function deleteDraftVoucher(kind, value, { allowCancelled = false } = {}) 
       }
       const linkedPayment = await client.query('SELECT 1 FROM app_invoice_payments WHERE journal_entry_id = $1 LIMIT 1', [id]);
       if (linkedPayment.rows.length) {
-        const error = new Error('Delete the linked sales invoice before deleting this payment journal.');
+        const error = new Error('Delete the linked sales invoice before deleting this customer receipt.');
         error.status = 400;
         throw error;
       }
@@ -358,6 +359,7 @@ module.exports = {
   generalLedgerAccountOptions,
   generalLedgerPartyOptions,
   journalReferenceOptions,
+  cashReceiptOutstandingBalance,
   trialBalanceReport,
   profitAndLossReport,
   balanceSheetReport,

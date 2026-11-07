@@ -1,0 +1,59 @@
+<% const actionRecord = record; %>
+<% const actionKind = kind; %>
+<% const actionStatus = actionRecord.docstatus || 'draft'; %>
+<% const actionBase = actionKind === 'purchase-orders' ? 'purchase-orders' : 'purchases'; %>
+<% const actionLabel = actionKind === 'purchase-orders' ? 'purchase order' : 'purchase invoice'; %>
+<% const actionPermission = actionKind === 'purchase-orders' ? 'vouchers.purchase-orders.' : 'vouchers.purchases.'; %>
+<% const actionSharedOnly = typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly; %>
+<% const linkedReceipt = actionKind === 'purchase-orders'
+  && (actionRecord.invoices || []).some((invoice) => invoice.docstatus === 'submitted'); %>
+<% if (actionRecord.id && !actionSharedOnly) { %>
+  <a class="button button-light" href="/<%= actionBase %>/<%= actionRecord.id %>/print" target="_blank" rel="noopener">Print</a>
+<% } %>
+<% if (!actionSharedOnly && actionStatus === 'submitted' && can(actionPermission + 'cancel')) { %>
+  <form method="post" action="/<%= actionBase %>/<%= actionRecord.id %>/cancel" class="inline-form" data-confirm="Cancel this <%= actionLabel %>?<% if (actionKind === 'purchases') { %> Stock and ledger entries will be reversed.<% } %>">
+    <button type="submit" class="button-light" <%= linkedReceipt ? 'disabled' : '' %>>Cancel</button>
+    <% if (linkedReceipt) { %><%- include('ui-helper', {
+      helpLabel: 'Cancellation blocked',
+      helpText: 'Cancel the linked purchase invoices before cancelling this order.',
+    }) %><% } %>
+  </form>
+<% } %>
+<% if (actionRecord.id && !actionSharedOnly
+    && can(actionPermission + 'view') && can(actionPermission + 'create')) { %>
+  <a class="button button-light" href="/<%= actionBase %>/<%= actionRecord.id %>/duplicate">Duplicate</a>
+<% } %>
+<% if (!actionSharedOnly && can(actionPermission + 'create')) { %>
+  <a class="button button-light" href="/<%= actionBase %>/new" aria-label="New <%= actionKind === 'purchase-orders' ? 'Purchase Order' : 'Purchase Invoice' %>">New</a>
+<% } %>
+<% if (!actionSharedOnly && actionStatus === 'draft') { %>
+  <% if (can(actionPermission + 'edit')) { %><a class="button button-light" href="/<%= actionBase %>/<%= actionRecord.id %>/edit">Edit</a><% } %>
+  <% if (can(actionPermission + 'delete')) { %>
+    <form method="post" action="/<%= actionBase %>/<%= actionRecord.id %>/delete" class="inline-form" data-confirm="Delete this draft <%= actionLabel %>? This cannot be undone.">
+      <button type="submit" class="button-light">Delete Draft</button>
+    </form>
+  <% } %>
+  <% if (can(actionPermission + 'submit')) { %>
+    <form method="post" action="/<%= actionBase %>/<%= actionRecord.id %>/submit" class="inline-form"
+      data-confirm="<%= actionKind === 'purchases'
+        ? 'Submit this purchase? This receives the stock and creates the amount payable.'
+        : 'Submit this purchase order?' %>">
+      <button type="submit"><%= actionKind === 'purchases' ? 'Submit & Receive Stock' : 'Submit Order' %></button>
+    </form>
+  <% } %>
+<% } %>
+<% if (!actionSharedOnly && actionKind === 'purchase-orders' && actionStatus === 'submitted'
+    && (actionRecord.items || []).some((item) => Number(item.quantity) > Number(item.received || 0))
+    && can('vouchers.purchases.create')) { %>
+  <a class="button" href="/purchases/new?purchase_order_id=<%= actionRecord.id %>">Receive into Purchase Invoice</a>
+<% } %>
+<% if (!actionSharedOnly && actionStatus === 'cancelled' && currentUser.role === 'admin') { %>
+  <% if (actionKind === 'purchase-orders' && (actionRecord.invoices || []).length) { %>
+    <span class="field-hint">Delete linked purchase invoices before deleting this order.</span>
+  <% } else if (can(actionPermission + 'delete')) { %>
+    <form method="post" action="/<%= actionBase %>/<%= actionRecord.id %>/delete" class="inline-form"
+      data-confirm="Delete this cancelled <%= actionLabel %>? Its ledger and stock reversal history will remain. This cannot be undone.">
+      <button type="submit" class="button-light">Delete Voucher</button>
+    </form>
+  <% } %>
+<% } %>

@@ -130,7 +130,7 @@ async function main() {
     assert.equal(invoice.payments[0].method, 'cash');
     assert.equal((await pool.query("SELECT 1 FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [id])).rowCount, 1);
     const record = (await pool.query('SELECT * FROM app_invoice_payments WHERE id=$1', [paid[0].body.data.id])).rows[0];
-    const gl = (await pool.query("SELECT debit,credit FROM app_gl_entries WHERE voucher_type='payment_journal' AND voucher_id=$1", [record.journal_entry_id])).rows;
+    const gl = (await pool.query("SELECT debit,credit FROM app_gl_entries WHERE voucher_type='cash_receipt' AND voucher_id=$1", [record.journal_entry_id])).rows;
     assert(gl.length > 0); assert.equal(gl.reduce((sum, row) => sum + Number(row.debit), 0), 51);
     assert.equal(gl.reduce((sum, row) => sum + Number(row.credit), 0), 51);
     const audit = (await pool.query("SELECT * FROM wm_api_audit WHERE operation='payment.record' AND outcome='committed' AND resource_id=$1 ORDER BY id LIMIT 1", [paid[0].body.data.id])).rows[0];

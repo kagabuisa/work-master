@@ -122,6 +122,90 @@ test('read/write sharing migration preserves existing read-only shares and finan
   } finally { await store.closeStore(); }
 });
 
+test('delivery receipt migration preserves existing statuses and enables receipt details', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const user = (await pool.query(`INSERT INTO app_users(username,password_hash)
+      VALUES ('delivery-upgrade-user','unused') RETURNING id`)).rows[0];
+    const entry = (await pool.query(`SELECT id FROM app_stock_entries
+      WHERE entry_type <> 'reconciliation' ORDER BY id LIMIT 1`)).rows[0];
+    await pool.query(`INSERT INTO app_stock_entry_delivery(
+        stock_entry_id,delivery_status,updated_by_user_id)
+      VALUES ($1,'Delivered',$2)`, [entry.id, user.id]);
+    await pool.query(`ALTER TABLE app_stock_entry_delivery DROP COLUMN delivery_details;
+      ALTER TABLE app_stock_entry_delivery DROP CONSTRAINT app_stock_entry_delivery_delivery_status_check;
+      ALTER TABLE app_stock_entry_delivery ADD CONSTRAINT app_stock_entry_delivery_delivery_status_check
+        CHECK (delivery_status IN ('', 'Picked & packed', 'In Transit', 'Delivered', 'All Received'));
+      DELETE FROM wm_schema_version WHERE version >= 63`);
+    await store.initStore();
+    const upgraded = (await pool.query(`SELECT delivery_status,delivery_details
+      FROM app_stock_entry_delivery WHERE stock_entry_id=$1`, [entry.id])).rows[0];
+    assert.equal(upgraded.delivery_status, 'Delivered');
+    assert.deepEqual(upgraded.delivery_details, {});
+    await pool.query(`UPDATE app_stock_entry_delivery SET delivery_status='Received + DDR'
+      WHERE stock_entry_id=$1`, [entry.id]);
+    assert.equal((await pool.query('SELECT max(version)::int version FROM wm_schema_version')).rows[0].version,
+      SCHEMA_VERSION);
+  } finally { await store.closeStore(); }
+});
+
+test('customer receipt migration reclassifies linked history without touching manual payment journals', {
+  skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    const seed = await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const manualId = await store.createJournalEntry({
+      journal_type: 'payment_journal',
+      posting_date: FIXED.date,
+      reference_no: 'MIGRATION-MANUAL-PAYMENT',
+      lines: [
+        { account_id: (await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id, debit: 5 },
+        { account_id: (await pool.query("SELECT id FROM app_accounts WHERE account_code='4000'")).rows[0].id, credit: 5 },
+      ],
+    });
+    await store.cancelInvoicePayment(seed.invoiceId, 1);
+    const linkedId = (await pool.query(
+      'SELECT journal_entry_id FROM app_invoice_payments WHERE invoice_id=$1',
+      [seed.invoiceId],
+    )).rows[0].journal_entry_id;
+    await pool.query(`UPDATE app_journal_entries
+      SET journal_type='payment_journal',received_from=NULL
+      WHERE id=$1`, [linkedId]);
+    await pool.query(`UPDATE app_gl_entries
+      SET voucher_type=CASE voucher_type
+          WHEN 'cash_receipt' THEN 'payment_journal'
+          WHEN 'cash_receipt_cancellation' THEN 'payment_journal_cancellation'
+          ELSE voucher_type END,
+        reversal_of_voucher_type=CASE reversal_of_voucher_type
+          WHEN 'cash_receipt' THEN 'payment_journal'
+          ELSE reversal_of_voucher_type END
+      WHERE voucher_id=$1 OR reversal_of_voucher_id=$1`, [linkedId]);
+
+    await pool.query('DELETE FROM wm_schema_version WHERE version>=66');
+    await store.initStore();
+
+    assert.deepEqual((await pool.query(`SELECT journal_type,received_from,paid_to
+      FROM app_journal_entries WHERE id=$1`, [linkedId])).rows[0], {
+      journal_type: 'cash_receipt',
+      received_from: FIXED.customerName,
+      paid_to: null,
+    });
+    assert.deepEqual((await pool.query(`SELECT DISTINCT voucher_type
+      FROM app_gl_entries
+      WHERE voucher_type IN ('cash_receipt','cash_receipt_cancellation')
+        AND voucher_id=$1
+      ORDER BY voucher_type`, [linkedId])).rows,
+    [{ voucher_type: 'cash_receipt' }, { voucher_type: 'cash_receipt_cancellation' }]);
+    assert.equal((await pool.query(
+      'SELECT journal_type FROM app_journal_entries WHERE id=$1', [manualId],
+    )).rows[0].journal_type, 'payment_journal');
+  } finally { await store.closeStore(); }
+});
+
 test('master names are unique across case and surrounding whitespace without changing master IDs', {
   skip: process.env.SCHEMA_TEST_POSTGRES !== '1',
 }, async () => {
@@ -242,6 +326,12 @@ test('version 1 upgrades once without duplicating accounting postings', {
     const activityColumn = await pool.query(`SELECT 1 FROM information_schema.columns
       WHERE table_name = 'app_user_sessions' AND column_name = 'last_activity_at'`);
     assert.equal(activityColumn.rowCount, 1);
+    const receivedFromColumn = await pool.query(`SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'app_journal_entries' AND column_name = 'received_from'`);
+    assert.equal(receivedFromColumn.rowCount, 1);
+    const paidToColumn = await pool.query(`SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'app_journal_entries' AND column_name = 'paid_to'`);
+    assert.equal(paidToColumn.rowCount, 1);
     await store.initStore();
     const after = (await pool.query(`
       SELECT (SELECT count(*)::int FROM app_gl_entries) AS gl,

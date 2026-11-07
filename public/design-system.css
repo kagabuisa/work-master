@@ -163,6 +163,8 @@
 /* Shared responsive grids for non-HR forms and report filters. */
 .ui-form-grid > .ui-form-footer { grid-column: 1 / -1; }
 .ui-page:not(.hr-shell) .ui-form-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); min-width: 0; align-items: end; }
+.ui-page .ui-form-row-scroll { min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 2px; }
+.ui-page .ui-form-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); align-items: start; gap: 12px; min-width: 100%; }
 .ui-page .ui-toolbar > label { position: relative; }
 .ui-page .ui-toolbar .report-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ui-page .ui-table td.ui-amount, .ui-page .ui-table th.ui-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -569,6 +571,9 @@
 .ui-page .ui-summary-line { padding: 12px 16px; border-left: 3px solid color-mix(in srgb, var(--accent) 65%, var(--line)); box-shadow: none; }
 .ui-summary-status::before { content: ''; width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
 .ui-page .ui-table .ui-opening-row, .ui-page .ui-table .ui-opening-row th { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.ui-page .ui-table .ui-voucher-pair-start > * { box-shadow: inset 0 2px 0 color-mix(in srgb, var(--accent) 18%, var(--line)); }
+.ui-page .ui-table .ui-reversal-row > * { background: color-mix(in srgb, var(--warning) 5%, var(--surface)); }
+.ui-pair-role { margin-left: 6px; color: var(--warning-strong, var(--danger)); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .ui-page .ui-table .ui-account-divider th { color: var(--heading); background: color-mix(in srgb, var(--muted) 7%, var(--surface)); }
 .ui-page .ui-table .ui-total-row th { color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); border-top: 1px solid var(--line); }
 .ui-row-action { display: inline-flex; align-items: center; min-height: 28px; margin-left: 6px; padding: 0 6px; border-radius: 4px; color: var(--accent); font-size: 11px; font-weight: 600; white-space: nowrap; text-decoration: none; }

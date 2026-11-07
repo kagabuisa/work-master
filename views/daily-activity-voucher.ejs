@@ -19,48 +19,59 @@
     </div>
     <section class="invoice-card dar-section ui-surface">
       <h2>Report details</h2>
-      <dl class="dar-fields">
-        <div><dt>Shop/Unit</dt><dd><%= voucher.shop || '—' %></dd></div>
-        <div><dt>Unit type</dt><dd><%= voucher.unit_type || '—' %></dd></div>
-        <div><dt>Date</dt><dd><%= formatDate(voucher.date) %></dd></div>
-        <% if (voucher.unit_type === 'Field Sales(FiSa)') { %><div><dt>Leads</dt><dd><%= voucher.leads == null ? '—' : voucher.leads %></dd></div><% } %>
-      </dl>
-    </section>
-    <section class="metrics daily-activity-metrics ui-report-metrics" aria-label="Sales and expense">
-      <article><span>Sales</span><strong><%= money(voucher.sales) %></strong></article>
-      <article><span>Expense</span><strong><%= money(voucher.expense) %></strong></article>
-      <article><span>Balance to be banked</span><strong><%= money(voucher.banked) %></strong></article>
+      <div class="dar-fields-scroll">
+        <dl class="dar-fields">
+          <div><dt>Date</dt><dd><%= formatDate(voucher.date) %></dd></div>
+          <div><dt>Shop/Unit</dt><dd><%= voucher.shop || '—' %></dd></div>
+          <div><dt>Unit type</dt><dd><%= voucher.unit_type || '—' %></dd></div>
+          <% if (voucher.unit_type === 'Field Sales(FiSa)') { %><div><dt>Leads</dt><dd><%= voucher.leads == null ? '—' : voucher.leads %></dd></div><% } %>
+        </dl>
+      </div>
     </section>
     <section class="invoice-card dar-section ui-surface">
-      <h2>Expense details</h2><p class="dar-text"><%= voucher.expense_details || '—' %></p>
+      <h2>Sales and expenses</h2>
+      <div class="dar-fields-scroll">
+        <dl class="dar-fields">
+          <div><dt>Sales</dt><dd class="dar-money"><%= money(voucher.sales) %></dd></div>
+          <div><dt>Expense</dt><dd class="dar-money"><%= money(voucher.expense) %></dd></div>
+          <div><dt>Balance to be banked</dt><dd class="dar-money"><%= money(voucher.banked) %></dd></div>
+          <div><dt>Expense details</dt><dd class="dar-text"><%= voucher.expense_details || '—' %></dd></div>
+        </dl>
+      </div>
     </section>
     <section class="invoice-card dar-section ui-surface">
       <h2>Stock delivery report</h2>
-      <dl class="dar-fields">
-        <div><dt>Stock Entry Number</dt><dd><%= voucher.stock_entry_number || '—' %></dd></div>
-        <div><dt>Packages Received</dt><dd><%= voucher.packages_received == null ? '—' : voucher.packages_received %></dd></div>
-        <div><dt>Delivery differences?</dt><dd><%= voucher.delivery_differences || '—' %></dd></div>
-        <% if (voucher.warehouse) { %><div><dt>Warehouse</dt><dd><%= voucher.warehouse %></dd></div><% } %>
-      </dl>
+      <div class="dar-fields-scroll">
+        <dl class="dar-fields">
+          <div><dt>Stock Entry Number</dt><dd><% if (voucher.stock_entry_number && voucher.stock_entry_href && can('vouchers.stock.view')) { %><a href="<%= voucher.stock_entry_href %>"><%= voucher.stock_entry_number %></a><% } else { %><%= voucher.stock_entry_number || '—' %><% } %></dd></div>
+          <div><dt>Packages Received</dt><dd><%= voucher.packages_received == null ? '—' : voucher.packages_received %></dd></div>
+          <div><dt>Delivery differences?</dt><dd><%= voucher.delivery_differences || '—' %></dd></div>
+          <% if (voucher.warehouse) { %><div><dt>Warehouse</dt><dd><%= voucher.warehouse %></dd></div><% } %>
+        </dl>
+      </div>
       <% if (voucher.item_differences) { %><h3>Items not received or excess items received</h3><p class="dar-text"><%= voucher.item_differences %></p><% } %>
     </section>
     <section class="invoice-card dar-section ui-surface">
       <h2>Other information report</h2>
-      <dl class="dar-fields">
-        <div><dt>Market Information</dt><dd class="dar-text"><%= voucher.remarks || '—' %></dd></div>
-        <div><dt>Comments or Remarks</dt><dd class="dar-text"><%= voucher.comments_or_remarks || '—' %></dd></div>
-      </dl>
+      <div class="dar-fields-scroll">
+        <dl class="dar-fields">
+          <div><dt>Market Information</dt><dd class="dar-text"><%= voucher.remarks || '—' %></dd></div>
+          <div><dt>Comments or Remarks</dt><dd class="dar-text"><%= voucher.comments_or_remarks || '—' %></dd></div>
+        </dl>
+      </div>
     </section>
     <% if (voucher.cash_banked || voucher.bank_used || voucher.banked_on || voucher.sales_invoiced || voucher.expenses_posted) { %>
       <section class="invoice-card dar-section ui-surface">
         <h2>Daily shop review</h2>
-        <dl class="dar-fields">
-          <div><dt>Sales Invoiced</dt><dd><%= money(voucher.sales_invoiced) %></dd></div>
-          <div><dt>Expenses Posted</dt><dd><%= money(voucher.expenses_posted) %></dd></div>
-          <div><dt>Cash Banked</dt><dd><%= money(voucher.cash_banked) %></dd></div>
-          <div><dt>Bank Used</dt><dd><%= voucher.bank_used || '—' %></dd></div>
-          <div><dt>Banked On</dt><dd><%= voucher.banked_on ? formatDate(voucher.banked_on) : '—' %></dd></div>
-        </dl>
+        <div class="dar-fields-scroll">
+          <dl class="dar-fields">
+            <div><dt>Sales Invoiced</dt><dd><%= money(voucher.sales_invoiced) %></dd></div>
+            <div><dt>Expenses Posted</dt><dd><%= money(voucher.expenses_posted) %></dd></div>
+            <div><dt>Cash Banked</dt><dd><%= money(voucher.cash_banked) %></dd></div>
+            <div><dt>Bank Used</dt><dd><%= voucher.bank_used || '—' %></dd></div>
+            <div><dt>Banked On</dt><dd><%= voucher.banked_on ? formatDate(voucher.banked_on) : '—' %></dd></div>
+          </dl>
+        </div>
       </section>
     <% } %>
     <% if (voucher.source === 'erpnext' && voucher.amended_from) { %><p>Amended from <a href="/reports/daily-activity/reference/<%= encodeURIComponent(voucher.amended_from) %>"><%= voucher.amended_from %></a></p><% } %>

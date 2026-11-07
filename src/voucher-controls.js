@@ -29,12 +29,17 @@ async function reviewedVoucher(client, kind, id, lock=true) {
   return {record,snapshot,hash:fingerprint(snapshot)};
 }
 function eligible(kind, record) {
-  if(kind==='journals') return ['cash_receipt','payment_journal','journal_entry'].includes(record.journal_type) && !record.linked_payment;
+  if(kind==='journals') return record.journal_type === 'journal_entry'
+    || (['cash_receipt','payment_journal'].includes(record.journal_type) && !record.linked_payment);
   return kind!=='stock' || !['reconciliation','cancel'].includes(record.entry_type);
 }
 async function state(client, kind, id) {
   return (await client.query('SELECT * FROM app_voucher_approvals WHERE voucher_kind=$1 AND voucher_id=$2', [kind,id])).rows[0]
     || {voucher_kind:kind,voucher_id:id,revision:0,action_request:'',reason:'',allow:'',review_hash:'',approved_by:null};
+}
+async function recordEvent(client, kind, id, event, user, value, snapshot) {
+  await client.query(`INSERT INTO app_voucher_approval_events(voucher_kind,voucher_id,event,actor_id,actor_name,state,snapshot)
+    VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)`,[kind,id,event,String(user?.id || ''),user?.username || 'System',JSON.stringify(value),JSON.stringify(snapshot)]);
 }
 async function write(client, kind, id, value, event, user, snapshot) {
   await client.query(`INSERT INTO app_voucher_approvals(voucher_kind,voucher_id,revision,action_request,reason,allow,review_hash,approved_by,approved_at)
@@ -42,8 +47,7 @@ async function write(client, kind, id, value, event, user, snapshot) {
     revision=EXCLUDED.revision,action_request=EXCLUDED.action_request,reason=EXCLUDED.reason,allow=EXCLUDED.allow,
     review_hash=EXCLUDED.review_hash,approved_by=EXCLUDED.approved_by,approved_at=EXCLUDED.approved_at`,
     [kind,id,value.revision,value.action_request,value.reason,value.allow,value.review_hash,value.approved_by || null,value.approved_at || null]);
-  await client.query(`INSERT INTO app_voucher_approval_events(voucher_kind,voucher_id,event,actor_id,actor_name,state,snapshot)
-    VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb)`,[kind,id,event,String(user?.id || ''),user?.username || 'System',JSON.stringify(value),JSON.stringify(snapshot)]);
+  await recordEvent(client,kind,id,event,user,value,snapshot);
 }
 function checkRevision(payload, saved, required=false) {
   if ((required || Object.hasOwn(payload,'control_revision')) && String(payload.control_revision)!==String(saved.revision)) fail('The voucher or request changed. Reload before continuing.',409);
@@ -82,6 +86,12 @@ async function requireApproval(client, kind, id, action) {
   // Trusted internal imports retain the same convention as Sales Invoice.
   if (!user) return;
   assertPostingDate(reviewed.record.posting_date);
+  if (action==='Cancel' && user.role==='admin') {
+    const saved=await state(client,kind,id);
+    await recordEvent(client,kind,id,'admin_override_cancel',user,
+      {...saved,allow:'',approved_by:null,approved_at:null},reviewed.snapshot);
+    return;
+  }
   if (action==='Backdate' && dateOnly(reviewed.record.posting_date)===currentPostingDate()) return;
   const saved=await state(client,kind,id);
   if (saved.allow!==action || saved.action_request!==action || !saved.approved_by || saved.review_hash!==reviewed.hash) {

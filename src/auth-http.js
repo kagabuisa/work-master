@@ -580,7 +580,7 @@ function installAuth(app) {
   app.use(async (req, res, next) => {
     try {
       const sharedEntryPath = ['GET', 'POST'].includes(req.method)
-        && req.path.match(/^\/stock\/entries\/([1-9][0-9]*)(?:\/(?:drawer|edit|delivery))?$/);
+        && req.path.match(/^\/stock\/entries\/([1-9][0-9]*)(?:\/(?:drawer|edit|delivery|delivery-employees))?$/);
       if (sharedEntryPath) {
         const access = await stockEntryShareAccess(req.currentUser, sharedEntryPath[1]);
         req.stockEntrySharedRead = Boolean(access);
@@ -590,7 +590,7 @@ function installAuth(app) {
         const routes = [
           [/^\/invoices\/([1-9][0-9]*)(?:\/drawer|\/edit)?$/, 'sales'],
           [/^\/purchases\/([1-9][0-9]*)(?:\/drawer|\/edit)?$/, 'purchases'],
-          [/^\/purchase-orders\/([1-9][0-9]*)(?:\/edit)?$/, 'purchase-orders'],
+          [/^\/purchase-orders\/([1-9][0-9]*)(?:\/(?:drawer|edit))?$/, 'purchase-orders'],
           [/^\/journals\/([1-9][0-9]*)(?:\/drawer|\/edit)?$/, 'journals'],
           [/^\/stock\/reconciliations\/([1-9][0-9]*)(?:\/edit)?$/, 'stock-reconciliations'],
         ];

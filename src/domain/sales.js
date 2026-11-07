@@ -17,7 +17,7 @@ const { dateOnly, isValidIsoDate, toIsoString, nullableIsoString, dateInRange } 
 const { sqlLikePattern, matchesSearchPattern, matchesSearchFields, normalizeSearchText, normalizeSearchPattern, wildcardRegex, orderedWildcardMatch, escapeRegex } = require('../lib/search');
 const { paginationOptions, paginationResult, paginationWindow } = require('../lib/pagination');
 const { addVoucherOwnerFilter } = require('../voucher-ownership');
-const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry, createOrUpdateSalesInvoiceJournalEntry, postCustomerPaymentGlEntry, applyPostgresStockMovement, postGlEntry, reverseVoucherGlEntries, resolveAccountingAccounts, actorAuditValues, setVoucherDocstatus, nonZeroAccountingLines, addReportFilters, reportFilterValues, groupByInvoiceId, postgresItemToInvoiceItem, postgresPaymentToInvoicePayment } = require('./posting');
+const { postSalesInvoiceGlEntry, createOrUpdateCustomerReceiptEntry, createOrUpdateSalesInvoiceJournalEntry, postCustomerPaymentGlEntry, applyPostgresStockMovement, postGlEntry, reverseVoucherGlEntries, resolveAccountingAccounts, actorAuditValues, setVoucherDocstatus, nonZeroAccountingLines, addReportFilters, reportFilterValues, groupByInvoiceId, postgresItemToInvoiceItem, postgresPaymentToInvoicePayment } = require('./posting');
 const { syncPostgresInvoicePaymentTotals } = require('./schema');
 const { validateReceivingAccount } = require('./ledger');
 const { findMasterItem, findMasterCustomer, findMasterSupplier } = require('./master-data');
@@ -27,6 +27,15 @@ function assertCashSalePayment(total, amount) {
   if (Number(total) <= 0 || Number(amount) !== Number(total)) {
     const error = new Error('Cash sale payment must equal the saved invoice total.'); error.status = 400; throw error;
   }
+}
+
+function cashSalePaymentData(invoice, payment, paymentId = 1) {
+  const data = buildPaymentData({
+    ...(payment || {}),
+    payment_date: dateOnly(invoice.invoice_date),
+  }, [], paymentId);
+  assertCashSalePayment(invoice.total, data.amount);
+  return data;
 }
 
 async function allInvoices() {
@@ -673,6 +682,7 @@ async function paginatedPostgresInvoices(options = {}) {
         invoice.tax_amount,
         invoice.discount_amount,
         invoice.total,
+        invoice.allow,
         CASE
           WHEN COALESCE(invoice.docstatus, 'submitted') = 'draft' THEN 0
           ELSE COALESCE(payment_totals.amount_paid, 0) + COALESCE(journal_totals.amount_paid, 0)
@@ -784,6 +794,7 @@ async function paginatedPostgresInvoices(options = {}) {
       total::float,
       amount_paid::float,
       status,
+      allow,
       created_at,
       updated_at
     ${invoiceListSql(computedFilter ? 'app_invoices' : 'selected_invoices')}
@@ -823,6 +834,7 @@ function postgresInvoiceListRow(row) {
     total: Number(row.total || 0),
     amount_paid: Number(row.amount_paid || 0),
     status: row.status,
+    allow: row.allow || '',
     created_at: toIsoString(row.created_at),
     updated_at: toIsoString(row.updated_at),
     items: [],
@@ -971,8 +983,7 @@ async function createCashSaleInvoice(payload, payment, options = {}) {
     };
     await postSalesInvoiceGlEntry(client, invoice);
 
-    const paymentData = buildPaymentData(payment, [], 1);
-    assertCashSalePayment(invoice.total, paymentData.amount);
+    const paymentData = cashSalePaymentData(invoice, payment);
     const destination = paymentData.account_id ? await validateReceivingAccount(client, paymentData.account_id) : null;
     const { rows: paymentRows } = await client.query(
       `
@@ -995,7 +1006,7 @@ async function createCashSaleInvoice(payload, payment, options = {}) {
       ],
     );
     await syncPostgresInvoicePaymentTotals(client, id);
-    await createOrUpdatePaymentJournalEntry(client, invoice, paymentRows[0]);
+    await createOrUpdateCustomerReceiptEntry(client, invoice, paymentRows[0]);
     return id;
   });
 }
@@ -1122,7 +1133,7 @@ async function submitPostgresInvoiceInTransaction(client, id, options = {}) {
     [Number(id)],
   );
   for (const payment of paymentRows) {
-    await createOrUpdatePaymentJournalEntry(client, invoice, payment);
+    await createOrUpdateCustomerReceiptEntry(client, invoice, payment);
   }
   return Number(id);
 }
@@ -1171,8 +1182,7 @@ async function submitCashSaleInvoice(id, payment) {
     };
     await postSalesInvoiceGlEntry(client, invoiceForGl);
 
-    const paymentData = buildPaymentData(payment, [], 1);
-    assertCashSalePayment(invoice.total, paymentData.amount);
+    const paymentData = cashSalePaymentData(invoice, payment);
     const destination = paymentData.account_id ? await validateReceivingAccount(client, paymentData.account_id) : null;
     const { rows: paymentRows } = await client.query(
       `
@@ -1195,7 +1205,7 @@ async function submitCashSaleInvoice(id, payment) {
       ],
     );
     await syncPostgresInvoicePaymentTotals(client, Number(id));
-    await createOrUpdatePaymentJournalEntry(client, invoiceForGl, paymentRows[0]);
+    await createOrUpdateCustomerReceiptEntry(client, invoiceForGl, paymentRows[0]);
     return Number(id);
   });
 }
@@ -1245,12 +1255,15 @@ async function cancelPostgresInvoice(id) {
     }
 
     const { rows: payments } = await client.query(
-      "SELECT id, journal_entry_id FROM app_invoice_payments WHERE invoice_id = $1 AND docstatus = 'submitted'",
+      `SELECT payment.id, payment.journal_entry_id, journal.journal_type
+       FROM app_invoice_payments payment
+       LEFT JOIN app_journal_entries journal ON journal.id = payment.journal_entry_id
+       WHERE payment.invoice_id = $1 AND payment.docstatus = 'submitted'`,
       [Number(id)],
     );
     for (const payment of payments) {
       if (payment.journal_entry_id) {
-        await reverseVoucherGlEntries(client, 'payment_journal', payment.journal_entry_id, postingDate);
+        await reverseVoucherGlEntries(client, payment.journal_type || 'cash_receipt', payment.journal_entry_id, postingDate);
         await setVoucherDocstatus(client, 'app_journal_entries', payment.journal_entry_id, 'cancelled');
       }
       await reverseVoucherGlEntries(client, 'customer_payment', payment.id, postingDate);
@@ -1369,7 +1382,7 @@ async function addPostgresInvoicePaymentInTransaction(client, id, payload) {
     ],
   );
   await syncPostgresInvoicePaymentTotals(client, Number(id));
-  await createOrUpdatePaymentJournalEntry(client, invoice, paymentRows[0]);
+  await createOrUpdateCustomerReceiptEntry(client, invoice, paymentRows[0]);
   return Number(id);
 }
 
@@ -1394,7 +1407,11 @@ async function cancelPostgresInvoicePayment(id, paymentId) {
       throw err;
     }
     const { rows: payments } = await client.query(
-      'SELECT id, journal_entry_id, docstatus FROM app_invoice_payments WHERE invoice_id = $1 AND payment_no = $2 FOR UPDATE',
+      `SELECT payment.id, payment.journal_entry_id, payment.docstatus, journal.journal_type
+       FROM app_invoice_payments payment
+       LEFT JOIN app_journal_entries journal ON journal.id = payment.journal_entry_id
+       WHERE payment.invoice_id = $1 AND payment.payment_no = $2
+       FOR UPDATE OF payment`,
       [Number(id), Number(paymentId)],
     );
     const payment = payments[0];
@@ -1410,7 +1427,7 @@ async function cancelPostgresInvoicePayment(id, paymentId) {
     }
     const postingDate = currentPostingDate();
     if (payment.journal_entry_id) {
-      await reverseVoucherGlEntries(client, 'payment_journal', payment.journal_entry_id, postingDate);
+      await reverseVoucherGlEntries(client, payment.journal_type || 'cash_receipt', payment.journal_entry_id, postingDate);
       await client.query("UPDATE app_journal_entries SET docstatus = 'cancelled' WHERE id = $1", [payment.journal_entry_id]);
     }
     await reverseVoucherGlEntries(client, 'customer_payment', payment.id, postingDate);
@@ -1813,6 +1830,7 @@ module.exports = {
   findPostgresInvoice,
   createPostgresInvoice,
   createCashSaleInvoice,
+  cashSalePaymentData,
   updatePostgresInvoice,
   submitPostgresInvoice,
   submitCashSaleInvoice,

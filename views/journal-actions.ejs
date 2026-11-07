@@ -1,0 +1,16 @@
+<% const actionJournalStatus = journal.docstatus || 'submitted'; %>
+<% const actionSharedOnly = typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly; %>
+<% const actionCanCreate = can('vouchers.journals.create')
+  && (currentUser.role === 'admin' || !['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected')); %>
+<% if (journal.id && !actionSharedOnly) { %>
+  <a class="button button-light" href="/journals/<%= journal.id %>/print" target="_blank" rel="noopener">Print</a>
+<% } %>
+<% if (journal.id && !actionSharedOnly && journal.can_cancel && actionJournalStatus === 'submitted' && can('vouchers.journals.cancel')) { %>
+  <form method="post" action="/journals/<%= journal.id %>/cancel" class="inline-form" data-confirm="Cancel this journal? This will reverse its ledger entries.">
+    <button type="submit" class="button-light">Cancel</button>
+  </form>
+<% } %>
+<% if (journal.id && !actionSharedOnly && actionCanCreate) { %>
+  <a class="button button-light" href="/journals/<%= journal.id %>/duplicate">Duplicate</a>
+<% } %>
+<%- include('journal-new-button') %>

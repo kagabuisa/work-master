@@ -1,7 +1,67 @@
+<% const deliveryDetails = deliveryField.details || {}; %>
 <label>
   Delivery status
-  <select name="delivery_status" <%= deliveryField.disabled ? 'disabled' : '' %>>
+  <select name="delivery_status" data-delivery-status-select <%= deliveryField.disabled ? 'disabled' : '' %>>
     <option value="">Not set</option>
     <% deliveryStatuses.forEach(status => { %><option value="<%= status %>" <%= deliveryField.value === status ? 'selected' : '' %>><%= status %></option><% }) %>
   </select>
 </label>
+<dialog class="voucher-dialog delivery-details-dialog" data-delivery-dialog
+  data-stock-entry-id="<%= deliveryField.entryId || '' %>" data-today="<%= deliveryField.today || '' %>"
+  aria-labelledby="delivery-details-title">
+  <div class="voucher-dialog-header">
+    <h2 id="delivery-details-title" data-delivery-dialog-title>Delivery details</h2>
+    <button type="button" class="button-light" data-delivery-cancel>Close</button>
+  </div>
+  <div class="voucher-dialog-body">
+    <p class="ui-helper" data-delivery-dialog-help></p>
+    <div data-delivery-section="picked" hidden>
+      <label>
+        Employee who picked and packed
+        <input type="search" autocomplete="off" value="<%= deliveryDetails.picked_employee_name || '' %>"
+          data-delivery-employee-search="picked" placeholder="Search by employee name or ID">
+      </label>
+      <input type="hidden" name="picked_employee_id" value="<%= deliveryDetails.picked_employee_id || '' %>" data-delivery-dialog-field="picked_employee_id">
+      <input type="hidden" name="picked_employee_name" value="<%= deliveryDetails.picked_employee_name || '' %>" data-delivery-dialog-field="picked_employee_name">
+      <div class="results" data-delivery-employee-results="picked"></div>
+      <p class="field-hint" role="status" aria-live="polite" data-delivery-employee-status="picked"></p>
+      <label>
+        Date picked and packed
+        <input name="picked_date" type="date" value="<%= deliveryDetails.picked_date || '' %>">
+      </label>
+    </div>
+    <div data-delivery-section="delivered" hidden>
+      <label>
+        Transporter name
+        <input name="transporter_name" maxlength="140" value="<%= deliveryDetails.transporter_name || '' %>">
+      </label>
+      <label>
+        Transporter telephone
+        <input name="transporter_phone" type="tel" maxlength="40" value="<%= deliveryDetails.transporter_phone || '' %>">
+      </label>
+      <label>
+        Delivery date
+        <input name="delivered_date" type="date" value="<%= deliveryDetails.delivered_date || '' %>">
+      </label>
+    </div>
+    <div data-delivery-section="received" hidden>
+      <label>
+        Date received
+        <input name="received_date" type="date" value="<%= deliveryDetails.received_date || '' %>">
+      </label>
+      <label>
+        Received &amp; Confirmed By
+        <input type="search" autocomplete="off" value="<%= deliveryDetails.received_by_employee_name || '' %>"
+          data-delivery-employee-search="received" placeholder="Search by employee name or ID">
+      </label>
+      <input type="hidden" name="received_by_employee_id" value="<%= deliveryDetails.received_by_employee_id || '' %>" data-delivery-dialog-field="received_by_employee_id">
+      <input type="hidden" name="received_by_employee_name" value="<%= deliveryDetails.received_by_employee_name || '' %>" data-delivery-dialog-field="received_by_employee_name">
+      <div class="results" data-delivery-employee-results="received"></div>
+      <p class="field-hint" role="status" aria-live="polite" data-delivery-employee-status="received"></p>
+    </div>
+    <div class="actions ui-form-footer">
+      <button type="button" class="button-light" data-delivery-cancel>Cancel</button>
+      <button type="button" data-delivery-confirm>Confirm details</button>
+    </div>
+  </div>
+</dialog>

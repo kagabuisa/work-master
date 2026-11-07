@@ -66,6 +66,7 @@ test('shared write grants draft edit and delivery actions without posting or onw
 test('full and drawer previews show values, delivery and owner sharing with read-only recipient actions', async () => {
   const locals = { assetVersion: 'test', currentUser: { id: 7, role: 'standard' }, can: () => true,
     availableReports: [], money: value => `Ugx ${value}`, today: '2026-10-18', error: null, readOnly: true,
+    dateTimeSettings: { date_format: 'DD/MM/YYYY', time_format: '24h' },
     entry: { id: 12, entry_no: 'STK-12', entry_type: 'transfer', docstatus: 'draft', delivery_status: 'In Transit',
       created_by_user_id: '7', posting_date: '2026-10-18' },
     items: [{ item_code: 'ITEM', warehouse: 'Source', target_warehouse: 'Target', quantity: 1.25, valuation_rate: 10 }],
@@ -84,13 +85,29 @@ test('full and drawer previews show values, delivery and owner sharing with read
       ...locals, canManageWorkflow: false, sharing: null, sharedAccessOnly: true,
     });
     assert.match(shared, /<span>Delivery status<\/span><strong>In Transit/);
-    assert.doesNotMatch(shared, /name="permission"|Save delivery status|Delete Draft|>Submit<|>Duplicate<|>Edit<\/a>/);
+    assert.doesNotMatch(shared, /name="permission"|Update Status|Delete Draft|>Submit<|>Duplicate<|>Edit<\/a>/);
     const writer = await renderView(path.join(__dirname, '../views', view), {
       ...locals, canManageWorkflow: false, canUpdateDelivery: true, sharing: null, sharedAccessOnly: true, sharedWriteAccess: true,
     });
     assert.match(writer, />Edit<\/a>/);
-    assert.match(writer, /Save delivery status/);
+    assert.match(writer, /Update Status/);
     assert.doesNotMatch(writer, /name="permission"|Delete Draft|>Submit<|>Duplicate<|Update permission/);
+    const receivedDdr = await renderView(path.join(__dirname, '../views', view), {
+      ...locals,
+      entry: { ...locals.entry, delivery_status: 'Received + DDR', delivery_details: {
+        picked_employee_name: 'Stephen', picked_date: '2026-10-17', in_transit_date: '2026-10-17',
+        transporter_name: 'Stephen', transporter_phone: '0702345566', delivered_date: '2026-10-18',
+        received_date: '2026-10-18', received_by_employee_name: 'Receiving Employee',
+        received_by_employee_id: 'RECEIVER-1',
+      } },
+    });
+    assert.match(receivedDdr, /Stephen · 17\/10\/2026/);
+    assert.match(receivedDdr, /Stephen · 0702345566 · 18\/10\/2026/);
+    assert.match(receivedDdr, /In Transit<\/span><strong>17\/10\/2026/);
+    assert.match(receivedDdr, /Receiving Employee/);
+    assert.match(receivedDdr, /Receiving Employee · 18\/10\/2026/);
+    assert.match(receivedDdr, /Received &amp; Confirmed By/);
+    assert.match(receivedDdr, /Delivery Difference Report required/);
   }
 });
 
@@ -103,7 +120,20 @@ test('delivery is a main field on new and edit forms and remains editable on sub
     const html = await renderView(path.join(__dirname, '../views/stock-entry.ejs'), { ...locals, entry });
     const mainFields = html.slice(html.indexOf('<section class="form-grid ui-form-grid">'), html.indexOf('id="stock-entry-item-status" class='));
     assert.match(mainFields, /name="delivery_status"/);
-    for (const status of ['In Transit', 'Delivered', 'All Received']) assert.ok(mainFields.includes(status));
+    for (const status of ['In Transit', 'Delivered', 'All Received', 'Received + DDR']) assert.ok(mainFields.includes(status));
+    assert.match(mainFields, /data-delivery-dialog/);
+    assert.match(mainFields, /name="picked_employee_id"/);
+    assert.match(mainFields, /name="picked_date"/);
+    assert.match(mainFields, /name="transporter_name"/);
+    assert.match(mainFields, /name="transporter_phone"/);
+    assert.match(mainFields, /name="delivered_date"/);
+    assert.match(mainFields, /name="received_date"/);
+    assert.match(mainFields, /name="received_by_employee_id"/);
+    assert.match(mainFields, /Received &amp; Confirmed By/);
+    assert.doesNotMatch(mainFields, /name="received_confirmed"/);
+    const deliveryDialog = mainFields.slice(mainFields.indexOf('data-delivery-dialog'),
+      mainFields.indexOf('</dialog>'));
+    assert.doesNotMatch(deliveryDialog, /\srequired(?:\s|>)/);
     assert.doesNotMatch(mainFields, /name="delivery_status" disabled/);
     if (entry) assert.match(mainFields, /value="Picked &amp; packed" selected/);
   }
@@ -121,7 +151,7 @@ test('delivery is a main field on new and edit forms and remains editable on sub
     const mainFields = html.slice(html.indexOf('aria-label="Stock entry details"'), html.indexOf('aria-label="Stock entry items"'));
     assert.match(mainFields, /name="delivery_status"/);
     assert.match(mainFields, /action="\/stock\/entries\/12\/delivery"/);
-    assert.match(mainFields, /Save delivery status/);
+    assert.match(mainFields, /Update Status/);
     assert.doesNotMatch(mainFields, /name="delivery_status" disabled/);
   }
 });
@@ -141,18 +171,37 @@ test('stock delivery and sharing persist, reject unauthorized changes, and enfor
     const recipient = await auth.createUser('stock-reader', 'StockPassword123!', { role: 'standard' });
     const other = await auth.createUser('stock-other', 'StockPassword123!', { role: 'standard' });
     const admin = await auth.createUser('stock-admin', 'StockPassword123!', { role: 'admin' });
+    await pool.query(`INSERT INTO app_master_employees(employee_id,employee_name,status,docstatus)
+      VALUES('STOCK-DELIVERY-EMPLOYEE','Stock Delivery Employee','Active','submitted'),
+        ('RESTRICTED-DELIVERY-EMPLOYEE','Restricted Delivery Employee','Active','submitted'),
+        ('DRAFT-DELIVERY-EMPLOYEE','Draft Delivery Employee','Active','draft')`);
     await auth.saveUserPermissionOverrides(recipient.id, [], auth.PERMISSIONS.map(p => p.key));
     const draftPayload = { entry_type: 'opening',
       action: 'save_draft', posting_date: FIXED.date,
       items: [{ item_code: FIXED.itemCode, warehouse: FIXED.warehouse, quantity: 1.25, valuation_rate: 10 }] };
+    const detailsFor = status => status === 'Picked & packed'
+      ? { picked_employee_id: 'STOCK-DELIVERY-EMPLOYEE', picked_date: FIXED.date }
+      : status === 'Delivered'
+        ? { transporter_name: 'Delivery Transporter', transporter_phone: '+256700000000',
+          delivered_date: FIXED.date }
+        : ['All Received', 'Received + DDR'].includes(status)
+          ? { received_date: FIXED.date, received_by_employee_id: 'STOCK-DELIVERY-EMPLOYEE' }
+          : {};
     const initialCount = (await pool.query('SELECT COUNT(*)::int n FROM app_stock_entries')).rows[0].n;
     await assert.rejects(runWithAuditUser(owner, () => store.createStockEntry({ ...draftPayload, delivery_status: 'Invalid' }, { deliveryUser: owner })), { status: 400 });
     assert.equal((await pool.query('SELECT COUNT(*)::int n FROM app_stock_entries')).rows[0].n, initialCount);
-    const id = await runWithAuditUser(owner, () => store.createStockEntry({ ...draftPayload, delivery_status: 'Picked & packed' }, { deliveryUser: owner }));
+    const id = await runWithAuditUser(owner, () => store.createStockEntry({
+      ...draftPayload, delivery_status: 'Picked & packed', delivery_details: detailsFor('Picked & packed'),
+    }, { deliveryUser: owner }));
     const data = await store.loadStockEntry(id);
     assert.equal(data.entry.delivery_status, 'Picked & packed');
+    assert.equal(data.entry.delivery_details.picked_employee_name, 'Stock Delivery Employee');
+    assert.equal(data.entry.delivery_details.picked_date, FIXED.date);
     await runWithAuditUser(owner, () => store.updateStockEntry(id, { ...draftPayload, delivery_status: 'In Transit' }, { deliveryUser: owner }));
     assert.equal((await store.loadStockEntry(id)).entry.delivery_status, 'In Transit');
+    assert.equal((await store.loadStockEntry(id)).entry.delivery_details.picked_employee_name, 'Stock Delivery Employee');
+    assert.equal((await store.loadStockEntry(id)).entry.delivery_details.in_transit_date,
+      require('../src/posting-time').currentPostingDate());
     const changedPayload = { ...draftPayload, remarks: 'Should roll back', delivery_status: 'Delivered' };
     await assert.rejects(runWithAuditUser(other, () => store.updateStockEntry(id, changedPayload, { deliveryUser: other })), { status: 403 });
     await assert.rejects(runWithAuditUser(owner, () => store.updateStockEntry(id, { ...changedPayload, delivery_status: 'Invalid' }, { deliveryUser: owner })), { status: 400 });
@@ -161,6 +210,14 @@ test('stock delivery and sharing persist, reject unauthorized changes, and enfor
     await assert.rejects(workflow.changeStockEntryWorkflow(other, id, 'share', recipient.id), { status: 403 });
     await assert.rejects(workflow.changeStockEntryWorkflow(other, id, 'delivery', 'Delivered'), { status: 403 });
     await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'delivery', 'Invalid'), { status: 400 });
+    await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'delivery', 'Delivered'), { status: 400 });
+    await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'delivery', 'Picked & packed',
+      'read', { picked_employee_id: 'STOCK-DELIVERY-EMPLOYEE', picked_date: '' }), { status: 400 });
+    await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'delivery', 'Delivered',
+      'read', { transporter_name: 'Delivery Transporter', transporter_phone: '+256700000000' }), { status: 400 });
+    await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'delivery', 'All Received',
+      'read', { received_date: '2026-02-30', received_by_employee_id: 'STOCK-DELIVERY-EMPLOYEE',
+      }), { status: 400 });
     await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'share', owner.id), { status: 400 });
     await assert.rejects(workflow.changeStockEntryWorkflow(owner, id, 'share', admin.id), { status: 400 });
     const inactive = await auth.createUser('stock-inactive', 'StockPassword123!', { role: 'standard' });
@@ -257,7 +314,7 @@ test('stock delivery and sharing persist, reject unauthorized changes, and enfor
     assert.equal((await store.loadStockEntry(id)).items[0].warehouse, FIXED.warehouse);
     const beforeLedger = (await pool.query('SELECT COUNT(*)::int n FROM app_stock_ledger')).rows[0].n;
     for (const status of workflow.DELIVERY_STATUSES) {
-      await workflow.changeStockEntryWorkflow(owner, id, 'delivery', status);
+      await workflow.changeStockEntryWorkflow(owner, id, 'delivery', status, 'read', detailsFor(status));
       assert.equal((await store.loadStockEntry(id)).entry.delivery_status, status);
       assert.equal((await store.listStockEntries({ sharedWithUserId: recipient.id, delivery_status: status })).pagination.total, 1);
     }
@@ -275,15 +332,50 @@ test('stock delivery and sharing persist, reject unauthorized changes, and enfor
     const beforeDelivery = await postingSnapshot();
     await auth.saveUserPermissionOverrides(owner.id, ['vouchers.stock.view'], auth.PERMISSIONS.filter(p => p.key !== 'vouchers.stock.view').map(p => p.key));
     const ownerToken = await auth.createSession(owner.id);
+    const employeeSearch = await request('/stock/delivery-employees?q=Stock', {
+      headers: { Cookie: `wm_session=${ownerToken}`, Accept: 'application/json' },
+    });
+    assert.equal(employeeSearch.status, 200);
+    assert.deepEqual((await employeeSearch.json()).map(row => row.employee_id), ['STOCK-DELIVERY-EMPLOYEE']);
+    const draftEmployeeSearch = await request('/stock/delivery-employees?q=Draft', {
+      headers: { Cookie: `wm_session=${ownerToken}`, Accept: 'application/json' },
+    });
+    assert.equal(draftEmployeeSearch.status, 200);
+    assert.deepEqual(await draftEmployeeSearch.json(), []);
+    await pool.query(`UPDATE app_stock_entry_delivery SET delivery_details='{}'::jsonb WHERE stock_entry_id=$1`, [id]);
+    const employeeReader = await auth.createUser('stock-employee-reader', 'StockPassword123!', {
+      role: 'standard', record_access: { employee_id: 'RESTRICTED-DELIVERY-EMPLOYEE' },
+    });
+    await auth.saveUserPermissionOverrides(employeeReader.id, ['vouchers.stock.view'],
+      auth.PERMISSIONS.filter(p => p.key !== 'vouchers.stock.view').map(p => p.key));
+    const employeeReaderToken = await auth.createSession(employeeReader.id);
+    const restrictedEmployeeSearch = await request('/stock/delivery-employees?q=Employee', {
+      headers: { Cookie: `wm_session=${employeeReaderToken}`, Accept: 'application/json' },
+    });
+    assert.equal(restrictedEmployeeSearch.status, 200);
+    assert.deepEqual((await restrictedEmployeeSearch.json()).map(row => row.employee_id),
+      ['RESTRICTED-DELIVERY-EMPLOYEE']);
+    const missingTransporter = await request(`/stock/entries/${id}/delivery`, { method: 'POST',
+      headers: { Cookie: `wm_session=${ownerToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'delivery_status=Delivered' });
+    assert.equal(missingTransporter.status, 400);
+    assert.match((await missingTransporter.json()).error, /transporter name/);
     const deliveryResponse = await request(`/stock/entries/${id}/delivery`, { method: 'POST',
-      headers: { Cookie: `wm_session=${ownerToken}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'delivery_status=Delivered' });
+      headers: { Cookie: `wm_session=${ownerToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ delivery_status: 'Delivered', transporter_name: 'HTTP Transporter',
+        transporter_phone: '+256711111111', delivered_date: FIXED.date }).toString() });
     assert.equal(deliveryResponse.status, 303);
     assert.equal((await store.loadStockEntry(id)).entry.delivery_status, 'Delivered');
+    assert.equal((await store.loadStockEntry(id)).entry.delivery_details.delivered_date, FIXED.date);
     assert.deepEqual(await postingSnapshot(), beforeDelivery);
     const writerDelivery = await request(`/stock/entries/${id}/delivery`, { method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'delivery_status=All+Received' });
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ delivery_status: 'All Received', received_date: FIXED.date,
+        received_by_employee_id: 'STOCK-DELIVERY-EMPLOYEE' }).toString() });
     assert.equal(writerDelivery.status, 303);
     assert.equal((await store.loadStockEntry(id)).entry.delivery_status, 'All Received');
+    assert.equal((await store.loadStockEntry(id)).entry.delivery_details.received_by_employee_name, 'Stock Delivery Employee');
+    assert.equal((await store.loadStockEntry(id)).entry.delivery_details.received_confirmed, true);
     assert.deepEqual(await postingSnapshot(), beforeDelivery);
     await workflow.changeStockEntryWorkflow(admin, id, 'revoke', recipient.id);
     assert.equal((await request(`/stock/entries/${id}`)).status, 403);

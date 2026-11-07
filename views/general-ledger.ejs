@@ -23,7 +23,7 @@
       <article class="ui-metric-focus"><span>Net Balance</span><strong><%= money(report.summary.balance) %></strong></article>
     </section>
 
-    <form class="report-filters general-ledger-filters ui-toolbar ui-filter-row" method="get">
+    <form class="report-filters general-ledger-filters ui-toolbar ui-filter-row" method="get" autocomplete="off" data-general-ledger-filters>
       <% if (report.filters.voucher_id) { %><input type="hidden" name="voucher_id" value="<%= report.filters.voucher_id %>"><% } %>
       <label class="general-ledger-floating-field">
         <input name="q" value="<%= report.filters.search %>" placeholder=" " autocomplete="off">
@@ -43,7 +43,7 @@
         <select name="party_scope"><option value="lines" <%= report.filters.party_scope === 'lines' ? 'selected' : '' %>>Party entries</option><option value="related" <%= report.filters.party_scope !== 'lines' ? 'selected' : '' %>>All related voucher postings</option></select><span class="floating-label">Party scope</span>
       </label>
       <label class="general-ledger-floating-field general-ledger-choice-field">
-        <select name="group_by"><option value="date">Posting date</option><option value="account" <%= report.filters.group_by === 'account' ? 'selected' : '' %>>GL account</option></select><span class="floating-label">Group by</span>
+        <select name="group_by"><option value="date">Posting date</option><option value="pair" <%= report.filters.group_by === 'pair' ? 'selected' : '' %>>Voucher pairs</option><option value="account" <%= report.filters.group_by === 'account' ? 'selected' : '' %>>GL account</option></select><span class="floating-label">Group by</span>
       </label>
       <label class="general-ledger-floating-field general-ledger-choice-field">
         <select name="voucher_type">
@@ -61,7 +61,7 @@
       <label class="general-ledger-floating-field general-ledger-choice-field"><input type="date" name="to" value="<%= report.filters.to %>"><span class="floating-label">To</span></label>
       <div class="report-filter-actions">
         <button type="submit">Apply</button>
-        <a class="button button-light" href="/reports/general-ledger">Reset</a>
+        <a class="button button-light" href="/reports/general-ledger" data-general-ledger-reset>Reset</a>
         <%- include('ui-download-menu') %>
       </div>
     </form>
@@ -99,7 +99,7 @@
     <% } %>
 
     <section class="invoice-card report-section ui-surface ui-results">
-      <%- include('ui-section-heading', { heading: { title: 'Ledger entries', help: 'Opening balance includes matching postings before From, separately per account. It is repeated at the top of each page; running balances include opening history and earlier pages. With no From date, opening is zero. Positive balances are debit; negative balances are credit. All other filters and permissions apply to opening history.' } }) %>
+      <%- include('ui-section-heading', { heading: { title: 'Ledger entries', help: report.filters.group_by === 'pair' ? 'Voucher pairs keeps all lines for the same voucher together within each posting date and places cancellation reversal lines after the original lines. Running balances follow this displayed order; the day-end balance is unchanged. The default Posting date grouping remains chronological.' : 'Opening balance includes matching postings before From, separately per account. It is repeated at the top of each page; running balances include opening history and earlier pages. With no From date, opening is zero. Positive balances are debit; negative balances are credit. All other filters and permissions apply to opening history.' } }) %>
       <div class="ui-table-scroll" role="region" aria-label="General Ledger table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
@@ -129,24 +129,27 @@
           <% } %>
           <% report.rows.forEach((row, index) => { %>
             <% if (report.filters.group_by === 'account' && (index === 0 || report.rows[index-1].account_code !== row.account_code)) { %><tr class="ui-account-divider"><th colspan="10" scope="rowgroup"><%= row.account_code %> — <%= row.account_name %></th></tr><% } %>
-            <tr>
+            <% const pairKey = report.filters.group_by === 'pair' ? `${row.pair_voucher_type || ''}:${row.pair_voucher_id || ''}` : ''; %>
+            <% const previousPairKey = report.filters.group_by === 'pair' && index > 0 ? `${report.rows[index-1].pair_voucher_type || ''}:${report.rows[index-1].pair_voucher_id || ''}` : ''; %>
+            <% const pairStarts = report.filters.group_by === 'pair' && pairKey !== previousPairKey; %>
+            <tr class="<%= pairStarts ? 'ui-voucher-pair-start' : '' %><%= report.filters.group_by === 'pair' && row.is_reversal ? ' ui-reversal-row' : '' %>">
               <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td><%= formatDate(row.posting_date) %></td>
               <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
               <td class="ui-amount"><%= row.debit ? money(row.debit) : '' %></td>
               <td class="ui-amount"><%= row.credit ? money(row.credit) : '' %></td>
               <td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
-              <td><%= (row.voucher_type || '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') %></td>
+              <td><%= (row.voucher_type || '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') %><% if (report.filters.group_by === 'pair' && row.is_reversal) { %> <small class="ui-pair-role">Reversal</small><% } %></td>
               <td>
-                <% if (row.voucher_exists !== false && row.voucher_type === 'sales_invoice' && row.voucher_id) { %>
+                <% if (row.voucher_exists !== false && ['sales_invoice', 'sales_invoice_cancellation'].includes(row.voucher_type) && row.voucher_id) { %>
                   <a href="/invoices/<%= row.voucher_id %>" data-voucher-drawer="/invoices/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_exists !== false && row.voucher_type === 'purchase' && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && ['purchase', 'purchase_cancellation'].includes(row.voucher_type) && row.voucher_id) { %>
                   <a href="/purchases/<%= row.voucher_id %>" data-voucher-drawer="/purchases/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_exists !== false && row.voucher_type === 'purchase_payment' && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && ['purchase_payment', 'purchase_payment_cancellation'].includes(row.voucher_type) && row.voucher_id) { %>
                   <a href="/purchases/payments/<%= row.voucher_id %>" data-voucher-drawer="/purchases/payments/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_exists !== false && row.voucher_type === 'customer_payment' && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && ['customer_payment', 'customer_payment_cancellation'].includes(row.voucher_type) && row.voucher_id) { %>
                   <a href="/invoices/payments/<%= row.voucher_id %>" data-voucher-drawer="/invoices/payments/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
-                <% } else if (row.voucher_exists !== false && ['cash_receipt', 'payment_journal', 'journal_entry'].includes(row.voucher_type) && row.voucher_id) { %>
+                <% } else if (row.voucher_exists !== false && ['cash_receipt', 'payment_journal', 'journal_entry', 'cash_receipt_cancellation', 'payment_journal_cancellation', 'journal_entry_cancellation'].includes(row.voucher_type) && row.voucher_id) { %>
                   <a href="/journals/<%= row.voucher_id %>" data-voucher-drawer="/journals/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
                 <% } else if (row.voucher_exists !== false && row.voucher_type && row.voucher_type.startsWith('stock_') && row.voucher_id) { %>
                   <a href="/stock/entries/<%= row.voucher_id %>" data-voucher-drawer="/stock/entries/<%= row.voucher_id %>/drawer"><%= row.voucher_no || row.voucher_id %></a>
@@ -178,6 +181,6 @@
       <%- include('pagination', { pagination: report.pagination, query, basePath: '/reports/general-ledger' }) %>
     </section>
   </main>
-  <script src="/general-ledger.js"></script>
+  <script src="/general-ledger.js?v=<%= assetVersion %>"></script>
 </body>
 </html>

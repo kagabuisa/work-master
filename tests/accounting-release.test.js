@@ -26,18 +26,21 @@ test('invoice, cash sale, payment, stock and journal postings reconcile', {
       [seed.invoiceId])).rows[0];
     assert.deepEqual(dates, { invoice_date: FIXED.date, due_date: FIXED.date });
     const postingDates = (await pool.query(`SELECT DISTINCT posting_date FROM app_gl_entries
-      WHERE voucher_type IN ('sales_invoice', 'payment_journal')`)).rows;
+      WHERE voucher_type IN ('sales_invoice', 'cash_receipt')`)).rows;
     assert.deepEqual(postingDates, [{ posting_date: FIXED.date }], 'invoice and payment dates retain their calendar day');
     const previousInvoice = (await pool.query(
-      'SELECT docstatus, amount_paid::float AS amount_paid FROM app_invoices WHERE id = $1', [seed.invoiceId],
+      'SELECT docstatus, total::float AS total, amount_paid::float AS amount_paid FROM app_invoices WHERE id = $1',
+      [seed.invoiceId],
     )).rows[0];
-    assert.deepEqual(previousInvoice, { docstatus: 'submitted', amount_paid: 200 });
+    assert.deepEqual(previousInvoice, { docstatus: 'submitted', total: 594, amount_paid: 200 });
     const previousPayment = (await pool.query(
       'SELECT journal_entry_id FROM app_invoice_payments WHERE invoice_id = $1', [seed.invoiceId],
     )).rows[0];
     assert(previousPayment.journal_entry_id, 'invoice payment has a posted journal');
+    const previousReceipt = await store.findJournalEntry(previousPayment.journal_entry_id);
+    assert.equal(await store.cashReceiptOutstandingBalance(previousReceipt), 394);
     assert.equal((await glLines(pool, 'sales_invoice', seed.invoiceId)).length, 5);
-    assert.equal((await glLines(pool, 'payment_journal', previousPayment.journal_entry_id)).length, 2);
+    assert.equal((await glLines(pool, 'cash_receipt', previousPayment.journal_entry_id)).length, 2);
 
     const cashAccount = (await pool.query(
       "SELECT account_id FROM app_accounting_settings WHERE setting_key = 'cash'",
@@ -49,7 +52,7 @@ test('invoice, cash sale, payment, stock and journal postings reconcile', {
       items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName,
         warehouse: FIXED.warehouse, quantity: 2, unit_price: 180 }],
     };
-    const payment = { payment_date: FIXED.date, amount: 360, method: 'cash', account_id: cashAccount };
+    const payment = { payment_date: '2026-01-14', amount: 360, method: 'cash', account_id: cashAccount };
     const cashSaleId = await store.createCashSaleInvoice(payload, payment);
     const invoice = (await pool.query(`
       SELECT docstatus, is_cash_sale, total::float AS total, amount_paid::float AS amount_paid, status
@@ -57,6 +60,15 @@ test('invoice, cash sale, payment, stock and journal postings reconcile', {
     `, [cashSaleId])).rows[0];
     assert.deepEqual(invoice, {
       docstatus: 'submitted', is_cash_sale: true, total: 360, amount_paid: 360, status: 'paid',
+    });
+    assert.deepEqual((await pool.query(`
+      SELECT payment.payment_date::text, journal.posting_date::text
+      FROM app_invoice_payments payment
+      JOIN app_journal_entries journal ON journal.id = payment.journal_entry_id
+      WHERE payment.invoice_id = $1
+    `, [cashSaleId])).rows[0], {
+      payment_date: FIXED.date,
+      posting_date: FIXED.date,
     });
     const cost = Number((await pool.query(
       'SELECT cost_amount FROM app_invoice_items WHERE invoice_pk = $1', [cashSaleId],
@@ -69,12 +81,17 @@ test('invoice, cash sale, payment, stock and journal postings reconcile', {
       { account_code: '5000', debit: cost, credit: 0 },
     ]);
     const journals = (await pool.query(`
-      SELECT id, journal_type, total_debit::float AS debit, total_credit::float AS credit
+      SELECT id, journal_type, received_from, total_debit::float AS debit, total_credit::float AS credit
       FROM app_journal_entries WHERE reference_no = (SELECT invoice_no FROM app_invoices WHERE id = $1)
       ORDER BY journal_type
     `, [cashSaleId])).rows;
-    assert.deepEqual(journals.map((row) => row.journal_type), ['payment_journal', 'sales_invoice']);
-    assert.deepEqual(await glLines(pool, 'payment_journal', journals[0].id), [
+    assert.deepEqual(journals.map((row) => row.journal_type), ['cash_receipt', 'sales_invoice']);
+    assert.equal(journals[0].received_from, FIXED.customerName);
+    const cashSaleReceipt = await store.findJournalEntry(journals[0].id);
+    assert.equal(cashSaleReceipt.can_cancel, false);
+    assert.equal(await store.cashReceiptOutstandingBalance(cashSaleReceipt), 394,
+      'receipt balance uses the customer account, including another invoice still outstanding');
+    assert.deepEqual(await glLines(pool, 'cash_receipt', journals[0].id), [
       { account_code: '1100', debit: 0, credit: 360 },
       { account_code: '1110', debit: 360, credit: 0 },
     ]);

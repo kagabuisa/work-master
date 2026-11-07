@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 62;
+const SCHEMA_VERSION = 66;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -266,6 +266,15 @@ const MIGRATIONS = [
     up:client=>require('./stock-daily').initStockDaily(client) },
   { version:62, name:'voucher_sharing',
     up:client=>require('./voucher-sharing').initVoucherSharing(client) },
+  { version:63, name:'stock_delivery_receipt_details',
+    up:client=>client.query(require('node:fs').readFileSync(
+      require('node:path').join(__dirname,'sql/stock-delivery-details.sql'),'utf8')) },
+  { version:64, name:'cash_receipt_received_from',
+    up:client=>client.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS received_from TEXT') },
+  { version:65, name:'payment_voucher_paid_to',
+    up:client=>client.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS paid_to TEXT') },
+  { version:66, name:'customer_cash_receipts',
+    up:client=>require('./customer-receipts').reclassifyInvoicePaymentReceipts(client) },
 ];
 
 async function ensureSchema(pool) {

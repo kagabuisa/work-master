@@ -1,7 +1,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const { getPostgresPool, withPostgresTransaction } = require('../core');
-const { applyPermissionOverrides, authenticate, verifyPassword, passwordHash,
+const { applyPermissionOverrides, verifyCredentials, passwordVersionMatches, verifyPassword, passwordHash,
   validatePassword, createUser } = require('../auth');
 const { runWithAuditUser } = require('../audit');
 const { apiError } = require('./errors');
@@ -33,19 +33,19 @@ function tokenResponse(access, refresh, user) {
 }
 
 async function login(username, password, requestId) {
-  const verified = await authenticate(username, password);
+  const verified = await verifyCredentials(username, password);
   if (!verified) throw apiError(401, 'invalid_credentials', 'Invalid username or password.');
-  return runWithAuditUser(verified, () => withPostgresTransaction(async client => {
-    const user = await currentUser(client, verified.id, true);
-    // Reverify under lock so a concurrent reset cannot issue a fresh session.
-    if (!user || user.api_service_account || !await verifyPassword(password, user.password_hash)) {
+  return runWithAuditUser(verified.user, () => withPostgresTransaction(async client => {
+    const user = await currentUser(client, verified.user.id, true);
+    // The locked password version must still match the one verified above.
+    if (!user || user.api_service_account || !passwordVersionMatches(user, verified.passwordVersion)) {
       throw apiError(401, 'invalid_credentials', 'Invalid username or password.');
     }
     const id = crypto.randomUUID(), access = secret(), refresh = secret();
     await client.query(`INSERT INTO wm_api_sessions
       (id,user_id,password_version,access_hash,access_expires_at,expires_at)
       VALUES ($1,$2,$3,$4,now()+interval '15 minutes',now()+interval '30 days')`,
-    [id, user.id, hash(user.password_hash), hash(access)]);
+    [id, user.id, verified.passwordVersion, hash(access)]);
     await client.query('INSERT INTO wm_api_refresh_tokens(token_hash,session_id) VALUES ($1,$2)', [hash(refresh), id]);
     await recordApiAudit(client, { requestId, user, sessionId: id }, 'auth.login', 'committed');
     return tokenResponse(access, refresh, user);

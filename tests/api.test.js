@@ -208,7 +208,7 @@ test('API authentication, transactional retries and website payment parity', {
         // number. The numbers differ between independent vouchers by design.
         assert.match(payment.reference, /^JRN-\d+$/);
         const ledger = (await pool.query(`SELECT account_id,debit::text,credit::text FROM app_gl_entries
-          WHERE voucher_id=$1 AND voucher_type='payment_journal' ORDER BY line_no`, [payment.journal_entry_id])).rows;
+          WHERE voucher_id=$1 AND voucher_type='cash_receipt' ORDER BY line_no`, [payment.journal_entry_id])).rows;
         return { total: invoice.total, amount_paid: invoice.amount_paid, method: payment.method,
           amount: payment.amount, reference: '<generated journal number>', ledger };
       };

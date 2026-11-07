@@ -1,0 +1,185 @@
+<% const journalLines = Array.isArray(journal.lines) ? journal.lines : []; %>
+<% const journalReferences = [...new Set([journal.reference_no, ...journalLines.map((line) => line.reference_no)].filter(Boolean))]; %>
+<% const journalStatus = journal.docstatus || 'submitted'; %>
+<% const isCashReceipt = journal.journal_type === 'cash_receipt'; %>
+<% const isPaymentVoucher = journal.journal_type === 'payment_journal'; %>
+<% const isPartyDocument = isCashReceipt || isPaymentVoucher; %>
+<% const statusLabel = journalStatus === 'draft' ? 'Draft' : journalStatus === 'cancelled' ? 'Cancelled' : 'Submitted'; %>
+<% const documentTitle = isCashReceipt ? 'Cash Receipt' : isPaymentVoucher ? 'Payment Voucher' : journalTypeLabel(journal.journal_type); %>
+<% const documentNumberLabel = isCashReceipt ? 'Receipt No.' : isPaymentVoucher ? 'Voucher No.' : 'Journal No.'; %>
+<% const partyName = journal.party_name || journal.party_id || 'No party recorded'; %>
+<% const receivedFrom = String(journal.received_from || '').trim(); %>
+<% const paidTo = String(journal.paid_to || '').trim(); %>
+<% const accountLabel = (line) => [line.account_code, line.account_name].filter(Boolean).join(' · ') || '—'; %>
+<% const settlementAccountLabel = isCashReceipt ? 'Receipt account' : 'Payment account'; %>
+<% const accountKind = (line) => /\bbank\b/i.test(`${line.account_detail_type || ''} ${line.account_name || ''}`) ? 'Bank' : 'Cash'; %>
+<% const normalizedNarration = (value) => String(value || '').replace(/\s+/g, ' ').trim(); %>
+<% const receiptAccountKind = [...new Set(journalLines
+  .filter((line) => Number(line.debit || 0) > 0)
+  .map(accountKind))].join(', ') || 'Cash'; %>
+<% const paymentAccountKind = [...new Set(journalLines
+  .filter((line) => Number(line.credit || 0) > 0)
+  .map(accountKind))].join(', ') || 'Cash'; %>
+<% const partyDetailSide = isCashReceipt ? 'credit' : 'debit'; %>
+<% const partyDetailLines = journalLines
+  .filter((line) => Number(line[partyDetailSide] || 0) > 0)
+  .map((line) => ({
+    label: line.remarks || ((line.reference_no || journal.reference_no)
+      ? `Payment for ${line.reference_no || journal.reference_no}` : 'Payment detail'),
+    reference: line.remarks && line.reference_no ? line.reference_no : '',
+    amount: Number(line[partyDetailSide] || 0),
+  })); %>
+<% const documentNarration = normalizedNarration(journal.remarks); %>
+<% const narrationRepeatedInDetails = documentNarration
+  && partyDetailLines.some((line) => normalizedNarration(line.label) === documentNarration); %>
+<% const fallbackAmount = journalLines.reduce((total, line) => total + Number(line.debit || 0), 0); %>
+<% const documentAmount = Number(journal.total_debit || fallbackAmount || 0); %>
+<% const outstandingBalance = isCashReceipt && typeof receiptBalance !== 'undefined'
+  && Number(receiptBalance) > 0 ? Number(receiptBalance) : null; %>
+<% const preparerName = typeof preparedBy !== 'undefined' ? preparedBy
+  : journal.created_by || (typeof currentUser !== 'undefined' && currentUser ? currentUser.username : 'Unknown'); %>
+<% const amountWords = typeof amountInWords === 'function' ? amountInWords(documentAmount) : ''; %>
+<% const signatures = isCashReceipt ? [
+  { role: 'Prepared by', name: preparerName, note: 'Prepared the receipt' },
+  { role: 'Received by (Cashier)', name: '', note: 'Name, signature & date' },
+  { role: 'Payer / authorised representative', name: '', note: 'Name, signature & date' },
+] : isPaymentVoucher ? [
+  { role: 'Prepared by', name: preparerName, note: 'Prepared the voucher' },
+  { role: 'Approved by', name: '', note: 'Name, signature & date' },
+  { role: 'Paid by (Cashier)', name: '', note: 'Name, signature & date' },
+  { role: 'Payee / authorised representative', name: '', note: 'Name, signature & date' },
+] : [
+  { role: 'Prepared by', name: preparerName, note: 'Prepared the journal' },
+  { role: 'Approved by', name: '', note: 'Name, signature & date' },
+]; %>
+<!doctype html>
+<html lang="en">
+<head>
+  <title><%= documentTitle %> <%= journal.journal_no %></title>
+  <%- include('partials-head') %>
+</head>
+<body class="print-page">
+  <main class="print-sheet voucher-print-document">
+    <div class="print-actions no-print">
+      <button type="button" data-print-page>Print</button>
+    </div>
+    <header class="invoice-document-header">
+      <div class="invoice-header-company"><%- include('invoice-company') %></div>
+      <div class="invoice-voucher-info">
+        <h1><%= documentTitle %></h1>
+        <p><%= documentNumberLabel %> <%= journal.journal_no %></p>
+        <% if (isCashReceipt && journalStatus === 'submitted') { %>
+          <strong class="voucher-print-paid-stamp">PAID</strong>
+        <% } %>
+      </div>
+    </header>
+
+    <% if (isPartyDocument) { %>
+      <section class="voucher-print-summary" aria-label="<%= documentTitle %> summary">
+        <div class="voucher-print-party">
+          <span><%= isCashReceipt ? 'Received from' : 'Pay to' %></span>
+          <% if (isCashReceipt) { %>
+            <strong class="voucher-print-manual-value"><%= receivedFrom %></strong>
+            <p><%= receivedFrom ? 'Payer' : 'To be entered manually' %></p>
+          <% } else { %>
+            <strong class="voucher-print-manual-value"><%= paidTo %></strong>
+            <p><%= paidTo ? 'Payee' : 'To be entered manually' %></p>
+          <% } %>
+        </div>
+        <div class="voucher-print-amount">
+          <span><%= isCashReceipt ? 'Amount received' : 'Amount paid' %></span>
+          <strong><%= money(documentAmount) %></strong>
+          <% if (amountWords) { %><p><%= amountWords %></p><% } %>
+          <% if (outstandingBalance) { %>
+            <div class="voucher-print-balance">
+              <span>Balance outstanding</span>
+              <strong><%= money(outstandingBalance) %></strong>
+            </div>
+          <% } %>
+        </div>
+      </section>
+
+      <section class="voucher-print-details" aria-label="<%= documentTitle %> details">
+        <div class="voucher-print-detail">
+          <span>Date</span>
+          <strong><%= formatDate(journal.posting_date) %></strong>
+        </div>
+        <div class="voucher-print-detail">
+          <span><%= settlementAccountLabel %></span>
+          <strong><%= isCashReceipt ? receiptAccountKind : paymentAccountKind %></strong>
+        </div>
+        <div class="voucher-print-detail">
+          <span>Reference</span>
+          <strong><%= journalReferences.length ? journalReferences.join(', ') : '—' %></strong>
+        </div>
+        <div class="voucher-print-detail">
+          <span>Status</span>
+          <strong><%= statusLabel %></strong>
+        </div>
+      </section>
+
+      <section class="voucher-print-particulars">
+        <span><%= isCashReceipt ? 'Payment received for' : 'Payment made for' %></span>
+        <% if (journal.remarks && !narrationRepeatedInDetails) { %><p><%= journal.remarks %></p><% } %>
+        <div class="voucher-print-party-lines">
+          <% partyDetailLines.forEach((line) => { %>
+            <div>
+              <span><%= line.label %><% if (line.reference) { %> <small><%= line.reference %></small><% } %></span>
+              <strong><%= money(line.amount) %></strong>
+            </div>
+          <% }) %>
+          <div class="voucher-print-party-total">
+            <span>Total</span>
+            <strong><%= money(documentAmount) %></strong>
+          </div>
+        </div>
+      </section>
+    <% } else { %>
+      <section class="invoice-meta">
+        <div><span>Posting Date/Time</span><strong><%= formatDateTime(journal.posting_date, journal.posting_time || '00:00') %></strong></div>
+        <div><span>Status</span><strong><%= statusLabel %></strong></div>
+        <div><span>Party</span><strong><%= journal.party_type ? partyName : '—' %></strong></div>
+        <% if (journal.cost_center) { %><div><span>Cost Center</span><strong><%= journal.cost_center %></strong></div><% } %>
+        <% if (journalReferences.length) { %><div><span>References</span><strong><%= journalReferences.join(', ') %></strong></div><% } %>
+      </section>
+    <% } %>
+
+    <% if (!isPartyDocument) { %>
+      <section class="voucher-print-accounting" aria-label="Accounting entry">
+        <table class="print-invoice-table print-journal-table">
+          <thead>
+            <tr><th class="row-number">#</th><th>Account</th><th>Debit</th><th>Credit</th><th>Reference</th><th>Line Remarks</th></tr>
+          </thead>
+          <tbody>
+            <% journalLines.forEach((line, index) => { %>
+              <tr>
+                <td class="row-number"><%= index + 1 %></td>
+                <td><%= accountLabel(line) %></td>
+                <td><%= Number(line.debit || 0) ? money(line.debit) : '' %></td>
+                <td><%= Number(line.credit || 0) ? money(line.credit) : '' %></td>
+                <td><%= line.reference_no || '' %></td>
+                <td><%= line.remarks || '' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr><th colspan="2">Total</th><td><%= money(journal.total_debit || 0) %></td><td><%= money(journal.total_credit || 0) %></td><td></td><td></td></tr>
+          </tfoot>
+        </table>
+      </section>
+    <% } %>
+
+    <% if (!isPartyDocument && journal.remarks) { %><p class="notes"><%= journal.remarks %></p><% } %>
+
+    <section class="voucher-print-signatures" aria-label="Signatures">
+      <% signatures.forEach((signature) => { %>
+        <div class="voucher-print-signature">
+          <% if (signature.name) { %><strong><%= signature.name %></strong><% } else { %><strong aria-hidden="true">&nbsp;</strong><% } %>
+          <span><%= signature.role %></span>
+          <small><%= signature.note %></small>
+        </div>
+      <% }) %>
+    </section>
+  </main>
+</body>
+</html>

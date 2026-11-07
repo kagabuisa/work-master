@@ -385,7 +385,7 @@ test('financial HTTP routes preserve accounting and protect retries, scopes and 
       const summarize = async invoiceId => {
         const invoice = await store.findInvoice(invoiceId); const p = invoice.payments.find(row => row.payment_record_id);
         const gl = (await pool.query(`SELECT account_id,debit::text,credit::text FROM app_gl_entries
-          WHERE (voucher_type='sales_invoice' AND voucher_id=$1) OR (voucher_type='payment_journal' AND voucher_id=$2)
+          WHERE (voucher_type='sales_invoice' AND voucher_id=$1) OR (voucher_type='cash_receipt' AND voucher_id=$2)
           ORDER BY voucher_type,line_no`, [invoiceId, p.journal_entry_id])).rows;
         const movements = (await pool.query("SELECT qty_change::text,outgoing_rate::text,stock_value_change FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [invoiceId])).rows;
         const inventory = (await pool.query("SELECT account_id FROM app_accounting_settings WHERE setting_key='inventory'")).rows[0].account_id;

@@ -5,7 +5,7 @@ const { getPostgresPool } = require('../core');
 const { DEFAULT_ACCOUNTS } = require('../constants');
 const { initRecordAudit } = require('../audit');
 const pricing = require('../pricing');
-const { postSalesInvoiceGlEntry, createOrUpdatePaymentJournalEntry } = require('./posting');
+const { postSalesInvoiceGlEntry, createOrUpdateCustomerReceiptEntry } = require('./posting');
 const { roundMoney, numberValue, roundReportMoney } = require('../lib/money');
 const { normalizeQuantity, normalizeStockQuantity } = require('../lib/quantity');
 const { optionalValue, requiredValue } = require('../lib/values');
@@ -506,6 +506,8 @@ async function initPostgresStore() {
     )
   `);
   await pool.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS cost_center TEXT');
+  await pool.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS received_from TEXT');
+  await pool.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS paid_to TEXT');
   await pool.query('ALTER TABLE app_journal_entry_lines ADD COLUMN IF NOT EXISTS reference_no TEXT');
   await pool.query('ALTER TABLE app_purchase_payments ADD COLUMN IF NOT EXISTS journal_entry_id BIGINT REFERENCES app_journal_entries(id) ON DELETE SET NULL');
   await pool.query('CREATE INDEX IF NOT EXISTS app_purchase_payments_journal_idx ON app_purchase_payments(journal_entry_id)');
@@ -940,7 +942,7 @@ async function backfillInvoicePaymentJournals(pool) {
       ORDER BY payment.id
     `);
     for (const row of rows) {
-      await createOrUpdatePaymentJournalEntry(client, {
+      await createOrUpdateCustomerReceiptEntry(client, {
         id: Number(row.invoice_id),
         invoice_no: row.invoice_no,
         invoice_date: dateOnly(row.invoice_date),

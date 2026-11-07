@@ -6,15 +6,7 @@
     </div>
   </div>
   <div class="invoice-drawer-actions">
-    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'draft') { %>
-      <% if (can('vouchers.purchases.edit')) { %><a class="button button-light" href="/purchases/<%= purchase.id %>/edit">Edit</a><% } %>
-      <% if (can('vouchers.purchases.submit')) { %><form method="post" action="/purchases/<%= purchase.id %>/submit" class="inline-form" data-confirm="Submit this purchase? This receives the stock and creates the amount payable."><button type="submit">Submit &amp; Receive Stock</button></form><% } %>
-    <% } else if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'submitted' && can('vouchers.purchases.cancel')) { %>
-      <form method="post" action="/purchases/<%= purchase.id %>/cancel" class="inline-form" data-confirm="Cancel this purchase? Stock and ledger entries will be reversed.">
-        <button type="submit" class="button-light">Cancel Purchase</button>
-      </form>
-    <% } %>
-    <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) && purchase.docstatus === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/purchases/<%= purchase.id %>/delete" class="inline-form" data-confirm="Delete this cancelled purchase? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
+    <%- include('purchase-actions', { record: purchase, kind: 'purchases' }) %>
   </div>
   <section class="invoice-card">
     <div class="invoice-meta">

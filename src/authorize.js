@@ -40,6 +40,7 @@ function canAny(user, permissions) {
 function sharedStockWriteRequest(req) {
   return Boolean(req.stockEntrySharedWrite && (
     req.method === 'GET' && /^\/stock\/entries\/[1-9][0-9]*\/edit$/.test(req.path)
+    || req.method === 'GET' && /^\/stock\/entries\/[1-9][0-9]*\/delivery-employees$/.test(req.path)
     || req.method === 'POST' && (/^\/stock\/entries\/[1-9][0-9]*\/delivery$/.test(req.path)
       || /^\/stock\/entries\/[1-9][0-9]*$/.test(req.path) && req.body?.action === 'save_draft')
   ));
@@ -51,7 +52,7 @@ function sharedVoucherPath(req) {
     [/^\/invoices\/([1-9][0-9]*)\/edit$/, 'sales'],
     [/^\/purchases\/([1-9][0-9]*)(?:\/drawer)?$/, 'purchases'],
     [/^\/purchases\/([1-9][0-9]*)\/edit$/, 'purchases'],
-    [/^\/purchase-orders\/([1-9][0-9]*)$/, 'purchase-orders'],
+    [/^\/purchase-orders\/([1-9][0-9]*)(?:\/drawer)?$/, 'purchase-orders'],
     [/^\/purchase-orders\/([1-9][0-9]*)\/edit$/, 'purchase-orders'],
     [/^\/journals\/([1-9][0-9]*)(?:\/drawer)?$/, 'journals'],
     [/^\/journals\/([1-9][0-9]*)\/edit$/, 'journals'],
@@ -227,6 +228,8 @@ function permissionCheck(req) {
     if (parts[1] === 'payments') return has(prefix + 'view');
     if (parts[2] === 'share') return method === 'POST' && has(prefix + 'view');
     if (parts[2] === 'payments') return has('payments.purchases.' + (parts[4] === 'cancel' ? 'cancel' : 'record'));
+    if (parts[2] === 'print') return method === 'GET' && has(prefix + 'view');
+    if (parts[2] === 'duplicate') return method === 'GET' && all(prefix + 'view', prefix + 'create');
     if (parts[2] === 'edit') return has(prefix + 'edit');
     if (parts[2] === 'posting-time') return method === 'POST' && has(prefix + 'edit');
     if (parts[2] === 'submit') return has(prefix + 'submit');
@@ -243,6 +246,8 @@ function permissionCheck(req) {
       || method === 'POST' && (parts.length === 3 && parts[2] === 'columns'
         || parts.length === 4 && parts[2] === 'columns' && parts[3] === 'reset'));
     if (parts[2] === 'edit') return method === 'GET' && has(prefix + 'edit');
+    if (parts[2] === 'print') return method === 'GET' && has(prefix + 'view');
+    if (parts[2] === 'duplicate') return method === 'GET' && all(prefix + 'view', prefix + 'create');
     if (parts[2] === 'share') return method === 'POST' && has(prefix + 'view');
     if (parts[2] === 'submit') return method === 'POST' && has(prefix + 'submit');
     if (parts[2] === 'cancel') return method === 'POST' && has(prefix + 'cancel');
@@ -264,6 +269,8 @@ function permissionCheck(req) {
   if (parts[0] === 'stock') {
     const prefix = 'vouchers.stock.';
     if (parts[1] === 'shared') return parts.length === 2 && method === 'GET';
+    if (parts[1] === 'delivery-employees') return parts.length === 2 && method === 'GET'
+      && canAny(user, [prefix + 'view', prefix + 'create', prefix + 'edit']);
     if (parts.length === 1) return has(prefix + 'view');
     if (parts[1] === 'erpnext') return (parts.length === 2 || parts.length === 3 && parts[2] === 'export')
       && method === 'GET' && has(prefix + 'view');
@@ -326,6 +333,9 @@ function permissionCheck(req) {
       method === 'GET' && (parts.length === 2 || parts.length === 3 && parts[2] === 'export')
       || method === 'POST' && (parts.length === 3 && parts[2] === 'columns'
         || parts.length === 4 && parts[2] === 'columns' && parts[3] === 'reset'));
+    if (parts[2] === 'print') return method === 'GET' && has('vouchers.journals.view');
+    if (parts[2] === 'duplicate') return method === 'GET'
+      && all('vouchers.journals.view', 'vouchers.journals.create');
     if (parts[2] === 'cancel') return has('vouchers.journals.cancel');
     if (parts[2] === 'share') return method === 'POST' && has('vouchers.journals.view');
     if (parts[2] === 'delete') return method === 'POST' && has('vouchers.journals.delete');
@@ -346,6 +356,10 @@ function permissionCheck(req) {
     return parts.length === 1 && method === 'GET';
   }
   if (parts[0] === 'reports') {
+    if (parts[1] === 'daily-activity' && parts.length === 4 && parts[2] === 'new'
+      && parts[3] === 'stock-entries') {
+      return method === 'GET' && all('reports.daily-activity.view', 'reports.daily-activity.create');
+    }
     if (parts[1] === 'daily-activity' && (parts.length === 3 && parts[2] === 'new'
       || parts.length === 2 && method === 'POST')) {
       return (method === 'GET' && parts[2] === 'new' || method === 'POST' && parts.length === 2)

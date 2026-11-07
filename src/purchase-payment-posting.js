@@ -26,11 +26,11 @@ async function postPurchasePaymentJournal(client, purchase, payment) {
   await syncGeneratedJournalEntryLines(client, id, lines, accountIds);
   await client.query(`UPDATE app_journal_entry_lines SET reference_no=$1
     WHERE journal_entry_id=$2 AND line_no=1`, [purchase.purchase_no, id]);
+  await client.query("DELETE FROM app_gl_entries WHERE voucher_type='purchase_payment' AND voucher_id=$1", [payment.id]);
   await postGlEntry(client, { posting_date: payment.payment_date, cost_center: purchase.cost_center,
     voucher_type: 'payment_journal', voucher_id: id, voucher_no: reference,
     party_type: 'supplier', party_id: purchase.supplier_id, party_name: purchase.supplier_name,
     remarks, lines: lines.map((line, index) => ({ ...line, account_id: accountIds[index] })) });
-  await client.query("DELETE FROM app_gl_entries WHERE voucher_type='purchase_payment' AND voucher_id=$1", [payment.id]);
   await client.query('UPDATE app_purchase_payments SET journal_entry_id=$1, reference=$2 WHERE id=$3',
     [id, reference, payment.id]);
 }

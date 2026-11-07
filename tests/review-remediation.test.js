@@ -349,6 +349,10 @@ test('purchase and payment cancellations use Kampala today after UTC midnight di
       const payload={...purchase('4','1000.25'),posting_date:'2026-10-18',posting_time:'00:00'};
       const id=await purchasing.createPurchase(payload);await purchasing.submitPurchase(id);
       const cash=(await pool.query("SELECT id FROM app_accounts WHERE account_code='1110'")).rows[0].id;
+      const equity=(await pool.query("SELECT id FROM app_accounts WHERE account_code='3000'")).rows[0].id;
+      await store.createJournalEntry({journal_type:'journal_entry',posting_date:'2026-10-18',lines:[
+        {account_id:cash,debit:500},{account_id:equity,credit:500},
+      ]});
       await purchasing.addPurchasePayment(id,{payment_date:'2026-10-18',amount:500,account_id:cash});
       const journal=(await pool.query('SELECT journal_entry_id FROM app_purchase_payments WHERE purchase_id=$1',[id])).rows[0].journal_entry_id;
       await purchasing.cancelPurchasePayment(id,1);
@@ -392,7 +396,7 @@ test('sales cancellations and debtor ageing use Kampala today after UTC midnight
       await store.addInvoicePayment(id,{payment_date:'2026-10-18',amount:40,method:'cash',account_id:cash});
       const payment=(await pool.query('SELECT id,payment_no,journal_entry_id FROM app_invoice_payments WHERE invoice_id=$1',[id])).rows[0];
       await store.cancelInvoicePayment(id,payment.payment_no);
-      assert.deepEqual(await glDates('payment_journal_cancellation',payment.journal_entry_id),['2026-10-18']);
+      assert.deepEqual(await glDates('cash_receipt_cancellation',payment.journal_entry_id),['2026-10-18']);
 
       await store.cancelInvoice(id);
       assert.equal((await store.findInvoice(id)).docstatus,'cancelled');

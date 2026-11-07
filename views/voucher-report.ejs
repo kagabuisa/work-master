@@ -84,7 +84,7 @@
                 <% shownColumns.forEach((column) => { const value = row[column.key]; %>
                   <td class="invoice-report-col-<%= column.key %>">
                     <% if (column.type === 'link') { %>
-                      <% if (config.module === 'accounts' || config.basePath === '/purchases') { %>
+                      <% if (config.module === 'accounts' || ['/purchases', '/purchase-orders'].includes(config.basePath)) { %>
                         <a href="<%= config.basePath %>/<%= row.voucher_id %>" data-voucher-drawer="<%= config.basePath %>/<%= row.voucher_id %>/drawer"><%= value || '—' %></a>
                       <% } else { %>
                         <a href="<%= config.basePath %>/<%= row.voucher_id %>"><%= value || '—' %></a>

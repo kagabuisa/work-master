@@ -36,6 +36,9 @@ test('controlled warehouse counts close history, require independent approval, a
  const reviewer=await auth.createUser('count-reviewer','CountPassword123!',{role:'admin'});
  await pool.query('INSERT INTO app_master_warehouses(warehouse) VALUES($1) ON CONFLICT DO NOTHING',[FIXED.warehouse]);
  await pool.query('INSERT INTO app_master_items(item_code,item_name) VALUES($1,$2) ON CONFLICT DO NOTHING',[FIXED.itemCode,FIXED.itemName]);
+ await pool.query(`INSERT INTO app_master_employees(employee_id,employee_name,status,docstatus)
+   VALUES('CLOSED-STOCK-RECEIVER','Closed Stock Receiver','Active','submitted')
+   ON CONFLICT(employee_id) DO UPDATE SET status='Active',disabled=false,docstatus='submitted'`);
  await pool.query('SELECT wm_inventory_activate()');
  await assert.rejects(store.backfillAccountingGl(),{code:'backfill_requires_legacy_inventory',status:409});
  await assert.rejects(pool.query("UPDATE app_accounting_settings SET setting_key='changed_inventory' WHERE setting_key='inventory'"),/inventory_mapping_immutable/);
@@ -73,7 +76,10 @@ test('controlled warehouse counts close history, require independent approval, a
    WHERE s.entry_type <> 'reconciliation' AND l.movement_at<=c.closed_through LIMIT 1`)).rows[0];
  assert.ok(closedStock);
  const documentBefore=(await pool.query('SELECT to_jsonb(s) AS document FROM app_stock_entries s WHERE id=$1',[closedStock.id])).rows[0].document;
- await require('../src/stock-entry-workflow').changeStockEntryWorkflow(reviewer,closedStock.id,'delivery','All Received');
+ await require('../src/stock-entry-workflow').changeStockEntryWorkflow(reviewer,closedStock.id,'delivery','All Received','read',{
+   received_date: require('../src/posting-time').currentPostingDate(),
+   received_by_employee_id:'CLOSED-STOCK-RECEIVER',
+ });
  assert.equal((await store.loadStockEntry(closedStock.id)).entry.delivery_status,'All Received');
  assert.deepEqual((await pool.query('SELECT to_jsonb(s) AS document FROM app_stock_entries s WHERE id=$1',[closedStock.id])).rows[0].document,documentBefore);
  await assert.rejects(store.cancelInvoice(1),/closed_voucher_immutable/);

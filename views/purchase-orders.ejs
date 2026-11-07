@@ -21,7 +21,7 @@
       <% if (!result.rows.length) { %><tr><td colspan="8" class="empty">No purchase orders found.</td></tr><% } %>
       <% result.rows.forEach((order, index) => { %><tr>
         <td><%= result.pagination.offset + index + 1 %></td>
-        <td><a href="/purchase-orders/<%= order.id %>"><%= order.order_no %></a></td>
+        <td><a href="/purchase-orders/<%= order.id %>" data-voucher-drawer="/purchase-orders/<%= order.id %>/drawer"><%= order.order_no %></a></td>
         <td><%= formatDateTime(order.posting_date, order.posting_time || '00:00') %></td>
         <td><%= order.due_date ? formatDate(order.due_date) : '' %></td>
         <td><%= order.supplier_id %></td><td><%= order.supplier_reference || '' %></td>

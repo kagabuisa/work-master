@@ -9,6 +9,7 @@ FROM node:22-alpine
 RUN apk add --no-cache postgresql16-client tar
 
 ENV NODE_ENV=production
+ENV UV_THREADPOOL_SIZE=8
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules

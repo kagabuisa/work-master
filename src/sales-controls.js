@@ -106,6 +106,6 @@ async function cancellationAllowed(client, invoice) {
   if (!user) return;
   if (!has(user,'vouchers.sales.cancel')) fail('You cannot cancel sales invoices.',403);
   const caps=capabilities(user);
-  if (!caps.director && caps.accountant && invoice.allow!=='Cancel') fail('Cancellation requires Allow = Cancel from an authorized approver.',403);
+  if (user.role!=='admin' && !caps.director && caps.accountant && invoice.allow!=='Cancel') fail('Cancellation requires Allow = Cancel from an authorized approver.',403);
 }
 module.exports={has,capabilities,currentUser,priceResults,approvalState,approvalEvent,saveApprovalState,validateInvoice,persistValidation,cancellationAllowed};

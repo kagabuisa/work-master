@@ -23,6 +23,46 @@ test('compact voucher request and approval views escape reasons and show Admin a
  assert.match(html,/&lt;unsafe&gt;/);assert.match(html,/data-request-cancel/);assert.match(html,/ui-approval-workflow/);assert.match(html,/Requested action/);assert.doesNotMatch(html,/Approve Cancellation/);
  html=await renderView(path.join(__dirname,'../views/voucher-approval.ejs'),{...locals,currentUser:{role:'admin'}});
  assert.match(html,/Approve Cancellation/);assert.match(html,/Approval decision/);
+ assert.match(html,/Admin cancellation does not require approval/);
+});
+test('Admin cancellation bypasses approval and records an auditable override',async()=>{
+ const {auditActor}=require('../src/audit');
+ const yesterday=new Date(currentPostingDate()+'T00:00:00Z');yesterday.setUTCDate(yesterday.getUTCDate()-1);
+ const makeClient=(role)=>{
+  const events=[];
+  return {events,async query(sql,params=[]){
+   if(sql.includes('SELECT * FROM app_purchases WHERE id=$1'))return {rows:[{
+    id:1,posting_date:yesterday.toISOString().slice(0,10),posting_time:'12:00',docstatus:'submitted',
+    due_date:null,supplier_id:'SUP-1',supplier_reference:null,price_list:'Buying',purchase_order_id:null,
+    cost_center:null,subtotal:100,total:100,
+   }]};
+   if(sql.includes('SELECT * FROM app_purchase_items'))return {rows:[]};
+   if(sql.includes('SELECT u.id,u.username,u.role'))return {rows:[{
+    id:'1',username:role+'-user',role,active:true,permission_grants:[],permission_denials:[],
+    record_access:{},permissions:[],scopes:{},
+   }]};
+   if(sql.includes('SELECT * FROM app_voucher_approvals'))return {rows:[]};
+   if(sql.includes('INSERT INTO app_voucher_approval_events')){events.push({sql,params});return {rows:[]};}
+   throw new Error(`Unexpected query: ${sql}`);
+  }};
+ };
+ const adminClient=makeClient('admin');
+ await runWithAuditUser({id:1,username:'admin-user'},()=>controls.requireApproval(adminClient,'purchases',1,'Cancel'));
+ assert.equal(adminClient.events.length,1);
+ assert.equal(adminClient.events[0].params[2],'admin_override_cancel');
+ assert.equal(adminClient.events[0].params[3],'1');
+ assert.equal(adminClient.events[0].params[4],'admin-user');
+ await assert.rejects(
+  runWithAuditUser({id:1,username:'admin-user'},()=>controls.requireApproval(makeClient('admin'),'purchases',1,'Backdate')),
+  /Backdating requires Admin approval/,
+ );
+ const makerClient=makeClient('standard');
+ await assert.rejects(
+  runWithAuditUser({id:2,username:'maker'},()=>controls.requireApproval(makerClient,'purchases',1,'Cancel')),
+  /Cancellation requires Admin approval/,
+ );
+ assert.equal(makerClient.events.length,0);
+ assert.equal(auditActor().id,null);
 });
 test('backdating and cancellation bind to reviewed versions, require explicit Admin approval, and commit atomically', {skip:process.env.SCHEMA_TEST_POSTGRES!=='1'},async()=>{
  let server;

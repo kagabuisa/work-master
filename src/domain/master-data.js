@@ -373,6 +373,10 @@ async function masterEmployees(options = {}) {
     params.push(options.employmentStatus);
     where.push(`status = $${params.length}`);
   }
+  if (options.docstatus) {
+    params.push(String(options.docstatus));
+    where.push(`docstatus = $${params.length}`);
+  }
   const search = String(options.search || '').trim().toLowerCase();
   if (search) {
     params.push(sqlLikePattern(search));

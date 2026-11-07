@@ -14,6 +14,7 @@
       <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><% if (typeof draftPurchase !== 'undefined' && draftPurchase && can('vouchers.purchases.view')) { %>This purchase order already has a draft purchase invoice: <a href="/purchases/<%= draftPurchase.id %>"><%= draftPurchase.purchase_no %></a>. Edit or submit this draft, or delete it before creating another.<% } else { %><%= error %><% } %></strong></section><% } %>
+    <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %><section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft invoice.</section><% } %>
     <% if (typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) { %>
       <section class="notice" role="status"><strong>Shared draft</strong><p>You can save changes to this draft. Submit, payment, posting, and sharing actions remain unavailable.</p></section>
     <% } %>

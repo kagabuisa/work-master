@@ -61,11 +61,12 @@
             <th class="ui-amount">Paid</th>
             <th>Document Status</th>
             <th>Payment Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <% if (!invoices.length) { %>
-            <tr><td colspan="8" class="empty">No invoices found.</td></tr>
+            <tr><td colspan="9" class="empty">No invoices found.</td></tr>
           <% } %>
           <% invoices.forEach((invoice, index) => { %>
             <% const docstatus = invoice.docstatus || 'submitted'; %>
@@ -80,6 +81,15 @@
               <td class="ui-amount"><%= money(invoice.amount_paid) %></td>
               <td><span class="badge <%= docstatus %>"><%= docstatus === 'draft' ? 'Draft' : docstatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></td>
               <td><span class="badge <%= invoice.status %>"><%= paymentStatusLabel %></span></td>
+              <td>
+                <% if (docstatus === 'submitted' && can('vouchers.sales.cancel')) { %>
+                  <% const needsApproval = can('sales.policy.accountant') && !can('sales.policy.director') && invoice.allow !== 'Cancel'; %>
+                  <form method="post" action="/invoices/<%= invoice.id %>/cancel" class="ui-cell-form" data-confirm="Cancel this invoice? Stock and ledger entries will be reversed.">
+                    <input type="hidden" name="return_to" value="<%= typeof returnTo !== 'undefined' ? returnTo : '/invoices' %>">
+                    <button type="submit" class="button-light" title="<%= needsApproval ? 'Request Cancel and obtain Allow = Cancel before cancelling.' : 'Cancel invoice' %>" <%= needsApproval ? 'disabled' : '' %>>Cancel</button>
+                  </form>
+                <% } %>
+              </td>
             </tr>
           <% }) %>
         </tbody>

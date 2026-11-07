@@ -52,7 +52,7 @@
                 <td class="daily-activity-amount"><%= money(row.expense) %></td>
                 <td class="daily-activity-amount"><%= money(row.banked) %></td>
                 <td class="daily-activity-remarks" title="<%= row.expense_details || '' %>"><%= row.expense_details || '—' %></td>
-                <td><%= row.stock_entry_number || '—' %></td>
+                <td><% if (row.stock_entry_number && row.stock_entry_href && can('vouchers.stock.view')) { %><a href="<%= row.stock_entry_href %>"><%= row.stock_entry_number %></a><% } else { %><%= row.stock_entry_number || '—' %><% } %></td>
                 <td><%= row.packages_received == null ? '—' : row.packages_received %></td>
                 <td><%= row.delivery_differences || '—' %></td>
                 <td class="daily-activity-remarks" title="<%= row.remarks || '' %>"><%= row.remarks || '—' %></td>

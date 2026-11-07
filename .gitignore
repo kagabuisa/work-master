@@ -18,4 +18,5 @@ data/*.tmp
 data/project-files/
 data/api-staging/
 data/erp-benchmark/
+data/transaction-reset-backups/
 /audits/

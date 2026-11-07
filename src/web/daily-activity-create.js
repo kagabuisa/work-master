@@ -3,8 +3,10 @@
 const { isValidIsoDate } = require('../lib/dates');
 const { getPostgresPool, withPostgresTransaction } = require('../core');
 const { validateCostCenter } = require('../cost-centers');
-const { warehouseAllowed, assignedMasterRecordAllowed } = require('../access');
+const { allowedNamedListValues, deniedNamedListValues, warehouseAllowed, assignedMasterRecordAllowed } = require('../access');
 const { runWithAuditUser } = require('../audit');
+const { sqlLikePattern } = require('../lib/search');
+const { STOCK_ENTRY_TYPE_LABELS } = require('../constants');
 const UNIT_TYPES = ['Shop', 'Field Sales(FiSa)'];
 const DELIVERY_OPTIONS = ['No', 'Yes - Fill out a Delivery Difference Report - DDR'];
 function invalid(message) { throw Object.assign(new Error(message), { status: 400 }); }
@@ -58,9 +60,10 @@ async function createDailyActivity(input, user) {
     if (doc.stock_entry_number) {
       const stock = await client.query(`SELECT 1 FROM app_stock_entries entry
         JOIN app_stock_entry_items line ON line.stock_entry_id=entry.id
-        WHERE entry.entry_no=$1 AND line.warehouse=$2 AND entry.docstatus='submitted' LIMIT 1`,
+        WHERE entry.entry_no=$1 AND (line.warehouse=$2 OR line.target_warehouse=$2)
+          AND COALESCE(entry.docstatus, 'submitted')='submitted' LIMIT 1`,
       [doc.stock_entry_number, doc.warehouse]);
-      if (!stock.rowCount) invalid('Select a submitted stock entry for this warehouse, or leave Stock entry number blank.');
+      if (!stock.rowCount) invalid('Select a submitted stock entry that includes this warehouse, or leave Stock entry number blank.');
     }
     const keys = Object.keys(doc).filter(key => key !== 'banked');
     const { rows } = await client.query(`INSERT INTO app_daily_activity_reports (${keys.join(',')})
@@ -78,4 +81,66 @@ async function dailyActivityFormOptions(user) {
   return { shops: shops.rows.map(row => row.name).filter(name => assignedMasterRecordAllowed(user, 'cost-centers', name)),
     warehouses: warehouses.rows.map(row => row.name).filter(name => warehouseAllowed(user, name)) };
 }
-module.exports = { draft, createDailyActivity, dailyActivityFormOptions, recordAllowed, UNIT_TYPES, DELIVERY_OPTIONS };
+
+async function dailyActivityStockEntryOptions(filters = {}, user, pool) {
+  const warehouse = String(filters.warehouse || '').trim().slice(0, 140);
+  if (!warehouse) return [];
+  if (!warehouseAllowed(user, warehouse)) {
+    throw Object.assign(new Error('Choose a permitted warehouse.'), { status: 403 });
+  }
+  const search = String(filters.q || '').trim().slice(0, 140);
+  const params = [warehouse];
+  const where = [
+    `COALESCE(entry.docstatus, 'submitted')='submitted'`,
+    `entry.entry_no IS NOT NULL`,
+    `EXISTS (SELECT 1 FROM app_stock_entry_items selected_line
+      WHERE selected_line.stock_entry_id=entry.id
+        AND (selected_line.warehouse=$1 OR selected_line.target_warehouse=$1))`,
+  ];
+  if (search) {
+    params.push(sqlLikePattern(search.toLowerCase()));
+    where.push(`(LOWER(entry.entry_no) LIKE $${params.length}
+      OR LOWER(entry.entry_type) LIKE $${params.length}
+      OR LOWER(COALESCE(entry.remarks, '')) LIKE $${params.length}
+      OR entry.posting_date::text LIKE $${params.length})`);
+  }
+  const allowedWarehouses = allowedNamedListValues(user, 'warehouses');
+  if (allowedWarehouses !== null) {
+    params.push(allowedWarehouses);
+    where.push(`NOT EXISTS (SELECT 1 FROM app_stock_entry_items scoped_line
+      WHERE scoped_line.stock_entry_id=entry.id AND (
+        NULLIF(scoped_line.warehouse, '') IS NOT NULL AND scoped_line.warehouse <> ALL($${params.length}::text[])
+        OR NULLIF(scoped_line.target_warehouse, '') IS NOT NULL AND scoped_line.target_warehouse <> ALL($${params.length}::text[])
+      ))`);
+  }
+  const deniedWarehouses = deniedNamedListValues(user, 'warehouses');
+  if (deniedWarehouses.length) {
+    params.push(deniedWarehouses);
+    where.push(`NOT EXISTS (SELECT 1 FROM app_stock_entry_items denied_line
+      WHERE denied_line.stock_entry_id=entry.id AND (
+        denied_line.warehouse = ANY($${params.length}::text[])
+        OR denied_line.target_warehouse = ANY($${params.length}::text[])
+      ))`);
+  }
+  const { rows } = await (pool || getPostgresPool()).query(`
+    SELECT entry.id, entry.entry_no, entry.entry_type, entry.posting_date::text
+    FROM app_stock_entries entry
+    WHERE ${where.join(' AND ')}
+    ORDER BY entry.posting_date DESC, entry.posting_time DESC, entry.id DESC
+    LIMIT 25`, params);
+  return rows.map((row) => {
+    const type = STOCK_ENTRY_TYPE_LABELS[row.entry_type] || row.entry_type;
+    return {
+      id: Number(row.id),
+      value: row.entry_no,
+      entry_no: row.entry_no,
+      posting_date: row.posting_date,
+      entry_type: row.entry_type,
+      label: [row.posting_date, type].filter(Boolean).join(' · '),
+      href: `/stock/entries/${encodeURIComponent(row.id)}`,
+    };
+  });
+}
+
+module.exports = { draft, createDailyActivity, dailyActivityFormOptions, dailyActivityStockEntryOptions,
+  recordAllowed, UNIT_TYPES, DELIVERY_OPTIONS };

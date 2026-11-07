@@ -78,18 +78,33 @@ test('daily activity report and voucher render ERPNext fields', async () => {
       summary: { total: 1, sales: 200, expense: 25, banked: 175 },
       rows: [{ name: 'DAR-000012', href: '/reports/daily-activity/DAR-000012', date: '2026-10-04',
         shop: 'Main', sales: 200, expense: 25, expense_details: 'Fuel', packages_received: 2,
+        stock_entry_number: 'STK-000007', stock_entry_href: '/stock/entries/7',
         status_label: 'Submitted' }],
       pagination: { page: 1, limit: 50, total: 1, total_pages: 1, offset: 0, start: 1, end: 1 } },
   });
   assert.match(html, /href="\/reports\/daily-activity\/DAR-000012">DAR-000012/);
+  assert.match(html, /href="\/stock\/entries\/7">STK-000007/);
   assert.match(html, /Fuel/);
   const voucher = await renderView(path.join(__dirname, '..', 'views', 'daily-activity-voucher.ejs'), {
     ...shared, voucher: { name: 'DAR-000012', date: '2026-10-04', shop: 'Main', status_label: 'Submitted',
       sales: 200, expense: 25, banked: 175, expense_details: 'Fuel', packages_received: 2,
-      delivery_differences: 'No', comments_or_remarks: 'Closed early' },
+      delivery_differences: 'No', comments_or_remarks: 'Closed early',
+      stock_entry_number: 'STK-000007', stock_entry_href: '/stock/entries/7', cash_banked: 50 },
   });
   assert.match(voucher, /Stock delivery report/);
+  assert.match(voucher, /href="\/stock\/entries\/7">STK-000007/);
   assert.match(voucher, /Closed early/);
+  assert.match(voucher, /<h2>Sales and expenses<\/h2>/);
+  assert.equal((voucher.match(/class="dar-fields-scroll"/g) || []).length, 5);
+  const sales = voucher.indexOf('<dt>Sales</dt>');
+  const expense = voucher.indexOf('<dt>Expense</dt>');
+  const banked = voucher.indexOf('<dt>Balance to be banked</dt>');
+  const expenseDetails = voucher.indexOf('<dt>Expense details</dt>');
+  assert.ok(sales < expense && expense < banked && banked < expenseDetails);
+  const reportDate = voucher.indexOf('<dt>Date</dt>');
+  const reportShop = voucher.indexOf('<dt>Shop/Unit</dt>');
+  const reportUnitType = voucher.indexOf('<dt>Unit type</dt>');
+  assert.ok(reportDate < reportShop && reportShop < reportUnitType);
 });
 
 

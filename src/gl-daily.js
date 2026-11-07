@@ -55,6 +55,7 @@ async function initGlDaily(client) {
 }
 function canSummarizeGl(filters, access) {
   return !String(filters.voucher_id||'').trim() && !String(filters.search||'').trim() && !String(filters.party||'').trim()
+    && filters.group_by !== 'pair'
     && (access.ownerId===null || access.ownerId===undefined);
 }
 function glTotalsSql(whereSql, useDaily) {

@@ -72,6 +72,54 @@ test('General Ledger PDF handles multiple pages and empty reports', async () => 
   }
 });
 
+test('General Ledger reset control always clears the rendered filter form', async () => {
+  const { renderView } = require('./helpers/render-view');
+  const html = await renderView(require('node:path').join(__dirname, '..', 'views', 'general-ledger.ejs'), {
+    report: {
+      filters: {
+        search: '', account: '', party: '', party_scope: 'related', group_by: 'date',
+        voucher_id: '', voucher_type: '', from: '', to: '',
+      },
+      summary: { debit: 0, credit: 0, balance: 0 }, rows: [], opening_rows: [], pagination: null,
+    },
+    query: {}, filterOptions: { voucher_types: [] }, currentUser: { role: 'admin' },
+    availableReports: [], assetVersion: 'test', can: () => false, money: String,
+  });
+  assert.match(html, /data-general-ledger-filters/);
+  assert.match(html, /href="\/reports\/general-ledger" data-general-ledger-reset>Reset<\/a>/);
+  assert.match(html, /general-ledger\.js\?v=test/);
+  assert.match(html, /<option value="pair"[^>]*>Voucher pairs<\/option>/);
+});
+
+test('General Ledger voucher-pair grouping marks pairs and links cancellation rows to the journal', async () => {
+  const { renderView } = require('./helpers/render-view');
+  const pairRows = [
+    { id: '1', posting_date: '2026-11-07', account_code: '1002', account_name: 'Bank',
+      voucher_type: 'cash_receipt', voucher_id: '604', voucher_no: 'JRN-000604',
+      pair_voucher_id: '604', pair_voucher_type: 'cash_receipt', is_reversal: false,
+      debit: 10, credit: 0, running_balance: 10, remarks: 'Cash Receipt' },
+    { id: '2', posting_date: '2026-11-07', account_code: '1002', account_name: 'Bank',
+      voucher_type: 'cash_receipt_cancellation', voucher_id: '604', voucher_no: 'JRN-000604',
+      pair_voucher_id: '604', pair_voucher_type: 'cash_receipt', is_reversal: true,
+      debit: 0, credit: 10, running_balance: 0, remarks: 'Cancellation of JRN-000604' },
+  ];
+  const html = await renderView(require('node:path').join(__dirname, '..', 'views', 'general-ledger.ejs'), {
+    report: {
+      filters: {
+        search: '', account: '', party: '', party_scope: 'related', group_by: 'pair',
+        voucher_id: '', voucher_type: '', from: '', to: '',
+      },
+      summary: { debit: 10, credit: 10, balance: 0 }, rows: pairRows, opening_rows: [], pagination: null,
+    },
+    query: {}, filterOptions: { voucher_types: [] }, currentUser: { role: 'admin' },
+    availableReports: [], assetVersion: 'test', can: () => false, money: String,
+  });
+  assert.equal((html.match(/ui-voucher-pair-start/g) || []).length, 1);
+  assert.equal((html.match(/ui-reversal-row/g) || []).length, 1);
+  assert.equal((html.match(/href="\/journals\/604"/g) || []).length, 2);
+  assert.match(html, /<small class="ui-pair-role">Reversal<\/small>/);
+});
+
 test('General Ledger exports use the same filters and access options without pagination', async () => {
   const store = require('../src/store');
   const jobs = require('../src/web/ledger-export-jobs');
@@ -229,6 +277,9 @@ test('opening rows precede transactions and carry historical balances through pa
       assert.ok(html.indexOf('Opening balance</th>')<html.indexOf('No general ledger entries found') || report.rows.length);
       assert.match(html,/Opening balance<\/th>/);
       assert.match(html,/>Net Balance</);
+      assert.match(html,/data-general-ledger-filters/);
+      assert.match(html,/href="\/reports\/general-ledger" data-general-ledger-reset>Reset<\/a>/);
+      assert.match(html,/general-ledger\.js\?v=test/);
       assert.match(html,/<summary class="button button-light">Download /);
       assert.match(html,/role="group" aria-label="Download format"/);
       for(const format of ['csv','xlsx','pdf']) assert.match(html,new RegExp('name="format" value="'+format+'"'));
@@ -307,6 +358,64 @@ test('party scope, complete voucher drilldown, account grouping and customer bal
     const workbook=new (require('exceljs').Workbook)();await workbook.xlsx.load(xlsx.body);assert.ok(workbook.getWorksheet('Ledger Review'));
     const pdf=response();await sendGeneralLedgerExport(pdf,receipt,'pdf');assert.equal(pdf.body.subarray(0,5).toString(),'%PDF-');
   }finally{await store.closeStore();}
+});
+
+test('voucher-pair grouping keeps original and cancellation rows together without changing chronological mode', {
+  skip: process.env.GL_EXPORT_TEST_POSTGRES !== '1',
+}, async () => {
+  const store = require('../src/store');
+  const { withGeneralLedgerExport } = require('../src/domain/ledger');
+  const { seedGoldenData } = require('./helpers/golden-seed');
+  try {
+    await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const accounts = (await pool.query(`SELECT id FROM app_accounts
+      WHERE account_code IN ('1120','3000') ORDER BY account_code`)).rows;
+    const inserted = (await pool.query(`
+      INSERT INTO app_gl_entries
+        (posting_date,account_id,party_type,party_id,party_name,voucher_type,voucher_id,voucher_no,
+         line_no,debit,credit,is_reversal,reversal_of_voucher_type,reversal_of_voucher_id,remarks)
+      VALUES
+        ('2026-01-15',$1,'customer','PAIR-TEST','Pair Test','pair_test',91001,'PAIR-1',1,10,0,false,NULL,NULL,'Original first'),
+        ('2026-01-15',$2,'customer','PAIR-TEST','Pair Test','pair_test',91001,'PAIR-1',2,0,10,false,NULL,NULL,'Original first'),
+        ('2026-01-15',$1,'customer','PAIR-TEST','Pair Test','pair_test',91002,'PAIR-2',1,20,0,false,NULL,NULL,'Intervening voucher'),
+        ('2026-01-15',$2,'customer','PAIR-TEST','Pair Test','pair_test',91002,'PAIR-2',2,0,20,false,NULL,NULL,'Intervening voucher'),
+        ('2026-01-15',$1,'customer','PAIR-TEST','Pair Test','pair_test_cancellation',91001,'PAIR-1',1,0,10,true,'pair_test',91001,'Cancellation of PAIR-1'),
+        ('2026-01-15',$2,'customer','PAIR-TEST','Pair Test','pair_test_cancellation',91001,'PAIR-1',2,10,0,true,'pair_test',91001,'Cancellation of PAIR-1')
+      RETURNING id, voucher_type, voucher_id, is_reversal
+    `, accounts.map(row => row.id))).rows;
+    const sourceIds = inserted.slice(0, 4).map(row => Number(row.id));
+    const reversalIds = inserted.slice(4).map(row => Number(row.id));
+
+    const filters = { party: 'PAIR-TEST', from: '2026-01-15', to: '2026-01-15' };
+    const chronological = await store.generalLedgerReport(filters, { exportAll: true });
+    assert.deepEqual(chronological.rows.slice(0, 6).map(row => Number(row.id)),
+      [...sourceIds, ...reversalIds]);
+
+    const pairedFilters = { ...filters, group_by: 'pair' };
+    const paired = await store.generalLedgerReport(pairedFilters, { exportAll: true });
+    assert.deepEqual(paired.rows.map(row => Number(row.voucher_id)),
+      [91001, 91001, 91001, 91001, 91002, 91002]);
+    assert.deepEqual(paired.rows.map(row => row.is_reversal),
+      [false, false, true, true, false, false]);
+    assert.deepEqual(paired.rows.map(row => row.voucher_type),
+      ['pair_test', 'pair_test', 'pair_test_cancellation', 'pair_test_cancellation', 'pair_test', 'pair_test']);
+    assert.deepEqual(paired.summary, chronological.summary);
+
+    for (const page of [1, 2, 3]) {
+      const paged = await store.generalLedgerReport({ ...pairedFilters, page, page_size: 2 });
+      assert.deepEqual(paged.rows, paired.rows.slice((page - 1) * 2, page * 2));
+      assert.deepEqual(paged.summary, paired.summary);
+    }
+    await withGeneralLedgerExport(pairedFilters, {}, async exported => {
+      const rows = [];
+      for await (const row of exported.rows) rows.push(row);
+      assert.deepEqual(rows, paired.rows);
+      assert.deepEqual(exported.summary, paired.summary);
+    }, { batchSize: 2 });
+  } finally {
+    await store.closeStore();
+  }
 });
 
 test('supplier payable strips retain payment position, credit direction, as-of dates and access restrictions', {

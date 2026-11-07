@@ -240,6 +240,18 @@ function tokenHash(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function passwordVersion(passwordHashValue) {
+  return tokenHash(String(passwordHashValue || ''));
+}
+
+function passwordVersionMatches(user, expectedVersion) {
+  const actual = passwordVersion(user?.password_hash);
+  if (typeof expectedVersion !== 'string'
+    || !/^[a-f0-9]{64}$/.test(expectedVersion)
+    || !/^[a-f0-9]{64}$/.test(actual)) return false;
+  return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expectedVersion));
+}
+
 async function passwordHash(password) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = await scrypt(password, salt, 64);
@@ -598,7 +610,7 @@ async function findUser(username) {
   return rows[0] || null;
 }
 
-async function authenticate(usernameValue, password) {
+async function verifyCredentials(usernameValue, password) {
   const username = String(usernameValue || '').trim().toLowerCase();
   const user = await findUser(username);
   if (!user || !user.active || user.api_service_account) {
@@ -606,7 +618,18 @@ async function authenticate(usernameValue, password) {
     return null;
   }
   if (!await verifyPassword(String(password || ''), user.password_hash)) return null;
-  return { id: Number(user.id), username: user.username, role: user.role, must_change_password: Boolean(user.must_change_password) };
+  return {
+    user: {
+      id: Number(user.id), username: user.username, role: user.role,
+      must_change_password: Boolean(user.must_change_password),
+    },
+    passwordVersion: passwordVersion(user.password_hash),
+  };
+}
+
+async function authenticate(usernameValue, password) {
+  const verified = await verifyCredentials(usernameValue, password);
+  return verified?.user || null;
 }
 
 async function insertSession(client, user) {
@@ -634,11 +657,11 @@ async function createSession(userId) {
 }
 
 async function authenticateSession(username, password) {
-  const verified = await authenticate(username, password);
+  const verified = await verifyCredentials(username, password);
   if (!verified) return null;
-  return runWithAuditUser(verified, () => withPostgresTransaction(async client => {
-    const user = (await client.query('SELECT * FROM app_users WHERE id=$1 FOR UPDATE', [verified.id])).rows[0];
-    if (!user?.active || user.api_service_account || !await verifyPassword(password, user.password_hash)) return null;
+  return runWithAuditUser(verified.user, () => withPostgresTransaction(async client => {
+    const user = (await client.query('SELECT * FROM app_users WHERE id=$1 FOR UPDATE', [verified.user.id])).rows[0];
+    if (!user?.active || user.api_service_account || !passwordVersionMatches(user, verified.passwordVersion)) return null;
     return { token: await insertSession(client, user), user: {
       id: Number(user.id), username: user.username, role: user.role, must_change_password: user.must_change_password,
     } };
@@ -819,6 +842,8 @@ module.exports = {
   userCount,
   createUser,
   authenticate,
+  verifyCredentials,
+  passwordVersionMatches,
   authenticateSession,
   verifyPassword,
   passwordHash,

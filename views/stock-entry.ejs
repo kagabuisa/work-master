@@ -33,7 +33,9 @@
     <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %><section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft.</section><% } %>
     <% if (stockEntryReadOnly && entry) { %>
       <%- include('stock-entry-detail', { entry, items, money,
-        sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false }) %>
+        sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false,
+        attemptedDeliveryStatus: typeof attemptedDeliveryStatus !== 'undefined' ? attemptedDeliveryStatus : undefined,
+        attemptedDeliveryDetails: typeof attemptedDeliveryDetails !== 'undefined' ? attemptedDeliveryDetails : undefined }) %>
     <% } else { %>
 
     <form method="post" action="<%= editingStockEntry ? `/stock/entries/${entry.id}` : '/stock/entries' %>" class="invoice-form ui-surface" id="stock-entry-form" data-prevent-enter-submit <%= stockEntryReadOnly ? '' : 'data-voucher-form' %>>
@@ -50,6 +52,9 @@
         <% if (selectedEntryType !== 'reconciliation') { %>
           <%- include('stock-entry-delivery-field', { deliveryField: {
             value: typeof attemptedDeliveryStatus !== 'undefined' ? attemptedDeliveryStatus : entry && entry.delivery_status || '',
+            details: typeof attemptedDeliveryDetails !== 'undefined' ? attemptedDeliveryDetails : entry && entry.delivery_details || {},
+            entryId: entry && entry.id || '',
+            today,
             disabled: Boolean(editingStockEntry && !(typeof sharedWriteAccess !== 'undefined' && sharedWriteAccess) && currentUser.role !== 'admin' && (!currentUser.id || String(currentUser.id) !== String(entry.created_by_user_id))),
           } }) %>
         <% } %>

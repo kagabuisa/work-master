@@ -9,10 +9,10 @@ const { listAttachments, saveAttachments, findAttachment, deleteAttachment, MAX_
 const { voucherOwnedByUser } = require('../../voucher-ownership');
 const { money, todayString } = require('../format');
 const { currentPostingDate, currentPostingTime } = require('../../posting-time');
-const { parseStockEntryPayload } = require('../parsers');
+const { deliveryDetailsFromBody, parseStockEntryPayload } = require('../parsers');
 const { STOCK_ENTRY_CHOICES, STOCK_TRANSFER_TYPES } = require('../../constants');
 const { applyReconciliationRatePolicy } = require('../reconciliation-rates');
-const { warehouseAllowed } = require('../../access');
+const { assignedMasterRecordAllowed, allowedMasterRecordIds, deniedMasterRecordIds, warehouseAllowed } = require('../../access');
 const { warehouseAccessOptions } = require('../helpers');
 const { voucherOwnerId } = require('../../voucher-ownership');
 const { csvLine } = require('../invoice-report');
@@ -30,6 +30,7 @@ const {
   updateVoucherPostingTime,
   deleteDraftVoucher,
   getPostgresPool,
+  masterEmployees,
 } = require('../../store');
 
 const { photoCountReport, savePhotoCount, saveAllPhotoCounts } = require('../../photo-count');
@@ -44,6 +45,16 @@ async function workflowView(req, entry) {
     sharing: await stockEntrySharing(req.currentUser, entry), sharedAccessOnly: Boolean(req.stockEntrySharedRead),
     sharedWriteAccess: Boolean(req.stockEntrySharedWrite) };
 }
+
+router.get(['/delivery-employees', '/entries/:id/delivery-employees'], async (req, res, next) => {
+  try {
+    const search = String(req.query.q || '').trim().slice(0, 100);
+    res.set('Cache-Control', 'private, no-store');
+    res.json(await masterEmployees({ search, limit: 25, searchPublicOnly: true, docstatus: 'submitted',
+      allowedIds: allowedMasterRecordIds(req.currentUser, 'employees'),
+      deniedIds: deniedMasterRecordIds(req.currentUser, 'employees') }));
+  } catch (error) { next(error); }
+});
 
 async function reconciliationShareView(req, entry) {
   return {
@@ -577,6 +588,7 @@ router.post('/entries', async (req, res, next) => {
       error: err.message || 'Could not save stock entry.',
       entry: null,
       attemptedDeliveryStatus: req.body.delivery_status,
+      attemptedDeliveryDetails: deliveryDetailsFromBody(req.body),
       attemptedCostCenter: req.body.cost_center || '',
       items: [],
     });
@@ -700,7 +712,8 @@ router.get('/entries/:id/drawer', async (req, res, next) => {
   try {
     const data = await loadStockEntry(req.params.id);
     res.set('Cache-Control', 'private, no-store');
-    res.render('stock-entry-drawer', { ...data, money, ...await workflowView(req, data.entry) });
+    res.render('stock-entry-drawer', { ...data, money, today: currentPostingDate(),
+      ...await workflowView(req, data.entry) });
   } catch (err) {
     next(err);
   }
@@ -712,7 +725,8 @@ for (const action of ['delivery', 'share']) {
     try {
       const change = action === 'delivery' ? 'delivery' : req.body.action === 'revoke' ? 'revoke' : 'share';
       await changeStockEntryWorkflow(req.currentUser, req.params.id, change,
-        action === 'delivery' ? req.body.delivery_status : req.body.user_id, req.body.permission || 'read');
+        action === 'delivery' ? req.body.delivery_status : req.body.user_id, req.body.permission || 'read',
+        action === 'delivery' ? deliveryDetailsFromBody(req.body) : {});
       if (inlineSharing) {
         const { entry } = await loadStockEntry(req.params.id);
         const sharing = await stockEntrySharing(req.currentUser, entry);
@@ -725,6 +739,19 @@ for (const action of ['delivery', 'share']) {
       res.redirect(303, `/stock/entries/${req.params.id}`);
     } catch (error) {
       if (inlineSharing) return res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save sharing. Please try again.' });
+      if (action === 'delivery' && error.status === 400) {
+        const data = await loadStockEntry(req.params.id);
+        return res.status(400).render('stock-entry', {
+          today: data.entry.posting_date,
+          error: error.message,
+          readOnly: true,
+          money,
+          ...data,
+          ...await workflowView(req, data.entry),
+          attemptedDeliveryStatus: req.body.delivery_status,
+          attemptedDeliveryDetails: deliveryDetailsFromBody(req.body),
+        });
+      }
       if (error.status === 400) return res.redirect(303, `/stock/entries/${req.params.id}?error=${encodeURIComponent(error.message)}`);
       next(error);
     }
@@ -749,6 +776,7 @@ router.post('/entries/:id', async (req, res, next) => {
         ...data,
         sharedWriteAccess: Boolean(req.stockEntrySharedWrite),
         attemptedDeliveryStatus: req.body.delivery_status,
+        attemptedDeliveryDetails: deliveryDetailsFromBody(req.body),
         attemptedCostCenter: req.body.cost_center || '',
       });
     } catch (loadErr) {

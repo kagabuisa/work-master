@@ -274,7 +274,8 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
       await setVoucherDocstatus(client,'app_stock_entries',id,'submitted');
     }
     if (payload.delivery_status !== undefined && (payload.delivery_status !== '' || deliveryUser)) {
-      await saveStockEntryDelivery(client, deliveryUser, { ...rows[0], entry_type: entryType, docstatus }, payload.delivery_status);
+      await saveStockEntryDelivery(client, deliveryUser, { ...rows[0], entry_type: entryType, docstatus },
+        payload.delivery_status, payload.delivery_details);
     }
     if (docstatus === 'submitted') {
       await postStockEntryMovements(client, { id, entryNo, entryType, postingDate, postingTime, items });
@@ -299,6 +300,8 @@ async function loadStockEntry(id) {
       id, entry_no, entry_type, docstatus, posting_date::text, posting_time::text, remarks, cost_center,
       COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
         WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status,
+      COALESCE((SELECT delivery_details FROM app_stock_entry_delivery delivery
+        WHERE delivery.stock_entry_id=app_stock_entries.id), '{}'::jsonb) AS delivery_details,
       supplier_name, supplier_contact, supplier_phone, supplier_reference,
       submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at
@@ -497,7 +500,9 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
     const { rows: existingRows } = await client.query(
       `SELECT id, entry_no, entry_type, docstatus, created_by_user_id, cost_center,
         COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
-          WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status
+          WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status,
+        COALESCE((SELECT delivery_details FROM app_stock_entry_delivery delivery
+          WHERE delivery.stock_entry_id=app_stock_entries.id), '{}'::jsonb) AS delivery_details
         FROM app_stock_entries WHERE id = $1 FOR UPDATE`,
       [stockEntryId],
     );
@@ -548,8 +553,10 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
     if (docstatus === 'submitted') {
       await setVoucherDocstatus(client,'app_stock_entries',stockEntryId,'submitted');
     }
-    if (payload.delivery_status !== undefined && payload.delivery_status !== existing.delivery_status) {
-      await saveStockEntryDelivery(client, deliveryUser, { ...existing, entry_type: entryType, docstatus }, payload.delivery_status);
+    if (payload.delivery_status !== undefined && (payload.delivery_status !== existing.delivery_status
+      || JSON.stringify(payload.delivery_details || {}) !== JSON.stringify(existing.delivery_details || {}))) {
+      await saveStockEntryDelivery(client, deliveryUser, { ...existing, entry_type: entryType, docstatus },
+        payload.delivery_status, payload.delivery_details);
     }
     if (docstatus === 'submitted') {
       await postStockEntryMovements(client, {
