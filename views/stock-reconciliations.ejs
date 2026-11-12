@@ -12,8 +12,8 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Reconciliation' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'stock' }) %>
-        <% if ((can('vouchers.stock.create') || can('inventory.count.start')) && currentUser.scopes?.suppliers?.mode !== 'selected') { %><a class="button" href="/stock/reconciliations/new">New</a><% } %>
+        <%- include('module-nav', { activeModule: 'stock', hideCreateActions: true }) %>
+        <%- include('stock-new-menu') %>
       </nav>
     </header>
 <%- include('stock-reconciliation-tabs',{activeReconciliationTab:'vouchers'}) %>

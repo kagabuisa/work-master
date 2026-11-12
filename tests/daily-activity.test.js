@@ -107,6 +107,28 @@ test('daily activity report and voucher render ERPNext fields', async () => {
   assert.ok(reportDate < reportShop && reportShop < reportUnitType);
 });
 
+test('local daily activity detail shows submission only for draft reports with submit permission', async () => {
+  const voucher = { name: 'DAR-000012', source: 'local', docstatus: 0, date: '2026-10-04', shop: 'Main',
+    status_label: 'Draft', sales: 200, expense: 25, banked: 175, expense_details: 'Fuel',
+    packages_received: 2, delivery_differences: 'No' };
+  const shared = { assetVersion: 'test', currentUser: { role: 'admin', scopes: {} },
+    availableReports: [], formatDate: (value) => value, money: (value) => `Ugx ${value}` };
+  const allowed = await renderView(path.resolve(__dirname, '../views/daily-activity-voucher.ejs'), {
+    ...shared, voucher, can: (permission) => permission === 'reports.daily-activity.submit',
+  });
+  assert.match(allowed, /action="\/reports\/daily-activity\/DAR-000012\/submit"/);
+  assert.match(allowed, /Submit report/);
+  const denied = await renderView(path.resolve(__dirname, '../views/daily-activity-voucher.ejs'), {
+    ...shared, voucher, can: () => false,
+  });
+  assert.doesNotMatch(denied, /\/submit"/);
+  const submitted = await renderView(path.resolve(__dirname, '../views/daily-activity-voucher.ejs'), {
+    ...shared, voucher: { ...voucher, docstatus: 1, status_label: 'Submitted' },
+    can: (permission) => permission === 'reports.daily-activity.submit',
+  });
+  assert.doesNotMatch(submitted, /\/submit"/);
+});
+
 
 test('daily activity rejects missing source settings without querying localhost', async () => {
   delete process.env.DB_HOST;

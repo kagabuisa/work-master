@@ -16,6 +16,7 @@ const purchaseColumns = [
   { key: 'supplier_id', label: 'Supplier ID' },
   { key: 'supplier_name', label: 'Supplier' },
   { key: 'supplier_reference', label: 'Supplier Reference' },
+  { key: 'supplier_receipt_no', label: 'Supplier Receipt Number' },
   { key: 'purchase_order_no', label: 'Purchase Order' },
   { key: 'price_list', label: 'Price List' },
   { key: 'cost_center', label: 'Cost Center' },
@@ -258,7 +259,8 @@ async function loadVoucherReport(kind, options = {}) {
     const value = add(sqlLikePattern(filters.search));
     const fields = journal
       ? ['j.journal_no', 'j.party_name', 'j.party_id', 'j.reference_no', 'account.account_code', 'account.account_name', 'creator.username']
-      : [`${parent}.${order ? 'order_no' : 'purchase_no'}`, `${parent}.supplier_name`, `${parent}.supplier_id`, `${parent}.supplier_reference`, 'line.item_code', 'line.item_name'];
+      : [`${parent}.${order ? 'order_no' : 'purchase_no'}`, `${parent}.supplier_name`, `${parent}.supplier_id`, `${parent}.supplier_reference`,
+        ...(order ? [] : [`${parent}.supplier_receipt_no`]), 'line.item_code', 'line.item_name'];
     where.push(`(${fields.map((field) => `lower(coalesce(${field}::text, '')) LIKE ${value}`).join(' OR ')})`);
   }
   if (filters.from) where.push(`${parent}.posting_date >= ${add(filters.from)}::date`);
@@ -294,7 +296,8 @@ async function loadVoucherReport(kind, options = {}) {
     line.remarks AS line_remarks`
     : `${parent}.id::text AS voucher_id, ${parent}.${order ? 'order_no' : 'purchase_no'}, ${common},
     ${parent}.due_date::text, ${parent}.supplier_id, ${parent}.supplier_name,
-    ${parent}.supplier_reference, ${parent}.price_list, ${parent}.subtotal::float,
+    ${parent}.supplier_reference, ${order ? 'NULL::text' : `${parent}.supplier_receipt_no`},
+    ${parent}.price_list, ${parent}.subtotal::float,
     ${parent}.total::float, ${parent}.updated_at::text,
     line.item_code, line.item_name, master.category AS item_category,
     line.warehouse, line.quantity::float, line.unit_price::float, line.line_total::float,

@@ -4,7 +4,7 @@ const { isValidIsoDate } = require('../lib/dates');
 const { getPostgresPool, withPostgresTransaction } = require('../core');
 const { validateCostCenter } = require('../cost-centers');
 const { allowedNamedListValues, deniedNamedListValues, warehouseAllowed, assignedMasterRecordAllowed } = require('../access');
-const { runWithAuditUser } = require('../audit');
+const { auditActor, runWithAuditUser } = require('../audit');
 const { sqlLikePattern } = require('../lib/search');
 const { STOCK_ENTRY_TYPE_LABELS } = require('../constants');
 const UNIT_TYPES = ['Shop', 'Field Sales(FiSa)'];
@@ -50,25 +50,51 @@ function recordAllowed(user, record) {
     && assignedMasterRecordAllowed(user, 'cost-centers', record.shop);
 }
 
+async function validateDailyActivityReferences(client, doc) {
+  await validateCostCenter(client, doc.shop);
+  const warehouse = await client.query('SELECT 1 FROM app_master_warehouses WHERE warehouse=$1 AND disabled=false AND is_group=false FOR SHARE', [doc.warehouse]);
+  if (!warehouse.rowCount) invalid('Select an enabled warehouse.');
+  if (doc.stock_entry_number) {
+    const stock = await client.query(`SELECT 1 FROM app_stock_entries entry
+      JOIN app_stock_entry_items line ON line.stock_entry_id=entry.id
+      WHERE entry.entry_no=$1 AND (line.warehouse=$2 OR line.target_warehouse=$2)
+        AND COALESCE(entry.docstatus, 'submitted')='submitted' LIMIT 1`,
+    [doc.stock_entry_number, doc.warehouse]);
+    if (!stock.rowCount) invalid('Select a submitted stock entry that includes this warehouse, or leave Stock entry number blank.');
+  }
+}
+
 async function createDailyActivity(input, user) {
   const doc = draft(input);
   if (!recordAllowed(user, doc)) throw Object.assign(new Error('Choose a permitted shop and warehouse.'), { status: 403 });
   return runWithAuditUser(user, () => withPostgresTransaction(async (client) => {
-    await validateCostCenter(client, doc.shop);
-    const warehouse = await client.query('SELECT 1 FROM app_master_warehouses WHERE warehouse=$1 AND disabled=false AND is_group=false FOR SHARE', [doc.warehouse]);
-    if (!warehouse.rowCount) invalid('Select an enabled warehouse.');
-    if (doc.stock_entry_number) {
-      const stock = await client.query(`SELECT 1 FROM app_stock_entries entry
-        JOIN app_stock_entry_items line ON line.stock_entry_id=entry.id
-        WHERE entry.entry_no=$1 AND (line.warehouse=$2 OR line.target_warehouse=$2)
-          AND COALESCE(entry.docstatus, 'submitted')='submitted' LIMIT 1`,
-      [doc.stock_entry_number, doc.warehouse]);
-      if (!stock.rowCount) invalid('Select a submitted stock entry that includes this warehouse, or leave Stock entry number blank.');
-    }
+    await validateDailyActivityReferences(client, doc);
     const keys = Object.keys(doc).filter(key => key !== 'banked');
     const { rows } = await client.query(`INSERT INTO app_daily_activity_reports (${keys.join(',')})
       VALUES (${keys.map((_, i) => '$' + (i + 1)).join(',')}) RETURNING *`, keys.map(key => doc[key]));
     return rows[0];
+  }));
+}
+
+async function submitDailyActivity(name, user) {
+  if (!/^DAR-\d{6,}$/.test(name || '')) {
+    throw Object.assign(new Error('Daily Activity Report voucher not found.'), { status: 404 });
+  }
+  return runWithAuditUser(user, () => withPostgresTransaction(async (client) => {
+    const { rows: [report] } = await client.query(
+      'SELECT * FROM app_daily_activity_reports WHERE name=$1 FOR UPDATE', [name]);
+    if (!report || !recordAllowed(user, report)) {
+      throw Object.assign(new Error('Daily Activity Report voucher not found.'), { status: 404 });
+    }
+    if (Number(report.docstatus) !== 0) invalid('Only draft Daily Activity Reports can be submitted.');
+    await validateDailyActivityReferences(client, report);
+    const actor = auditActor();
+    const { rows: [submitted] } = await client.query(`UPDATE app_daily_activity_reports
+      SET docstatus=1, submitted_by=$2, submitted_by_user_id=$3, submitted_at=$4
+      WHERE id=$1 AND docstatus=0 RETURNING *`,
+    [report.id, actor.name || null, actor.id || null, new Date().toISOString()]);
+    if (!submitted) invalid('Only draft Daily Activity Reports can be submitted.');
+    return submitted;
   }));
 }
 
@@ -142,5 +168,5 @@ async function dailyActivityStockEntryOptions(filters = {}, user, pool) {
   });
 }
 
-module.exports = { draft, createDailyActivity, dailyActivityFormOptions, dailyActivityStockEntryOptions,
+module.exports = { draft, createDailyActivity, submitDailyActivity, dailyActivityFormOptions, dailyActivityStockEntryOptions,
   recordAllowed, UNIT_TYPES, DELIVERY_OPTIONS };

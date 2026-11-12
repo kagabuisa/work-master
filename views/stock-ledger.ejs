@@ -14,7 +14,7 @@
           : [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Ledger' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: report.filters.entry_type === 'purchase' ? 'purchases' : 'stock' }) %>
+        <%- include('module-nav', { activeModule: report.filters.entry_type === 'purchase' ? 'purchases' : 'stock', hideCreateActions: true }) %>
         <%- include('stock-new-menu') %>
       </nav>
     </header>

@@ -20,8 +20,11 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Journals', href: '/journals' }, { label: journal.id ? journal.journal_no : 'New Journal Entry' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'accounts' }) %><%- include('journal-actions', { journal }) %>
-        <% if (journal.id && typeof sharing !== 'undefined' && sharing) { %><a class="button button-light" href="#voucher-sharing">Share</a><% } %>
+        <%- include('module-nav', { activeModule: 'accounts', hideCreateActions: true }) %>
+        <div class="actions page-actions voucher-page-actions">
+          <%- include('journal-actions', { journal }) %>
+          <% if (journal.id && typeof sharing !== 'undefined' && sharing) { %><a class="button button-light" href="#voucher-sharing">Share</a><% } %>
+        </div>
       </nav>
     </header>
 
@@ -181,7 +184,7 @@
       <section class="form-grid ui-form-grid">
         <label class="wide">
           Remarks
-          <input name="remarks" value="<%= journal.remarks || '' %>" <%= journalReadOnly ? 'readonly' : '' %>>
+          <textarea name="remarks" rows="4" <%= journalReadOnly ? 'readonly' : '' %>><%= journal.remarks || '' %></textarea>
         </label>
       </section>
 

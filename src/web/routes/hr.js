@@ -13,9 +13,13 @@ const {fail}=require('../../hr-policy');
 
 router.use((_req,res,next)=>{res.set('Cache-Control','private, no-store');next();});
 const handle=fn=>async(req,res,next)=>{try{await fn(req,res);}catch(e){if(require('../../master-display').masterNameConflict(e)){}else if(e.code==='23505'){e.status=409;e.message='A record already exists for this employee and date or payroll month. Cancel the previous record before creating a replacement.';}else if(e.code==='23503'){e.status=400;e.message='Choose an existing employee, leave type, cost center, and account.';}next(e);}};
+const configuredCompanyName=async()=>String((await getCompanyInformation()).name||'').trim();
 const render=async(req,res,page,title,data={})=>{
-  const opts=await hr.options(req.currentUser);
-  res.render('hr',{page,title,money,today:todayString(),opts,employeeDetailFields,isNewEmployee:false,
+  const [opts,defaultCompany]=await Promise.all([
+    hr.options(req.currentUser),
+    page==='payroll'?configuredCompanyName():'',
+  ]);
+  res.render('hr',{page,title,money,today:todayString(),opts,employeeDetailFields,isNewEmployee:false,defaultCompany,
     costCenterName:res.locals.costCenterName || require('../../master-display').costCenterLabels(opts.centers),...data});
 };
 const components=body=>Array.isArray(body.components)?body.components:Object.values(body.components||{});
@@ -103,12 +107,16 @@ router.get('/payslips/:id',handle(async(req,res)=>render(req,res,'payslip','Pays
 router.get('/payroll',handle(async(req,res)=>render(req,res,'payroll','Payroll',{runs:await hr.payrollList(req.currentUser)})));
 router.post('/payroll',handle(async(req,res)=>{
   try {
-    const id=await hr.createPayroll(req.body,req.currentUser);redirect(res,`payroll/${id}`);
+    const payload={...req.body};
+    const defaultCompany=await configuredCompanyName();
+    if(defaultCompany)payload.company=defaultCompany;
+    const id=await hr.createPayroll(payload,req.currentUser);redirect(res,`payroll/${id}`);
   } catch(error) {
     if(error.status!==400 && error.code!=='23505') throw error;
     res.status(error.code==='23505'?409:400);
+    const defaultCompany=await configuredCompanyName();
     await render(req,res,'payroll','Payroll',{
-      runs:await hr.payrollList(req.currentUser),formData:req.body,
+      runs:await hr.payrollList(req.currentUser),formData:{...req.body,company:defaultCompany||String(req.body.company||'').trim()},
       payrollError:error.code==='23505'?'A payroll already exists for a selected employee and month. Open the existing run or cancel it before creating a replacement.':error.message,
       correctionHref:error.employeeId && can(req.currentUser,'hr.employees.view')
         ? `/hr/employees/${encodeURIComponent(error.employeeId)}#${error.employeeSection}` : null,

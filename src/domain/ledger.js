@@ -1054,6 +1054,67 @@ function generalLedgerSummary(totals, openingRows) {
     balance: roundMoney(opening + Number(totals.debit) - Number(totals.credit)) };
 }
 
+function generalLedgerCounterpartKey(voucherType, voucherId) {
+  return `${voucherType || ''}\u0000${voucherId === null || voucherId === undefined ? '' : String(voucherId)}`;
+}
+
+// A row's offset accounts are the accessible accounts on the opposite debit or
+// credit side of the same voucher. Querying each report page or export batch at
+// once keeps this independent of account, date, and search filters while still
+// applying the same access rules as the ledger itself.
+async function addGeneralLedgerCounterpartyAccounts(client, rows, access = {}) {
+  if (!rows.length) return;
+  const keys = new Map();
+  for (const row of rows) {
+    if (!row.voucher_type || row.voucher_id === null || row.voucher_id === undefined) continue;
+    keys.set(generalLedgerCounterpartKey(row.voucher_type, row.voucher_id),
+      { voucher_type: row.voucher_type, voucher_id: String(row.voucher_id) });
+  }
+  if (!keys.size) {
+    for (const row of rows) row.counterpart_accounts = '';
+    return;
+  }
+
+  const requested = [...keys.values()];
+  const params = [requested.map((row) => row.voucher_type), requested.map((row) => row.voucher_id)];
+  const where = [];
+  addGeneralLedgerAccessFilter(where, params, access);
+  const { rows: accountRows } = await client.query(`
+    WITH requested AS (
+      SELECT DISTINCT voucher_type,voucher_id
+      FROM unnest($1::text[],$2::bigint[]) AS voucher(voucher_type,voucher_id)
+    )
+    SELECT gl.voucher_type,gl.voucher_id::text AS voucher_id,
+      account.account_code,account.account_name,
+      BOOL_OR(gl.debit>0) AS has_debit,BOOL_OR(gl.credit>0) AS has_credit
+    FROM requested
+    JOIN app_gl_entries gl
+      ON gl.voucher_type=requested.voucher_type AND gl.voucher_id=requested.voucher_id
+    JOIN app_accounts account ON account.id=gl.account_id
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    GROUP BY gl.voucher_type,gl.voucher_id,account.account_code,account.account_name
+    ORDER BY gl.voucher_type,gl.voucher_id,account.account_code`, params);
+
+  const sides = new Map();
+  for (const account of accountRows) {
+    const key = generalLedgerCounterpartKey(account.voucher_type, account.voucher_id);
+    if (!sides.has(key)) sides.set(key, { debit: [], credit: [] });
+    const entry = sides.get(key);
+    if (account.has_debit) entry.debit.push(account);
+    if (account.has_credit) entry.credit.push(account);
+  }
+  for (const row of rows) {
+    const side = Number(row.debit || 0) > 0 ? 'credit' : Number(row.credit || 0) > 0 ? 'debit' : null;
+    const key = generalLedgerCounterpartKey(row.voucher_type, row.voucher_id);
+    row.counterpart_accounts = side
+      ? (sides.get(key)?.[side] || [])
+        .filter((account) => account.account_code !== row.account_code)
+        .map((account) => `${account.account_code} — ${account.account_name}`)
+        .join(', ')
+      : '';
+  }
+}
+
 function generalLedgerPairOrder(alias = 'gl') {
   const sourceType = `COALESCE(NULLIF(${alias}.reversal_of_voucher_type, ''),
     regexp_replace(${alias}.voucher_type, '_cancellation$', ''))`;
@@ -1124,6 +1185,7 @@ async function generalLedgerReport(filters = {}, access = {}) {
           false, false, filters.group_by === 'pair'),
       access.exportAll ? params : pageParams));
     }
+    await addGeneralLedgerCounterpartyAccounts(client, rows, access);
     return {
       filters: query.filters, rows,
       ...await generalLedgerReviewDetails(client, filters, access, query),
@@ -1339,6 +1401,7 @@ async function executeGeneralLedgerExport(filters, access, consume, { signal, ba
         check();
         const batch = await client.query(`FETCH FORWARD ${batchSize} FROM ledger_export_cursor`);
         if (!batch.rows.length) break;
+        await addGeneralLedgerCounterpartyAccounts(client, batch.rows, access);
         for (const row of batch.rows) { check(); yield row; }
       }
     }
@@ -2004,6 +2067,7 @@ module.exports = {
   cancelJournalEntry,
   isManualJournalType,
   addGeneralLedgerAccessFilter,
+  addGeneralLedgerCounterpartyAccounts,
   generalLedgerReport,
   withGeneralLedgerExport,
   generalLedgerFilterOptions,

@@ -11,7 +11,7 @@
         <p class="eyebrow">Purchases</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices', href: '/purchases' }, { label: purchase.id ? 'Edit Purchase Invoice' : 'New Purchase Invoice' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
+      <nav><%- include('module-nav', { activeModule: 'purchases', hideCreateActions: true }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><% if (typeof draftPurchase !== 'undefined' && draftPurchase && can('vouchers.purchases.view')) { %>This purchase order already has a draft purchase invoice: <a href="/purchases/<%= draftPurchase.id %>"><%= draftPurchase.purchase_no %></a>. Edit or submit this draft, or delete it before creating another.<% } else { %><%= error %><% } %></strong></section><% } %>
     <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %><section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft invoice.</section><% } %>
@@ -38,6 +38,7 @@
         <label>Price List<% if (purchase.purchase_order_id) { %><input type="hidden" name="price_list" value="<%= purchase.price_list || '' %>"><% } %><select name="<%= purchase.purchase_order_id ? '' : 'price_list' %>" id="purchase-price-list" <%= purchase.purchase_order_id ? 'disabled' : 'required' %>><option value="<%= purchase.price_list || '' %>"><%= purchase.price_list || 'Loading price lists...' %></option></select></label>
         <%- include('cost-center-field', { value: purchase.cost_center, readOnly: false }) %>
         <label>Supplier Invoice / Reference<input name="supplier_reference" value="<%= purchase.supplier_reference || '' %>"></label>
+        <label>Supplier Receipt Number<input name="supplier_receipt_no" value="<%= purchase.supplier_receipt_no || '' %>"></label>
         <label class="wide">Remarks<input name="remarks" value="<%= purchase.remarks || '' %>"></label>
       </section>
       <% if (!(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %><%- include('voucher-request-fields',{requestKind:'purchases',requestRecord:purchase}) %><% } %>

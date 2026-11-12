@@ -20,6 +20,16 @@ test('daily balances follow inserts, backdated updates, deletes, rollback, acces
    SELECT count(*)::int n FROM ((SELECT * FROM expected EXCEPT SELECT * FROM actual)
      UNION ALL (SELECT * FROM actual EXCEPT SELECT * FROM expected)) diff`);
    assert.equal(r.rows[0].n,0);
+   const compact=await p.query(`WITH expected AS (
+    SELECT account_id,posting_date,count(*)::bigint entry_count,sum(debit) debit,sum(credit) credit
+    FROM app_gl_entries GROUP BY account_id,posting_date
+   ), actual AS (
+    SELECT account_id,posting_date,entry_count,debit,credit FROM wm_gl_account_daily
+    WHERE entry_count<>0 OR debit<>0 OR credit<>0
+   )
+   SELECT count(*)::int n FROM ((SELECT * FROM expected EXCEPT SELECT * FROM actual)
+     UNION ALL (SELECT * FROM actual EXCEPT SELECT * FROM expected)) diff`);
+   assert.equal(compact.rows[0].n,0);
   };
   await reconcile();
   await p.query(`INSERT INTO app_gl_entries(posting_date,account_id,voucher_type,voucher_id,line_no,debit,credit,party_id,cost_center)
@@ -70,7 +80,9 @@ test('daily balances follow inserts, backdated updates, deletes, rollback, acces
   require('../src/read-cache').clearReadCaches();
   const types=await store.generalLedgerFilterOptions();
   assert.deepEqual(types.voucher_types.map(r=>r.value),(await p.query('SELECT DISTINCT voucher_type FROM app_gl_entries ORDER BY voucher_type')).rows.map(r=>r.voucher_type));
-  await p.query('TRUNCATE app_gl_entries');assert.equal((await p.query('SELECT count(*)::int n FROM wm_gl_daily')).rows[0].n,0);
+  await p.query('TRUNCATE app_gl_entries');
+  assert.equal((await p.query('SELECT count(*)::int n FROM wm_gl_daily')).rows[0].n,0);
+  assert.equal((await p.query('SELECT count(*)::int n FROM wm_gl_account_daily')).rows[0].n,0);
   require('../src/read-cache').clearReadCaches();
   assert.deepEqual((await store.generalLedgerFilterOptions()).voucher_types,[]);
  }finally{await store.closeStore();}

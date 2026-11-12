@@ -33,6 +33,8 @@ function parseStockEntryPayload(body) {
     supplier_contact: body.supplier_contact,
     supplier_phone: body.supplier_phone,
     supplier_reference: body.supplier_reference,
+    source_stock_entry_id: body.source_stock_entry_id,
+    source_stock_entry_no: body.source_stock_entry_no,
     items: itemCodes.map((itemCode, index) => ({
       id: ids[index],
       item_code: itemCode,

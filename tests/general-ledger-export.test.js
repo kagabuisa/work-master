@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { sendGeneralLedgerExport } = require('../src/web/general-ledger-export');
-const report = { filters: { from: '2026-10-01', to: '2026-10-08', account: 'Cash' }, summary: { debit: 10, credit: 2, balance: 8 }, rows: Array.from({ length: 205 }, (_,index) => ({ posting_date: '2026-10-08', account_code: '=SUM(1,2)', account_name: 'Cash "Desk"', debit: 10, credit: 2, running_balance: index * 8, voucher_type: 'journal_entry', voucher_no: `JE-${index}`, party_name: 'Counter', remarks: 'Count\nchecked' })) };
+const report = { filters: { from: '2026-10-01', to: '2026-10-08', account: 'Cash' }, summary: { debit: 10, credit: 2, balance: 8 }, rows: Array.from({ length: 205 }, (_,index) => ({ posting_date: '2026-10-08', account_code: '=SUM(1,2)', account_name: 'Cash "Desk"', counterpart_accounts: '=4000 — Sales Income', debit: 10, credit: 2, running_balance: index * 8, voucher_type: 'journal_entry', voucher_no: `JE-${index}`, party_name: 'Counter', remarks: 'Count\nchecked' })) };
 const response = () => {
   const { Writable } = require('node:stream');
   const chunks = [];
@@ -44,22 +44,51 @@ test('file exports omit unused link lookups while preserving rows, access and CS
 test('General Ledger CSV includes all entries, safe text, totals and numeric negatives', async () => {
   const res = response();
   await sendGeneralLedgerExport(res, report, 'csv');
+  assert.match(res.body, /^\uFEFF"Date","Account Code","Account Name","Offset Account","Debit"/);
   assert.match(res.body, /JE-204/);
   assert.match(res.body, /'\=SUM/);
   assert.match(res.body, /Cash ""Desk""/);
-  assert.match(res.body, /"Total","10","2","8"/);
+  assert.match(res.body, /"'=4000 — Sales Income"/);
+  assert.match(res.body, /"Total","","10","2","8"/);
   assert.equal(res.headers['Cache-Control'], 'private, no-store');
 });
+
+test('General Ledger offset accounts use the opposite posting side and remain specific to the voucher', async () => {
+  const { addGeneralLedgerCounterpartyAccounts } = require('../src/domain/ledger');
+  const rows = [
+    { voucher_type: 'journal_entry', voucher_id: '77', account_code: '1000', debit: 100, credit: 0 },
+    { voucher_type: 'journal_entry', voucher_id: '77', account_code: '1100', debit: 0, credit: 100 },
+    { voucher_type: 'sales_invoice', voucher_id: '77', account_code: '1000', debit: 25, credit: 0 },
+  ];
+  const client = {
+    query: async (sql, params) => {
+      assert.match(sql, /opposite|app_gl_entries/);
+      assert.deepEqual(params, [['journal_entry', 'sales_invoice'], ['77', '77']]);
+      return { rows: [
+        { voucher_type: 'journal_entry', voucher_id: '77', account_code: '1000', account_name: 'Cash', has_debit: true, has_credit: false },
+        { voucher_type: 'journal_entry', voucher_id: '77', account_code: '1100', account_name: 'Accounts Receivable', has_debit: false, has_credit: true },
+        { voucher_type: 'sales_invoice', voucher_id: '77', account_code: '1000', account_name: 'Cash', has_debit: true, has_credit: false },
+        { voucher_type: 'sales_invoice', voucher_id: '77', account_code: '4000', account_name: 'Sales Income', has_debit: false, has_credit: true },
+      ] };
+    },
+  };
+  await addGeneralLedgerCounterpartyAccounts(client, rows);
+  assert.equal(rows[0].counterpart_accounts, '1100 — Accounts Receivable');
+  assert.equal(rows[1].counterpart_accounts, '1000 — Cash');
+  assert.equal(rows[2].counterpart_accounts, '4000 — Sales Income');
+});
+
 test('General Ledger Excel preserves numeric amounts and all rows', async () => {
   const ExcelJS = require('exceljs');
   const res = response(); await sendGeneralLedgerExport(res, report, 'xlsx');
   const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(res.body);
   const sheet = workbook.getWorksheet('General Ledger');
   assert.equal(sheet.rowCount, 207);
-  assert.equal(sheet.getCell('D2').value, 10);
+  assert.equal(sheet.getCell('D2').value, '=4000 — Sales Income');
+  assert.equal(sheet.getCell('E2').value, 10);
   assert.equal(sheet.getCell('B2').value, '=SUM(1,2)');
-  assert.equal(sheet.getCell('H206').value, 'JE-204');
-  assert.equal(sheet.getCell('F207').value, 8);
+  assert.equal(sheet.getCell('I206').value, 'JE-204');
+  assert.equal(sheet.getCell('G207').value, 8);
   assert.match(workbook.getWorksheet('Report Details').getCell('B2').value, /account: Cash/);
 });
 test('General Ledger PDF handles multiple pages and empty reports', async () => {
@@ -97,6 +126,7 @@ test('General Ledger voucher-pair grouping marks pairs and links cancellation ro
     { id: '1', posting_date: '2026-11-07', account_code: '1002', account_name: 'Bank',
       voucher_type: 'cash_receipt', voucher_id: '604', voucher_no: 'JRN-000604',
       pair_voucher_id: '604', pair_voucher_type: 'cash_receipt', is_reversal: false,
+      counterpart_accounts: '1100 — Accounts Receivable',
       debit: 10, credit: 0, running_balance: 10, remarks: 'Cash Receipt' },
     { id: '2', posting_date: '2026-11-07', account_code: '1002', account_name: 'Bank',
       voucher_type: 'cash_receipt_cancellation', voucher_id: '604', voucher_no: 'JRN-000604',
@@ -118,6 +148,8 @@ test('General Ledger voucher-pair grouping marks pairs and links cancellation ro
   assert.equal((html.match(/ui-reversal-row/g) || []).length, 1);
   assert.equal((html.match(/href="\/journals\/604"/g) || []).length, 2);
   assert.match(html, /<small class="ui-pair-role">Reversal<\/small>/);
+  assert.match(html, /<th>Offset Account<\/th>/);
+  assert.match(html, /1100 — Accounts Receivable/);
 });
 
 test('General Ledger exports use the same filters and access options without pagination', async () => {
@@ -251,7 +283,7 @@ test('opening rows precede transactions and carry historical balances through pa
     await withGeneralLedgerExport({...filters,party:'OPEN-PARTY'},{},async streamed=>{
       assert.deepEqual(streamed.summary,party.summary);
       const csv=response();await sendGeneralLedgerExport(csv,{...streamed,rows:party.rows},'csv');
-      assert.match(csv.body,/'?"Total","20","0","120"/);
+      assert.match(csv.body,/"Total","","20","0","120"/);
     });
     for(const access of [{allowedAccounts:[]},{ownerId:'no-access'}]) {
       const hidden=await store.generalLedgerReport(filters,access);
@@ -266,8 +298,8 @@ test('opening rows precede transactions and carry historical balances through pa
     const xlsx=response();await sendGeneralLedgerExport(xlsx,all,'xlsx');
     const workbook=new (require('exceljs').Workbook)();await workbook.xlsx.load(xlsx.body);
     const sheet=workbook.getWorksheet('General Ledger');
-    assert.equal(sheet.getCell('A2').value,'Opening balance');assert.equal(sheet.getCell('F2').value,100);
-    assert.equal(sheet.getCell('F4').value,120);
+    assert.equal(sheet.getCell('A2').value,'Opening balance');assert.equal(sheet.getCell('G2').value,100);
+    assert.equal(sheet.getCell('G4').value,120);
     const {renderView}=require('./helpers/render-view');
     for(const report of [all,idle]) {
       const html=await renderView(require('node:path').join(__dirname,'..','views','general-ledger.ejs'),{
@@ -320,6 +352,7 @@ test('party scope, complete voucher drilldown, account grouping and customer bal
     const detail=await store.generalLedgerReport({voucher_type:'sales_invoice',voucher_id:String(seed.invoiceId)},{exportAll:true});
     assert.ok(detail.rows.length>1);
     assert.ok(detail.rows.every(row=>row.voucher_type==='sales_invoice'&&String(row.voucher_id)===String(seed.invoiceId)));
+    assert.ok(detail.rows.every(row=>row.counterpart_accounts));
     assert.equal(detail.summary.balance,0);
     await assert.rejects(store.generalLedgerReport({voucher_id:'1'}),{status:400});
     await assert.rejects(store.generalLedgerReport({voucher_type:'sales_invoice',voucher_id:'bad'}),{status:400});
@@ -331,6 +364,7 @@ test('party scope, complete voucher drilldown, account grouping and customer bal
     const ar=(await pool.query("SELECT id FROM app_accounts WHERE account_name='Accounts Receivable'")).rows[0].id;
     const restricted=await store.generalLedgerReport(filters,{allowedAccounts:[String(ar)],exportAll:true});
     assert.ok(restricted.rows.length>0);assert.ok(restricted.rows.every(row=>row.account_name==='Accounts Receivable'));
+    assert.ok(restricted.rows.every(row=>row.counterpart_accounts===''));
     await withGeneralLedgerExport(filters,{},async report=>{
       const rows=[];for await(const row of report.rows)rows.push(row);
       assert.deepEqual(rows,all.rows);assert.deepEqual(report.customer_balances,all.customer_balances);
@@ -344,6 +378,7 @@ test('party scope, complete voucher drilldown, account grouping and customer bal
     const receipt=await store.generalLedgerReport({voucher_type:'cash_receipt',voucher_id:String(id)},{exportAll:true});
     assert.equal(receipt.allocations.length,1);assert.equal(receipt.allocations[0].reference_no,invoice.invoice_no);
     assert.equal(receipt.allocations[0].credit,50);
+    assert.ok(receipt.rows.every(row=>row.counterpart_accounts));
     const {renderView}=require('./helpers/render-view');
     for(const report of [all,receipt]) {
       const html=await renderView(require('node:path').join(__dirname,'..','views','general-ledger.ejs'),{
@@ -464,7 +499,7 @@ test('supplier payable strips retain payment position, credit direction, as-of d
     }
     const xlsx=response();await sendGeneralLedgerExport(xlsx,r,'xlsx');
     const workbook=new (require('exceljs').Workbook)();await workbook.xlsx.load(xlsx.body);
-    const review=workbook.getWorksheet('Ledger Review');let found=false;review.eachRow(row=>{if(row.getCell(1).value==='Supplier payable'){found=true;assert.equal(row.getCell(6).value,70);}});assert.equal(found,true);
+    const review=workbook.getWorksheet('Ledger Review');let found=false;review.eachRow(row=>{if(row.getCell(1).value==='Supplier payable'){found=true;assert.equal(row.getCell(7).value,70);}});assert.equal(found,true);
     const pdf=response();await sendGeneralLedgerExport(pdf,r,'pdf');assert.equal(pdf.body.subarray(0,5).toString(),'%PDF-');
   }finally{await store.closeStore();}
 });

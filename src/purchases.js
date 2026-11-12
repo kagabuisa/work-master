@@ -101,6 +101,7 @@ function normalizePurchase(payload) {
     cost_center: String(payload.cost_center || '').trim() || null,
     purchase_order_id: payload.purchase_order_id ? Number(payload.purchase_order_id) : null,
     supplier_reference: String(payload.supplier_reference || '').trim() || null,
+    supplier_receipt_no: String(payload.supplier_receipt_no || '').trim() || null,
     remarks: String(payload.remarks || '').trim() || null,
     subtotal: total,
     total,
@@ -275,12 +276,13 @@ async function createPurchase(payload) {
     await assertUniqueSupplierReference(client, purchase);
     const { rows } = await client.query(`
       INSERT INTO app_purchases (
-        posting_date, posting_time, due_date, supplier_id, supplier_name, supplier_reference, remarks,
-        subtotal, total, price_list, purchase_order_id, cost_center
-      ) VALUES ($1, $10, $2, $3, $4, $5, $6, $7, $8, $9, $11, $12) RETURNING id
-    `, [purchase.posting_date, purchase.due_date, purchase.supplier_id,
-      purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
-      purchase.subtotal, purchase.total, purchase.price_list, purchase.posting_time, purchase.purchase_order_id, purchase.cost_center]);
+        posting_date, posting_time, due_date, supplier_id, supplier_name, supplier_reference,
+        supplier_receipt_no, remarks, subtotal, total, price_list, purchase_order_id, cost_center
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id
+    `, [purchase.posting_date, purchase.posting_time, purchase.due_date, purchase.supplier_id,
+      purchase.supplier_name, purchase.supplier_reference, purchase.supplier_receipt_no,
+      purchase.remarks, purchase.subtotal, purchase.total, purchase.price_list,
+      purchase.purchase_order_id, purchase.cost_center]);
     const id = Number(rows[0].id);
     await client.query('UPDATE app_purchases SET purchase_no = $1 WHERE id = $2',
       [`PURINV-${String(id).padStart(6, '0')}`, id]);
@@ -310,13 +312,15 @@ async function updatePurchase(id, payload, options = {}) {
     await validatePurchaseOrder(client, purchase, purchaseId);
     await assertUniqueSupplierReference(client, purchase, purchaseId);
     await client.query(`
-      UPDATE app_purchases SET posting_date = $1, posting_time = $11, due_date = $2, supplier_id = $3,
-        supplier_name = $4, supplier_reference = $5, remarks = $6,
-        subtotal = $7, total = $8, price_list = $10, purchase_order_id = $12, cost_center = $13, updated_at = now()
-      WHERE id = $9
-    `, [purchase.posting_date, purchase.due_date, purchase.supplier_id,
-      purchase.supplier_name, purchase.supplier_reference, purchase.remarks,
-      purchase.subtotal, purchase.total, purchaseId, purchase.price_list, purchase.posting_time, purchase.purchase_order_id, purchase.cost_center]);
+      UPDATE app_purchases SET posting_date = $1, posting_time = $2, due_date = $3,
+        supplier_id = $4, supplier_name = $5, supplier_reference = $6, supplier_receipt_no = $7,
+        remarks = $8, subtotal = $9, total = $10, price_list = $11, purchase_order_id = $12,
+        cost_center = $13, updated_at = now()
+      WHERE id = $14
+    `, [purchase.posting_date, purchase.posting_time, purchase.due_date, purchase.supplier_id,
+      purchase.supplier_name, purchase.supplier_reference, purchase.supplier_receipt_no,
+      purchase.remarks, purchase.subtotal, purchase.total, purchase.price_list,
+      purchase.purchase_order_id, purchase.cost_center, purchaseId]);
     await syncItems(client, purchaseId, purchase.items);
     await voucherControls.savedVoucher(client,'purchases',purchaseId,payload);
     return purchaseId;
@@ -343,7 +347,8 @@ async function listPurchases(filters = {}) {
   if (search) {
     params.push(`%${search.replace(/[\\%_]/g, '\\$&')}%`);
     where.push(`(p.purchase_no ILIKE $${params.length} OR p.supplier_id ILIKE $${params.length}
-      OR p.supplier_name ILIKE $${params.length} OR p.supplier_reference ILIKE $${params.length})`);
+      OR p.supplier_name ILIKE $${params.length} OR p.supplier_reference ILIKE $${params.length}
+      OR p.supplier_receipt_no ILIKE $${params.length})`);
   }
   const from = String(filters.from || '').trim();
   const to = String(filters.to || '').trim();
@@ -358,7 +363,7 @@ async function listPurchases(filters = {}) {
   params.push(limit, offset);
   const result = await getPostgresPool().query(`
     SELECT p.id, p.purchase_no, p.docstatus, p.posting_date::text, p.posting_time::text, p.due_date::text,
-      p.supplier_id, p.supplier_name, p.supplier_reference,
+      p.supplier_id, p.supplier_name, p.supplier_reference, p.supplier_receipt_no,
       p.total::float, p.amount_paid::float, p.status
     FROM app_purchases p ${whereSql}
     ORDER BY p.posting_date DESC, p.id DESC
@@ -384,7 +389,8 @@ async function loadPurchase(id) {
   const result = await pool.query(`
     SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
       id, purchase_no, docstatus, posting_date::text, posting_time::text, due_date::text,
-      supplier_id, supplier_name, price_list, supplier_reference, remarks, purchase_order_id, cost_center,
+      supplier_id, supplier_name, price_list, supplier_reference, supplier_receipt_no, remarks,
+      purchase_order_id, cost_center,
       subtotal::float, submitted_by, submitted_by_user_id, submitted_at,
       cancelled_by, cancelled_by_user_id, cancelled_at,
       total::float, amount_paid::float, status

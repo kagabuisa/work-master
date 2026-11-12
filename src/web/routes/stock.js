@@ -46,6 +46,13 @@ async function workflowView(req, entry) {
     sharedWriteAccess: Boolean(req.stockEntrySharedWrite) };
 }
 
+function stockEntrySourceAccess(req) {
+  return {
+    userId: req.currentUser?.role === 'standard' ? req.currentUser.id : null,
+    ...warehouseAccessOptions(req.currentUser),
+  };
+}
+
 router.get(['/delivery-employees', '/entries/:id/delivery-employees'], async (req, res, next) => {
   try {
     const search = String(req.query.q || '').trim().slice(0, 100);
@@ -351,6 +358,40 @@ router.get('/reconciliations/:id/edit', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get('/reconciliations/:id/duplicate', async (req, res, next) => {
+  try {
+    const data = await loadReconciliation(req.params.id);
+    const items = data.items.map((item) => ({
+      item_code: item.item_code,
+      item_name: item.item_name,
+      warehouse: item.warehouse,
+      quantity: item.quantity,
+      valuation_rate: item.valuation_rate,
+    }));
+    const entry = {
+      entry_type: 'reconciliation',
+      docstatus: 'draft',
+      posting_date: currentPostingDate(),
+      posting_time: currentPostingTime(),
+      cost_center: data.entry.cost_center,
+      remarks: data.entry.remarks,
+    };
+    res.set('Cache-Control', 'private, no-store');
+    res.render('stock-reconciliation', {
+      ...reconciliationView(entry, items, null, items[0]?.warehouse || '', await reconciliationBalances(items)),
+      duplicateOf: data.entry.entry_no,
+    });
+  } catch (error) { next(error); }
+});
+
+router.get('/reconciliations/:id/print', async (req, res, next) => {
+  try {
+    const data = await loadReconciliation(req.params.id);
+    res.set('Cache-Control', 'private, no-store');
+    res.render('stock-entry-print', { ...data, money });
+  } catch (error) { next(error); }
+});
+
 router.get('/reconciliations/:id', async (req, res, next) => {
   try {
     const linked = await getPostgresPool().query('SELECT id FROM wm_inventory_counts WHERE reconciliation_id=$1', [req.params.id]);
@@ -571,7 +612,10 @@ router.post('/entries', async (req, res, next) => {
   try {
     const payload = req.body.entry_type === 'reconciliation'
       ? await reconciliationPayload(req.body, req.currentUser) : parseStockEntryPayload(req.body);
-    const id = await createStockEntry(payload, { deliveryUser: req.currentUser });
+    const id = await createStockEntry(payload, {
+      deliveryUser: req.currentUser,
+      sourceAccess: stockEntrySourceAccess(req),
+    });
     res.redirect(303, req.body.entry_type === 'reconciliation'
       ? `/stock/reconciliations/${id}` : '/stock/entries');
   } catch (err) {
@@ -590,6 +634,9 @@ router.post('/entries', async (req, res, next) => {
       attemptedDeliveryStatus: req.body.delivery_status,
       attemptedDeliveryDetails: deliveryDetailsFromBody(req.body),
       attemptedCostCenter: req.body.cost_center || '',
+      attemptedEntryType: req.body.entry_type,
+      attemptedSourceStockEntryId: req.body.source_stock_entry_id,
+      attemptedSourceStockEntryNo: req.body.source_stock_entry_no,
       items: [],
     });
   }
@@ -612,6 +659,8 @@ router.get('/entries/:id/duplicate', async (req, res, next) => {
         cost_center: entry.cost_center, remarks: entry.remarks,
         supplier_name: entry.supplier_name, supplier_contact: entry.supplier_contact,
         supplier_phone: entry.supplier_phone, supplier_reference: '',
+        source_stock_entry_id: entry.source_stock_entry_id,
+        source_stock_entry_no: entry.source_stock_entry_no,
       },
       items: items.map(item => ({
         item_code: item.item_code, item_name: item.item_name,
@@ -619,6 +668,14 @@ router.get('/entries/:id/duplicate', async (req, res, next) => {
         quantity: item.quantity, valuation_rate: item.valuation_rate,
       })),
     });
+  } catch (error) { next(error); }
+});
+
+router.get('/entries/:id/print', async (req, res, next) => {
+  try {
+    const data = await loadStockEntry(req.params.id);
+    res.set('Cache-Control', 'private, no-store');
+    res.render('stock-entry-print', { ...data, money });
   } catch (error) { next(error); }
 });
 
@@ -763,7 +820,11 @@ router.post('/entries/:id', async (req, res, next) => {
     const current = await loadStockEntry(req.params.id);
     const payload = current.entry.entry_type === 'reconciliation' || req.body.entry_type === 'reconciliation'
       ? await reconciliationPayload(req.body, req.currentUser, current.items) : parseStockEntryPayload(req.body);
-    const id = await updateStockEntry(req.params.id, payload, { deliveryUser: req.currentUser, sharedWrite: Boolean(req.stockEntrySharedWrite) });
+    const id = await updateStockEntry(req.params.id, payload, {
+      deliveryUser: req.currentUser,
+      sharedWrite: Boolean(req.stockEntrySharedWrite),
+      sourceAccess: stockEntrySourceAccess(req),
+    });
     res.redirect(303, payload.entry_type === 'reconciliation'
       ? `/stock/reconciliations/${id}` : payload.action === 'save_draft' ? `/stock/entries/${id}/edit` : '/stock/entries');
   } catch (err) {
@@ -778,6 +839,9 @@ router.post('/entries/:id', async (req, res, next) => {
         attemptedDeliveryStatus: req.body.delivery_status,
         attemptedDeliveryDetails: deliveryDetailsFromBody(req.body),
         attemptedCostCenter: req.body.cost_center || '',
+        attemptedEntryType: req.body.entry_type,
+        attemptedSourceStockEntryId: req.body.source_stock_entry_id,
+        attemptedSourceStockEntryNo: req.body.source_stock_entry_no,
       });
     } catch (loadErr) {
       next(loadErr);
@@ -795,11 +859,16 @@ router.post('/entries/:id/supplier', async (req, res, next) => {
 });
 
 router.post('/entries/:id/cancel', async (req, res, next) => {
+  const wantsJson = Boolean(typeof req.is === 'function' && req.is('application/json'))
+    || (typeof req.get === 'function' && req.get('x-requested-with') === 'XMLHttpRequest');
   try {
     const id = await cancelStockEntry(req.params.id, req.body);
-    res.json({ id, status: 'cancelled' });
+    if (wantsJson) return res.json({ id, status: 'cancelled' });
+    return res.redirect(303, `/stock/entries/${req.params.id}`);
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message || 'Could not cancel stock entry.' });
+    if (wantsJson) return res.status(err.status || 500).json({ error: err.message || 'Could not cancel stock entry.' });
+    if (err.status === 400) return res.redirect(303, `/stock/entries/${req.params.id}?error=${encodeURIComponent(err.message)}`);
+    next(err);
   }
 });
 

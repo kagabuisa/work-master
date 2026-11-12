@@ -1,4 +1,4 @@
-<% const payrollForm = typeof formData !== 'undefined' ? formData : {}; const selectedEmployees = Array.isArray(payrollForm.employee_ids) ? payrollForm.employee_ids : [payrollForm.employee_ids].filter(Boolean); %>
+<% const payrollForm = typeof formData !== 'undefined' ? formData : {}; const selectedEmployees = Array.isArray(payrollForm.employee_ids) ? payrollForm.employee_ids : [payrollForm.employee_ids].filter(Boolean); const preferredCompany=String(payrollForm.company||(typeof defaultCompany!=='undefined'?defaultCompany:'')).trim(); const companyOptions=[...new Set([...opts.employees.filter(e=>e.status==='Active'&&!e.disabled).map(e=>e.company).filter(Boolean),preferredCompany])].sort((a,b)=>a.localeCompare(b)); %>
 <% if(typeof payrollError !== 'undefined' && payrollError){ %>
 <section class="notice warning" role="alert"><p><%= payrollError %></p>
 <% if(correctionHref){ %><a class="button button-light" href="<%= correctionHref %>"><%= correctionLabel %></a><% } %>
@@ -8,7 +8,7 @@
 <section class="invoice-card hr-card ui-surface"><%- include('ui-section-heading', { heading: { title: 'Prepare monthly payroll', help: 'Save each employee’s pay plan effective on or before the first day of the payroll month. Payroll Write is required to save pay plans. Review paid days, variable pay, and recoveries before posting. Inactive employees need a leaving date in their employment profile.' } }) %>
 <% if(can('hr.employees.view')){ %><a class="inline-link hr-payroll-setup" href="/hr/employees">Set up employee pay plans ↗</a><% } %>
 <form method="post" action="/hr/payroll" class="hr-grid ui-form-grid hr-payroll-preparation">
-<label>Company<select name="company" required><option value="">Choose company</option><% [...new Set(opts.employees.filter(e=>e.status==='Active'&&!e.disabled).map(e=>e.company).filter(Boolean))].sort().forEach(company=>{ %><option <%= payrollForm.company===company?'selected':'' %>><%= company %></option><% }) %></select></label>
+<% if(preferredCompany){ %><label>Company<input name="company" value="<%= preferredCompany %>" readonly required aria-describedby="payroll-company-source"><small id="payroll-company-source">From Settings → Company Information.</small></label><% } else { %><label>Company<select name="company" required><option value="">Choose company</option><% companyOptions.forEach(company=>{ %><option><%= company %></option><% }) %></select></label><% } %>
 <label>Payroll month<input type="month" name="period" value="<%= payrollForm.period||today.slice(0,7) %>" required></label>
 <%- include('voucher-posting-fields', { postingFields: { date: payrollForm.posting_date || today } }) %>
 <%- include('hr-employee-select',{label:'Employees (choose the same company)',name:'employee_ids',multiple:true,activeOnly:true,selectedIds:selectedEmployees}) %>

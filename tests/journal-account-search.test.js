@@ -5,6 +5,7 @@ const { renderView } = require('./helpers/render-view');
 const { journalAccountMatches } = require('../public/journal-account-match');
 const { scriptJson } = require('../src/web/script-json');
 const { amountInWords } = require('../src/web/format');
+const { validateJournalProjectedBalancePosting } = require('../src/domain/posting');
 const {
   normalizeJournalEntryPayload,
   validateJournalAccountSides,
@@ -98,6 +99,37 @@ test('journal entry postings cannot cross an account normal balance', () => {
     status: 400,
     message: 'Opening Equity (3000) would have a debit balance of 1 after posting, but its normal balance is credit.',
   });
+});
+
+test('journal projected balances use the compact account/date ledger summary', async () => {
+  const calls = [];
+  const client = {
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
+      if (sql.includes('wm_gl_account_daily')) {
+        return {
+          rows: [
+            { id: '5', account_code: '1110', account_name: 'Cash', normal_balance: 'debit', balance: '100' },
+            { id: '6', account_code: '3000', account_name: 'Opening Equity', normal_balance: 'credit', balance: '-100' },
+          ],
+        };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+
+  await validateJournalProjectedBalancePosting(client, { posting_date: '2026-01-15' }, [
+    { account_id: 5, debit: 0, credit: 40 },
+    { account_id: 6, debit: 40, credit: 0 },
+  ], [5, 6]);
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /pg_advisory_xact_lock/);
+  assert.match(calls[1].sql, /LEFT JOIN wm_gl_account_daily daily/);
+  assert.match(calls[1].sql, /daily\.posting_date <= \$2/);
+  assert.doesNotMatch(calls[1].sql, /LEFT JOIN app_gl_entries/);
+  assert.deepEqual(calls[1].params, [[5, 6], '2026-01-15']);
 });
 
 test('submitted manual journals expose cancel in the full-view action bar', async () => {
@@ -323,6 +355,28 @@ test('editable journal lines render account search with a separate account id', 
     id: '5', code: '1102', name: 'Main Bank Account', normal_balance: 'debit',
   }]);
   assert.doesNotMatch(html, /data-account-results/);
+});
+
+test('journal remarks render as a multiline field in editable and read-only forms', async () => {
+  const locals = {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], journal: {
+      remarks: 'First line\nSecond line', lines: [{}, {}],
+    },
+    accounts: [{ id: 5, account_code: '1110', account_name: 'Cash', normal_balance: 'debit' }],
+    error: null, readOnly: false, today: '2026-10-02', money: String,
+    currentPostingTime: () => '12:00', formatTimestamp: String, scriptJson,
+  };
+  const editable = await renderView(path.join(__dirname, '..', 'views', 'journal-entry.ejs'), locals);
+  assert.match(editable,
+    /<textarea name="remarks" rows="4" >First line\nSecond line<\/textarea>/);
+  assert.doesNotMatch(editable, /<input name="remarks"/);
+
+  const readOnly = await renderView(path.join(__dirname, '..', 'views', 'journal-entry.ejs'), {
+    ...locals, readOnly: true,
+  });
+  assert.match(readOnly,
+    /<textarea name="remarks" rows="4" readonly>First line\nSecond line<\/textarea>/);
 });
 
 test('cash receipt form captures a manually entered received from value', async () => {

@@ -14,6 +14,37 @@ test('voucher request routes allow readers to request but reserve approval to Ad
   assert.equal(permissionCheck({path:base.base+'/1/action-approval',method:'POST',currentUser:{role:'admin'}}),true);
  }
 });
+test('voucher pages show one New control instead of the global and local controls together',async()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const {renderView}=require('./helpers/render-view');
+ const viewsDir=path.join(__dirname,'../views');
+ const localCreate=/(?:include\('(?:invoice-actions|journal-actions|journal-new-button|purchase-actions|purchase-new-menu|stock-new-menu)'|href="\/(?:invoices|journals|purchases|purchase-orders|stock\/entries|stock\/reconciliations)\/new")/;
+ const voucherViews=[];
+ for(const file of fs.readdirSync(viewsDir).filter(name=>name.endsWith('.ejs'))) {
+  const source=fs.readFileSync(path.join(viewsDir,file),'utf8');
+  const moduleNav=source.match(/<%- include\('module-nav'[^%]*%>/);
+  if(!moduleNav||!localCreate.test(source))continue;
+  voucherViews.push(file);
+  assert.match(moduleNav[0],/hideCreateActions\s*:\s*true/,`${file} should suppress the global New control`);
+ }
+ assert.ok(voucherViews.length>=20,`expected voucher views, found ${voucherViews.join(', ')}`);
+ for(const file of ['purchase.ejs','purchase-order.ejs']) {
+  const source=fs.readFileSync(path.join(viewsDir,file),'utf8');
+  assert.match(source,/include\('purchase-actions'/);
+  assert.doesNotMatch(source,/include\('purchase-new-menu'\)/,`${file} should keep only the action-bar New control`);
+ }
+ for(const file of ['invoice.ejs','journal-entry.ejs','purchase.ejs','purchase-order.ejs','stock-entry.ejs','stock-reconciliation.ejs']) {
+  const source=fs.readFileSync(path.join(viewsDir,file),'utf8');
+  const group=source.indexOf('voucher-page-actions');
+  assert.ok(group>=0,`${file} should use the shared voucher action group`);
+  assert.ok(group<source.indexOf('</header>'),`${file} should place voucher actions in the top navigation`);
+ }
+ const locals={assetVersion:'test',currentUser:{role:'admin',scopes:{}},can:()=>true,availableReports:[]};
+ const hidden=await renderView(path.join(viewsDir,'module-nav.ejs'),{...locals,hideCreateActions:true});
+ assert.doesNotMatch(hidden,/aria-label="Create"/);
+ const shown=await renderView(path.join(viewsDir,'module-nav.ejs'),locals);
+ assert.match(shown,/aria-label="Create"/);
+});
 test('compact voucher request and approval views escape reasons and show Admin actions only to Admin',async()=>{
  const {renderView}=require('./helpers/render-view');const path=require('node:path');
  const record={id:1,posting_date:'2026-01-01',docstatus:'submitted'};

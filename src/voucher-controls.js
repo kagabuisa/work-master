@@ -7,7 +7,7 @@ const { auditActorTrusted } = require('./audit');
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status, code:'voucher_approval_required' }); };
 const configs = {
   purchases: { base:'/purchases', table:'app_purchases', lines:'app_purchase_items', foreign:'purchase_id',
-    header:'posting_date posting_time due_date supplier_id supplier_reference price_list purchase_order_id cost_center subtotal total',
+    header:'posting_date posting_time due_date supplier_id supplier_reference supplier_receipt_no price_list purchase_order_id cost_center subtotal total',
     fields:'line_no item_code warehouse quantity unit_price line_total purchase_order_item_id' },
   journals: { base:'/journals', table:'app_journal_entries', lines:'app_journal_entry_lines', foreign:'journal_entry_id',
     header:'journal_type posting_date posting_time party_type party_id reference_no cost_center total_debit total_credit',

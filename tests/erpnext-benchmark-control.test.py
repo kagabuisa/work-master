@@ -26,9 +26,9 @@ class ControlTests(unittest.TestCase):
             root = Path(folder)
             full, pilot_dir, state = root/'full', root/'pilot', root/'state'
             for directory in [full/'output',pilot_dir/'output',state]: directory.mkdir(parents=True)
-            meta = {'run_id':'erp-full-safe','mode':'full','directory':str(full),
+            meta = {'run_id':'erp-stress-full-safe','mode':'full','lane':'stress','directory':str(full),
                     'image':'old-image','image_id':'old-id','source_sha256':'old-source'}
-            pilot = {'run_id':'erp-pilot-safe','directory':str(pilot_dir),
+            pilot = {'run_id':'erp-stress-pilot-safe','mode':'pilot','lane':'stress','directory':str(pilot_dir),
                      'image':'passed-image','image_id':'passed-id','source_sha256':'current'}
             control.write(full/'output/status.json',{'stage':'failed','error':'seed error'})
             control.write(full/'output/seed-checkpoint.json',{'fingerprint':'same-profile','completed':{'stock':200}})
@@ -91,8 +91,10 @@ class ControlTests(unittest.TestCase):
     def test_compose_ignores_poisoned_shell_mount_and_project_settings(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)
-            meta = {'directory':str(directory),'run_id':'erp-pilot-safe','image':'test-image','mode':'pilot','project':'test-project'}
-            values = {'BENCHMARK_DIRECTORY':str(directory),'BENCHMARK_RUN_ID':meta['run_id'],'BENCHMARK_IMAGE':meta['image'],'BENCHMARK_MODE':meta['mode'],'BENCHMARK_DB_PASSWORD':'dedicated-test-only'}
+            meta = {'directory':str(directory),'run_id':'erp-stress-pilot-safe','image':'test-image','mode':'pilot',
+                    'lane':'stress','project':'test-project'}
+            values = {'BENCHMARK_DIRECTORY':str(directory),'BENCHMARK_RUN_ID':meta['run_id'],'BENCHMARK_IMAGE':meta['image'],
+                      'BENCHMARK_MODE':meta['mode'],'BENCHMARK_LANE':meta['lane'],'BENCHMARK_DB_PASSWORD':'dedicated-test-only'}
             (directory/'config.env').write_text(''.join(f'{k}={v}\n' for k,v in values.items()))
             with patch.dict(control.os.environ,{'BENCHMARK_DIRECTORY':'/production','COMPOSE_ENV_FILES':'/production/.env'}), patch.object(control,'run') as execute:
                 control.compose(meta,'config','--quiet')

@@ -29,7 +29,7 @@ npm run user:create -- admin
 
 The command prints a one-time temporary password. Log in with it and set a new password when prompted. To add another user, run the same command with a different username. Passwords are stored as salted scrypt hashes; sessions have a seven-day maximum lifetime, end after thirty minutes of inactivity by default, and are revoked when the password changes. User accounts and sessions are stored in PostgreSQL. Browser and API login verify a successful password once, then compare the verified password-hash version again after locking the user row so a concurrent password change or reset cannot issue a stale session.
 
-The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Daily Activity, Debtors, Stock Ledger, Stock Movement, and General Ledger have their own Read permission rows. Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are Admin-only; saved role permissions and individual grants cannot grant them to non-admin users. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Legacy report grants do not override the Admin-only financial report rule.
+The app includes Standard, Privileged, Admin, Retail, Wholesale, Finance, Logistics, and Management as built-in roles. The five department roles start with Standard access. At **Settings → Roles**, an admin searches for a role and selects a permission type from grouped Voucher types, Master lists, Payments, Reports, and Accounts options. Daily Activity, Debtors, Stock Ledger, Stock Movement, and General Ledger have their own Read permission rows. Daily Activity also has separate Create and Submit actions. Profit & Loss, Balance Sheet, Trial Balance, and Gross Profit are Admin-only; saved role permissions and individual grants cannot grant them to non-admin users. Accounts controls account creation; Chart of Accounts controls viewing the account list. Only ERPNext sync remains under **Other access**. Admin's full access cannot be changed. Assign roles at **Settings → Users**. Built-in roles cannot be deleted; a custom role can be deleted after all users are moved to another role. Permission changes take effect on the next request. Legacy report grants do not override the Admin-only financial report rule.
 
 See [Permissions and voucher visibility](docs/permissions.md) for role inheritance, user overrides, permitted records, and Standard users' voucher ownership rules.
 
@@ -238,10 +238,30 @@ Ledger voucher types and cancellation reversals, and fills **Received from** fro
 the saved customer name. Manual Payment Journals and unrelated journals are not
 changed. Apply the owner migration before starting a restricted runtime.
 
+Schema migration 67 adds `wm_gl_account_daily`, a compact account/date summary
+used by journal and sales-invoice normal-balance checks. It is backfilled from
+`wm_gl_daily` under the existing ledger write lock and maintained transactionally
+by insert, update, delete and truncation triggers. Runtime roles receive read-only
+access. Apply the owner migration before starting a restricted runtime.
+
+Schema migration 68 adds the nullable originating Stock Entry reference and
+stock-entry-number snapshot used by DDR Shortage and DDR Excess. Existing stock
+entries remain unchanged. New DDR drafts require a submitted source that the
+user can access through ownership, sharing, and warehouse scope. Apply the owner
+migration before starting a restricted runtime.
+
+Schema migration 69 adds submitter and submission-time fields to local Daily
+Activity Reports. Existing reports remain unchanged, with no invented submitter
+history. Apply the owner migration before starting a restricted runtime.
+
+Schema migration 70 adds the optional **Supplier Receipt Number** to Purchase
+Invoices. Existing invoices remain unchanged with a blank receipt number. Apply
+the owner migration before starting a restricted runtime.
+
 Schema migration 41 adds the journal-creator and ledger/daily-balance read indexes
 described below. Build the updated image first with `docker compose build invoice-app`.
 Then apply it with the owner credentials before restarting a restricted runtime:
-`docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js`.
+`docker compose run --rm --no-deps -v "$PWD/.env:/app/.env:ro" --entrypoint node invoice-app scripts/migrate.js`.
 This migration builds indexes concurrently and does not rewrite financial records.
 
 Schema migration 43 optimises historical inventory availability checks. It sums
@@ -370,14 +390,16 @@ Provide sufficient local temporary disk space for up to the configured active do
 The synthetic benchmark runs locally in detached Docker containers, with a
 dedicated database, internal network, frozen app image and no published ports.
 It makes no AI API calls and receives no application `.env` or ERPNext connection.
-The machine must remain running. The source profile records the aggregate reads
-from 18 October 2026 and its explicit payment, line-size and ownership assumptions;
-this tests this app, rather than measuring ERPNext performance.
+The machine must remain running. Benchmark v2 has separate financial-accuracy and
+stress lanes that share one versioned generator and source profile. It tests this
+app rather than measuring ERPNext performance. See
+[the benchmark v2 specification](docs/benchmark-v2-spec.md) for targets and gates.
 
 Prepare and validate a small pilot first:
 
 ```bash
-python3 scripts/erpnext-benchmark/control.py start --pilot
+python3 scripts/erpnext-benchmark/control.py start --lane accuracy --pilot
+python3 scripts/erpnext-benchmark/control.py start --lane stress --pilot
 python3 scripts/erpnext-benchmark/control.py status --pilot
 ```
 
@@ -385,24 +407,26 @@ After the pilot finishes successfully on the same source snapshot, start the ful
 1× profile and inspect its progress without an active AI session:
 
 ```bash
-python3 scripts/erpnext-benchmark/control.py start
-python3 scripts/erpnext-benchmark/control.py status
+python3 scripts/erpnext-benchmark/control.py start --lane accuracy
+python3 scripts/erpnext-benchmark/control.py start --lane stress
+python3 scripts/erpnext-benchmark/control.py status --lane stress
 ```
 
-The full target includes 237,260 sales invoices / 2,214,223 sales lines, 207,213
-legacy journal analogues, 15,977 purchases, 25,094 stock transfers and 2,808 purchase
-orders, with observed document statuses and historical date proportions. Opening
-stock and generated accounting records add app-specific documents. Source payment
-allocation is unknown: the fixture uses one synthetic receipt for each settled
-sale, preserves the observed positive-outstanding count and represents source
-overpayments as settled. Historical line lengths cluster around the observed
-means; separate 1/5/10/20/50-line workload scenarios explore tails that were not
-measured in ERPNext. Current app lifecycle functions create every voucher/posting.
+The stress target is approximately 1,000,000 sales invoices with 10,000,000
+invoice-item rows, 7,500,000 GL rows and 11,900,000 stock-ledger rows. Invoice
+lengths have a three-item minimum and use a deterministic, right-skewed
+distribution averaging about ten items; invoices do not all have the same number
+of items. Acceptance uses explicit ranges: 9.9–10.1 million invoice items,
+7.35–7.65 million GL rows and 11.662–12.138 million stock-ledger rows; invoice
+headers may range from 980,000 to 1,020,000. The verifier requires realistic
+length variation and rejects GL or stock volume that is not produced by valid
+voucher lifecycles. The accuracy lane uses focused golden scenarios plus aggregate
+reconciliation of the large fixture.
 
-The full job runs distinct authenticated users at concurrency 10, 20 and 50, each
-with a warmup, sustained mixed work with 0.5–1.5 second think time, and a burst
-against shared items. Sustained phases last 15, 15 and 25 minutes; warmups last
-one minute and bursts three minutes. It exercises lists/search/detail, invoice
+The stress job runs distinct authenticated users at concurrency 1, 10, 25 and 50,
+each with a warmup, sustained mixed work with 0.5–1.5 second think time, and a
+burst against shared items. Sustained phases last 5, 15, 15 and 25 minutes;
+warmups last one minute and bursts three minutes. It exercises lists/search/detail, invoice
 drafts/cash sales/credit receipts, journal postings, purchases/orders, transfers and
 reports. It also checks denied ownership/report reads and generates full-history
 CSV plus daily Excel/PDF ledger exports. This is HTTP workload testing, without
@@ -425,20 +449,20 @@ and results when preparing another test. Disposable integration-test resources
 remain subject to the cleanup procedure below. This policy is also recorded in
 `AGENTS.md` for future work.
 
-On 2 November 2026, at the user's explicit request, obsolete ERPNext-sized
-benchmark runs and duplicate expanded-history snapshots were removed to reclaim
-storage. The retained test corpus is the isolated expanded-history PostgreSQL
-data under `/mnt/HC_Volume_107155360/wm-expanded-history-20261015/pgdata` and the
-verified `paired-pristine-warehouse-choice.dump` snapshot in its `backups/`
-directory. New current-source tests take priority over historical result
-retention. Do not remove the retained expanded-history data or its snapshot
-without another explicit request.
+On 8 November 2026, at the user's explicit request, the previous benchmark data,
+database volumes, containers, images, networks and backups were removed to make
+space for benchmark v2. Those removed resources cannot be recovered. New v2 runs
+are retained under their dedicated run directories until the user explicitly
+requests removal.
 
 The job and database have 900 MiB/850 MiB memory limits and 0.8/1.0 CPU limits.
 Full startup requires 15 GiB free on the attached volume, a passing pilot from the
 same source snapshot whose measured storage projection fits with a 6 GiB reserve,
 and 1200 MiB available host memory. Execution stops if free attached-volume storage
-falls below 6 GiB. Storage estimates remain provisional until the full run finishes.
+falls below 6 GiB. The projection measures a compressed `pg_dump` of the pilot,
+projects that backup with the generated transaction rows, and adds bounded
+WAL/scratch space rather than assuming a second full uncompressed database copy.
+Storage estimates remain provisional until the full run finishes.
 The pilot checks recovery after an interrupted committed draft, replay of completed
 seed keys, and detection of deliberately missing cancellation GL rows inside a
 rolled-back transaction. Its `integrity-intentional-fault.json` is expected to fail;
@@ -513,7 +537,7 @@ then apply these migrations with the configured owner credentials before restart
 
 ```bash
 docker compose build invoice-app
-docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js
+docker compose run --rm --no-deps -v "$PWD/.env:/app/.env:ro" --entrypoint node invoice-app scripts/migrate.js
 docker compose up -d --build invoice-app
 ```
 
@@ -706,7 +730,7 @@ Generated private credentials and redacted acceptance evidence are in ignored `d
 
 The current MySQL user is still used only for reading ERPNext tables. Stock and accounting entries created by this app are local to the app's Postgres database and are not written back to ERPNext.
 
-The **Reports → Daily Activity** page lists local Daily Activity drafts stored in PostgreSQL. Users with Daily Activity Read and Create can choose **New Daily Activity** and **Save draft**; this generates a DAR number, records the creating app user, and opens the saved detail page. It validates enabled local shops and warehouses and applies user record restrictions. The Stock entry field autocompletes submitted stock entries that involve the selected warehouse; saved reports link to those entries when the user has Stock Entry Read permission. Saving does not post stock or accounting entries. Existing ERPNext vouchers remain available through the separate **ERPNext reference** view, which is read-only. Local drafts can currently be created and viewed; editing and submission are not provided. Schema migration 17 creates the local table and audit trigger automatically at startup.
+The **Reports → Daily Activity** page lists local Daily Activity Reports stored in PostgreSQL. Users with Daily Activity Read and Create can choose **New Daily Activity** and **Save draft**; this generates a DAR number, records the creating app user, and opens the saved detail page. Users with Daily Activity Submit can submit a local draft from its detail page. Submission rechecks enabled shops, warehouses, and any linked stock entry, locks the saved values, records who submitted the report and when, and changes its status to Submitted. It does not post stock or accounting entries. The form validates enabled local shops and warehouses and applies user record restrictions. The Stock entry field autocompletes submitted stock entries that involve the selected warehouse; saved reports link to those entries when the user has Stock Entry Read permission. Existing ERPNext vouchers remain available through the separate **ERPNext reference** view, which is read-only. Local reports can be created, viewed, and submitted; editing is not provided. Schema migration 17 creates the local table and audit trigger, and migration 69 adds submission audit fields at startup.
 
 Schema migration 11 adds journal row invoice references and links supplier payment allocations to their journals. It runs automatically on app startup.
 
@@ -719,7 +743,7 @@ Import the current ERPNext chart of accounts with `npm run sync:erpnext-accounts
 
 The app includes an HR module for employee employment profiles and dated pay plans, daily/bulk attendance, leave allocations/approvals, advances, simple loans, approved recoveries, reimbursements, monthly payroll, payslips, single net employee statements with salary components and PDF/CSV downloads, CSV payroll registers, and partial payments/reversals. Schema migrations 13–14 create the HR tables, their record-audit triggers, working-week calendar, and payroll review tracking at startup. Existing employee masters, cost centers, and accounts are reused; ERPNext HR transactions and opening balances are not imported automatically.
 
-Migration 48 adds nullable payslip Employee Money snapshots and an employee/date index for the underlying transactions. It preserves existing payroll and ledger records without backfilling historical balances. New payroll postings capture employee balances atomically; draft summaries remain provisional. Readers need Employee Money Read and the applicable record scopes. With runtime database credentials, apply the owner migration before restarting the updated app, using `docker compose run --rm --no-deps --entrypoint node invoice-app scripts/migrate.js` after building the image. Older posted payslips report that historical balances were not saved. See the [payslip guidance](docs/app-guide.md#monthly-payroll-and-payment).
+Migration 48 adds nullable payslip Employee Money snapshots and an employee/date index for the underlying transactions. It preserves existing payroll and ledger records without backfilling historical balances. New payroll postings capture employee balances atomically; draft summaries remain provisional. Readers need Employee Money Read and the applicable record scopes. With runtime database credentials, apply the owner migration before restarting the updated app, using `docker compose run --rm --no-deps -v "$PWD/.env:/app/.env:ro" --entrypoint node invoice-app scripts/migrate.js` after building the image. Older posted payslips report that historical balances were not saved. See the [payslip guidance](docs/app-guide.md#monthly-payroll-and-payment).
 
 HR ledger postings and reversals preserve the same two-decimal amounts as payroll and Employee Money records, including prorated pay and partial payments. This correction requires no schema migration and does not rewrite posted history. Reconcile any discrepancies from older fractional HR postings against the saved vouchers before making approved corrections.
 
@@ -915,7 +939,11 @@ Daily balances are included in normal PostgreSQL backups; do not modify them or
 disable their triggers. Website invoice validation batches references and items
 in two reads, with fresh stock validation retained in the posting transaction.
 Cost-center display labels use a 30-second metadata cache; permission and posting
-validation continue to read current records.
+validation continue to read current records. Journal and generated sales-invoice
+normal-balance checks use the compact `wm_gl_account_daily` rollup under their
+existing account locks. This reads one net total per account and posting date
+instead of aggregating either the complete detailed GL or the dimensioned report
+summary for each posting.
 
 ### Stock movement daily summary
 

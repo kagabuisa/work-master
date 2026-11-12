@@ -5,6 +5,9 @@
     <%- include('ui-section-heading', { heading: { title: entry.entry_no, meta: entry.entry_type === 'reconciliation' ? 'Stock Reconciliation' : 'Stock Entry', help: entry.entry_type === 'reconciliation' ? '' : 'The owner, an admin, or a user with Read & write sharing can update delivery status after submission. This does not change stock or accounting postings.' } }) %>
     <div class="ui-voucher-attributes ui-attributes-compact ui-attributes-inline" role="region" aria-label="Stock entry details" tabindex="0">
       <p><span>Type</span><strong><%= stockEntryTypeLabels[entry.entry_type] || entry.entry_type %></strong></p>
+      <% if (entry.source_stock_entry_no) { %>
+        <p><span>Originating stock entry</span><strong><% if (entry.source_stock_entry_id && can('vouchers.stock.view')) { %><a href="/stock/entries/<%= entry.source_stock_entry_id %>" data-voucher-drawer="/stock/entries/<%= entry.source_stock_entry_id %>/drawer"><%= entry.source_stock_entry_no %></a><% } else { %><%= entry.source_stock_entry_no %><% } %></strong></p>
+      <% } %>
       <p><span>Posting Date/Time</span><strong><%= formatDateTime(entry.posting_date, entry.posting_time || '00:00') %></strong></p>
       <p><span>Status</span><strong><span class="badge <%= entryStatus %>"><%= entryStatus === 'draft' ? 'Draft' : entryStatus === 'cancelled' ? 'Cancelled' : 'Submitted' %></span></strong></p>
       <% if (entry.entry_type !== 'reconciliation') { %>
@@ -40,7 +43,7 @@
       </div>
     <% } %>
     <div class="ui-table-scroll" role="region" aria-label="Stock entry items" tabindex="0"><table class="ui-table sales-invoice-items">
-      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Warehouse</th><th class="warehouse-col">Target</th><th class="invoice-number-cell"><%= entry.entry_type === 'reconciliation' ? 'Counted Qty' : 'Qty' %></th><% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><th class="invoice-number-cell">Change</th><% } %><th class="invoice-number-cell">Rate</th><th class="invoice-number-cell">Item value (UGX)</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
+      <thead><tr><th>#</th><th class="item-code-col">Item</th><th class="warehouse-col">Source Whs</th><th class="warehouse-col">Target Whs</th><th class="invoice-number-cell"><%= entry.entry_type === 'reconciliation' ? 'Counted Qty' : 'Qty' %></th><% if (entry.entry_type === 'reconciliation' && entryStatus !== 'draft') { %><th class="invoice-number-cell">Change</th><% } %><th class="invoice-number-cell">Rate</th><th class="invoice-number-cell">Item value (UGX)</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
       <tbody>
         <% (items || []).forEach((item, index) => { %>
           <tr>
@@ -59,7 +62,6 @@
       </tbody>
       <tfoot><tr><th colspan="<%= entry.entry_type === 'reconciliation' && entryStatus !== 'draft' ? 7 : 6 %>">Total item value (UGX)</th><td class="invoice-number-cell"><%= money((items || []).reduce((sum, item) => sum + itemValue(item), 0)) %></td><td colspan="2"></td></tr></tfoot>
     </table></div>
-    <p class="field-hint">Item value is quantity × saved rate, rounded to whole UGX. It does not represent the net ledger effect of a transfer or cancellation.</p>
     <% if (entry.remarks) { %><p class="notes"><%= entry.remarks %></p><% } %>
   </section>
 <%- include('voucher-approval', {

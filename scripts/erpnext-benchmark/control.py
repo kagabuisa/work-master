@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import subprocess
 import sys
@@ -52,7 +53,8 @@ def digest():
 def compose(meta, *args, **kwargs):
     config = dict(line.split('=',1) for line in (Path(meta['directory']) / 'config.env').read_text().splitlines() if line)
     for key, expected in [('BENCHMARK_DIRECTORY',meta['directory']),('BENCHMARK_RUN_ID',meta['run_id']),
-                          ('BENCHMARK_IMAGE',meta['image']),('BENCHMARK_MODE',meta['mode'])]:
+                          ('BENCHMARK_IMAGE',meta['image']),('BENCHMARK_MODE',meta['mode']),
+                          ('BENCHMARK_LANE',meta.get('lane','stress'))]:
         if config.get(key) != expected:
             raise RuntimeError('Retained benchmark configuration does not match its run manifest.')
     # Shell variables otherwise override --env-file interpolation in Compose.
@@ -69,19 +71,27 @@ def compose(meta, *args, **kwargs):
             log.write('Compose action: ' + ' '.join(args) + '\n' + (error.stderr or '') + (error.stdout or '') + '\n')
         raise
 
-def load(run_id=None, mode='full'):
+def load(run_id=None, mode='full', lane='stress'):
     if run_id:
-        if not run_id.startswith(('erp-full-','erp-pilot-')) or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-' for c in run_id):
+        match = re.fullmatch(r'erp-(accuracy|stress)-(pilot|full)-[a-zA-Z0-9-]+', run_id)
+        legacy = re.fullmatch(r'erp-(pilot|full)-[a-zA-Z0-9-]+', run_id)
+        if (not match and not legacy) or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-' for c in run_id):
             raise RuntimeError('Invalid run identifier.')
+        if match:
+            lane = match.group(1)
         path = STATE / (run_id + '.json')
     else:
-        path = STATE / ('latest-' + mode + '.json')
+        path = STATE / ('latest-' + lane + '-' + mode + '.json')
+        if not path.exists() and lane == 'stress':
+            path = STATE / ('latest-' + mode + '.json')
     if not path.exists():
         raise RuntimeError('No matching benchmark run is recorded.')
     meta = read(path)
     directory = Path(meta['directory'])
     if directory.parent != VOLUME or directory.name != 'wm-' + meta['run_id']:
         raise RuntimeError('Retained run points outside its dedicated volume directory.')
+    if meta.get('lane','stress') not in ('accuracy','stress'):
+        raise RuntimeError('Retained benchmark has an invalid lane.')
     return meta
 
 def isolation(meta):
@@ -110,7 +120,9 @@ def isolation(meta):
                         'memory_limit_bytes':details['HostConfig']['Memory'],'nano_cpus':details['HostConfig']['NanoCpus']})
     write(Path(meta['directory']) / 'output/isolation.json',{'passed':True,'containers':results})
 
-def start(mode):
+def start(mode, lane='stress'):
+    if lane not in ('accuracy','stress'):
+        raise RuntimeError('Benchmark lane must be accuracy or stress.')
     if not VOLUME.is_mount():
         raise RuntimeError('The dedicated attached volume must be mounted.')
     disk = os.statvfs(VOLUME)
@@ -121,7 +133,7 @@ def start(mode):
         raise RuntimeError('At least 1200 MiB available host memory is required before starting.')
     current = digest()
     if mode == 'full':
-        pilot = load(mode='pilot')
+        pilot = load(mode='pilot', lane=lane)
         status = read(Path(pilot['directory']) / 'output/status.json')
         if status.get('stage') != 'complete' or not status.get('passed') or pilot['source_sha256'] != current:
             raise RuntimeError('A passing pilot on the same source snapshot is required before full generation.')
@@ -138,7 +150,7 @@ def start(mode):
         if ids:
             raise RuntimeError('A benchmark job is already running: ' + old['run_id'])
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    run_id = f'erp-{mode}-{stamp}-{secrets.token_hex(2)}'
+    run_id = f'erp-{lane}-{mode}-{stamp}-{secrets.token_hex(2)}'
     directory = VOLUME / ('wm-' + run_id)
     if directory.exists():
         raise RuntimeError('Run directory already exists; it will not be overwritten.')
@@ -149,13 +161,13 @@ def start(mode):
     STATE.mkdir(parents=True,exist_ok=True)
     STATE.chmod(0o700)
     meta = {'run_id':run_id,'directory':str(directory),'project':'wm-' + run_id.lower(),
-            'mode':mode,'image':'work-master-erp-benchmark:' + run_id.lower(),'source_sha256':current,
+            'mode':mode,'lane':lane,'image':'work-master-erp-benchmark:' + run_id.lower(),'source_sha256':current,
             'created_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
     frozen_compose = directory / 'compose.yaml'
     frozen_compose.write_bytes(COMPOSE.read_bytes())
     frozen_compose.chmod(0o600)
     meta['compose_file'] = str(frozen_compose)
-    env = {'BENCHMARK_DIRECTORY':str(directory),'BENCHMARK_MODE':mode,'BENCHMARK_RUN_ID':run_id,
+    env = {'BENCHMARK_DIRECTORY':str(directory),'BENCHMARK_MODE':mode,'BENCHMARK_LANE':lane,'BENCHMARK_RUN_ID':run_id,
            'BENCHMARK_IMAGE':meta['image'],'BENCHMARK_DB_PASSWORD':secrets.token_urlsafe(32)}
     config = directory / 'config.env'
     config.write_text(''.join(f'{key}={value}\n' for key,value in env.items()))
@@ -170,7 +182,7 @@ def start(mode):
     run(['docker','run','--rm','--network','none','--entrypoint','sh',meta['image'],'-c',
          'test ! -e /app/.env && node --check scripts/erpnext-benchmark/job.js'],capture_output=True,text=True)
     write(STATE / (run_id + '.json'),meta)
-    write(STATE / ('latest-' + mode + '.json'),meta)
+    write(STATE / ('latest-' + lane + '-' + mode + '.json'),meta)
     write(directory / 'output/manifest.json',meta)
     compose(meta,'config','--quiet',capture_output=True,text=True)
     compose(meta,'up','-d',capture_output=True,text=True)
@@ -200,6 +212,7 @@ def status(meta):
 def use_pilot_image(meta):
     """Adopt a tested immutable image before traffic, preserving the seed DB."""
     output = Path(meta['directory']) / 'output'
+    lane = meta.get('lane','stress')
     if meta['mode'] != 'full' or (output / 'traffic-started.json').exists():
         raise RuntimeError('A pilot image can only repair full-run seeding before traffic starts.')
     if read(output / 'status.json').get('stage') == 'complete':
@@ -208,7 +221,7 @@ def use_pilot_image(meta):
         other = read(pointer)
         if compose(other,'ps','--status','running','-q','benchmark-job',capture_output=True,text=True).stdout.strip():
             raise RuntimeError('Stop running benchmark jobs before changing a retained image.')
-    pilot = load(mode='pilot')
+    pilot = load(mode='pilot', lane=lane)
     pilot_output = Path(pilot['directory']) / 'output'
     current = digest()
     result, runtime = read(pilot_output / 'status.json'), read(pilot_output / 'runtime.json')
@@ -220,7 +233,7 @@ def use_pilot_image(meta):
     if actual != pilot['image_id']:
         raise RuntimeError('The passing pilot image has changed.')
     # The same full profile must still describe every retained source key.
-    expression = "const p=require('./scripts/erpnext-benchmark/profile');process.stdout.write(p.fingerprint(p.profile('full')))"
+    expression = f"const p=require('./scripts/erpnext-benchmark/profile');process.stdout.write(p.fingerprint(p.profile('full','{lane}')))"
     profile = run(['docker','run','--rm','--network','none','--entrypoint','node',pilot['image'],
                    '-e',expression],capture_output=True,text=True).stdout.strip()
     if profile != read(output / 'seed-checkpoint.json')['fingerprint']:
@@ -231,7 +244,7 @@ def use_pilot_image(meta):
     write(output / ('pre-repair-' + stamp + '.json'),
           {'manifest':meta,'status':read(output / 'status.json'),
            'checkpoint':read(output / 'seed-checkpoint.json')})
-    updated = {**meta,'image':pilot['image'],'image_id':actual,'source_sha256':current,
+    updated = {**meta,'lane':lane,'image':pilot['image'],'image_id':actual,'source_sha256':current,
                'image_history':meta.get('image_history',[]) + [
                    {'at_utc':stamp,'previous_image':meta['image'],'previous_image_id':meta['image_id'],
                     'previous_source_sha256':meta['source_sha256'],'replacement_pilot':pilot['run_id']}]}
@@ -244,7 +257,7 @@ def use_pilot_image(meta):
     temporary.chmod(0o600)
     temporary.replace(config)
     write(STATE / (meta['run_id'] + '.json'),updated)
-    latest = STATE / 'latest-full.json'
+    latest = STATE / ('latest-' + lane + '-full.json')
     if latest.exists() and read(latest)['run_id'] == meta['run_id']: write(latest,updated)
     write(output / 'manifest.json',updated)
     return updated
@@ -278,6 +291,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command',choices=['start','status','stop','resume','monitor'])
     parser.add_argument('--pilot',action='store_true')
+    parser.add_argument('--lane',choices=['accuracy','stress'],default='stress')
     parser.add_argument('--run')
     parser.add_argument('--use-pilot-image',action='store_true',
                         help='Resume seeding with the current-source, cleanly passed pilot image; preserve database and image history.')
@@ -287,9 +301,9 @@ def main():
     if args.command == 'start':
         if args.run:
             raise RuntimeError('Start creates a new run; use resume for retained seed progress.')
-        start('pilot' if args.pilot else 'full')
+        start('pilot' if args.pilot else 'full',args.lane)
         return
-    meta = load(args.run,'pilot' if args.pilot else 'full')
+    meta = load(args.run,'pilot' if args.pilot else 'full',args.lane)
     if args.command == 'status': status(meta)
     elif args.command == 'monitor': monitor(meta)
     elif args.command == 'stop':

@@ -8,6 +8,7 @@ const { warehouseAccessOptions, accountAccessOptions, hrLedgerAccessOptions } = 
 const { normalizeStockQuantity } = require('../../lib/quantity');
 const { isValidIsoDate } = require('../../lib/dates');
 const { normalizePostingTime } = require('../../posting-time');
+const { STOCK_ENTRY_TYPE_LABELS } = require('../../constants');
 const { transferStockAvailability } = require('../../stock-transfer-availability');
 const { invoiceStockBalances } = require('../../invoice-stock-balances');
 const {
@@ -20,6 +21,7 @@ const {
   localStockQuantity,
   stockEntryCancelTemplate,
   searchStockEntriesForCancel,
+  searchStockEntriesForDdr,
   masterWarehouses,
   masterCustomers,
   masterSuppliers,
@@ -224,6 +226,29 @@ router.get('/stock-entries', async (req, res, next) => {
   try {
     const entries = await searchStockEntriesForCancel(req.query.q, voucherOwnerId(req.currentUser));
     res.json(entries);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/ddr-source-entries', async (req, res, next) => {
+  try {
+    const warehouse = String(req.query.warehouse || '').trim();
+    if (!warehouse) return res.status(400).json({ error: 'Choose a target warehouse first.' });
+    if (!warehouseAllowed(req.currentUser, warehouse)) {
+      return res.status(403).json({ error: 'Warehouse is not permitted.' });
+    }
+    const entries = await searchStockEntriesForDdr(req.query.q, {
+      warehouse,
+      userId: req.currentUser?.role === 'standard' ? req.currentUser.id : null,
+      excludeId: req.query.exclude_id,
+      ...warehouseAccessOptions(req.currentUser),
+    });
+    res.set('Cache-Control', 'private, no-store');
+    res.json(entries.map((entry) => ({
+      ...entry,
+      entry_type_label: STOCK_ENTRY_TYPE_LABELS[entry.entry_type] || entry.entry_type,
+    })));
   } catch (err) {
     next(err);
   }

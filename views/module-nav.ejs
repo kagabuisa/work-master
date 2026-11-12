@@ -1,4 +1,5 @@
 <% const currentModule = typeof activeModule !== 'undefined' ? activeModule : ''; %>
+<% const showCreateActions = typeof hideCreateActions !== 'undefined' ? !hideCreateActions : true; %>
 <% const scoped = currentUser.role !== 'admin' && ['customers', 'suppliers'].some((kind) => currentUser.scopes?.[kind]?.mode === 'selected'); %>
 <% const visibleReports = scoped ? (currentUser.role === 'standard' ? availableReports.filter((report) => report.slug === 'general-ledger') : []) : availableReports; %>
 <% const supplierScoped = currentUser.role !== 'admin' && currentUser.scopes?.suppliers?.mode === 'selected'; %>
@@ -18,7 +19,7 @@
     <img src="/work-master-logo.svg" width="36" height="36" alt="">
   </a>
 
-  <% if (newVoucherOptions.length) { %>
+  <% if (showCreateActions && newVoucherOptions.length) { %>
   <div class="module-nav-actions" aria-label="Create">
     <% if (newVoucherOptions.length === 1) { %>
       <a class="button module-nav-action module-nav-new-trigger" href="<%= newVoucherOptions[0].href %>" aria-label="New <%= newVoucherOptions[0].label %>">New</a>

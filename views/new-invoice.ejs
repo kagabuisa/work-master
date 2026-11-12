@@ -14,7 +14,7 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Sales', href: '/invoices' }, { label: 'Sales Invoices', href: '/invoices' }, { label: editing ? 'Edit Sales Invoice' : 'New Sales Invoice' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'sales' }) %>
+        <%- include('module-nav', { activeModule: 'sales', hideCreateActions: true }) %>
         <% if (can('vouchers.sales.create')) { %><a class="button" href="/invoices/new" aria-label="New Sales Invoice">New</a><% } %>
         <div class="actions page-actions">
           <button type="button" class="button-light" id="refresh-invoice-prices">Refresh Prices</button>

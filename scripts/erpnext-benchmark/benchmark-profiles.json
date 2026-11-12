@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "minimum_invoice_items": 3,
+  "invoice_length_model": {
+    "type": "negative_binomial",
+    "mean": 10,
+    "raw_mean": 9.4,
+    "dispersion": 4,
+    "maximum": 80
+  },
+  "tolerances": {
+    "invoices": 0.02,
+    "invoice_items": 0.01,
+    "average_invoice_items": 0.2,
+    "gl_rows": 0.02,
+    "stock_ledger_rows": 0.02
+  },
+  "lanes": {
+    "accuracy": {
+      "description": "Deterministic financial and accounting correctness fixture with aggregate stress-scale reconciliation.",
+      "pilot": {
+        "counts": {
+          "invoices": 2000,
+          "invoice_lines": 20000,
+          "journals": 1243,
+          "journal_lines": 2486,
+          "purchases": 96,
+          "purchase_lines": 372,
+          "stock": 151,
+          "stock_lines": 1529,
+          "orders": 17,
+          "order_lines": 90,
+          "customers": 60,
+          "suppliers": 15,
+          "items": 60,
+          "warehouses": 6,
+          "accounts": 26,
+          "users": 55,
+          "enabled_users": 55,
+          "bins": 220,
+          "gl_rows": 15000,
+          "stock_ledger_rows": 24000
+        }
+      },
+      "full": {
+        "counts": {
+          "invoices": 100000,
+          "invoice_lines": 1000000,
+          "journals": 62163,
+          "journal_lines": 124326,
+          "purchases": 4794,
+          "purchase_lines": 18575,
+          "stock": 7529,
+          "stock_lines": 76445,
+          "orders": 843,
+          "order_lines": 4484,
+          "customers": 848,
+          "suppliers": 162,
+          "items": 654,
+          "warehouses": 16,
+          "accounts": 100,
+          "users": 55,
+          "enabled_users": 55,
+          "bins": 10000,
+          "gl_rows": 750000,
+          "stock_ledger_rows": 1190000
+        }
+      }
+    },
+    "stress": {
+      "description": "Capacity fixture sized to approximately one million invoices and ten million invoice items.",
+      "pilot": {
+        "counts": {
+          "invoices": 10000,
+          "invoice_lines": 100000,
+          "journals": 6216,
+          "journal_lines": 12432,
+          "purchases": 479,
+          "purchase_lines": 1858,
+          "stock": 753,
+          "stock_lines": 7644,
+          "orders": 84,
+          "order_lines": 448,
+          "customers": 100,
+          "suppliers": 30,
+          "items": 100,
+          "warehouses": 10,
+          "accounts": 26,
+          "users": 55,
+          "enabled_users": 55,
+          "bins": 1000,
+          "gl_rows": 75000,
+          "stock_ledger_rows": 119000
+        }
+      },
+      "full": {
+        "counts": {
+          "invoices": 1000000,
+          "invoice_lines": 10000000,
+          "journals": 621630,
+          "journal_lines": 1243260,
+          "purchases": 47931,
+          "purchase_lines": 185751,
+          "stock": 75282,
+          "stock_lines": 764445,
+          "orders": 8424,
+          "order_lines": 44844,
+          "customers": 8475,
+          "suppliers": 1611,
+          "items": 6534,
+          "warehouses": 153,
+          "accounts": 783,
+          "users": 100,
+          "enabled_users": 100,
+          "bins": 95748,
+          "gl_rows": 7500000,
+          "stock_ledger_rows": 11900000
+        }
+      }
+    }
+  }
+}

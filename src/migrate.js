@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 66;
+const SCHEMA_VERSION = 70;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -275,6 +275,33 @@ const MIGRATIONS = [
     up:client=>client.query('ALTER TABLE app_journal_entries ADD COLUMN IF NOT EXISTS paid_to TEXT') },
   { version:66, name:'customer_cash_receipts',
     up:client=>require('./customer-receipts').reclassifyInvoicePaymentReceipts(client) },
+  { version:67, name:'gl_account_daily_balances',
+    up:client=>require('./gl-account-daily').initGlAccountDaily(client) },
+  { version:68, name:'ddr_originating_stock_entry',
+    up:async client=>{
+      await client.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS source_stock_entry_id BIGINT');
+      await client.query('ALTER TABLE app_stock_entries ADD COLUMN IF NOT EXISTS source_stock_entry_no TEXT');
+      await client.query(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint
+          WHERE conname='app_stock_entries_source_entry_fk'
+            AND conrelid='app_stock_entries'::regclass) THEN
+          ALTER TABLE app_stock_entries ADD CONSTRAINT app_stock_entries_source_entry_fk
+            FOREIGN KEY (source_stock_entry_id) REFERENCES app_stock_entries(id) ON DELETE SET NULL;
+        END IF;
+      END $$`);
+      await client.query(`CREATE INDEX IF NOT EXISTS app_stock_entries_ddr_source_idx
+        ON app_stock_entries(source_stock_entry_id) WHERE source_stock_entry_id IS NOT NULL`);
+    } },
+  { version:69, name:'daily_activity_submission_audit',
+    up:async client=>{
+      await client.query(`ALTER TABLE app_daily_activity_reports
+        ADD COLUMN IF NOT EXISTS submitted_by TEXT,
+        ADD COLUMN IF NOT EXISTS submitted_by_user_id TEXT,
+        ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
+    } },
+  { version:70, name:'purchase_supplier_receipt_number',
+    up:client=>client.query(
+      'ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS supplier_receipt_no TEXT') },
 ];
 
 async function ensureSchema(pool) {

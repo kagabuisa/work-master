@@ -4,6 +4,7 @@ const {guard,fingerprint,KINDS,LINES,pad,status,lineCount,date,pair,items,catego
 const state=require('./state');
 const TABLES={invoices:['app_invoices','notes'],journals:['app_journal_entries','remarks'],purchases:['app_purchases','remarks'],stock:['app_stock_entries','remarks'],orders:['app_purchase_orders','remarks']};
 const prefix='ERP-BENCH:seed:';
+const {runWithTrustedAuditUser}=require('../../src/audit');
 
 async function bootstrap(p) {
   guard();
@@ -65,9 +66,11 @@ async function masters(p,pool) {
   await pool.query("UPDATE app_users SET permission_denials='[\"reports.general-ledger.view\"]'::jsonb WHERE username='erp-bench-54'");
   const actors=(await pool.query('SELECT id,username,role,record_access FROM app_users WHERE active ORDER BY username')).rows;
   const settings=Object.fromEntries((await pool.query('SELECT setting_key,account_id FROM app_accounting_settings')).rows.map(r=>[r.setting_key,Number(r.account_id)]));
-  const manualAccounts=(await pool.query("SELECT id FROM app_accounts WHERE account_code LIKE 'EBA-%' ORDER BY account_code")).rows.map(r=>Number(r.id));
-  if(actors.length!==enabled_users||manualAccounts.length<2)throw new Error('Benchmark master initialization is incomplete.');
-  return {actors,settings,manualAccounts};
+  const manualAccounts=(await pool.query("SELECT id,normal_balance FROM app_accounts WHERE account_code LIKE 'EBA-%' ORDER BY account_code")).rows;
+  const debitAccounts=manualAccounts.filter(row=>row.normal_balance==='debit').map(row=>Number(row.id));
+  const creditAccounts=manualAccounts.filter(row=>row.normal_balance==='credit').map(row=>Number(row.id));
+  if(actors.length!==enabled_users||!debitAccounts.length||!creditAccounts.length)throw new Error('Benchmark master initialization is incomplete.');
+  return {actors,settings,manualAccounts:manualAccounts.map(row=>Number(row.id)),debitAccounts,creditAccounts};
 }
 
 async function existing(pool,kind,key) {
@@ -80,7 +83,7 @@ async function openings(p,ctx) {
     if(!byWarehouse.has(line.warehouse))byWarehouse.set(line.warehouse,[]);byWarehouse.get(line.warehouse).push(line);}
   for(const [warehouse,lines]of byWarehouse){state.diskGuard(p.mode);const key=prefix+'opening:'+warehouse;
     const found=await existing(ctx.pool,'stock',key);
-    if(!found)await require('../../src/audit').runWithAuditUser(ctx.actors[0],()=>ctx.store.createStockEntry({entry_type:'opening',posting_date:'2016-05-31',posting_time:'00:00',cost_center:'EB Main',remarks:key,items:lines}));
+    if(!found)await runWithTrustedAuditUser(ctx.actors[0],()=>ctx.store.createStockEntry({entry_type:'opening',posting_date:'2016-05-31',posting_time:'00:00',cost_center:'EB Main',remarks:key,items:lines}));
     else if(found.docstatus!=='submitted')throw new Error('Retained opening is not submitted.');
   }
   state.event({event:'openings_ready',warehouses:byWarehouse.size,pairs:p.counts.bins});
@@ -94,17 +97,24 @@ async function seedOne(p,ctx,kind,n) {
   const common={posting_date,posting_time:'12:00',cost_center:'EB Main',remarks:key};
   if(kind==='invoices') {
     const pos=rank((n+Math.floor(p.counts.invoices/3))%p.counts.invoices,p.counts.invoices)<p.pos_flagged;
-    if(!id){id=await ctx.store.createInvoice({invoice_date:posting_date,posting_time:'12:00',due_date:posting_date,
+    const payload={invoice_date:posting_date,posting_time:'12:00',due_date:posting_date,
       customer_id:`EB-C-${pad(n%p.counts.customers+1)}`,customer_name:`Benchmark Customer ${pad(n%p.counts.customers+1)}`,
       price_list:'EB Retail',cost_center:'EB Main',invoicer_id:actor.record_access.employee_id,
-      invoicer:`Benchmark Employee ${n%ctx.actors.length+1}`,notes:key,is_cash_sale:pos,items:items(p,kind,n)});docstatus='draft';}
+      invoicer:`Benchmark Employee ${n%ctx.actors.length+1}`,notes:key,is_cash_sale:pos,items:items(p,kind,n)};
+    if(!id){id=await ctx.store.createInvoice(payload);docstatus='draft';}
+    else if(docstatus==='draft'){
+      // A prior attempt may have committed only the draft before submission
+      // failed. Reconcile it to the deterministic profile instead of posting
+      // stale item/warehouse lines.
+      await ctx.store.updateInvoice(id,payload);
+    }
     if(docstatus==='draft'&&target!=='draft'){await ctx.store.submitInvoice(id);docstatus='submitted';}
     const r=rank(n,p.counts.invoices),unpaid=target==='submitted'&&r<p.statuses.invoices.draft+p.statuses.invoices.cancelled+p.positive_outstanding;
     if(docstatus==='submitted'&&!unpaid){const payment=(await ctx.pool.query('SELECT total,amount_paid FROM app_invoices WHERE id=$1',[id])).rows[0];
       if(Number(payment.amount_paid)<Number(payment.total))await ctx.store.addInvoicePayment(id,{payment_date:posting_date,amount:Number(payment.total)-Number(payment.amount_paid),account_id:ctx.settings.cash,method:'cash',notes:key});}
     if(docstatus==='submitted'&&target==='cancelled')await ctx.store.cancelInvoice(id);
   } else if(kind==='journals') {
-    if(!id){const length=lineCount(p,kind,n),a=ctx.manualAccounts[n%ctx.manualAccounts.length],b=ctx.manualAccounts[(n+1)%ctx.manualAccounts.length];
+    if(!id){const length=lineCount(p,kind,n),a=ctx.debitAccounts[n%ctx.debitAccounts.length],b=ctx.creditAccounts[n%ctx.creditAccounts.length];
       id=await ctx.store.createJournalEntry({...common,reference_no:'EB '+category(p,n),journal_type:'journal_entry',
         lines:Array.from({length},(_,i)=>({account_id:i===0?a:b,debit:i===0?1000*(length-1):0,credit:i?1000:0}))},{submit:target!=='draft'});docstatus=target==='draft'?'draft':'submitted';}
     if(docstatus==='submitted'&&target==='cancelled')await ctx.store.cancelJournalEntry(id);
@@ -136,11 +146,11 @@ async function seed(p,ctx) {
         await ctx.store.createInvoice(payload);
         const error=new Error('Intentional pilot interruption after committed draft');error.code='PILOT_INTERRUPTION';throw error;
       }}};
-      try{await require('../../src/audit').runWithAuditUser(ctx.actors[0],()=>seedOne(p,interrupted,'invoices',0));throw new Error('Pilot interruption was not injected.');}
+      try{await runWithTrustedAuditUser(ctx.actors[0],()=>seedOne(p,interrupted,'invoices',0));throw new Error('Pilot interruption was not injected.');}
       catch(e){if(e.code!=='PILOT_INTERRUPTION')throw e;}
     }
-    await require('../../src/audit').runWithAuditUser(ctx.actors[0],()=>seedOne(p,ctx,'invoices',0));
-    await require('../../src/audit').runWithAuditUser(ctx.actors[0],()=>seedOne(p,ctx,'invoices',0));
+    await runWithTrustedAuditUser(ctx.actors[0],()=>seedOne(p,ctx,'invoices',0));
+    await runWithTrustedAuditUser(ctx.actors[0],()=>seedOne(p,ctx,'invoices',0));
     checkpoint.partial_commit_checked=true;state.write('seed-checkpoint.json',checkpoint);
     state.event({event:'partial_commit_recovery_checked'});
   }
@@ -149,7 +159,7 @@ async function seed(p,ctx) {
     const total=p.counts[kind],start=checkpoint.completed[kind]||0;
     for(let lo=start;lo<total;lo+=50){ctx.signal?.throwIfAborted();state.diskGuard(p.mode);const hi=Math.min(total,lo+50);let next=lo;
       const tasks=Array.from({length:workers},async()=>{while(next<hi){const n=next++;
-        await require('../../src/audit').runWithAuditUser(ctx.actors[n%ctx.actors.length],()=>seedOne(p,ctx,kind,n));}});
+        await runWithTrustedAuditUser(ctx.actors[n%ctx.actors.length],()=>seedOne(p,ctx,kind,n));}});
       // Wait for all workers even after one fails, so no writes continue after failure is recorded.
       const results=await Promise.allSettled(tasks),failure=results.find(r=>r.status==='rejected');
       if(failure)throw failure.reason;
@@ -166,7 +176,7 @@ async function seed(p,ctx) {
     for(const kind of KINDS)for(const target of ['draft','submitted','cancelled']){
       if(!p.statuses[kind][target])continue;
       let n=0;while(status(p,kind,n)!==target)n++;
-      await require('../../src/audit').runWithAuditUser(ctx.actors[n%ctx.actors.length],()=>seedOne(p,ctx,kind,n));
+      await runWithTrustedAuditUser(ctx.actors[n%ctx.actors.length],()=>seedOne(p,ctx,kind,n));
     }
     state.event({event:'completed_seed_replay_checked'});
   }

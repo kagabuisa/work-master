@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { renderView } = require('./helpers/render-view');
 const { normalizeStockEntryItems, applyPostgresStockMovement, stockEntryGlLines } = require('../src/domain/posting');
+const { parseStockEntryPayload } = require('../src/web/parsers');
 const { scriptJson } = require('../src/web/script-json');
 const { permissionCheck } = require('../src/authorize');
 const { applyReconciliationRatePolicy } = require('../src/web/reconciliation-rates');
@@ -17,9 +18,16 @@ test('reconciliation voucher routes require stock permissions', () => {
   assert.equal(allowed('/stock/reconciliations', 'POST', ['vouchers.stock.create'], { action: 'submit' }), false);
   assert.equal(allowed('/stock/reconciliations', 'POST', ['vouchers.stock.create', 'vouchers.stock.submit'], { action: 'submit' }), true);
   assert.equal(allowed('/stock/reconciliations/1', 'GET', ['vouchers.stock.view']), true);
+  assert.equal(allowed('/stock/reconciliations/1/duplicate', 'GET',
+    ['vouchers.stock.view', 'vouchers.stock.create']), true);
+  assert.equal(allowed('/stock/reconciliations/1/duplicate', 'GET', ['vouchers.stock.view']), false);
+  assert.equal(allowed('/stock/reconciliations/1/print', 'GET', ['vouchers.stock.view']), true);
+  assert.equal(allowed('/stock/reconciliations/1/print', 'GET', []), false);
   assert.equal(allowed('/stock/reconciliations/1/submit', 'POST', ['vouchers.stock.view']), false);
   assert.equal(allowed('/stock/reconciliations/1/submit', 'POST', ['vouchers.stock.submit']), true);
   assert.equal(allowed('/stock/reconciliations/1/cancel', 'POST', ['vouchers.stock.edit']), false);
+  assert.equal(allowed('/api/ddr-source-entries', 'GET', ['vouchers.stock.create']), true);
+  assert.equal(allowed('/api/ddr-source-entries', 'GET', []), false);
 });
 
 test('reconciliation accepts zero counts and rejects duplicate or invalid counts', () => {
@@ -100,7 +108,8 @@ test('saved draft reconciliation supplies current book balances to the count she
     assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
     availableReports: [], currentPostingTime: () => '12:00', scriptJson,
     today: '2026-10-04', postingTime: '12:00', error: null,
-    entry: { id: 12, entry_no: 'REC-000012', docstatus: 'draft', posting_date: '2026-10-04', cost_center: 'Operations' },
+    entry: { id: 12, entry_no: 'REC-000012', entry_type: 'reconciliation', docstatus: 'draft',
+      posting_date: '2026-10-04', cost_center: 'Operations' },
     items: [{ id: 1, item_code: 'ITEM-1', item_name: 'Item', warehouse: 'Main', quantity: 7 }],
     balances: [{ item_code: 'ITEM-1', quantity: 5, valuation_rate: 10 }],
     warehouse: 'Main', readOnly: true,
@@ -113,6 +122,81 @@ test('saved draft reconciliation supplies current book balances to the count she
   assert.doesNotMatch(html, /name="cost_center"/);
   assert.doesNotMatch(html, /class="invoice-card reconciliation-details"/);
   assert.match(html, /Cost Center: <strong>Operations<\/strong>/);
+});
+
+test('saved reconciliation views show the shared ordered voucher actions', async () => {
+  const html = await renderView(path.join(__dirname, '..', 'views', 'stock-reconciliation.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], currentPostingTime: () => '12:00', scriptJson,
+    today: '2026-10-04', postingTime: '12:00', error: null, readOnly: true,
+    entry: { id: 12, entry_no: 'REC-000012', entry_type: 'reconciliation', docstatus: 'submitted',
+      posting_date: '2026-10-04' },
+    items: [], balances: [], warehouse: 'Main',
+  });
+  const actions = [
+    'href="/stock/reconciliations/12/print"',
+    'action="/stock/reconciliations/12/cancel"',
+    'href="/stock/reconciliations/12/duplicate"',
+  ];
+  let previous = html.indexOf(actions[0]) - 1;
+  for (const action of actions) {
+    const position = html.indexOf(action, previous);
+    assert.ok(position > previous, `reconciliation should show ${action} in the expected order`);
+    previous = position;
+  }
+  assert.match(html, />Print<\/a>/);
+  assert.match(html, />Cancel<\/button>/);
+  assert.match(html, />Duplicate<\/a>/);
+  assert.match(html, /class="module-nav-new stock-new-menu"/);
+  assert.match(html, /aria-label="New stock voucher options"/);
+  assert.ok(html.indexOf('voucher-page-actions') < html.indexOf('</header>'),
+    'saved reconciliation actions should render in the top navigation');
+});
+
+test('duplicating a reconciliation opens an unsaved count with current dates and copied lines', async () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const { createRequire } = require('node:module');
+  const filename = path.join(__dirname, '../src/web/routes/stock.js');
+  const realRequire = createRequire(filename);
+  const source = {
+    entry: { id: 12, entry_no: 'REC-000012', entry_type: 'reconciliation', docstatus: 'submitted',
+      posting_date: '2020-01-01', posting_time: '01:00', cost_center: 'Operations', remarks: 'Recount' },
+    items: [{ id: 99, stock_entry_id: 12, item_code: 'ITEM-1', item_name: 'Item',
+      warehouse: 'Main', quantity: 7, valuation_rate: 25 }],
+  };
+  const module = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module, exports: module.exports,
+    require: name => name === '../../store' ? {
+      ...realRequire(name),
+      loadStockEntry: async () => source,
+      getPostgresPool: () => ({
+        query: async () => ({ rows: [{ item_code: 'ITEM-1', quantity: 5, valuation_rate: 25 }] }),
+      }),
+    } : name === '../../posting-time' ? {
+      currentPostingDate: () => '2026-11-08',
+      currentPostingTime: () => '10:30',
+    } : realRequire(name),
+    Buffer, console }, { filename });
+  const route = module.exports.stack.find(layer => layer.route?.path === '/reconciliations/:id/duplicate')
+    .route.stack[0].handle;
+  let data;
+  let failure;
+  await route({ params: { id: '12' } }, {
+    set() {},
+    render(view, locals) { assert.equal(view, 'stock-reconciliation'); data = locals; },
+  }, error => { failure = error; });
+  assert.equal(failure, undefined);
+  assert.equal(data.entry.id, undefined);
+  assert.equal(data.entry.entry_type, 'reconciliation');
+  assert.equal(data.entry.docstatus, 'draft');
+  assert.equal(data.entry.posting_date, '2026-11-08');
+  assert.equal(data.entry.posting_time, '10:30');
+  assert.equal(data.duplicateOf, 'REC-000012');
+  assert.equal(data.items[0].id, undefined);
+  assert.equal(data.items[0].quantity, 7);
+  assert.equal(data.items[0].valuation_rate, 25);
+  assert.equal(data.warehouse, 'Main');
 });
 
 test('stock entry duplication requires Read and Create and only accepts GET', () => {
@@ -194,6 +278,196 @@ test('stock preview and drawer expose Submit only for permitted drafts', async (
       }
     }
   }
+});
+
+test('saved stock previews and drawers show Print, Cancel, Duplicate and New in order', async () => {
+  for (const file of ['stock-entry', 'stock-entry-drawer']) {
+    const html = await renderView(path.join(__dirname, `../views/${file}.ejs`), {
+      assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+      availableReports: [], money: String, readOnly: true, error: null,
+      entry: { id: 12, entry_no: 'STK-000012', entry_type: 'transfer', docstatus: 'submitted',
+        posting_date: '2026-10-16' },
+      items: [],
+    });
+    const actions = [
+      'href="/stock/entries/12/print"',
+      'action="/stock/entries/12/cancel"',
+      'href="/stock/entries/12/duplicate"',
+      'href="/stock/entries/new"',
+    ];
+    const groupStart = html.indexOf('href="/stock/entries/12/print"');
+    let previous = groupStart - 1;
+    assert.ok(groupStart >= 0, `${file} should show Print in the action group`);
+    for (const action of actions) {
+      const position = html.indexOf(action, previous);
+      assert.ok(position > previous, `${file} should show ${action} in the expected order`);
+      previous = position;
+    }
+    assert.match(html, />Print<\/a>/);
+    assert.match(html, />Cancel<\/button>/);
+    assert.match(html, />Duplicate<\/a>/);
+    assert.match(html, />New<\/span><\/button>/);
+    assert.match(html, /aria-label="New stock voucher options"/);
+    assert.equal((html.match(/href="\/stock\/entries\/new"/g) || []).length, 1);
+  }
+});
+
+test('stock lists use the plus New menu with stock voucher choices', async () => {
+  const fs = require('node:fs');
+  for (const file of ['stock-entries.ejs', 'stock-reconciliations.ejs']) {
+    const source = fs.readFileSync(path.join(__dirname, `../views/${file}`), 'utf8');
+    assert.match(source, /include\('stock-new-menu'\)/);
+    assert.doesNotMatch(source, /class="button" href="\/stock\/(?:entries|reconciliations)\/new">New<\/a>/);
+  }
+  const menu = await renderView(path.join(__dirname, '../views/stock-new-menu.ejs'), {
+    currentUser: { role: 'admin', scopes: {} }, can: () => true,
+  });
+  assert.match(menu, /aria-hidden="true">\+<\/span><span>New<\/span>/);
+  assert.match(menu, /href="\/stock\/entries\/new"/);
+  assert.match(menu, /href="\/stock\/reconciliations\/new"/);
+});
+
+test('stock print document includes entry metadata, items and total', async () => {
+  const html = await renderView(path.join(__dirname, '../views/stock-entry-print.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], money: (value) => `Ugx ${value}`,
+    entry: { id: 12, entry_no: 'STK-000012', entry_type: 'transfer', docstatus: 'submitted',
+      posting_date: '2026-10-16', posting_time: '09:30', cost_center: 'Operations', remarks: 'Move stock' },
+    items: [{ item_code: 'ITEM-1', warehouse: 'Main', target_warehouse: 'Shop', quantity: 2, valuation_rate: 500 }],
+  });
+  assert.match(html, /Stock Entry STK-000012/);
+  assert.match(html, /ITEM-1/);
+  assert.match(html, /Move stock/);
+  assert.match(html, /Ugx 1000/);
+  assert.match(html, /Source Whs/);
+  assert.match(html, /Target Whs/);
+});
+
+test('DDR source selection is available on the form, detail and print views', async () => {
+  assert.equal(parseStockEntryPayload({ entry_type: 'ddr_shortage',
+    source_stock_entry_id: '7', source_stock_entry_no: 'STK-000007' }).source_stock_entry_id, '7');
+  const entry = { id: 12, entry_no: 'STK-000012', entry_type: 'ddr_shortage', docstatus: 'draft',
+    posting_date: '2026-10-16', posting_time: '09:30', source_stock_entry_id: 7,
+    source_stock_entry_no: 'STK-000007' };
+  const form = await renderView(path.join(__dirname, '../views/stock-entry.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], currentPostingTime: () => '12:00', scriptJson,
+    today: '2026-10-16', error: null, entry, items: [],
+  });
+  assert.match(form, /id="ddr-source-dialog"/);
+  assert.match(form, /name="source_stock_entry_id" id="ddr-source-id" value="7"/);
+  assert.match(form, /id="ddr-source-display">STK-000007<\/strong>/);
+  assert.match(form, /class="ddr-source-picker"/);
+  assert.match(form, /Find the submitted stock entry that initiated this delivery/);
+  assert.match(form, /id="ddr-source-warehouse"/);
+  assert.match(form, /<option value="">Choose target warehouse<\/option>/);
+  assert.match(form, /id="ddr-source-search"[\s\S]*?disabled/);
+  const sourcePickerScript = require('node:fs').readFileSync(
+    path.join(__dirname, '../public/stock-entry.js'), 'utf8');
+  assert.doesNotMatch(sourcePickerScript, /searchDdrSources\(''\)/);
+  assert.match(sourcePickerScript, /if \(!query\)/);
+  assert.match(sourcePickerScript, /if \(!search\)/);
+  assert.match(sourcePickerScript, /new URLSearchParams\(\{ q: search, warehouse \}\)/);
+  const ddrSearchSource = sourcePickerScript.slice(
+    sourcePickerScript.indexOf('async function searchDdrSources'),
+    sourcePickerScript.indexOf('function selectDdrSource'));
+  assert.match(ddrSearchSource, /ddr-source-result-entry/);
+  assert.match(ddrSearchSource, /ddr-source-result-date/);
+  assert.match(ddrSearchSource, /ddr-source-result-warehouse/);
+  assert.match(ddrSearchSource, /first 15 matches/);
+  assert.doesNotMatch(ddrSearchSource,
+    /entry_type_label|item_count|ddr-source-result-remarks|ddr-source-result-badge/);
+  const validationError = await renderView(path.join(__dirname, '../views/stock-entry.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], currentPostingTime: () => '12:00', scriptJson,
+    today: '2026-10-16', error: 'Choose the stock entry that originated this DDR.',
+    entry: null, items: [], attemptedEntryType: 'ddr_excess',
+    attemptedSourceStockEntryId: '7', attemptedSourceStockEntryNo: 'STK-000007',
+  });
+  assert.match(validationError, /value="ddr_excess" selected/);
+  assert.match(validationError, /id="ddr-source-id" value="7"/);
+  assert.match(validationError, /id="ddr-source-display">STK-000007<\/strong>/);
+  const detail = await renderView(path.join(__dirname, '../views/stock-entry-detail.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    money: String, entry: { ...entry, docstatus: 'submitted' },
+    items: [],
+  });
+  assert.match(detail, /Originating stock entry/);
+  assert.match(detail, /href="\/stock\/entries\/7"/);
+  const printed = await renderView(path.join(__dirname, '../views/stock-entry-print.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    money: String, entry: { ...entry, docstatus: 'submitted' }, items: [],
+  });
+  assert.match(printed, /Originating stock entry/);
+  assert.match(printed, /STK-000007/);
+});
+
+test('stock entry details use an aligned field grid without the generic inventory notice', async () => {
+  const html = await renderView(path.join(__dirname, '../views/stock-entry.ejs'), {
+    assetVersion: 'test', currentUser: { role: 'admin', scopes: {} }, can: () => true,
+    availableReports: [], currentPostingTime: () => '12:00', scriptJson,
+    today: '2026-10-16', error: null, entry: null, items: [],
+  });
+  assert.match(html, /class="form-grid ui-form-grid stock-entry-details-grid/);
+  assert.match(html, /class="invoice-form stock-entry-form ui-surface"/);
+  assert.match(html, /class="stock-entry-posting-field app-outline-field"/);
+  assert.match(html, /Document date \/ time/);
+  assert.match(html, /Source Whs/);
+  assert.match(html, /Target Whs/);
+  assert.doesNotMatch(html, /data-invoice-request-controls/);
+  assert.match(html, /class="module-nav-new stock-new-menu"/);
+  assert.doesNotMatch(html, /aria-label="New Stock Entry"/);
+  for (const field of ['stock-entry-type-field', 'stock-entry-delivery-field',
+    'stock-entry-posting-field', 'stock-entry-cost-center-field',
+    'stock-entry-remarks-field', 'stock-entry-item-picker-field']) {
+    assert.match(html, new RegExp(field));
+  }
+  assert.doesNotMatch(html, /Inventory movements receive server date\/time on submission/);
+  const script = require('node:fs').readFileSync(
+    path.join(__dirname, '../public/inventory-controls.js'), 'utf8');
+  assert.doesNotMatch(script, /Inventory movements receive server date\/time on submission/);
+  assert.match(script, /note\.textContent=restrictions/);
+  const styles = require('node:fs').readFileSync(
+    path.join(__dirname, '../public/styles.css'), 'utf8');
+  const sourceResults = styles.slice(styles.indexOf('#ddr-source-results {'),
+    styles.indexOf('}', styles.indexOf('#ddr-source-results {')));
+  assert.match(sourceResults, /position:\s*static/);
+  const detailsGrid = styles.slice(styles.indexOf('.ui-page:not(.hr-shell) .ui-form-grid.stock-entry-details-grid {'),
+    styles.indexOf('}', styles.indexOf('.ui-page:not(.hr-shell) .ui-form-grid.stock-entry-details-grid {')));
+  assert.match(detailsGrid, /grid-template-columns:\s*repeat\(4/);
+  assert.match(detailsGrid, /row-gap:\s*8px/);
+});
+
+test('stock preview cancellation redirects form posts and preserves JSON responses', async () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const { createRequire } = require('node:module');
+  const filename = path.join(__dirname, '../src/web/routes/stock.js');
+  const realRequire = createRequire(filename);
+  const module = { exports: {} };
+  const calls = [];
+  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module, exports: module.exports,
+    require: name => name === '../../store' ? { ...realRequire(name),
+      cancelStockEntry: async (id, body) => { calls.push({ id, body }); return Number(id); } } : realRequire(name),
+    Buffer, console }, { filename });
+  const route = module.exports.stack.find(layer => layer.route?.path === '/entries/:id/cancel').route.stack[0].handle;
+  let redirect;
+  let failure;
+  await route({
+    params: { id: '12' }, body: { reason: 'Form cancellation' },
+    is: () => false, get: () => '',
+  }, { redirect: (status, url) => { redirect = { status, url }; } }, error => { failure = error; });
+  assert.equal(failure, undefined);
+  assert.deepEqual(redirect, { status: 303, url: '/stock/entries/12' });
+  assert.deepEqual(calls[0], { id: '12', body: { reason: 'Form cancellation' } });
+
+  let json;
+  await route({
+    params: { id: '12' }, body: { reason: 'Drawer cancellation' },
+    is: type => type === 'application/json', get: () => '',
+  }, { json: value => { json = value; } }, error => { throw error; });
+  assert.equal(json.id, 12);
+  assert.equal(json.status, 'cancelled');
 });
 
 test('preview submission posts saved stock values and rejects invalid statuses without editing', async () => {

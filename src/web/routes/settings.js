@@ -17,6 +17,7 @@ const { masterListConfig } = require('../master-lists');
 const DEFAULT_OPTION_GROUPS = ['item_category', 'stock_uom', 'customer_group', 'territory', 'supplier_type', 'warehouse_type'];
 
 const router = express.Router();
+const configuredCompanyName=async()=>String((await getCompanyInformation()).name||'').trim();
 
 router.get('/settings', async (req, res, next) => {
   try {
@@ -170,29 +171,34 @@ router.post('/settings/erpnext-sync/sales-invoices', async (_req, res, next) => 
 });
 
 async function renderEmployeeCreate(req,res,payload={},error=null) {
-  const opts=res.locals.can('hr.employees.edit') || res.locals.can('hr.employees.view') ? await hr.options(req.currentUser) : {employees:[],centers:[],accounts:[]};
-  res.render('hr',{page:'employee',title:'New employee',employee:payload,plans:[],opts,employeeDetailFields,isNewEmployee:true,profileError:error,today:todayString(),money:value=>`Ugx ${Number(value||0).toLocaleString('en-UG')}`});
+  const [opts,defaultCompany]=await Promise.all([
+    res.locals.can('hr.employees.edit') || res.locals.can('hr.employees.view') ? hr.options(req.currentUser) : {employees:[],centers:[],accounts:[]},
+    configuredCompanyName(),
+  ]);
+  const employee={...payload,company:String(payload.company||'').trim()||defaultCompany};
+  res.render('hr',{page:'employee',title:'New employee',employee,plans:[],opts,employeeDetailFields,isNewEmployee:true,defaultCompany,profileError:error,today:todayString(),money:value=>`Ugx ${Number(value||0).toLocaleString('en-UG')}`});
 }
 
 router.get('/settings/:list/new', async (req, res, next) => {
   try {
     const config = masterListConfig(req.params.list);
     if(config.key==='employees') return await renderEmployeeCreate(req,res);
-    await renderMasterForm(res, { config, record: newMasterRecord(config, req.query), error: null, mode: 'new' });
+    const defaultCompany=config.fields.some(field=>field.name==='company')
+      ? await configuredCompanyName() : '';
+    await renderMasterForm(res, { config, record: newMasterRecord(config, req.query, defaultCompany), error: null, mode: 'new' });
   } catch (err) {
     next(err);
   }
 });
 
-function newMasterRecord(config, query = {}) {
+function newMasterRecord(config, query = {}, defaultCompany = '') {
   if (config.key === 'price-lists') return { currency: 'UGX', price_type: 'selling' };
-  if (config.key !== 'options') {
-    return {};
-  }
-  return {
+  const record = config.key === 'options' ? {
     option_group: String(query.group || '').trim(),
     option_value: String(query.value || '').trim(),
-  };
+  } : {};
+  if (config.fields.some((field) => field.name === 'company')) record.company = defaultCompany;
+  return record;
 }
 
 router.get('/settings/:list/:id/edit', async (req, res, next) => {
@@ -395,8 +401,12 @@ router.post('/settings/:list/:id', async (req, res, next) => {
 
 router.post('/settings/:list', async (req, res, next) => {
   const config = masterListConfig(req.params.list);
+  const payload={...req.body};
   try {
-    const id = config.key==='employees' ? await hr.createEmployee(req.body,req.currentUser) : await createMasterRecord(config.key, req.body);
+    if(config.fields.some((field)=>field.name==='company')&&!String(payload.company||'').trim()) {
+      payload.company=await configuredCompanyName();
+    }
+    const id = config.key==='employees' ? await hr.createEmployee(payload,req.currentUser) : await createMasterRecord(config.key, payload);
     if(config.key==='employees') return res.redirect(303,res.locals.can('hr.employees.view')?`/hr/employees/${encodeURIComponent(id)}`:'/settings/employees');
     res.redirect(`/settings/${config.key}/${encodeURIComponent(id)}/edit?editing=1`);
   } catch (err) {
@@ -407,10 +417,10 @@ router.post('/settings/:list', async (req, res, next) => {
       err.status = 400;
     }
     res.status(err.status || 500);
-    if(config.key==='employees') return await renderEmployeeCreate(req,res,req.body,err.message);
+    if(config.key==='employees') return await renderEmployeeCreate(req,res,payload,err.message);
     await renderMasterForm(res, {
       config,
-      record: req.body,
+      record: payload,
       error: err.message || `Could not create ${config.singular.toLowerCase()}.`,
       mode: 'new',
     });

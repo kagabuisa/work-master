@@ -276,6 +276,7 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
     const db=(await pool.query('SELECT current_database() AS name')).rows[0].name;
     assert.match(db,/_hr_test$/,'HR tests require a dedicated *_hr_test database');
     await pool.query('DROP SCHEMA public CASCADE');await pool.query('CREATE SCHEMA public');await store.initStore();
+    await store.saveCompanyInformation({name:'Configured HR Company'});
     await pool.query(`INSERT INTO app_master_employees(employee_id,employee_name,company,status) VALUES ('HR-E1','HR One','HR Company','Active'),('HR-E2','HR Two','HR Company','Active')`);
     await pool.query(`INSERT INTO app_master_cost_centers(cost_center,cost_center_name) VALUES('HR Shop','HR Shop')`);
     const ids={};
@@ -501,7 +502,21 @@ test('HR integrates leave, advances, payroll accrual, partial payments and rever
       const newForm=await (await fetch(base+'/settings/employees/new')).text();
       assert.match(newForm,/name="education"/);
       assert.match(newForm,/Create employee/);
+      assert.match(newForm,/name="company" value="Configured HR Company"/);
       assert.ok(!newForm.includes('Download employee details PDF'));
+      const newCostCenter=await (await fetch(base+'/settings/cost-centers/new')).text();
+      assert.match(newCostCenter,/name="company"\s+value="Configured HR Company"/);
+      const payrollForm=await (await fetch(base+'/hr/payroll')).text();
+      assert.match(payrollForm,/name="company" value="Configured HR Company" readonly/);
+      const defaultEmployeeCreate=await fetch(base+'/settings/employees',{method:'POST',
+        body:new URLSearchParams({employee_name:'Defaulted company employee',status:'Active'}),redirect:'manual'});
+      assert.equal(defaultEmployeeCreate.status,303);
+      assert.equal((await hr.employeeProfile('Defaulted company employee',admin)).employee.company,'Configured HR Company');
+      const defaultPayroll=await fetch(base+'/hr/payroll',{method:'POST',redirect:'manual',
+        body:new URLSearchParams({period:'2026-04',posting_date:'2026-04-30',employee_ids:'HR-E1'})});
+      assert.equal(defaultPayroll.status,303);
+      const defaultPayrollId=Number(defaultPayroll.headers.get('location').split('/').pop());
+      assert.equal((await pool.query('SELECT company FROM app_hr_runs WHERE id=$1',[defaultPayrollId])).rows[0].company,'Configured HR Company');
       const toggle=await fetch(base+'/settings/employees/HR%2FNEW/active',{method:'POST',body:new URLSearchParams({active:'1'}),redirect:'manual'});
       assert.equal(toggle.status,303);
       assert.equal((await hr.employeeProfile('HR/NEW',admin)).employee.status,'Active');

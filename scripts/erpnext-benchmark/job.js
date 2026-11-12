@@ -30,7 +30,8 @@ async function server(){
 }
 function markdown(summary){
   const lines=['# ERPNext-matched benchmark', '',`Run: ${summary.run_id}`,`Mode: ${summary.mode}`,`HTTP/integrity result: ${summary.passed?'PASS':'FAIL'}`, '',
-    `Elapsed: ${summary.elapsed_seconds} seconds. Seeded through application lifecycle functions; source ERPNext was not contacted.`, '',
+    `Lane: ${summary.lane}`, `Elapsed: ${summary.elapsed_seconds} seconds. Seeded through application lifecycle functions; source ERPNext was not contacted.`,
+    `Invoice lengths: minimum ${summary.profile.invoice_lengths.minimum}, mean ${summary.profile.invoice_lengths.mean}, maximum ${summary.profile.invoice_lengths.maximum}.`, '',
     '| Users | Phase | Transactions | Failed | Transactions/s |','| --- | --- | ---: | ---: | ---: |'];
   for(const r of summary.workload?.phases||[])lines.push(`| ${r.users} | ${r.name} | ${r.transactions} | ${r.failed_transactions} | ${r.transactions_per_second} |`);
   lines.push('',`Database size: ${(summary.after.database_bytes/1024**3).toFixed(3)} GiB.`,
@@ -41,7 +42,7 @@ function markdown(summary){
   return lines.join('\n')+'\n';
 }
 async function main(){
-  guard();const p=profile(process.env.BENCHMARK_MODE),started=Date.now();state.diskGuard(p.mode);
+  guard();const p=profile(process.env.BENCHMARK_MODE,process.env.BENCHMARK_LANE||'stress'),started=Date.now();state.diskGuard(p.mode);
   const prior=state.read('status.json');
   if(prior?.stage==='complete')throw new Error('This run already completed; it will not be replayed.');
   if(state.read('traffic-started.json'))throw new Error('A traffic phase already started. Preserve it and start a fresh run; automatic replay would change the baseline.');
@@ -64,13 +65,15 @@ async function main(){
     // erase already-completed phases. A stopped/unreachable database may still
     // prevent verification, in which case the job remains explicitly failed.
     const phases=fs.readdirSync(state.OUT).filter(name=>/^phase-.*\.json$/.test(name)).sort().map(name=>state.read(name));
-    workload={at:new Date().toISOString(),mode:p.mode,passed:false,error:e.message,phases};state.write('workload.json',workload);
+    workload={at:new Date().toISOString(),mode:p.mode,lane:p.lane,passed:false,error:e.message,
+      failure:e.details||null,phases};state.write('workload.json',workload);
     state.event({event:'workload_failed',error:e.message});
   }
   phase='integrity-after';state.progress(phase);const after=await verify(p,ctx,'after');
   await metrics(p);
-  const summary={run_id:process.env.BENCHMARK_RUN_ID,at:new Date().toISOString(),mode:p.mode,passed:before.passed&&after.passed&&workload.passed,
-    elapsed_seconds:Math.round((Date.now()-started)/1000),before,after,workload,limitations:p.assumptions};
+  const summary={run_id:process.env.BENCHMARK_RUN_ID,at:new Date().toISOString(),mode:p.mode,lane:p.lane,
+    passed:before.passed&&after.passed&&workload.passed,elapsed_seconds:Math.round((Date.now()-started)/1000),
+    profile:{counts:p.counts,targets:p.targets,invoice_lengths:p.invoice_lengths},before,after,workload,limitations:p.assumptions};
   state.write('summary.json',summary);fs.writeFileSync(state.OUT+'/summary.md',markdown(summary),{mode:0o600});
   phase='complete';state.progress('complete',{mode:p.mode,passed:summary.passed,elapsed_seconds:summary.elapsed_seconds});
   state.event({event:'job_complete',passed:summary.passed});if(!summary.passed)process.exitCode=2;

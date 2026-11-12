@@ -347,11 +347,29 @@ test('payroll setup errors link to employee pay plans and retain draft inputs', 
   });
   assert.match(html,/role="alert"/);
   assert.match(html,/href="\/hr\/employees\/E-1#pay-plans"/);
-  assert.match(html,/<option selected>Test Company<\/option>/);
+  assert.match(html,/name="company" value="Test Company" readonly/);
   assert.match(html,/name="period" value="2026-09"/);
   assert.match(html,/name="posting_date" value="2026-09-30"/);
   assert.match(html,/<option value="E-1" selected>/);
   assert.match(html,/Set up employee pay plans/);
+});
+
+test('configured company is prefilled on payroll and new employee forms',async()=>{
+  const ejs=require('ejs');
+  const views=require('node:path').join(__dirname,'../views');
+  const payrollHtml=await ejs.renderFile(require('node:path').join(views,'hr-payroll.ejs'),{
+    can:()=>true,today:'2026-10-09',money:String,runs:[],defaultCompany:'Configured Company',
+    opts:{employees:[{employee_id:'E-1',employee_name:'Employee One',company:'Configured Company',status:'Active',disabled:false}]},
+  });
+  assert.match(payrollHtml,/name="company" value="Configured Company" readonly/);
+  assert.ok(!payrollHtml.includes('name="company" required><option value="">Choose company'));
+
+  const employeeHtml=await ejs.renderFile(require('node:path').join(views,'hr-employee.ejs'),{
+    can:()=>true,employee:{},plans:[],defaultCompany:'Configured Company',isNewEmployee:true,
+    opts:{employees:[],centers:[]},employeeDetailFields:require('../src/hr-employee-fields').employeeDetailFields,
+    today:'2026-10-09',money:String,formatDate:String,costCenterName:String,
+  });
+  assert.match(employeeHtml,/name="company" value="Configured Company"/);
 });
 
 

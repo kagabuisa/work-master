@@ -3,7 +3,7 @@
 const express = require('express');
 const { dailyActivityReport, dailyActivityVoucher } = require('../daily-activity');
 const { localDailyActivityReport, localDailyActivityVoucher } = require('../local-daily-activity');
-const { createDailyActivity, dailyActivityFormOptions, dailyActivityStockEntryOptions,
+const { createDailyActivity, submitDailyActivity, dailyActivityFormOptions, dailyActivityStockEntryOptions,
   UNIT_TYPES, DELIVERY_OPTIONS } = require('../daily-activity-create');
 const { voucherOwnerId, voucherEmployeeId } = require('../../voucher-ownership');
 const { accountAccessOptions, hrLedgerAccessOptions, warehouseAccessOptions } = require('../helpers');
@@ -106,11 +106,31 @@ router.get('/daily-activity/reference/:name', async (req, res, next) => {
   } catch (err) { dailyActivityError(err, req, res, next); }
 });
 
+router.post('/daily-activity/:name/submit', async (req, res, next) => {
+  try {
+    const voucher = await submitDailyActivity(req.params.name, req.currentUser);
+    res.redirect(303, `/reports/daily-activity/${encodeURIComponent(voucher.name)}?submitted=1`);
+  } catch (err) {
+    if ([400, 403, 404].includes(err.status)) {
+      const voucher = await localDailyActivityVoucher(req.params.name, req.currentUser).catch(() => null);
+      if (!voucher) return res.status(404).render('error', {
+        status: 404, message: 'Daily Activity Report voucher not found.',
+      });
+      return res.status(err.status).render('daily-activity-voucher', { voucher, money, error: err.message });
+    }
+    next(err);
+  }
+});
+
 router.get('/daily-activity/:name', async (req, res, next) => {
   try {
     const voucher = await localDailyActivityVoucher(req.params.name, req.currentUser);
     if (!voucher) { const error = new Error('Daily Activity Report voucher not found.'); error.status = 404; throw error; }
-    res.render('daily-activity-voucher', { voucher, money });
+    res.render('daily-activity-voucher', {
+      voucher,
+      money,
+      notice: req.query.submitted === '1' ? 'Daily Activity Report submitted.' : '',
+    });
   } catch (err) { dailyActivityError(err, req, res, next); }
 });
 

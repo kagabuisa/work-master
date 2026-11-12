@@ -39,7 +39,9 @@ async function login(actor,password,stats,signal) {
   try {
     const response=await fetch(base+'/login',{method:'POST',body:new URLSearchParams({username:actor.username,password}),redirect:'manual',signal:AbortSignal.timeout(60000)});
     status=response.status;await response.arrayBuffer();cookie=response.headers.getSetCookie().find(v=>v.startsWith('wm_session='))?.split(';')[0];
-    if(![302,303].includes(status)||!cookie||new URL(response.headers.get('location')||'/login',base).pathname.startsWith('/login'))throw new Error('Login failed');
+    if(![302,303].includes(status)||!cookie||new URL(response.headers.get('location')||'/login',base).pathname.startsWith('/login')){
+      const error=new Error('Login failed');error.details={status,location:response.headers.get('location'),error:'unexpected_login'};throw error;
+    }
     return {...actor,cookie};
   } finally {if(stats){if(!stats.has('login'))stats.set('login',new Stats());stats.get('login').record(performance.now()-started,status,0,!cookie,!cookie?'login_failed':null);}signal?.throwIfAborted();}
 }
@@ -54,10 +56,11 @@ function chooseLines(ctx,user,n,count,shared=false){
 }
 async function operation(p,ctx,user,n,stats,signal,{forced,shared=false}={}) {
   signal?.throwIfAborted();
-  const type=forced||['list','search','detail','ledger','stock-ledger','draft','cash-sale','credit-payment','journal','transfer','list','detail','search','ledger','draft','cash-sale','purchase','order','trial-balance','list'][n%20];
+  const requested=forced||['list','search','detail','ledger','stock-ledger','draft','cash-sale','credit-payment','journal','transfer','list','detail','search','ledger','draft','cash-sale','purchase','order','trial-balance','list'][n%20];
+  const type=requested==='trial-balance'&&user.role!=='admin'?'ledger':requested;
   const key=`ERP-BENCH:traffic:${process.env.BENCHMARK_RUN_ID}:${ctx.phase}:${user.ordinal}:${n}`;
   const today=ctx.today,from=new Date(Date.parse(today+'T00:00:00Z')-30*86400000).toISOString().slice(0,10);
-  const length=[1,5,10,20,50][Math.floor(n/20)%5],lines=chooseLines(ctx,user,n,length,shared);
+  const length=[3,5,10,20,50][Math.floor(n/20)%5],lines=chooseLines(ctx,user,n,length,shared);
   const req=(label,path,body,expected)=>request(user,label,path,body,stats,expected,signal);
   if(type==='list')return req('invoice-list','/invoices');
   if(type==='search')return req('invoice-search','/invoices?q='+encodeURIComponent(n%2?'INV-000':'Benchmark Customer '+pad((n%p.counts.customers)+1)));
@@ -73,7 +76,8 @@ async function operation(p,ctx,user,n,stats,signal,{forced,shared=false}={}) {
   }
   if(type==='journal') {
     const b=new URLSearchParams({journal_type:'journal_entry',posting_date:today,posting_time:'23:59',cost_center:'EB Main',remarks:key});
-    for(const [i,id]of ctx.manualAccounts.slice(0,2).entries()){b.append('account_id',String(id));b.append('debit',i?'0':'1000');b.append('credit',i?'1000':'0');}
+    b.append('account_id',String(ctx.debitAccounts[user.ordinal%ctx.debitAccounts.length]));b.append('debit','1000');b.append('credit','0');
+    b.append('account_id',String(ctx.creditAccounts[user.ordinal%ctx.creditAccounts.length]));b.append('debit','0');b.append('credit','1000');
     return req('journal-post','/journals',b);
   }
   if(type==='transfer') {
@@ -105,14 +109,17 @@ async function prepare(p,ctx,signal) {
   for(const user of ctx.users){user.invoice_id=visible.find(r=>r.created_by_user_id===String(user.id))?.id;
     if(!user.invoice_id)throw new Error('Every test account needs a visible historical invoice.');}
   const normal=ctx.users[5],hidden=ctx.users[0].invoice_id;
+  const reportAdmin=ctx.users.find(user=>user.role==='admin');
+  if(!reportAdmin)throw new Error('The benchmark requires an Admin report account.');
   await request(normal,'deny-other-owner','/invoices/'+hidden,null,stats,'deny',signal);
   await request(ctx.users[54],'deny-report','/reports/general-ledger',null,stats,'deny',signal);
   await request(ctx.users[0],'ledger-history','/reports/general-ledger?'+new URLSearchParams({from:p.history_start,to:p.history_end}),null,stats,'read',signal);
   // Deterministic checks ensure every write class is exercised, even in a short pilot.
   for(const [n,type]of ['list','search','detail','ledger','stock-ledger','draft','cash-sale','credit-payment','journal','transfer','purchase','order','trial-balance'].entries())
-    await operation(p,ctx,normal,n,stats,signal,{forced:type});
+    await operation(p,ctx,type==='trial-balance'?reportAdmin:normal,n,stats,signal,{forced:type});
   const report=Object.fromEntries([...stats].map(([key,s])=>[key,s.json()]));state.write('http-checks.json',report);
   state.event({event:'http_checks_passed',checks:Object.keys(report).length,distinct_accounts:ctx.users.length});
+  return report;
 }
 
 async function phase(p,ctx,concurrency,name,duration,think,signal,shared) {
@@ -120,13 +127,13 @@ async function phase(p,ctx,concurrency,name,duration,think,signal,shared) {
   state.diskGuard(p.mode);
   state.progress('concurrency',{users:concurrency,phase:name,duration_seconds:duration,shared_items:shared});
   const stats=new Map(),failures=[];let transactions=0,failed=0;
-  const password=state.read('credentials.json').password;
   const admins=Math.max(1,Math.round(concurrency/10));
   const selected=[...ctx.users.filter(u=>u.role==='admin').slice(0,admins),...ctx.users.filter(u=>u.role==='standard').slice(0,concurrency-admins)];
   if(selected.length!==concurrency)throw new Error('Not enough distinct accounts for this concurrency stage.');
-  const loginResults=await Promise.allSettled(selected.map(u=>login(u,password,stats,signal)));
-  const loginFailure=loginResults.find(r=>r.status==='rejected');if(loginFailure)throw loginFailure.reason;
-  const users=loginResults.map(r=>r.value),started=performance.now(),deadline=started+duration*1000;
+  // Sessions are established once during setup. Re-authenticating every phase
+  // would exceed the application's intentional per-IP login rate limit and
+  // would measure login throttling rather than the requested workload.
+  const users=selected,started=performance.now(),deadline=started+duration*1000;
   const workers=users.map(async user=>{let n=user.ordinal;
     while(performance.now()<deadline){signal?.throwIfAborted();try{await operation(p,ctx,user,n,stats,signal,{shared});}catch(e){failed++;if(failures.length<20)failures.push(e.details||{error:e.name});}
       transactions++;n++;
@@ -152,16 +159,22 @@ async function exports(p,ctx,signal){
   const report={passed:failures.length===0,operations:Object.fromEntries([...stats].map(([name,s])=>[name,s.json()])),failures};state.write('exports.json',report);return report;
 }
 async function run(p,ctx,signal) {
-  await prepare(p,ctx,signal);
+  const checks=await prepare(p,ctx,signal);
+  if(p.lane==='accuracy') {
+    const result={at:new Date().toISOString(),mode:p.mode,lane:p.lane,passed:true,phases:[],checks,
+      scope:'Authenticated application workflows for the financial-accuracy lane; stress concurrency is handled by the separate stress lane.'};
+    state.write('workload.json',result);
+    return result;
+  }
   const results=[];
-  for(const users of [10,20,50]){
+  for(const users of [1,10,25,50]){
     const pilot=p.mode==='pilot';
     results.push(await phase(p,ctx,users,'warmup',pilot?2:60,true,signal,false));
-    results.push(await phase(p,ctx,users,'sustained',pilot?8:users===50?1500:900,true,signal,false));
+    results.push(await phase(p,ctx,users,'sustained',pilot?8:users===1?300:users===50?1500:900,true,signal,false));
     results.push(await phase(p,ctx,users,'burst-shared',pilot?4:180,false,signal,true));
   }
   const downloads=await exports(p,ctx,signal);
-  const result={at:new Date().toISOString(),mode:p.mode,passed:results.every(r=>r.failed_transactions===0)&&downloads.passed,phases:results,exports:downloads,
+  const result={at:new Date().toISOString(),mode:p.mode,lane:p.lane,passed:results.every(r=>r.failed_transactions===0)&&downloads.passed,phases:results,exports:downloads,
     scope:'Real HTTP requests with distinct authenticated accounts; no browser rendering or external network simulation. Warmup is reported separately.'};
   state.write('workload.json',result);return result;
 }

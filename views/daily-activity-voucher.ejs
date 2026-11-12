@@ -17,6 +17,8 @@
       <div><h1>Daily Activity Report</h1><p><%= voucher.shop || 'Shop/Unit not specified' %> · <%= formatDate(voucher.date) %></p></div>
       <span class="badge <%= voucher.status_label.toLowerCase() %>"><%= voucher.status_label %></span>
     </div>
+    <% if (typeof error !== 'undefined' && error) { %><section class="notice warning" role="alert"><%= error %></section><% } %>
+    <% if (typeof notice !== 'undefined' && notice) { %><section class="notice" role="status"><%= notice %></section><% } %>
     <section class="invoice-card dar-section ui-surface">
       <h2>Report details</h2>
       <div class="dar-fields-scroll">
@@ -76,7 +78,15 @@
     <% } %>
     <% if (voucher.source === 'erpnext' && voucher.amended_from) { %><p>Amended from <a href="/reports/daily-activity/reference/<%= encodeURIComponent(voucher.amended_from) %>"><%= voucher.amended_from %></a></p><% } %>
     <% if (voucher.source === 'local') { %><%- include('record-audit', { record: voucher }) %><% } %>
-    <div class="actions"><a class="button button-light" href="<%= voucher.source === 'erpnext' ? '/reports/daily-activity/reference' : '/reports/daily-activity' %>?from=<%= voucher.date %>&to=<%= voucher.date %>">Back to daily reports</a></div>
+    <div class="actions">
+      <% if (voucher.source === 'local' && Number(voucher.docstatus) === 0 && can('reports.daily-activity.submit')) { %>
+        <form method="post" action="/reports/daily-activity/<%= encodeURIComponent(voucher.name) %>/submit" class="inline-form"
+          data-confirm="Submit this Daily Activity Report? Its saved values will be locked and it will appear as Submitted.">
+          <button type="submit">Submit report</button>
+        </form>
+      <% } %>
+      <a class="button button-light" href="<%= voucher.source === 'erpnext' ? '/reports/daily-activity/reference' : '/reports/daily-activity' %>?from=<%= voucher.date %>&to=<%= voucher.date %>">Back to daily reports</a>
+    </div>
   </main>
 </body>
 </html>

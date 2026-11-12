@@ -58,6 +58,7 @@ function purchasePayload(body, { singleWarehouse = false } = {}) {
     cost_center: body.cost_center,
     purchase_order_id: body.purchase_order_id,
     supplier_reference: body.supplier_reference,
+    supplier_receipt_no: body.supplier_receipt_no,
     remarks: body.remarks,
     items: codes.map((itemCode, index) => ({
       id: ids[index],
@@ -167,6 +168,7 @@ function duplicatePurchaseState(purchase) {
     price_list: purchase.price_list,
     cost_center: purchase.cost_center,
     supplier_reference: '',
+    supplier_receipt_no: '',
     remarks: purchase.remarks,
     items: (purchase.items || []).map((item) => ({
       item_code: item.item_code,

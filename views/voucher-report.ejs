@@ -13,7 +13,7 @@
             { label: `${config.title}s`, href: config.basePath }, { label: 'Report' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: config.module }) %>
+        <%- include('module-nav', { activeModule: config.module, hideCreateActions: true }) %>
         <% if (config.module === 'accounts') { %>
           <%- include('journal-new-button') %>
         <% } else { %>

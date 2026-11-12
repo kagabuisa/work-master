@@ -24,7 +24,8 @@ const { purchaseForPayment } = require('./purchases');
 
 const MASTER_KEYS = new Set(['customers', 'suppliers', 'items', 'warehouses', 'employees', 'cost-centers', 'options', 'price-lists', 'item-prices']);
 const UNSCOPED_VOUCHER_REPORTS = new Set([
-  'reports.daily-activity.view', 'reports.daily-activity.create', 'reports.debtors.view',
+  'reports.daily-activity.view', 'reports.daily-activity.create', 'reports.daily-activity.submit',
+  'reports.debtors.view',
 ]);
 
 function can(user, permission) {
@@ -295,6 +296,9 @@ function permissionCheck(req) {
         return parts.length === 6 && parts[5] === 'delete' && method === 'POST' && has(prefix + 'edit');
       }
       if (parts[3] === 'edit') return parts.length === 4 && method === 'GET' && has(prefix + 'edit');
+      if (parts[3] === 'duplicate') return parts.length === 4 && method === 'GET'
+        && all(prefix + 'view', prefix + 'create');
+      if (parts[3] === 'print') return parts.length === 4 && method === 'GET' && has(prefix + 'view');
       if (parts[3] === 'share') return parts.length === 4 && method === 'POST' && has(prefix + 'view');
       if (parts[3] === 'submit') return parts.length === 4 && method === 'POST' && has(prefix + 'submit');
       if (parts[3] === 'delete') return parts.length === 4 && method === 'POST' && has(prefix + 'delete');
@@ -307,6 +311,7 @@ function permissionCheck(req) {
     if (['share', 'delivery'].includes(parts[3])) return parts.length === 4 && method === 'POST' && has(prefix + 'view');
     if (parts[3] === 'duplicate') return parts.length === 4 && method === 'GET'
       && all(prefix + 'view', prefix + 'create');
+    if (parts[3] === 'print') return parts.length === 4 && method === 'GET' && has(prefix + 'view');
     if (parts[3] === 'submit') return parts.length === 4 && method === 'POST' && has(prefix + 'submit');
     if (parts[2] === 'new') return has(prefix + 'create');
     if (parts.length === 2 && method === 'POST') {
@@ -356,6 +361,9 @@ function permissionCheck(req) {
     return parts.length === 1 && method === 'GET';
   }
   if (parts[0] === 'reports') {
+    if (parts[1] === 'daily-activity' && parts.length === 4 && parts[3] === 'submit') {
+      return method === 'POST' && has('reports.daily-activity.submit');
+    }
     if (parts[1] === 'daily-activity' && parts.length === 4 && parts[2] === 'new'
       && parts[3] === 'stock-entries') {
       return method === 'GET' && all('reports.daily-activity.view', 'reports.daily-activity.create');
@@ -397,6 +405,8 @@ function permissionCheck(req) {
     if (name === 'employees') return (allowedMasterRecordIds(user, 'employees') || []).length > 0
       || canAny(user, ['masters.employees.view', 'vouchers.sales.create', 'vouchers.sales.edit', 'vouchers.journals.create']);
     if (name === 'stock-entry-cancel-template' || name === 'stock-entries') return has('vouchers.stock.cancel');
+    if (name === 'ddr-source-entries') return method === 'GET' && parts.length === 2 && canAny(user,
+      ['vouchers.stock.view', 'vouchers.stock.create', 'vouchers.stock.edit']);
     if (name === 'general-ledger') return has('reports.general-ledger.view');
     if (name === 'journal-reference-options') return has('vouchers.journals.create');
     return false;
@@ -436,7 +446,7 @@ async function scopeCheck(req) {
   if (scopeRestricted(user, 'suppliers') && parts[0] === 'stock'
       && ['entries', 'reconciliations','counts','corrections'].includes(parts[1])) return false;
   if (scopeRestricted(user, 'suppliers') && parts[0] === 'api'
-      && ['stock-entry-cancel-template', 'stock-entries'].includes(parts[1])) return false;
+      && ['stock-entry-cancel-template', 'stock-entries', 'ddr-source-entries'].includes(parts[1])) return false;
 
   if (parts[0] === 'settings' && parts[1] === 'warehouses'
       && parts[2] && parts[2] !== 'new' && !warehouseAllowed(user, decodeURIComponent(parts[2]))) return false;

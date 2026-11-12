@@ -21,9 +21,11 @@ test('new purchase invoices use PURINV- and editing preserves existing voucher n
       INSERT INTO app_master_price_lists(price_list,currency,price_type,active) VALUES ('PREFIX-PL','UGX','buying',1);
     `);
     const payload = { posting_date: '2026-10-14', supplier_id: 'PREFIX-SUP', price_list: 'PREFIX-PL',
+      supplier_receipt_no: 'GRN-001',
       items: [{ item_code: 'PREFIX-ITEM', warehouse: 'PREFIX-WH', quantity: 1, unit_price: 100 }] };
     const id = await createPurchase(payload);
     assert.equal((await loadPurchase(id)).purchase_no, `PURINV-${String(id).padStart(6, '0')}`);
+    assert.equal((await loadPurchase(id)).supplier_receipt_no, 'GRN-001');
     await pool.query('UPDATE app_purchases SET purchase_no=$1 WHERE id=$2', ['PUR-000001', id]);
     await updatePurchase(id, payload);
     assert.equal((await loadPurchase(id)).purchase_no, 'PUR-000001');
@@ -67,6 +69,7 @@ test('purchase order lines validate dates, quantities and totals', () => {
   const order = normalizePurchase(payload);
   assert.equal(order.total, 3000);
   assert.equal(order.items[0].line_total, 3000);
+  assert.equal(normalizePurchase({ ...payload, supplier_receipt_no: '  GRN-001  ' }).supplier_receipt_no, 'GRN-001');
   assert.throws(() => normalizePurchase({ ...payload, due_date: '2026-10-01' }), /Due date/);
   assert.throws(() => normalizePurchase({ ...payload, items: [{ ...payload.items[0], quantity: '0' }] }), /quantity/);
 });
@@ -215,11 +218,12 @@ test('purchase order form posts to order routes and detail exposes status action
   assert.match(invoice, /name="purchase_order_id" value="1"/);
   assert.match(invoice, /<td data-label="Warehouse">/);
   const draftInvoice = await renderView(path.join(__dirname, '..', 'views', 'purchase-form.ejs'), {
-    ...base, purchase: { id: 9, posting_date: '2026-10-02', items: [{}] },
+    ...base, purchase: { id: 9, posting_date: '2026-10-02', supplier_receipt_no: 'GRN-009', items: [{}] },
     purchaseOrders: [{ id: 1, order_no: 'PO-000001', supplier_name: 'Supplier' }], error: null,
   });
   assert.match(draftInvoice, /action="\/purchases\/9\/edit"/);
   assert.match(draftInvoice, /Load Order Items/);
+  assert.match(draftInvoice, /name="supplier_receipt_no" value="GRN-009"/);
 });
 
 test('purchase orders and invoices expose the standard action order in full and drawer views', async () => {
@@ -231,7 +235,7 @@ test('purchase orders and invoices expose the standard action order in full and 
     received: 1, unit_price: 100, line_total: 200 };
   const common = { posting_date: '2026-10-02', posting_time: '11:30',
     supplier_id: 'SUP-1', supplier_name: 'Supplier', price_list: 'Buying',
-    total: 200, items: [item] };
+    supplier_receipt_no: 'GRN-004', total: 200, items: [item] };
   const order = { id: 3, order_no: 'PO-000003', docstatus: 'submitted', ...common };
   const purchase = { id: 4, purchase_no: 'PURINV-000004', docstatus: 'submitted',
     amount_paid: 0, payments: [], status: 'unpaid', ...common };
@@ -248,8 +252,41 @@ test('purchase orders and invoices expose the standard action order in full and 
     ['purchase-drawer.ejs', { purchase, today: '2026-10-02' }],
   ];
   for (const [view, locals] of views) {
-    assertActionOrder(await renderView(path.join(__dirname, '..', 'views', view), { ...base, ...locals }));
+    const html = await renderView(path.join(__dirname, '..', 'views', view), { ...base, ...locals });
+    assertActionOrder(html);
+    if (['purchase.ejs', 'purchase-drawer.ejs'].includes(view)) assert.match(html, /GRN-004/);
+    if (view === 'purchase.ejs') {
+      const actionsIndex = html.indexOf('voucher-page-actions');
+      assert.ok(actionsIndex >= 0);
+      assert.ok(actionsIndex < html.indexOf('</header>'), 'purchase actions should render in the top navigation');
+      assert.ok(actionsIndex < html.indexOf('<h2>Purchase Invoice</h2>'));
+    }
+    if (view === 'purchase-order.ejs') {
+      const actionsIndex = html.indexOf('voucher-page-actions');
+      assert.ok(actionsIndex >= 0);
+      assert.ok(actionsIndex < html.indexOf('</header>'), 'purchase order actions should render in the top navigation');
+      assert.ok(actionsIndex < html.indexOf('<h2>Purchase Order</h2>'));
+    }
   }
+});
+
+test('purchase invoice lists show and search supplier receipt numbers', async () => {
+  const base = { assetVersion: 'test', currentUser: { role: 'admin' }, can: () => true,
+    availableReports: [], formatDate: (value) => value,
+    formatDateTime: (date, time) => `${date} ${time}`, money: (value) => String(value),
+    query: {}, error: null };
+  const html = await renderView(path.join(__dirname, '..', 'views', 'purchases.ejs'), {
+    ...base,
+    result: {
+      rows: [{ id: 4, purchase_no: 'PURINV-000004', posting_date: '2026-10-02',
+        posting_time: '11:30', supplier_id: 'SUP-1', supplier_reference: 'INV-4',
+        supplier_receipt_no: 'GRN-004', total: 200, amount_paid: 50, docstatus: 'submitted',
+        status: 'partial' }],
+      pagination: { total: 1, limit: 25, page: 1, total_pages: 1, offset: 0, start: 1, end: 1 },
+    },
+  });
+  assert.match(html, /Supplier Receipt No\./);
+  assert.match(html, /GRN-004/);
 });
 
 test('purchase order cancel remains visible but disabled while linked invoices are submitted', async () => {
@@ -283,6 +320,7 @@ test('purchasing print views render order and invoice documents', async () => {
   assert.match(order, />Remaining</);
   const purchase = await renderView(path.join(__dirname, '..', 'views', 'purchase-print.ejs'), {
     ...base, kind: 'purchases', record: { purchase_no: 'PURINV-000004', docstatus: 'submitted',
+      supplier_receipt_no: 'GRN-004',
       amount_paid: 50, payments: [{ payment_date: '2026-10-03', account_name: 'Bank',
         reference: 'PAY-1', amount: 50 }], ...common },
   });
@@ -291,6 +329,7 @@ test('purchasing print views render order and invoice documents', async () => {
   assert.match(purchase, />Balance</);
   assert.match(purchase, /Supplier Payments/);
   assert.match(purchase, /PAY-1/);
+  assert.match(purchase, /Supplier receipt number: <strong>GRN-004<\/strong>/);
 });
 
 test('receivable orders filter permissions in one query before limiting results', async () => {

@@ -12,7 +12,7 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Accounts', href: '/accounts' }, { label: 'Journals' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'accounts' }) %>
+        <%- include('module-nav', { activeModule: 'accounts', hideCreateActions: true }) %>
         <%- include('journal-new-button') %>
       </nav>
     </header>

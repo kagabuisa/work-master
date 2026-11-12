@@ -11,7 +11,7 @@
         <p class="eyebrow">Purchase Orders</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: purchase.id ? 'Edit Purchase Order' : 'New Purchase Order' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
+      <nav><%- include('module-nav', { activeModule: 'purchases', hideCreateActions: true }) %><%- include('purchase-new-menu') %></nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %><section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the details, then save this as a new draft order.</section><% } %>

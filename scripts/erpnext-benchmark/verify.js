@@ -1,5 +1,5 @@
 'use strict';
-const {KINDS,LINES}=require('./profile');
+const {KINDS,LINES,withinRange}=require('./profile');
 const {TABLES}=require('./seed');
 const state=require('./state');
 
@@ -18,6 +18,33 @@ async function verify(p,ctx,label) {
   }
   const masterTables={customers:'app_master_customers',suppliers:'app_master_suppliers',items:'app_master_items',warehouses:'app_master_warehouses',accounts:'app_accounts',users:'app_users'};
   for(const [kind,table]of Object.entries(masterTables)){const actual=Number((await q(`SELECT count(*) n FROM ${table}`)).rows[0].n);check(kind+'_count',actual===p.counts[kind],{expected:p.counts[kind],actual});}
+  const rowCounts=(await q(`SELECT
+    (SELECT count(*) FROM app_invoices)::int invoices,
+    (SELECT count(*) FROM app_invoice_items)::int invoice_items,
+    (SELECT count(*) FROM app_gl_entries)::int gl_rows,
+    (SELECT count(*) FROM app_stock_ledger)::int stock_ledger_rows`)).rows[0];
+  for(const [name,key]of [
+    ['invoice_row_target','invoices'],
+    ['invoice_item_row_target','invoice_items'],
+    ['gl_row_target','gl_rows'],
+    ['stock_ledger_row_target','stock_ledger_rows']
+  ]) {
+    const actual=Number(rowCounts[key]);
+    const expected=p.targets.ranges[key];
+    check(name,withinRange(actual,expected,label!=='before'),{expected,actual});
+  }
+  const lengths=(await q(`WITH invoice_lengths AS (
+      SELECT invoice_pk,count(*)::int item_count FROM app_invoice_items GROUP BY invoice_pk
+    ) SELECT COALESCE(min(item_count),0)::int minimum,COALESCE(avg(item_count),0) mean,
+      count(DISTINCT item_count)::int distinct_sizes,COALESCE(max(item_count),0)::int maximum
+    FROM invoice_lengths`)).rows[0];
+  const minimum=Number(lengths.minimum),mean=Number(lengths.mean),maximum=Number(lengths.maximum);
+  check('invoice_minimum_items',minimum>=p.invoice_lengths.minimum,{expected_at_least:p.invoice_lengths.minimum,actual:minimum});
+  check('invoice_average_items',Math.abs(mean-p.targets.average_invoice_items)<=p.targets.tolerances.average_invoice_items,
+    {expected:p.targets.average_invoice_items,tolerance:p.targets.tolerances.average_invoice_items,actual:mean});
+  check('invoice_length_variation',Number(lengths.distinct_sizes)>=3&&maximum>p.targets.average_invoice_items,
+    {minimum_distinct_sizes:3,minimum_maximum:Math.floor(p.targets.average_invoice_items)+1,
+      actual:{distinct_sizes:Number(lengths.distinct_sizes),maximum}});
   const invariants={
     journal_totals:`SELECT count(*) n FROM app_journal_entries j LEFT JOIN LATERAL (SELECT sum(debit) d,sum(credit) c,count(*) n FROM app_journal_entry_lines l WHERE l.journal_entry_id=j.id) x ON true WHERE x.n<2 OR j.total_debit<>x.d OR j.total_credit<>x.c OR x.d<>x.c`,
     invoice_line_totals:`SELECT count(*) n FROM app_invoices i LEFT JOIN LATERAL (SELECT sum(line_total) total,count(*) n FROM app_invoice_items l WHERE l.invoice_pk=i.id) x ON true WHERE x.n=0 OR x.total<>i.subtotal OR i.total<>i.subtotal+i.tax_amount-i.discount_amount`,
@@ -46,7 +73,8 @@ async function verify(p,ctx,label) {
   const counts={};
   for(const table of ['app_invoices','app_invoice_items','app_invoice_payments','app_journal_entries','app_journal_entry_lines','app_gl_entries','app_stock_entries','app_stock_ledger','app_stock_balances','app_purchases','app_purchase_items','app_purchase_orders'])counts[table]=Number((await q('SELECT count(*) n FROM '+table)).rows[0].n);
   const bytes=Number((await q('SELECT pg_database_size(current_database()) bytes')).rows[0].bytes);
-  const report={at:new Date().toISOString(),label,passed:checks.every(c=>c.passed),checks,counts,database_bytes:bytes,
+  const report={at:new Date().toISOString(),label,lane:p.lane,passed:checks.every(c=>c.passed),checks,counts,database_bytes:bytes,
+    row_targets:{targets:p.targets,actual:rowCounts,invoice_lengths:{minimum,mean,maximum,distinct_sizes:Number(lengths.distinct_sizes)}},
     ledger_comparison:{gl_source:p.counts.gl_rows,gl_actual:counts.app_gl_entries,stock_source:p.counts.stock_ledger_rows,stock_actual:counts.app_stock_ledger},
     limitations:p.assumptions};
   state.write('integrity-'+label+'.json',report);state.event({event:'integrity',label,passed:report.passed,checks:checks.length,database_bytes:bytes});

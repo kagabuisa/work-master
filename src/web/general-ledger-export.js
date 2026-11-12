@@ -1,13 +1,13 @@
 'use strict';
-const columns = ['Date', 'Account Code', 'Account Name', 'Debit', 'Credit', 'Account Running Balance', 'Voucher Type', 'Voucher No.', 'Party', 'Narration'];
-const values = row => [row.posting_date, row.account_code, row.account_name, Number(row.debit || 0), Number(row.credit || 0), Number(row.running_balance || 0), row.voucher_type, row.voucher_no || row.voucher_id || '', row.party_name || row.party_id || '', row.remarks || ''];
-const openingValues = row => ['Opening balance', row.account_code, row.account_name, '', '', row.running_balance, '', '', '', 'Before From; debit positive, credit negative'];
+const columns = ['Date', 'Account Code', 'Account Name', 'Offset Account', 'Debit', 'Credit', 'Account Running Balance', 'Voucher Type', 'Voucher No.', 'Party', 'Narration'];
+const values = row => [row.posting_date, row.account_code, row.account_name, row.counterpart_accounts || '', Number(row.debit || 0), Number(row.credit || 0), Number(row.running_balance || 0), row.voucher_type, row.voucher_no || row.voucher_id || '', row.party_name || row.party_id || '', row.remarks || ''];
+const openingValues = row => ['Opening balance', row.account_code, row.account_name, '', '', '', row.running_balance, '', '', '', 'Before From; debit positive, credit negative'];
 function reviewRows(report) {
   return [
-    ...(report.account_summaries || []).map(row => ['Account period summary',row.account_code,row.account_name,row.debit,row.credit,row.closing_balance,'','','',`Opening ${row.opening_balance}; closing = opening + period debit - credit`]),
-    ...(report.customer_balances || []).map(row => ['Customer receivable','','','','',row.balance,'','',row.party_name || row.party_id,'Through To; ignores From, Account, Search and Voucher filters. Access restrictions apply.']),
-    ...(report.supplier_balances || []).map(row => ['Supplier payable','','','','',row.balance,'','',row.party_name || row.party_id,'Through To; positive = payable, negative = supplier advance. Ignores From, Account, Search and Voucher filters. Access restrictions apply.']),
-    ...(report.allocations || []).map(row => ['Source invoice allocation',row.account_code,row.account_name,row.debit,row.credit,'','',row.reference_no,'','Saved source allocation; not an additional posting']),
+    ...(report.account_summaries || []).map(row => ['Account period summary',row.account_code,row.account_name,'',row.debit,row.credit,row.closing_balance,'','','',`Opening ${row.opening_balance}; closing = opening + period debit - credit`]),
+    ...(report.customer_balances || []).map(row => ['Customer receivable','','','','','',row.balance,'','',row.party_name || row.party_id,'Through To; ignores From, Account, Search and Voucher filters. Access restrictions apply.']),
+    ...(report.supplier_balances || []).map(row => ['Supplier payable','','','','','',row.balance,'','',row.party_name || row.party_id,'Through To; positive = payable, negative = supplier advance. Ignores From, Account, Search and Voucher filters. Access restrictions apply.']),
+    ...(report.allocations || []).map(row => ['Source invoice allocation',row.account_code,row.account_name,'',row.debit,row.credit,'','',row.reference_no,'','Saved source allocation; not an additional posting']),
   ];
 }
 const csvCell = value => {
@@ -45,7 +45,7 @@ async function writeGeneralLedgerExport(output, report, format) {
         output.write(values(row).map(csvCell).join(',') + '\r\n');
         await outputReady(output);
       }
-      output.write(['', '', 'Total', report.summary.debit, report.summary.credit, report.summary.balance, '', '', '', 'Net Balance = opening + period debits - period credits']
+      output.write(['', '', 'Total', '', report.summary.debit, report.summary.credit, report.summary.balance, '', '', '', 'Net Balance = opening + period debits - period credits']
         .map(csvCell).join(',') + '\r\n');
       for (const row of reviewRows(report)) { output.write(row.map(csvCell).join(',') + '\r\n'); await outputReady(output); }
       output.end();
@@ -53,12 +53,13 @@ async function writeGeneralLedgerExport(output, report, format) {
       const ExcelJS = require('exceljs');
       const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: output, useStyles: true, useSharedStrings: false });
       const sheet = workbook.addWorksheet('General Ledger', { views: [{ state: 'frozen', ySplit: 1 }] });
-      sheet.columns = columns.map((header, index) => ({ header, width: [15,18,30,18,18,18,22,24,28,50][index] }));
-      sheet.autoFilter = { from: 'A1', to: 'J1' };
+      sheet.columns = columns.map((header, index) => ({ header, width: [15,18,30,40,18,18,18,22,24,28,50][index] }));
+      sheet.autoFilter = { from: 'A1', to: 'K1' };
       sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
       sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF16324F' } };
-      for (const column of [4,5,6]) sheet.getColumn(column).numFmt = '#,##0.00;[Red]-#,##0.00';
-      sheet.getColumn(10).alignment = { wrapText: true, vertical: 'top' };
+      for (const column of [5,6,7]) sheet.getColumn(column).numFmt = '#,##0.00;[Red]-#,##0.00';
+      sheet.getColumn(4).alignment = { wrapText: true, vertical: 'top' };
+      sheet.getColumn(11).alignment = { wrapText: true, vertical: 'top' };
       sheet.getRow(1).commit();
       for (const row of report.opening_rows || []) sheet.addRow(openingValues(row)).commit();
       let count = 0;
@@ -66,13 +67,13 @@ async function writeGeneralLedgerExport(output, report, format) {
         sheet.addRow(values(row)).commit();
         if (++count % 100 === 0) { await yieldToIo(); await outputReady(output); }
       }
-      const total = sheet.addRow(['', '', 'Total', report.summary.debit, report.summary.credit, report.summary.balance, '', '', '', 'Net Balance = opening + period debits - period credits']);
+      const total = sheet.addRow(['', '', 'Total', '', report.summary.debit, report.summary.credit, report.summary.balance, '', '', '', 'Net Balance = opening + period debits - period credits']);
       total.font = { bold: true }; total.commit();
       sheet.commit();
       if (reviewRows(report).length) {
         const review=workbook.addWorksheet('Ledger Review');
-        review.columns=['Row type','Account Code','Account Name','Debit','Credit','Balance','Voucher Type','Invoice reference','Party','Explanation'].map(header=>({header,width:24}));
-        for(const column of [4,5,6]) review.getColumn(column).numFmt='#,##0.00;[Red]-#,##0.00';
+        review.columns=['Row type','Account Code','Account Name','Offset Account','Debit','Credit','Balance','Voucher Type','Invoice reference','Party','Explanation'].map(header=>({header,width:24}));
+        for(const column of [5,6,7]) review.getColumn(column).numFmt='#,##0.00;[Red]-#,##0.00';
         for(const row of reviewRows(report)) review.addRow(row).commit();
         review.commit();
       }
@@ -115,11 +116,11 @@ async function renderLedgerTable(doc, report, output) {
   const lineHeight = 11;
   const padding = 6;
   const navy = '#16324F';
-  const widths = [24, 60, 120, 68, 68, 76, 106, 92, 160].map(value => value * width / 774);
-  const headers = ['#', 'Date', 'Account', 'Debit', 'Credit', 'Balance', 'Voucher', 'Party', 'Narration'];
+  const widths = [24, 60, 112, 140, 68, 68, 76, 106, 92, 160].map(value => value * width / 906);
+  const headers = ['#', 'Date', 'Account', 'Offset Account', 'Debit', 'Credit', 'Balance', 'Voucher', 'Party', 'Narration'];
   const amountFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const amount = value => amountFormatter.format(Number(value || 0));
-  const wrapCaches = Array.from({ length: 9 }, () => new Map());
+  const wrapCaches = Array.from({ length: 10 }, () => new Map());
   let y;
   let pageNumber = 1;
   const rowCount = report.pagination?.total ?? report.rows.length;
@@ -145,7 +146,7 @@ async function renderLedgerTable(doc, report, output) {
     doc.rect(left, y, width, 26).fill(navy);
     let x = left;
     headers.forEach((label, index) => {
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('#FFFFFF').text(label, x + padding, y + 9, { width: widths[index] - padding * 2, align: index >= 3 && index <= 5 ? 'right' : 'left', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#FFFFFF').text(label, x + padding, y + 9, { width: widths[index] - padding * 2, align: index >= 4 && index <= 6 ? 'right' : 'left', lineBreak: false });
       x += widths[index];
     });
     y += 26;
@@ -191,7 +192,7 @@ async function renderLedgerTable(doc, report, output) {
         else { lines.push(prefix); remainder = remainder.slice(length); }
       }
       lines.push(remainder);
-      if (column !== 0 && column !== 5 && paragraph.length <= 2048) {
+      if (column !== 0 && column !== 6 && paragraph.length <= 2048) {
         if (cache.size >= 256) cache.delete(cache.keys().next().value);
         cache.set(paragraph, lines.slice(start));
       }
@@ -209,9 +210,9 @@ async function renderLedgerTable(doc, report, output) {
       doc.rect(left, y, width, height).fill(total ? '#E8EFF6' : index % 2 === 0 ? '#F8FAFC' : '#FFFFFF');
       let x = left;
       lines.forEach((cell, column) => {
-        doc.font(total ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(column >= 3 && column <= 5 ? navy : '#334155');
+        doc.font(total ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(column >= 4 && column <= 6 ? navy : '#334155');
         cell.slice(offset, offset + length).forEach((line, number) => {
-          doc.text(line, x + padding, y + padding + number * lineHeight, { width: widths[column] - padding * 2, align: column >= 3 && column <= 5 ? 'right' : 'left', lineBreak: false });
+          doc.text(line, x + padding, y + padding + number * lineHeight, { width: widths[column] - padding * 2, align: column >= 4 && column <= 6 ? 'right' : 'left', lineBreak: false });
         });
         x += widths[column];
       });
@@ -223,22 +224,22 @@ async function renderLedgerTable(doc, report, output) {
   }
   header(true);
   for (const row of report.opening_rows || []) {
-    drawRow(['', 'Opening balance', `${row.account_code}\n${row.account_name}`, '', '', amount(row.running_balance), '', '', report.filters.from ? `Before ${report.filters.from}` : 'Opening is zero'], 0, true);
+    drawRow(['', 'Opening balance', `${row.account_code}\n${row.account_name}`, '', '', '', amount(row.running_balance), '', '', report.filters.from ? `Before ${report.filters.from}` : 'Opening is zero'], 0, true);
   }
   let index = 0;
   for await (const row of report.rows) {
     drawRow([
       index + 1, row.posting_date, `${row.account_code || ''}\n${row.account_name || ''}`,
-      amount(row.debit), amount(row.credit), amount(row.running_balance),
+      row.counterpart_accounts || '', amount(row.debit), amount(row.credit), amount(row.running_balance),
       `${String(row.voucher_type || '').replaceAll('_', ' ')}\n${row.voucher_no || row.voucher_id || ''}`,
       row.party_name || row.party_id || '', row.remarks || '',
     ], index++);
     if (index % 100 === 0) { await yieldToIo(); await outputReady(output); }
   }
-  if (!index) drawRow(['', '', 'No entries found', '', '', '', '', '', ''], 0);
-  drawRow(['', '', 'TOTAL / NET BALANCE', amount(report.summary.debit), amount(report.summary.credit), amount(report.summary.balance), '', '', ''], index, true);
+  if (!index) drawRow(['', '', 'No entries found', '', '', '', '', '', '', ''], 0);
+  drawRow(['', '', 'TOTAL / NET BALANCE', '', amount(report.summary.debit), amount(report.summary.credit), amount(report.summary.balance), '', '', ''], index, true);
   for(const row of reviewRows(report)) {
-    drawRow(['',row[0],`${row[1]}\n${row[2]}`,row[3] === '' ? '' : amount(row[3]),row[4] === '' ? '' : amount(row[4]),row[5] === '' ? '' : amount(row[5]),row[7],row[8],row[9]],index++,true);
+    drawRow(['',row[0],`${row[1]}\n${row[2]}`,'',row[4] === '' ? '' : amount(row[4]),row[5] === '' ? '' : amount(row[5]),row[6] === '' ? '' : amount(row[6]),row[8],row[9],row[10]],index++,true);
   }
   footer();
 }

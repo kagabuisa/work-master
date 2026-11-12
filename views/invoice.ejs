@@ -12,10 +12,12 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Sales', href: '/invoices' }, { label: 'Sales Invoices', href: '/invoices' }, { label: invoice.invoice_no }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'sales' }) %>
-        <%- include('invoice-actions', { invoice,
-          sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false,
-          sharedWriteAccess: typeof sharedWriteAccess !== 'undefined' ? sharedWriteAccess : false }) %>
+        <%- include('module-nav', { activeModule: 'sales', hideCreateActions: true }) %>
+        <div class="actions page-actions voucher-page-actions">
+          <%- include('invoice-actions', { invoice,
+            sharedAccessOnly: typeof sharedAccessOnly !== 'undefined' ? sharedAccessOnly : false,
+            sharedWriteAccess: typeof sharedWriteAccess !== 'undefined' ? sharedWriteAccess : false }) %>
+        </div>
       </nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>

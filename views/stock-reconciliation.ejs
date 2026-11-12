@@ -14,7 +14,14 @@
         <p class="eyebrow">Inventory · Physical count</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Reconciliation', href: '/stock/reconciliations' }, { label: saved ? entry.entry_no : 'New' }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'stock' }) %><%- include('stock-new-menu') %></nav>
+      <nav>
+        <%- include('module-nav', { activeModule: 'stock', hideCreateActions: true }) %>
+        <div class="actions page-actions voucher-page-actions">
+          <% if (isReadOnly && saved && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %><%- include('stock-entry-actions', { entry }) %><% } %>
+          <%- include('stock-new-menu') %>
+          <% if (isReadOnly && saved && status !== 'draft' && can('reports.stock-ledger.view') && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %><a class="button button-light" href="/reports/stock-ledger?entry_type=reconciliation&voucher_id=<%= entry.id %>">View stock ledger</a><% } %>
+        </div>
+      </nav>
     </header>
 <%- include('stock-reconciliation-tabs',{activeReconciliationTab:'vouchers'}) %>
 
@@ -24,22 +31,13 @@
       <div class="reconciliation-heading-row">
         <div class="reconciliation-heading-controls">
           <span class="badge <%= status %>"><%= status === 'new' ? 'New' : status === 'draft' ? 'Draft' : status === 'cancelled' ? 'Cancelled' : 'Submitted' %></span>
-          <% if (isReadOnly && saved && !(typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly)) { %>
-            <div class="actions reconciliation-record-actions">
-              <% if (status === 'draft' && can('vouchers.stock.edit')) { %><a class="button" href="/stock/reconciliations/<%= entry.id %>/edit">Edit count</a><% } %>
-              <% if (status === 'draft' && can('vouchers.stock.submit')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/submit" data-confirm="Submit this reconciliation and post its stock differences?"><button type="submit">Submit reconciliation</button></form><% } %>
-              <% if (status === 'draft' && can('vouchers.stock.delete')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/delete" data-confirm="Delete this draft reconciliation?"><button type="submit" class="button-light">Delete draft</button></form><% } %>
-              <% if (status === 'cancelled' && currentUser.role === 'admin') { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/delete" data-confirm="Delete this cancelled reconciliation? Its ledger and stock reversal history will remain. This cannot be undone."><button type="submit" class="button-light">Delete Voucher</button></form><% } %>
-              <% if (status === 'submitted' && can('vouchers.stock.cancel')) { %><form method="post" action="/stock/reconciliations/<%= entry.id %>/cancel" data-confirm="Cancel this reconciliation and reverse its stock adjustment?"><button type="submit" class="button-light">Cancel reconciliation</button></form><% } %>
-              <% if (status !== 'draft' && can('reports.stock-ledger.view')) { %><a class="button button-light" href="/reports/stock-ledger?entry_type=reconciliation&voucher_id=<%= entry.id %>">View stock ledger</a><% } %>
-            </div>
-          <% } %>
         </div>
       </div>
     </section>
     <% } %>
 
     <% if (error) { %><section class="notice warning" role="alert"><strong><%= error %></strong></section><% } %>
+    <% if (typeof duplicateOf !== 'undefined' && duplicateOf) { %><section class="notice" role="status">Copy of <strong><%= duplicateOf %></strong>. Review the count and current warehouse stock, then save this as a new draft.</section><% } %>
     <% if (typeof sharedAccessOnly !== 'undefined' && sharedAccessOnly) { %>
       <section class="notice" role="status"><strong>Shared <%= isReadOnly ? 'reconciliation' : 'draft' %></strong><p><%= isReadOnly ? 'You can review this reconciliation.' : 'You can save changes to this draft. Submit, cancel, delete, attachments, and sharing actions remain unavailable.' %></p></section>
     <% } %>

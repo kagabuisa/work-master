@@ -27,6 +27,7 @@ services:
     environment:
       ERP_BENCHMARK: "1"
       BENCHMARK_MODE: ${BENCHMARK_MODE:?Mode required}
+      BENCHMARK_LANE: ${BENCHMARK_LANE:?Lane required}
       BENCHMARK_RUN_ID: ${BENCHMARK_RUN_ID:?Run identifier required}
       BENCHMARK_OUTPUT: /output
       BENCHMARK_SEED_WORKERS: "2"

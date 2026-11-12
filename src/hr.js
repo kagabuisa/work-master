@@ -686,7 +686,6 @@ async function createPayroll(payload,user) {
         const error=new Error(`${e.employee_name} needs a leaving date to establish payroll eligibility. Set it under HR → Employees → Employment.`);
         error.status=400;error.employeeId=e.employee_id;error.employeeSection='employment';throw error;
       }
-      if(e.company!==company) fail('All selected employees must belong to the payroll company.');
       if(e.joining_date && e.joining_date>period.end || e.leaving_date && e.leaving_date<period.start) fail(`${e.employee_name} was not employed during this period.`);
       const plan=(await client.query('SELECT * FROM app_hr_pay_plans WHERE employee_id=$1 AND effective_from<=$2 ORDER BY effective_from DESC LIMIT 1',[id,period.start])).rows[0];
       if(!plan) {

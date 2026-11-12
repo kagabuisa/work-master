@@ -16,6 +16,7 @@
       <% if (purchase.cost_center) { %><div><span>Cost Center</span><strong><%= costCenterName(purchase.cost_center) %></strong></div><% } %>
     </div>
     <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
+    <% if (purchase.supplier_receipt_no) { %><p>Supplier receipt number: <strong><%= purchase.supplier_receipt_no %></strong></p><% } %>
     <table>
       <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th>Unit Cost</th><th>Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
       <tbody>

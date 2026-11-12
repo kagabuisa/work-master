@@ -99,13 +99,14 @@
     <% } %>
 
     <section class="invoice-card report-section ui-surface ui-results">
-      <%- include('ui-section-heading', { heading: { title: 'Ledger entries', help: report.filters.group_by === 'pair' ? 'Voucher pairs keeps all lines for the same voucher together within each posting date and places cancellation reversal lines after the original lines. Running balances follow this displayed order; the day-end balance is unchanged. The default Posting date grouping remains chronological.' : 'Opening balance includes matching postings before From, separately per account. It is repeated at the top of each page; running balances include opening history and earlier pages. With no From date, opening is zero. Positive balances are debit; negative balances are credit. All other filters and permissions apply to opening history.' } }) %>
+      <%- include('ui-section-heading', { heading: { title: 'Ledger entries', help: (report.filters.group_by === 'pair' ? 'Voucher pairs keeps all lines for the same voucher together within each posting date and places cancellation reversal lines after the original lines. Running balances follow this displayed order; the day-end balance is unchanged. The default Posting date grouping remains chronological. ' : 'Opening balance includes matching postings before From, separately per account. It is repeated at the top of each page; running balances include opening history and earlier pages. With no From date, opening is zero. Positive balances are debit; negative balances are credit. All other filters and permissions apply to opening history. ') + 'Offset Account shows the accessible account or accounts on the opposite debit or credit side of the same voucher. More than one account is listed when the voucher splits the other side across several accounts.' } }) %>
       <div class="ui-table-scroll" role="region" aria-label="General Ledger table" tabindex="0"><table class="ui-table">
         <thead>
           <tr>
             <th class="row-number">#</th>
             <th>Date</th>
             <th>Account</th>
+            <th>Offset Account</th>
             <th class="ui-amount">Debit</th>
             <th class="ui-amount">Credit</th>
             <th class="ui-amount">Account Running Balance</th>
@@ -120,15 +121,15 @@
             <tr class="ui-opening-row">
               <td class="row-number">—</td><th scope="row">Opening balance</th>
               <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
-              <td></td><td></td><td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
+              <td></td><td></td><td></td><td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
               <td colspan="4"><%= report.filters.from ? 'Before ' + formatDate(report.filters.from) : 'All matching history; opening is zero' %></td>
             </tr>
           <% }) %>
           <% if (!report.rows.length) { %>
-            <tr><td colspan="10" class="empty">No general ledger entries found.</td></tr>
+            <tr><td colspan="11" class="empty">No general ledger entries found.</td></tr>
           <% } %>
           <% report.rows.forEach((row, index) => { %>
-            <% if (report.filters.group_by === 'account' && (index === 0 || report.rows[index-1].account_code !== row.account_code)) { %><tr class="ui-account-divider"><th colspan="10" scope="rowgroup"><%= row.account_code %> — <%= row.account_name %></th></tr><% } %>
+            <% if (report.filters.group_by === 'account' && (index === 0 || report.rows[index-1].account_code !== row.account_code)) { %><tr class="ui-account-divider"><th colspan="11" scope="rowgroup"><%= row.account_code %> — <%= row.account_name %></th></tr><% } %>
             <% const pairKey = report.filters.group_by === 'pair' ? `${row.pair_voucher_type || ''}:${row.pair_voucher_id || ''}` : ''; %>
             <% const previousPairKey = report.filters.group_by === 'pair' && index > 0 ? `${report.rows[index-1].pair_voucher_type || ''}:${report.rows[index-1].pair_voucher_id || ''}` : ''; %>
             <% const pairStarts = report.filters.group_by === 'pair' && pairKey !== previousPairKey; %>
@@ -136,6 +137,7 @@
               <td class="row-number"><%= (report.pagination ? report.pagination.offset : 0) + index + 1 %></td>
               <td><%= formatDate(row.posting_date) %></td>
               <td class="general-ledger-account"><strong><%= row.account_code %></strong><small><%= row.account_name %></small></td>
+              <td><%= row.counterpart_accounts || '' %></td>
               <td class="ui-amount"><%= row.debit ? money(row.debit) : '' %></td>
               <td class="ui-amount"><%= row.credit ? money(row.credit) : '' %></td>
               <td class="ui-amount"><strong><%= money(row.running_balance) %></strong></td>
@@ -165,14 +167,14 @@
         </tbody>
         <tfoot>
           <tr>
-            <th colspan="3" scope="row">Total for all filtered transactions</th>
+            <th colspan="4" scope="row">Total for all filtered transactions</th>
             <th><%= money(report.summary.debit) %></th>
             <th><%= money(report.summary.credit) %></th>
             <th></th>
             <th colspan="4"></th>
           </tr>
           <tr class="ui-total-row">
-            <th colspan="5" scope="row">Net Balance</th>
+            <th colspan="6" scope="row">Net Balance</th>
             <th><%= money(report.summary.balance) %></th>
             <th colspan="4"></th>
           </tr>

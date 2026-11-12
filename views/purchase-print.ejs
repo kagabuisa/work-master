@@ -33,6 +33,7 @@
       <div><span>Warehouse</span><strong><%= warehouses.length ? warehouses.join(', ') : '—' %></strong></div>
     </section>
     <% if (record.supplier_reference) { %><p class="notes">Supplier reference: <strong><%= record.supplier_reference %></strong></p><% } %>
+    <% if (!isOrder && record.supplier_receipt_no) { %><p class="notes">Supplier receipt number: <strong><%= record.supplier_receipt_no %></strong></p><% } %>
     <table class="print-invoice-table print-items-table">
       <thead>
         <tr>

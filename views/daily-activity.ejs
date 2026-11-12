@@ -36,7 +36,7 @@
     </section>
 
     <section class="invoice-card report-section daily-activity-results ui-surface ui-results">
-      <%- include('ui-section-heading', { heading: { title: report.source === 'erpnext' ? 'ERPNext reference vouchers' : 'Daily Activity vouchers', meta: `${report.pagination.start}–${report.pagination.end} of ${report.summary.total}`, help: report.source === 'erpnext' ? 'Read-only ERPNext reference vouchers. New reports are saved in this app.' : 'Daily Activity drafts saved in this app. Use the date, shop, status, and search filters to narrow the results.' } }) %>
+      <%- include('ui-section-heading', { heading: { title: report.source === 'erpnext' ? 'ERPNext reference vouchers' : 'Daily Activity vouchers', meta: `${report.pagination.start}–${report.pagination.end} of ${report.summary.total}`, help: report.source === 'erpnext' ? 'Read-only ERPNext reference vouchers. New reports are saved in this app.' : 'Daily Activity reports are saved as drafts and can be submitted when ready. Use the date, shop, status, and search filters to narrow the results.' } }) %>
       <div class="entry-table-scroll ui-table-scroll" role="region" aria-label="Daily activity vouchers" tabindex="0">
         <table class="daily-activity-table ui-table">
           <thead><tr><th>#</th><th>Voucher</th><th>Date</th><th>Shop/Unit</th><th>Sales</th><th>Expense</th><th>Balance to be banked</th><th>Expense Details</th><th>Stock Entry</th><th>Packages</th><th>Delivery differences?</th><th>Market Information</th><th>Status</th></tr></thead>

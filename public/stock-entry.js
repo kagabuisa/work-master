@@ -18,9 +18,22 @@ const stockEntrySubmitButtons = [...document.querySelectorAll('#stock-entry-form
 const importStockEntryRowsButton = document.querySelector('#import-stock-entry-rows');
 const stockEntryImportFile = document.querySelector('#stock-entry-import-file');
 const stockEntryImportStatus = document.querySelector('#stock-entry-import-status');
+const ddrSourceField = document.querySelector('#ddr-source-field');
+const ddrSourceId = document.querySelector('#ddr-source-id');
+const ddrSourceNo = document.querySelector('#ddr-source-no');
+const ddrSourceDisplay = document.querySelector('#ddr-source-display');
+const ddrSourceDisplayMeta = document.querySelector('#ddr-source-display-meta');
+const ddrSourceStatus = document.querySelector('#ddr-source-status');
+const chooseDdrSourceButton = document.querySelector('#choose-ddr-source');
+const ddrSourceDialog = document.querySelector('#ddr-source-dialog');
+const ddrSourceWarehouse = document.querySelector('#ddr-source-warehouse');
+const ddrSourceSearch = document.querySelector('#ddr-source-search');
+const ddrSourceResults = document.querySelector('#ddr-source-results');
+const ddrSourceDialogStatus = document.querySelector('#ddr-source-dialog-status');
 const initialStockEntry = window.STOCK_ENTRY_INITIAL || { entry: null, items: [] };
 const stockEntryReadOnly = Boolean(initialStockEntry.readOnly);
 const stockTransferTypes = new Set(initialStockEntry.transferTypes || ['transfer']);
+const ddrEntryTypes = new Set(['ddr_shortage', 'ddr_excess']);
 const rowTemplate = tableBody.querySelector('tr').cloneNode(true);
 const stockEntryItemPicker = document.querySelector('#stock-entry-item-picker');
 const stockEntryItemSearch = document.querySelector('#stock-entry-item-search');
@@ -109,6 +122,8 @@ let lockedWarehouse = '';
 let lockedTargetWarehouse = '';
 let supplierPromptShown = false;
 let selectedCancelEntry = null;
+let ddrSourceSearchTimer;
+let ddrSourceRequest;
 
 stockEntryForm.addEventListener('submit', (event) => {
   if (entryType.value === 'cancel') {
@@ -198,6 +213,7 @@ entryType.addEventListener('change', () => {
   updateEntryTypeControls();
   updateSupplierControls(true);
   updateCancelEntrySourceControls();
+  updateDdrSourceControls({ open: true });
 });
 if (cancelEntrySource) {
   cancelEntrySource.addEventListener('input', () => {
@@ -212,6 +228,43 @@ if (cancelEntrySource) {
 if (cancelEntryButton) {
   cancelEntryButton.addEventListener('click', cancelSelectedStockEntry);
 }
+if (chooseDdrSourceButton) {
+  chooseDdrSourceButton.addEventListener('click', openDdrSourceDialog);
+}
+if (ddrSourceWarehouse) {
+  ddrSourceWarehouse.addEventListener('change', () => {
+    clearTimeout(ddrSourceSearchTimer);
+    ddrSourceRequest?.abort();
+    ddrSourceResults?.replaceChildren();
+    if (ddrSourceSearch) ddrSourceSearch.value = '';
+    updateDdrSourceWarehouseControls();
+    if (ddrSourceWarehouse.value) ddrSourceSearch?.focus();
+  });
+}
+if (ddrSourceSearch) {
+  ddrSourceSearch.addEventListener('input', () => {
+    clearTimeout(ddrSourceSearchTimer);
+    const query = ddrSourceSearch.value.trim();
+    if (!query) {
+      ddrSourceRequest?.abort();
+      ddrSourceResults?.replaceChildren();
+      if (ddrSourceDialogStatus) ddrSourceDialogStatus.textContent = '';
+      return;
+    }
+    ddrSourceSearchTimer = setTimeout(() => searchDdrSources(query), 180);
+  });
+  ddrSourceSearch.addEventListener('keydown', handleDdrSourceKeydown);
+}
+if (ddrSourceResults) {
+  ddrSourceResults.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-ddr-source]');
+    if (button) selectDdrSource(JSON.parse(button.dataset.ddrSource));
+  });
+  ddrSourceResults.addEventListener('keydown', handleDdrSourceKeydown);
+}
+document.querySelectorAll('[data-ddr-source-cancel]').forEach((button) => {
+  button.addEventListener('click', closeDdrSourceDialog);
+});
 if (importStockEntryRowsButton && stockEntryImportFile) {
   importStockEntryRowsButton.addEventListener('click', () => {
     stockEntryImportFile.value = '';
@@ -256,6 +309,7 @@ if (stockEntryReadOnly) {
   updateEntryTypeControls();
   updateSupplierControls(false);
   updateCancelEntrySourceControls();
+  updateDdrSourceControls({ open: ddrEntryTypes.has(entryType.value) && !ddrSourceId?.value });
 }
 
 async function searchItems(input) {
@@ -743,6 +797,173 @@ function updateEntryTypeControls() {
     input.readOnly = transfer || entryType.value === 'cancel';
   });
   updateRowsBalances();
+}
+
+function setDdrSourceStatus(message, error = false) {
+  if (!ddrSourceStatus) return;
+  ddrSourceStatus.textContent = message || '';
+  ddrSourceStatus.classList.toggle('warning-text', error);
+}
+
+function updateDdrSourceControls({ open = false } = {}) {
+  if (!ddrSourceField) return;
+  const isDdr = ddrEntryTypes.has(entryType.value);
+  ddrSourceField.hidden = !isDdr;
+  if (!isDdr) {
+    if (ddrSourceId) ddrSourceId.value = '';
+    if (ddrSourceNo) ddrSourceNo.value = '';
+    if (ddrSourceDisplay) ddrSourceDisplay.textContent = 'Choose a stock entry';
+    if (ddrSourceDisplayMeta) ddrSourceDisplayMeta.textContent = 'Search submitted stock entries';
+    setDdrSourceStatus('');
+    if (ddrSourceDialog?.open) closeDdrSourceDialog();
+    return;
+  }
+  const hasSource = Boolean(ddrSourceId?.value);
+  setDdrSourceStatus(hasSource ? '' : 'Choose the submitted stock entry that originated this DDR.');
+  if (open && !hasSource) openDdrSourceDialog();
+}
+
+function openDdrSourceDialog() {
+  if (!ddrSourceDialog || stockEntryReadOnly || !ddrEntryTypes.has(entryType.value)) return;
+  clearTimeout(ddrSourceSearchTimer);
+  ddrSourceRequest?.abort();
+  if (ddrSourceSearch) ddrSourceSearch.value = '';
+  if (ddrSourceResults) ddrSourceResults.replaceChildren();
+  if (ddrSourceDialogStatus) ddrSourceDialogStatus.textContent = '';
+  if (!ddrSourceDialog.open) ddrSourceDialog.showModal();
+  loadDdrSourceWarehouses();
+  updateDdrSourceWarehouseControls();
+  if (ddrSourceWarehouse?.value) ddrSourceSearch?.focus();
+  else ddrSourceWarehouse?.focus();
+}
+
+function closeDdrSourceDialog() {
+  clearTimeout(ddrSourceSearchTimer);
+  ddrSourceRequest?.abort();
+  if (ddrSourceDialog?.open) ddrSourceDialog.close();
+}
+
+function handleDdrSourceKeydown(event) {
+  const buttons = ddrSourceResults ? [...ddrSourceResults.querySelectorAll('[data-ddr-source]')] : [];
+  const activeButton = event.target.closest('[data-ddr-source]');
+  const index = buttons.indexOf(activeButton);
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const next = event.key === 'ArrowDown' ? index + 1 : index < 0 ? buttons.length - 1 : index - 1;
+    buttons[(next + buttons.length) % buttons.length]?.focus();
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    (activeButton || buttons[0])?.click();
+  } else if (event.key === 'Escape') {
+    closeDdrSourceDialog();
+  }
+}
+
+function updateDdrSourceWarehouseControls() {
+  const hasWarehouse = Boolean(ddrSourceWarehouse?.value);
+  if (ddrSourceSearch) {
+    ddrSourceSearch.disabled = !hasWarehouse;
+    ddrSourceSearch.placeholder = hasWarehouse
+      ? 'Type to search stock entries' : 'Choose a target warehouse first';
+  }
+  if (ddrSourceDialogStatus) {
+    ddrSourceDialogStatus.textContent = hasWarehouse
+      ? 'Type to search stock entries.' : 'Choose a target warehouse first.';
+  }
+}
+
+async function loadDdrSourceWarehouses() {
+  if (!ddrSourceWarehouse) return;
+  const current = ddrSourceWarehouse.value;
+  try {
+    const response = await fetch('/api/warehouses', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Warehouse lookup failed.');
+    const warehouses = await response.json();
+    const firstRowWarehouse = tableBody.querySelector('[name="target_warehouse"]')?.value.trim() || '';
+    const selected = warehouses.includes(current)
+      ? current : warehouses.includes(firstRowWarehouse) ? firstRowWarehouse : '';
+    ddrSourceWarehouse.replaceChildren(
+      new Option('Choose target warehouse', ''),
+      ...warehouses.map((warehouse) => new Option(warehouse, warehouse)),
+    );
+    ddrSourceWarehouse.value = selected;
+  } catch {
+    ddrSourceWarehouse.replaceChildren(new Option('Warehouses unavailable', ''));
+    ddrSourceWarehouse.value = '';
+  }
+  updateDdrSourceWarehouseControls();
+}
+
+async function searchDdrSources(query) {
+  if (!ddrSourceResults || !ddrSourceDialog?.open) return;
+  const search = String(query || '').trim();
+  if (!search) {
+    ddrSourceRequest?.abort();
+    ddrSourceResults.replaceChildren();
+    if (ddrSourceDialogStatus) ddrSourceDialogStatus.textContent = '';
+    return;
+  }
+  const warehouse = String(ddrSourceWarehouse?.value || '').trim();
+  if (!warehouse) {
+    ddrSourceResults.replaceChildren();
+    if (ddrSourceDialogStatus) ddrSourceDialogStatus.textContent = 'Choose a target warehouse first.';
+    return;
+  }
+  ddrSourceRequest?.abort();
+  const request = new AbortController();
+  ddrSourceRequest = request;
+  const params = new URLSearchParams({ q: search, warehouse });
+  const currentId = initialStockEntry.entry?.id;
+  if (currentId) params.set('exclude_id', String(currentId));
+  if (ddrSourceDialogStatus) ddrSourceDialogStatus.textContent = 'Searching stock entries…';
+  try {
+    const response = await fetch(`/api/ddr-source-entries?${params}`, {
+      signal: request.signal,
+      cache: 'no-store',
+    });
+    const entries = await response.json();
+    if (!response.ok) throw new Error(entries.error || 'Stock entry lookup failed.');
+    if (request.signal.aborted) return;
+    ddrSourceResults.innerHTML = entries.map((entry) => {
+      const selected = String(entry.id) === String(ddrSourceId?.value || '');
+      return `<button type="button" role="option" aria-selected="${selected}"
+        class="ddr-source-result${selected ? ' is-selected' : ''}"
+        data-ddr-source="${escapeAttr(JSON.stringify(entry))}">
+        <strong class="ddr-source-result-entry">${escapeHtml(entry.entry_no)}</strong>
+        <span class="ddr-source-result-date">${escapeHtml(entry.posting_date || '')}</span>
+        <span class="ddr-source-result-warehouse">${escapeHtml(entry.warehouses || '')}</span>
+      </button>`;
+    }).join('') || '<p>No matching source stock entries.</p>';
+    if (ddrSourceDialogStatus) {
+      ddrSourceDialogStatus.textContent = entries.length === 15
+        ? 'Showing the first 15 matches. Type more to narrow the search.'
+        : entries.length
+          ? `${entries.length} matching stock ${entries.length === 1 ? 'entry' : 'entries'}.`
+        : 'No matching source stock entries.';
+    }
+  } catch (error) {
+    if (request.signal.aborted) return;
+    ddrSourceResults.innerHTML = '<p>Could not load stock entries.</p>';
+    if (ddrSourceDialogStatus) ddrSourceDialogStatus.textContent = error.message || 'Could not load stock entries.';
+  }
+}
+
+function selectDdrSource(entry) {
+  if (!entry?.id) return;
+  if (ddrSourceId) ddrSourceId.value = String(entry.id);
+  if (ddrSourceNo) ddrSourceNo.value = entry.entry_no || '';
+  if (ddrSourceDisplay) {
+    ddrSourceDisplay.textContent = entry.entry_no || 'Selected stock entry';
+  }
+  if (ddrSourceDisplayMeta) {
+    ddrSourceDisplayMeta.textContent = [
+      entry.entry_type_label || entry.entry_type,
+      entry.posting_date,
+    ].filter(Boolean).join(' · ') || 'Saved source';
+  }
+  setDdrSourceStatus('');
+  closeDdrSourceDialog();
+  chooseDdrSourceButton?.focus();
 }
 
 function updateCancelEntrySourceControls() {

@@ -6,6 +6,98 @@ const store = require('../src/store');
 const { currentPostingDate } = require('../src/posting-time');
 const { FIXED, seedGoldenData } = require('./helpers/golden-seed');
 
+async function createDeliveryUser(username) {
+  return require('../src/auth').createUser(username, 'DeliveryPassword123!', { role: 'standard' });
+}
+
+test('DDR entries require and persist a searchable submitted originating stock entry', {
+  skip: process.env.RECONCILIATION_TEST_POSTGRES !== '1',
+}, async () => {
+  try {
+    await seedGoldenData();
+    const pool = store.getPostgresPool();
+    const itemCode = 'DDR-SOURCE-ITEM';
+    const sourceWarehouse = 'DDR Source';
+    const targetWarehouse = 'DDR Target';
+    await pool.query('INSERT INTO app_master_items(item_code,item_name) VALUES($1,$1)', [itemCode]);
+    await pool.query('INSERT INTO app_master_warehouses(warehouse) VALUES($1),($2)',
+      [sourceWarehouse, targetWarehouse]);
+    const item = (quantity) => ({ item_code: itemCode, item_name: itemCode,
+      warehouse: sourceWarehouse, target_warehouse: targetWarehouse, quantity, valuation_rate: 50 });
+    await store.createStockEntry({
+      entry_type: 'opening', posting_date: FIXED.date, posting_time: '07:00', items: [item(20)],
+    });
+    const firstSource = await store.createStockEntry({
+      entry_type: 'order', action: 'submit', posting_date: FIXED.date,
+      posting_time: '08:00', items: [item(2)],
+    });
+    const secondSource = await store.createStockEntry({
+      entry_type: 'order', action: 'submit', posting_date: FIXED.date,
+      posting_time: '09:00', items: [item(2)],
+    });
+    const draftSource = await store.createStockEntry({
+      entry_type: 'order', action: 'save_draft', posting_date: FIXED.date,
+      posting_time: '09:30', items: [item(2)],
+    });
+    const deliveryUserId = (await createDeliveryUser('ddr-source-user')).id;
+    const markReceivedDdr = async (id) => pool.query(`INSERT INTO app_stock_entry_delivery
+      (stock_entry_id, delivery_status, delivery_details, updated_by_user_id)
+      VALUES ($1, 'Received + DDR', '{}'::jsonb, $2)`, [id, deliveryUserId]);
+    await markReceivedDdr(firstSource);
+    await markReceivedDdr(secondSource);
+    const undeliveredSource = await store.createStockEntry({
+      entry_type: 'order', action: 'submit', posting_date: FIXED.date,
+      posting_time: '09:45', items: [item(1)],
+    });
+    await assert.rejects(store.createStockEntry({
+      entry_type: 'ddr_shortage', action: 'save_draft', posting_date: FIXED.date,
+      posting_time: '10:00', items: [item(1)],
+    }), /originated this DDR/);
+    await assert.rejects(store.createStockEntry({
+      entry_type: 'ddr_excess', action: 'save_draft', posting_date: FIXED.date,
+      posting_time: '10:00', source_stock_entry_id: draftSource, items: [item(1)],
+    }), /submitted stock entry/);
+    await assert.rejects(store.createStockEntry({
+      entry_type: 'ddr_excess', action: 'save_draft', posting_date: FIXED.date,
+      posting_time: '10:00', source_stock_entry_id: undeliveredSource, items: [item(1)],
+    }), /Received \+ DDR/);
+    const submittedDdrSource = await store.createStockEntry({
+      entry_type: 'ddr_shortage', action: 'submit', posting_date: FIXED.date,
+      posting_time: '10:00', source_stock_entry_id: firstSource, items: [item(1)],
+    });
+    await markReceivedDdr(submittedDdrSource);
+    const ddrId = await store.createStockEntry({
+      entry_type: 'ddr_excess', action: 'save_draft', posting_date: FIXED.date,
+      posting_time: '10:00', source_stock_entry_id: submittedDdrSource, items: [item(1)],
+    });
+    let saved = await store.loadStockEntry(ddrId);
+    assert.equal(Number(saved.entry.source_stock_entry_id), Number(submittedDdrSource));
+    assert.match(saved.entry.source_stock_entry_no, /^STK-\d{6}$/);
+    const matches = await store.searchStockEntriesForDdr(itemCode, {
+      userId: null, excludeId: ddrId, warehouse: targetWarehouse,
+    });
+    assert.deepEqual(new Set(matches.map((row) => Number(row.id))),
+      new Set([Number(firstSource), Number(secondSource), Number(submittedDdrSource)]));
+    assert.ok(matches.find((row) => Number(row.id) === Number(submittedDdrSource))
+      .entry_type === 'ddr_shortage');
+    saved = await store.loadStockEntry(ddrId);
+    await store.updateStockEntry(ddrId, {
+      ...saved.entry, action: 'save_draft', source_stock_entry_id: secondSource, items: saved.items,
+    });
+    assert.equal(Number((await store.loadStockEntry(ddrId)).entry.source_stock_entry_id),
+      Number(secondSource));
+    saved = await store.loadStockEntry(ddrId);
+    await store.updateStockEntry(ddrId, {
+      ...saved.entry, entry_type: 'order', action: 'save_draft', items: saved.items,
+    });
+    const cleared = await store.loadStockEntry(ddrId);
+    assert.equal(cleared.entry.source_stock_entry_id, null);
+    assert.equal(cleared.entry.source_stock_entry_no, null);
+  } finally {
+    await store.closeStore();
+  }
+});
+
 test('stock cancellation ignores purchase and invoice reversals with the same numeric ID', {
   skip: process.env.RECONCILIATION_TEST_POSTGRES !== '1',
 }, async () => {
@@ -147,9 +239,19 @@ test('named stock transfers preserve quantity and value, reject insufficient sto
       FROM app_stock_balances WHERE item_code=$1 AND warehouse=ANY($2::text[]) ORDER BY warehouse`,
     [FIXED.itemCode, [FIXED.warehouse, 'Transfer Target']])).rows;
     const sum = (rows, field) => rows.reduce((total, row) => total + Number(row[field]), 0);
+    const ddrSource = await store.createStockEntry({
+      entry_type: 'order', action: 'submit', posting_date: FIXED.date, posting_time: '07:00',
+      items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName, warehouse: FIXED.warehouse,
+        target_warehouse: 'Transfer Target', quantity: 1, valuation_rate: 50 }],
+    });
+    const deliveryUserId = (await createDeliveryUser('ddr-transfer-user')).id;
+    await pool.query(`INSERT INTO app_stock_entry_delivery
+      (stock_entry_id, delivery_status, delivery_details, updated_by_user_id)
+      VALUES ($1, 'Received + DDR', '{}'::jsonb, $2)`, [ddrSource, deliveryUserId]);
     for (const type of require('../src/constants').STOCK_TRANSFER_TYPES) {
       const before = await balances();
       const payload = { entry_type: type, action: 'save_draft', posting_date: FIXED.date,
+        source_stock_entry_id: String(type).startsWith('ddr_') ? ddrSource : undefined,
         items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName, warehouse: FIXED.warehouse,
           target_warehouse: 'Transfer Target', quantity: 2, valuation_rate: 999999 }] };
       const id = await store.createStockEntry(payload);
@@ -194,10 +296,18 @@ test('transfers use posting-date/time stock, protect later balances, and seriali
     const line = (quantity, warehouse = source) => ({ item_code: itemCode, item_name: itemCode, warehouse,
       target_warehouse: target, quantity, valuation_rate: 50 });
     const opening = (date,time,quantity) => store.createStockEntry({entry_type:'opening',posting_date:date,posting_time:time,items:[line(quantity)]});
-    await opening('2026-02-01','09:00',10);
+    const sourceEntryId=await opening('2026-02-01','09:00',10);
+    await pool.query('UPDATE app_stock_entry_items SET target_warehouse=$2 WHERE stock_entry_id=$1',
+      [sourceEntryId, target]);
     await opening('2026-02-01','15:00',20);
+    const deliveryUserId=(await createDeliveryUser('ddr-asof-user')).id;
+    await pool.query(`INSERT INTO app_stock_entry_delivery
+      (stock_entry_id, delivery_status, delivery_details, updated_by_user_id)
+      VALUES ($1, 'Received + DDR', '{}'::jsonb, $2)`, [sourceEntryId, deliveryUserId]);
     const makeDraft = (time,quantity=11,type='order',date='2026-02-01',items=null) => store.createStockEntry({
-      entry_type:type,action:'save_draft',posting_date:date,posting_time:time,items:items||[line(quantity)] });
+      entry_type:type,action:'save_draft',posting_date:date,posting_time:time,
+      ...(String(type).startsWith('ddr_') ? {source_stock_entry_id:sourceEntryId} : {}),
+      items:items||[line(quantity)] });
     const submit = async id => { const saved=await store.loadStockEntry(id); return store.updateStockEntry(id,{
       ...saved.entry,action:'submit',items:saved.items }); };
     const assertUnposted = async id => {
@@ -244,10 +354,18 @@ test('sales cannot consume a later reconciliation or leave later stock negative'
     const pool = store.getPostgresPool();
     const code = 'ASOF-SALE-ITEM';
     await pool.query('INSERT INTO app_master_items(item_code,item_name) VALUES($1,$1)', [code]);
-    const line = quantity => ({ item_code: code, item_name: code, warehouse: FIXED.warehouse,
+    await pool.query("INSERT INTO app_master_warehouses(warehouse) VALUES('As-of Sales Target')");
+    const line = (quantity, targetWarehouse = '') => ({ item_code: code, item_name: code,
+      warehouse: FIXED.warehouse, target_warehouse: targetWarehouse,
       quantity, valuation_rate: 50, unit_price: 100 });
-    await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-02-01',
-      posting_time: '09:00', items: [line(10)] });
+    const ddrSource = await store.createStockEntry({ entry_type: 'opening', posting_date: '2026-02-01',
+      posting_time: '09:00', items: [line(10, 'As-of Sales Target')] });
+    await pool.query('UPDATE app_stock_entry_items SET target_warehouse=$2 WHERE stock_entry_id=$1',
+      [ddrSource, 'As-of Sales Target']);
+    const deliveryUserId = (await createDeliveryUser('ddr-sales-user')).id;
+    await pool.query(`INSERT INTO app_stock_entry_delivery
+      (stock_entry_id, delivery_status, delivery_details, updated_by_user_id)
+      VALUES ($1, 'Received + DDR', '{}'::jsonb, $2)`, [ddrSource, deliveryUserId]);
     await store.createStockEntry({ entry_type: 'reconciliation', posting_date: '2026-02-02',
       posting_time: '12:00', items: [line(100)] });
     const historicalItems = (date, time) => store.masterItemsWithStock({ search: code,
@@ -266,10 +384,10 @@ test('sales cannot consume a later reconciliation or leave later stock negative'
       assert.equal((await pool.query("SELECT count(*)::int n FROM app_stock_ledger WHERE voucher_type='invoice' AND voucher_id=$1", [id])).rows[0].n, 0);
       assert.equal((await pool.query('SELECT quantity::float n FROM app_stock_balances WHERE item_code=$1 AND warehouse=$2', [code, FIXED.warehouse])).rows[0].n, 100);
     };
-    await pool.query("INSERT INTO app_master_warehouses(warehouse) VALUES('As-of Sales Target')");
     for (const type of [...require('../src/constants').STOCK_TRANSFER_TYPES, 'adjustment', 'cancel', 'reconciliation']) {
       const id = await store.createStockEntry({ entry_type: type, action: 'save_draft',
         posting_date: '2026-02-01', posting_time: '10:00',
+        source_stock_entry_id: String(type).startsWith('ddr_') ? ddrSource : undefined,
         items: [{ ...line(type === 'adjustment' ? -11 : type === 'reconciliation' ? 89 : 11),
           target_warehouse: 'As-of Sales Target' }] });
       const saved = await store.loadStockEntry(id);

@@ -9,7 +9,7 @@
     </header>
     <% if (error) { %><section class="notice warning" role="alert"><%= error %></section><% } %>
     <form method="post" action="/reports/daily-activity" class="invoice-form ui-surface">
-      <%- include('ui-section-heading', { heading: { title: 'New Daily Activity Report', help: 'Save creates a Daily Activity draft in this app. ERPNext is used only for reference. Balance to be banked is calculated as sales minus expense.' } }) %>
+      <%- include('ui-section-heading', { heading: { title: 'New Daily Activity Report', help: 'Save creates a Daily Activity draft in this app. Open the saved report to submit it when ready. ERPNext is used only for reference. Balance to be banked is calculated as sales minus expense.' } }) %>
       <fieldset class="ui-form-section">
         <legend>Report details</legend>
         <div class="ui-form-row-scroll">

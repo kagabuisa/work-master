@@ -4,7 +4,7 @@
 <body><main class="shell ui-page ui-page-list ui-list-compact">
   <header class="topbar"><div><p class="eyebrow">Purchase Orders</p>
     <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Orders' }] }) %>
-  </div><nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav></header>
+  </div><nav><%- include('module-nav', { activeModule: 'purchases', hideCreateActions: true }) %><%- include('purchase-new-menu') %></nav></header>
   <%- include('voucher-report-tabs', { basePath: '/purchase-orders', title: 'Purchase Order', activeTab: 'list' }) %>
   <form class="report-filters invoice-filters ui-toolbar ui-filter-row" method="get" action="/purchase-orders">
     <label>Search<input name="q" value="<%= query.q || '' %>" placeholder="Number or supplier"></label>

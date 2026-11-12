@@ -12,15 +12,17 @@
         <p class="eyebrow">Purchase</p>
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Purchases', href: '/purchases' }, { label: 'Purchase Invoices', href: '/purchases' }, { label: purchase.purchase_no }] }) %>
       </div>
-      <nav><%- include('module-nav', { activeModule: 'purchases' }) %><%- include('purchase-new-menu') %></nav>
+      <nav>
+        <%- include('module-nav', { activeModule: 'purchases', hideCreateActions: true }) %>
+        <div class="actions page-actions voucher-page-actions">
+          <%- include('purchase-actions', { record: purchase, kind: 'purchases' }) %>
+        </div>
+      </nav>
     </header>
     <% if (error) { %><section class="notice warning"><strong><%= error %></strong></section><% } %>
     <section class="invoice-card ui-surface">
       <div class="section-title ui-section-heading">
         <h2>Purchase Invoice</h2>
-        <div class="actions">
-          <%- include('purchase-actions', { record: purchase, kind: 'purchases' }) %>
-        </div>
       </div>
       <div class="invoice-meta">
         <div><span>Supplier</span><strong><%= purchase.supplier_id %></strong></div>
@@ -31,8 +33,9 @@
         <% if (purchase.price_list) { %><p><span>Price List</span><strong><%= purchase.price_list %></strong></p><% } %>
         <% if (purchase.cost_center) { %><p><span>Cost Center</span><strong><%= costCenterName(purchase.cost_center) %></strong></p><% } %>
         <% if (purchase.purchase_order_id && can('vouchers.purchase-orders.view')) { %><p><span>Purchase Order</span><a href="/purchase-orders/<%= purchase.purchase_order_id %>" data-voucher-drawer="/purchase-orders/<%= purchase.purchase_order_id %>/drawer"><%= purchase.purchase_order_no || `PO-${String(purchase.purchase_order_id).padStart(6, '0')}` %></a></p><% } %>
+        <% if (purchase.supplier_reference) { %><p><span>Supplier Invoice / Reference</span><strong><%= purchase.supplier_reference %></strong></p><% } %>
+        <% if (purchase.supplier_receipt_no) { %><p><span>Supplier Receipt Number</span><strong><%= purchase.supplier_receipt_no %></strong></p><% } %>
       </div>
-      <% if (purchase.supplier_reference) { %><p>Supplier reference: <strong><%= purchase.supplier_reference %></strong></p><% } %>
       <div class="ui-table-scroll" role="region" aria-label="Purchase table" tabindex="0"><table class="ui-table">
         <thead><tr><th>#</th><th>Item</th><th>Warehouse</th><th>Qty Received</th><th class="ui-amount">Unit Cost</th><th class="ui-amount">Total</th><th class="tracking-info">Created by</th><th class="tracking-info">Updated by</th></tr></thead>
         <tbody>

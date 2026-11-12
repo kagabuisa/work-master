@@ -558,11 +558,14 @@ async function validateJournalProjectedBalancePosting(client, entry, lines, acco
      ORDER BY locked_account.account_id`,
     [uniqueAccountIds],
   );
+  // wm_gl_account_daily is updated by GL summary triggers in this same
+  // transaction, so it has the same posting-date balance without scanning
+  // either the detailed ledger or its dimensioned report summary.
   const { rows } = await client.query(
     `SELECT account.id, account.account_code, account.account_name, account.normal_balance,
-       COALESCE(SUM(gl.debit - gl.credit), 0)::text AS balance
+       COALESCE(SUM(daily.debit - daily.credit), 0)::text AS balance
      FROM app_accounts account
-     LEFT JOIN app_gl_entries gl ON gl.account_id = account.id AND gl.posting_date <= $2
+     LEFT JOIN wm_gl_account_daily daily ON daily.account_id = account.id AND daily.posting_date <= $2
      WHERE account.id = ANY($1::bigint[])
      GROUP BY account.id, account.account_code, account.account_name, account.normal_balance`,
     [uniqueAccountIds, entry.posting_date],
@@ -1230,6 +1233,7 @@ module.exports = {
   stockEntryGlRemarks,
   paymentAccountKey,
   postGlEntry,
+  validateJournalProjectedBalancePosting,
   reverseVoucherGlEntries,
   resolveAccountingAccounts,
   groupByInvoiceId,

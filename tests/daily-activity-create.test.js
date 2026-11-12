@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { draft, createDailyActivity, dailyActivityFormOptions,
+const { draft, createDailyActivity, submitDailyActivity, dailyActivityFormOptions,
   dailyActivityStockEntryOptions } = require('../src/web/daily-activity-create');
 const { permissionCheck } = require('../src/authorize');
 const { renderView } = require('./helpers/render-view');
@@ -39,6 +39,18 @@ test('daily activity creation requires Read and Create and is denied to Standard
   assert.equal(check('privileged', grants, 'POST', '/reports/daily-activity/new/stock-entries'), false);
   assert.equal(check('admin', [], 'DELETE', '/reports/daily-activity/new'), false);
   assert.equal(check('admin', [], 'POST', '/reports/daily-activity/DAR-1'), false);
+});
+
+test('daily activity submission has its own permission and only accepts the submit action', () => {
+  const check = (role, permissions, method, route) => permissionCheck({ currentUser: { role, permissions }, method, path: route });
+  const view = 'reports.daily-activity.view';
+  const create = 'reports.daily-activity.create';
+  const submit = 'reports.daily-activity.submit';
+  assert.equal(check('privileged', [view, create], 'POST', '/reports/daily-activity/DAR-000001/submit'), false);
+  assert.equal(check('privileged', [view, submit], 'POST', '/reports/daily-activity/DAR-000001/submit'), true);
+  assert.equal(check('privileged', [view, submit], 'GET', '/reports/daily-activity/DAR-000001/submit'), false);
+  assert.equal(check('standard', [view, create, submit], 'POST', '/reports/daily-activity/DAR-000001/submit'), false);
+  assert.equal(check('admin', [], 'POST', '/reports/daily-activity/DAR-000001/submit'), true);
 });
 
 test('daily activity stock entry autocomplete returns submitted entries involving the selected warehouse', async () => {
@@ -125,6 +137,15 @@ test('local Daily Activity saves and reports audited drafts without ERPNext', {
     assert.equal(report.summary.banked, 350);
     report = await localDailyActivityReport({ from: input.date, to: input.date, q: first.name, status: '0' }, user);
     assert.equal(report.summary.total, 1);
+    const submitted = await submitDailyActivity(first.name, user);
+    assert.equal(submitted.docstatus, 1);
+    assert.equal(submitted.submitted_by, user.username);
+    assert.equal(submitted.submitted_by_user_id, '42');
+    assert.ok(submitted.submitted_at);
+    assert.equal((await localDailyActivityVoucher(first.name, user)).status_label, 'Submitted');
+    await assert.rejects(() => submitDailyActivity(first.name, user), { status: 400 });
+    report = await localDailyActivityReport({ from: input.date, to: input.date, status: '1' }, user);
+    assert.equal(report.summary.total, 1);
     await assert.rejects(() => createDailyActivity({ ...input, warehouse: 'missing' }, user), { status: 400 });
     await assert.rejects(() => createDailyActivity({ ...input, shop: 'missing' }, user), { status: 400 });
     await assert.rejects(() => createDailyActivity({ ...input, stock_entry_number: 'missing' }, user), { status: 400 });
@@ -155,6 +176,15 @@ test('local Daily Activity saves and reports audited drafts without ERPNext', {
         body: new URLSearchParams(input), redirect: 'manual' });
       assert.equal(save.status, 303);
       assert.match(save.headers.get('location'), /^\/reports\/daily-activity\/DAR-\d+$/);
+      const savedPath = save.headers.get('location');
+      const detail = await fetch(base + savedPath);
+      assert.equal(detail.status, 200);
+      assert.match(await detail.text(), /action="\/reports\/daily-activity\/DAR-\d+\/submit"/);
+      const submit = await fetch(base + savedPath + '/submit', { method: 'POST', redirect: 'manual' });
+      assert.equal(submit.status, 303);
+      assert.equal(submit.headers.get('location'), savedPath + '?submitted=1');
+      const submittedDetail = await fetch(base + savedPath + '?submitted=1');
+      assert.match(await submittedDetail.text(), /Daily Activity Report submitted\./);
       const invalid = await fetch(base + '/reports/daily-activity', { method: 'POST',
         body: new URLSearchParams({ ...input, expense_details: '' }) });
       assert.equal(invalid.status, 400);

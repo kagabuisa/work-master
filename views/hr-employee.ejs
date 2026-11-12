@@ -1,4 +1,4 @@
-<% const newEmployee=typeof isNewEmployee!=='undefined'&&isNewEmployee; const coreEditable=newEmployee?can('masters.employees.create'):can('hr.employees.edit')&&can('masters.employees.edit'); %>
+<% const newEmployee=typeof isNewEmployee!=='undefined'&&isNewEmployee; const coreEditable=newEmployee?can('masters.employees.create'):can('hr.employees.edit')&&can('masters.employees.edit'); const companyValue=newEmployee?employee.company||(typeof defaultCompany!=='undefined'?defaultCompany:''):employee.company||''; %>
 <section class="invoice-card hr-card hr-employee-card ui-surface" id="employment">
 <div class="hr-employment-heading ui-section-heading"><div><p class="hr-section-eyebrow">Employee details</p><h2>Employment</h2></div><% if(!newEmployee){ %><div class="hr-employment-download hr-no-print">
 <a class="button secondary hr-pdf-button" href="/hr/employees/<%= encodeURIComponent(employee.employee_id) %>/pdf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>Download employee details PDF</a>
@@ -14,7 +14,7 @@
 <div class="ui-form-grid hr-profile-grid">
 <label>Employee name<input name="employee_name" value="<%= employee.employee_name||'' %>" required maxlength="2000" <%= coreEditable?'':'disabled' %>></label>
 <label>Employee ID<input name="employee_id" value="<%= employee.employee_id||'' %>" placeholder="Leave blank to use employee name" <%= newEmployee?'':'readonly' %> maxlength="2000"></label>
-<label>Company<input name="company" value="<%= employee.company||'' %>" maxlength="2000" <%= coreEditable?'':'disabled' %>></label>
+<label>Company<input name="company" value="<%= companyValue %>" maxlength="2000" <%= coreEditable?'':'disabled' %>></label>
 <%- include('hr-employee-detail-field',{field:employeeDetailFields.find(f=>f.name==='department')}) %>
 <%- include('hr-employee-detail-field',{field:employeeDetailFields.find(f=>f.name==='designation')}) %>
 <label>Status<select name="status" <%= coreEditable?'':'disabled' %>><option value="">Select status</option><% ['Active','Left'].forEach(status=>{ %><option value="<%= status %>" <%= employee.status===status?'selected':'' %>><%= status %></option><% }) %></select></label>

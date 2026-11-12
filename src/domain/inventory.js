@@ -23,6 +23,113 @@ const { findPostgresInvoice } = require('./sales');
 const { validateCostCenter } = require('../cost-centers');
 const { addVoucherOwnerFilter, addStockLedgerOwnerFilter } = require('../voucher-ownership');
 
+const DDR_ENTRY_TYPES = new Set(['ddr_shortage', 'ddr_excess']);
+const DDR_SOURCE_EXCLUDED_TYPES = new Set(['cancel', 'reconciliation']);
+
+function addStockEntryVisibilityFilter(where, params, alias, userId) {
+  if (userId === null || userId === undefined || userId === '') return;
+  params.push(String(userId));
+  where.push(`(${alias}.created_by_user_id = $${params.length}
+    OR EXISTS (
+      SELECT 1 FROM app_stock_entry_shares source_share
+      WHERE source_share.stock_entry_id = ${alias}.id
+        AND source_share.user_id = $${params.length}
+    ))`);
+}
+
+function addStockEntryWarehouseFilter(where, params, alias, allowedWarehouses, deniedWarehouses) {
+  if (Array.isArray(allowedWarehouses)) {
+    params.push(allowedWarehouses);
+    where.push(`NOT EXISTS (
+      SELECT 1 FROM app_stock_entry_items restricted_source
+      WHERE restricted_source.stock_entry_id = ${alias}.id AND (
+        COALESCE(restricted_source.warehouse, '') <> ''
+          AND restricted_source.warehouse <> ALL($${params.length}::text[])
+        OR COALESCE(restricted_source.target_warehouse, '') <> ''
+          AND restricted_source.target_warehouse <> ALL($${params.length}::text[])))`);
+  }
+  if (Array.isArray(deniedWarehouses) && deniedWarehouses.length) {
+    params.push(deniedWarehouses);
+    where.push(`NOT EXISTS (
+      SELECT 1 FROM app_stock_entry_items denied_source
+      WHERE denied_source.stock_entry_id = ${alias}.id
+        AND (denied_source.warehouse = ANY($${params.length}::text[])
+          OR denied_source.target_warehouse = ANY($${params.length}::text[])))`);
+  }
+}
+
+async function validateDdrSource(client, entryType, sourceValue, options = {}) {
+  if (!DDR_ENTRY_TYPES.has(entryType)) return { id: null, no: null };
+  const sourceId = Number(sourceValue);
+  if (!Number.isSafeInteger(sourceId) || sourceId < 1) {
+    const error = new Error('Choose the stock entry that originated this DDR.');
+    error.status = 400;
+    throw error;
+  }
+  if (options.currentId && Number(options.currentId) === sourceId) {
+    const error = new Error('A DDR entry cannot originate from itself.');
+    error.status = 400;
+    throw error;
+  }
+  const params = [sourceId];
+  const where = ['source.id = $1'];
+  addStockEntryVisibilityFilter(where, params, 'source', options.userId);
+  addStockEntryWarehouseFilter(where, params, 'source', options.allowedWarehouses, options.deniedWarehouses);
+  const entryTargetWarehouses = [...new Set((options.entryTargetWarehouses || [])
+    .map((warehouse) => String(warehouse || '').trim()).filter(Boolean))];
+  if (!entryTargetWarehouses.length) {
+    const error = new Error('Choose the DDR target warehouses before selecting its source entry.');
+    error.status = 400;
+    throw error;
+  }
+  params.push(entryTargetWarehouses);
+  const warehouseParam = `$${params.length}`;
+  const { rows } = await client.query(`
+    SELECT source.id, source.entry_no, source.entry_type,
+      COALESCE(source.docstatus, 'submitted') AS docstatus,
+      EXISTS (
+        SELECT 1 FROM app_stock_entry_delivery delivery
+        WHERE delivery.stock_entry_id = source.id
+          AND delivery.delivery_status = 'Received + DDR'
+      ) AS received_ddr,
+      EXISTS (
+        SELECT 1 FROM app_stock_entry_items source_item
+        WHERE source_item.stock_entry_id = source.id
+          AND source_item.target_warehouse = ANY(${warehouseParam}::text[])
+      ) AS warehouse_match
+    FROM app_stock_entries source
+    WHERE ${where.join(' AND ')}
+    FOR SHARE
+  `, params);
+  const source = rows[0];
+  if (!source) {
+    const error = new Error('Choose a stock entry you can access.');
+    error.status = 400;
+    throw error;
+  }
+  if (source.docstatus !== 'submitted') {
+    const error = new Error('Choose a submitted stock entry as the DDR source.');
+    error.status = 400;
+    throw error;
+  }
+  if (DDR_SOURCE_EXCLUDED_TYPES.has(source.entry_type)) {
+    const error = new Error('Choose the stock entry that originally initiated the delivery.');
+    error.status = 400;
+    throw error;
+  }
+  if (!source.received_ddr) {
+    const error = new Error('Choose a source stock entry with Received + DDR delivery status.');
+    error.status = 400;
+    throw error;
+  }
+  if (!source.warehouse_match) {
+    const error = new Error('Choose a source stock entry that targets this DDR warehouse.');
+    error.status = 400;
+    throw error;
+  }
+  return { id: Number(source.id), no: source.entry_no };
+}
+
 async function stockSummary() {
   const { rows } = await getPostgresPool().query(`
     SELECT
@@ -211,7 +318,7 @@ async function localStockQuantity(itemCode, warehouse) {
   return rows[0] || { quantity: 0, stock_value: 0, valuation_rate: 0 };
 }
 
-async function createStockEntry(payload, { deliveryUser } = {}) {
+async function createStockEntry(payload, { deliveryUser, sourceAccess = {} } = {}) {
   const entryType = String(payload.entry_type || '').trim();
   if (!STOCK_ENTRY_TYPES.includes(entryType)) {
     const err = new Error('Choose a valid stock entry type.');
@@ -242,13 +349,15 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
 
   return withPostgresTransaction(async (client) => {
     const costCenter = await validateCostCenter(client, payload.cost_center);
+    const sourceEntry = await validateDdrSource(client, entryType, payload.source_stock_entry_id,
+      { ...sourceAccess, entryTargetWarehouses: items.map((item) => item.target_warehouse) });
     const { rows } = await client.query(
       `
       INSERT INTO app_stock_entries (
         entry_type, docstatus, posting_date, posting_time, remarks, supplier_name, supplier_contact,
-        supplier_phone, supplier_reference, cost_center
+        supplier_phone, supplier_reference, cost_center, source_stock_entry_id, source_stock_entry_no
       )
-      VALUES ($1, $2, $3, $9, $4, $5, $6, $7, $8, $10)
+      VALUES ($1, $2, $3, $9, $4, $5, $6, $7, $8, $10, $11, $12)
       RETURNING id, created_by_user_id
       `,
       [
@@ -262,6 +371,8 @@ async function createStockEntry(payload, { deliveryUser } = {}) {
         supplier.supplier_reference || null,
         postingTime,
         costCenter,
+        sourceEntry.id,
+        sourceEntry.no,
       ],
     );
     const id = Number(rows[0].id);
@@ -296,17 +407,27 @@ async function loadStockEntry(id) {
   }
   const { rows } = await getPostgresPool().query(
     `
-    SELECT created_by, created_by_user_id, created_at, updated_by, updated_by_user_id, updated_at,
-      id, entry_no, entry_type, docstatus, posting_date::text, posting_time::text, remarks, cost_center,
+    SELECT app_stock_entries.created_by, app_stock_entries.created_by_user_id,
+      app_stock_entries.created_at, app_stock_entries.updated_by,
+      app_stock_entries.updated_by_user_id, app_stock_entries.updated_at,
+      app_stock_entries.id, app_stock_entries.entry_no, app_stock_entries.entry_type,
+      app_stock_entries.docstatus, app_stock_entries.posting_date::text,
+      app_stock_entries.posting_time::text, app_stock_entries.remarks, app_stock_entries.cost_center,
+      app_stock_entries.source_stock_entry_id,
+      COALESCE(app_stock_entries.source_stock_entry_no, source_entry.entry_no) AS source_stock_entry_no,
       COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
         WHERE delivery.stock_entry_id=app_stock_entries.id), '') AS delivery_status,
       COALESCE((SELECT delivery_details FROM app_stock_entry_delivery delivery
         WHERE delivery.stock_entry_id=app_stock_entries.id), '{}'::jsonb) AS delivery_details,
-      supplier_name, supplier_contact, supplier_phone, supplier_reference,
-      submitted_by, submitted_by_user_id, submitted_at,
-      cancelled_by, cancelled_by_user_id, cancelled_at
+      app_stock_entries.supplier_name, app_stock_entries.supplier_contact,
+      app_stock_entries.supplier_phone, app_stock_entries.supplier_reference,
+      app_stock_entries.submitted_by, app_stock_entries.submitted_by_user_id,
+      app_stock_entries.submitted_at, app_stock_entries.cancelled_by,
+      app_stock_entries.cancelled_by_user_id, app_stock_entries.cancelled_at
     FROM app_stock_entries
-    WHERE id = $1
+    LEFT JOIN app_stock_entries source_entry
+      ON source_entry.id = app_stock_entries.source_stock_entry_id
+    WHERE app_stock_entries.id = $1
     `,
     [stockEntryId],
   );
@@ -460,7 +581,81 @@ async function searchStockEntriesForCancel(search = '', ownerId = null) {
   }));
 }
 
-async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false } = {}) {
+async function searchStockEntriesForDdr(search = '', filters = {}) {
+  const value = String(search || '').trim().toLowerCase();
+  const selectedWarehouse = String(filters.warehouse || '').trim();
+  const params = [];
+  const where = [
+    "COALESCE(source.docstatus, 'submitted') = 'submitted'",
+    `source.entry_type <> ALL($1::text[])`,
+    `EXISTS (
+      SELECT 1 FROM app_stock_entry_delivery source_delivery
+      WHERE source_delivery.stock_entry_id = source.id
+        AND source_delivery.delivery_status = 'Received + DDR'
+    )`,
+  ];
+  params.push([...DDR_SOURCE_EXCLUDED_TYPES]);
+  addStockEntryVisibilityFilter(where, params, 'source', filters.userId);
+  addStockEntryWarehouseFilter(where, params, 'source',
+    filters.allowedWarehouses, filters.deniedWarehouses);
+  if (Number.isSafeInteger(Number(filters.excludeId)) && Number(filters.excludeId) > 0) {
+    params.push(Number(filters.excludeId));
+    where.push(`source.id <> $${params.length}`);
+  }
+  if (selectedWarehouse) {
+    params.push(selectedWarehouse);
+    where.push(`EXISTS (
+      SELECT 1 FROM app_stock_entry_items source_warehouse_item
+      WHERE source_warehouse_item.stock_entry_id = source.id
+        AND source_warehouse_item.target_warehouse = $${params.length}
+    )`);
+  }
+  if (value) {
+    params.push(sqlLikePattern(value));
+    where.push(`(
+      LOWER(source.entry_no) LIKE $${params.length}
+      OR LOWER(source.entry_type) LIKE $${params.length}
+      OR LOWER(COALESCE(source.remarks, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(source.supplier_name, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(source.supplier_reference, '')) LIKE $${params.length}
+      OR source.posting_date::text LIKE $${params.length}
+      OR EXISTS (
+        SELECT 1 FROM app_stock_entry_items search_item
+        WHERE search_item.stock_entry_id = source.id
+          AND (LOWER(search_item.item_code) LIKE $${params.length}
+            OR LOWER(COALESCE(search_item.item_name, '')) LIKE $${params.length}))
+    )`);
+  }
+  const { rows } = await getPostgresPool().query(`
+    SELECT source.id, source.entry_no, source.entry_type,
+      source.posting_date::text, source.posting_time::text,
+      COALESCE(source.remarks, '') AS remarks,
+      COALESCE(delivery.delivery_status, '') AS delivery_status,
+      COUNT(item.id)::int AS item_count,
+      STRING_AGG(DISTINCT item.target_warehouse, ', ' ORDER BY item.target_warehouse) AS warehouses
+    FROM app_stock_entries source
+    LEFT JOIN app_stock_entry_delivery delivery ON delivery.stock_entry_id = source.id
+    LEFT JOIN app_stock_entry_items item ON item.stock_entry_id = source.id
+    WHERE ${where.join(' AND ')}
+    GROUP BY source.id, source.entry_no, source.entry_type, source.posting_date,
+      source.posting_time, source.remarks, delivery.delivery_status
+    ORDER BY source.posting_date DESC, source.posting_time DESC, source.id DESC
+    LIMIT 15
+  `, params);
+  return rows.map((row) => ({
+    id: Number(row.id),
+    entry_no: row.entry_no,
+    entry_type: row.entry_type,
+    posting_date: dateOnly(row.posting_date),
+    posting_time: storedPostingTime(row.posting_time),
+    remarks: row.remarks || '',
+    delivery_status: row.delivery_status || '',
+    item_count: Number(row.item_count || 0),
+    warehouses: row.warehouses || '',
+  }));
+}
+
+async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false, sourceAccess = {} } = {}) {
   const stockEntryId = Number(id);
   if (!Number.isFinite(stockEntryId)) {
     const err = new Error('Stock entry not found.');
@@ -497,6 +692,11 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
 
   return withPostgresTransaction(async (client) => {
     const costCenter = await validateCostCenter(client, payload.cost_center);
+    const sourceEntry = await validateDdrSource(client, entryType, payload.source_stock_entry_id, {
+      ...sourceAccess,
+      currentId: stockEntryId,
+      entryTargetWarehouses: items.map((item) => item.target_warehouse),
+    });
     const { rows: existingRows } = await client.query(
       `SELECT id, entry_no, entry_type, docstatus, created_by_user_id, cost_center,
         COALESCE((SELECT delivery_status FROM app_stock_entry_delivery delivery
@@ -531,7 +731,9 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
           supplier_contact = $6,
           supplier_phone = $7,
           supplier_reference = $8,
-          cost_center = $11
+          cost_center = $11,
+          source_stock_entry_id = $12,
+          source_stock_entry_no = $13
       WHERE id = $9
       `,
       [
@@ -546,6 +748,8 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
         stockEntryId,
         postingTime,
         costCenter,
+        sourceEntry.id,
+        sourceEntry.no,
       ],
     );
     await syncStockEntryItems(client, stockEntryId, items);
@@ -1447,6 +1651,7 @@ module.exports = {
   loadStockEntry,
   stockEntryCancelTemplate,
   searchStockEntriesForCancel,
+  searchStockEntriesForDdr,
   updateStockEntry,
   updateStockEntrySupplierInfo,
   cancelStockEntry,

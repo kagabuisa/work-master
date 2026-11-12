@@ -77,6 +77,9 @@ test('full and drawer previews show values, delivery and owner sharing with read
     assert.match(html, /Item value \(UGX\)/);
     assert.match(html, /Ugx 13/);
     assert.match(html, /Total item value/);
+    assert.match(html, /Source Whs/);
+    assert.match(html, /Target Whs/);
+    assert.doesNotMatch(html, /Item value is quantity × saved rate/);
     assert.match(html, /value="In Transit" selected/);
     assert.match(html, /name="permission"/);
     assert.match(html, /Read &amp; write/);
@@ -118,7 +121,7 @@ test('delivery is a main field on new and edit forms and remains editable on sub
   for (const entry of [null, { id: 12, entry_type: 'transfer', docstatus: 'draft', posting_date: locals.today,
     created_by_user_id: '7', delivery_status: 'Picked & packed' }]) {
     const html = await renderView(path.join(__dirname, '../views/stock-entry.ejs'), { ...locals, entry });
-    const mainFields = html.slice(html.indexOf('<section class="form-grid ui-form-grid">'), html.indexOf('id="stock-entry-item-status" class='));
+    const mainFields = html.slice(html.indexOf('<section class="form-grid ui-form-grid stock-entry-details-grid'), html.indexOf('id="stock-entry-item-status" class='));
     assert.match(mainFields, /name="delivery_status"/);
     for (const status of ['In Transit', 'Delivered', 'All Received', 'Received + DDR']) assert.ok(mainFields.includes(status));
     assert.match(mainFields, /data-delivery-dialog/);

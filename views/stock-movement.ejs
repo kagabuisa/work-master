@@ -12,7 +12,7 @@
         <%- include('breadcrumbs', { breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'Stocks', href: '/stock/entries' }, { label: 'Stock Movement' }] }) %>
       </div>
       <nav>
-        <%- include('module-nav', { activeModule: 'stock' }) %>
+        <%- include('module-nav', { activeModule: 'stock', hideCreateActions: true }) %>
         <%- include('stock-new-menu') %>
       </nav>
     </header>
