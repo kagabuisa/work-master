@@ -150,7 +150,7 @@ async function main() {
   }
   assert.equal((await website('/logout', { method: 'POST', cookie, form: {} })).status, 303);
   report.checks.push('HTTPS website cookie security and both API invoices visible through website detail pages');
-  stage = 'failed submission';
+  stage = 'future-dated rejection';
   const excessive = { customer_id: 'STG-C1', warehouse: 'Staging Main', price_list: 'Staging Retail', invoicer_id: 'STG-E1', invoice_date: postingDate,
     items: [{ item_code: 'STG-I1', quantity: '100000', unit_price: '1' }] };
   const invoiceCount = async () => Number((await pool.query('SELECT count(*) AS count FROM app_invoices')).rows[0].count);
@@ -159,19 +159,18 @@ async function main() {
     key: prefix + '-insufficient-draft', body: excessive, expected: 422 });
   assert.equal(await invoiceCount(), beforeRejectedDraft);
   report.checks.push('insufficient-stock draft rejected without creating an invoice');
-  // Future drafts are allowed, while posting them is forbidden. Exercise a
-  // genuine submission failure without consuming or altering the reusable stock.
+  // The sales policy rejects future posting dates at creation, so a future-dated
+  // invoice must never reach the database.
+  const beforeFuture = await invoiceCount();
   const futureDate = new Date(`${currentPostingDate()}T12:00:00Z`);
   futureDate.setUTCDate(futureDate.getUTCDate() + 1);
   const futureDraft = { ...excessive, invoice_date: futureDate.toISOString().slice(0, 10),
     items: [{ item_code: 'STG-I1', quantity: '1', unit_price: '1' }] };
-  const failedDraft = await request('/api/v1/invoices', { method: 'POST', token: mobile.access_token,
-    key: prefix + '-failed-draft', body: futureDraft, expected: 201 });
-  const deniedSubmit = await request(`/api/v1/invoices/${failedDraft.body.data.id}/submit`, {
-    method: 'POST', token: mobile.access_token, key: prefix + '-failed-submit', body: {}, expected: 400 });
-  assert.equal(deniedSubmit.body.error.code, 'future_posting_date');
-  assert.equal((await store.findInvoice(failedDraft.body.data.id)).docstatus, 'draft');
-  report.checks.push('failed submission retains draft');
+  const deniedDraft = await request('/api/v1/invoices', { method: 'POST', token: mobile.access_token,
+    key: prefix + '-failed-draft', body: futureDraft, expected: 400 });
+  assert.equal(deniedDraft.body.error.code, 'future_posting_date');
+  assert.equal(await invoiceCount(), beforeFuture);
+  report.checks.push('future-dated invoice rejected at creation');
   stage = 'scope and revocation';
   const narrow = (await request('/api/v1/integration-credentials', { method: 'POST', token: admin.access_token,
     body: { user_id: integration.user_id, scopes: ['invoices:read'] }, expected: 201 })).body.data;
