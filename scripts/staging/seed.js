@@ -39,12 +39,13 @@ async function main() {
     INSERT INTO app_master_items(item_code,item_name,stock_uom,docstatus) VALUES ('STG-I1','Staging Item','Each','submitted');
     INSERT INTO app_master_employees(employee_id,employee_name,status) VALUES ('STG-E1','Staging Invoicer','Active');
     INSERT INTO app_master_cost_centers(cost_center,cost_center_name) VALUES ('STG-CC1','Staging Cost Center');`);
-  await runWithAuditUser(admin, () => store.createStockEntry({ entry_type: 'opening', posting_date: '2026-10-01', items: [
+  await pool.query(`INSERT INTO app_master_item_prices(item_code,price_list,price_list_rate,item_name,currency,selling,buying,active,docstatus) VALUES ('STG-I1','Staging Retail',100.50,'Staging Item','UGX',1,0,1,'submitted')`);
+  await runWithAuditUser(admin, () => store.createStockEntry({ entry_type: 'opening', posting_date: new Date().toISOString().slice(0,10), items: [
     { item_code: 'STG-I1', item_name: 'Staging Item', warehouse: 'Staging Main', quantity: 1000, valuation_rate: 20 },
     { item_code: 'STG-I1', item_name: 'Staging Item', warehouse: 'Staging Hidden', quantity: 1000, valuation_rate: 20 },
   ] }));
   const hidden = await runWithAuditUser(admin, () => store.createInvoice({ customer_id: 'STG-HIDDEN', customer_name: 'Hidden Staging Customer',
-    price_list: 'Staging Retail', invoicer_id: 'STG-E1', invoicer: 'Staging Invoicer', invoice_date: '2026-10-01',
+    price_list: 'Staging Retail', invoicer_id: 'STG-E1', invoicer: 'Staging Invoicer', invoice_date: new Date().toISOString().slice(0,10),
     items: [{ item_code: 'STG-I1', item_name: 'Staging Item', warehouse: 'Staging Hidden', quantity: 1, unit_price: 100 }] }));
   credentials.fixture = { cash: String(cash), bank: String(bank), hidden: String(hidden), role: role.slug };
   fs.writeFileSync(FILE, JSON.stringify(credentials, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
