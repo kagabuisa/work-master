@@ -672,17 +672,32 @@ async function authenticateSession(username, password) {
   }));
 }
 
+// Activity is recorded at most once per SESSION_TOUCH_SECONDS instead of on every request.
+// The previous form issued an UPDATE ... RETURNING on each hit, so every page view took a row
+// lock and wrote WAL on app_user_sessions, making session activity the write-heaviest path in
+// the application and the likely cause of the 50-user collapse. Idle expiry still uses the same
+// window; the recorded timestamp can lag real activity by at most SESSION_TOUCH_SECONDS.
+const SESSION_TOUCH_SECONDS = Number(process.env.SESSION_TOUCH_SECONDS || 60);
+
 async function sessionUser(token) {
   if (!token || typeof token !== 'string' || token.length > 128) return null;
   const hash = tokenHash(token);
   const { sessionIdleMinutes } = browserSecuritySettings();
   const { rows } = await runSessionRead(() => getPostgresPool().query(`
-    WITH active_session AS (
+    WITH touched AS (
       UPDATE app_user_sessions
       SET last_activity_at = now()
       WHERE token_hash = $1 AND expires_at > now()
         AND last_activity_at > now() - ($2::int * interval '1 minute')
+        AND last_activity_at <= now() - ($3::int * interval '1 second')
       RETURNING user_id, password_version
+    ), active_session AS (
+      SELECT user_id, password_version FROM touched
+      UNION ALL
+      SELECT user_id, password_version FROM app_user_sessions
+      WHERE token_hash = $1 AND expires_at > now()
+        AND last_activity_at > now() - ($2::int * interval '1 minute')
+        AND NOT EXISTS (SELECT 1 FROM touched)
     )
     SELECT u.id, u.username, u.must_change_password, u.role, u.permission_grants, u.permission_denials,
            u.record_access,
@@ -694,7 +709,7 @@ async function sessionUser(token) {
     LEFT JOIN app_roles r ON r.slug = u.role
     WHERE u.active = true AND u.api_service_account = false
       AND s.password_version = encode(sha256(u.password_hash::bytea), 'hex')
-  `, [hash, sessionIdleMinutes]));
+  `, [hash, sessionIdleMinutes, SESSION_TOUCH_SECONDS]));
   const user = rows[0];
   if (user) user.permissions = applyPermissionOverrides(user.permissions, user.permission_grants, user.permission_denials);
   return user || null;

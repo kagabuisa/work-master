@@ -19,6 +19,23 @@ function success(status,location,expected) {
   const u=new URL(location,base);
   return u.origin===base&&!u.searchParams.has('error')&&expected.test(u.pathname)&&!u.pathname.startsWith('/login');
 }
+// Why a request failed, bucketed so the aggregate stays small but still names the cause.
+// Without this every redirect-shaped failure collapses into 'unexpected_response', which made
+// the 50-user collapse unattributable: session loss, forced password change, validation-error
+// redirects and plain wrong destinations were indistinguishable in the report.
+function failureKind(status,location,expected) {
+  if(expected==='read')return status===200?'ok':'unexpected_status';
+  if(expected==='deny')return status===403||status===404?'ok':'unexpected_status';
+  if(!(status===302||status===303)||!location)return 'unexpected_status';
+  let u;
+  try { u=new URL(location,base); } catch { return 'unparsable_location'; }
+  if(u.origin!==base)return 'foreign_redirect';
+  if(u.pathname.startsWith('/login'))return 'session_redirect';
+  if(u.pathname==='/account/password')return 'password_change_redirect';
+  if(u.searchParams.has('error'))return 'error_redirect';
+  if(!expected.test(u.pathname))return 'wrong_destination';
+  return 'ok';
+}
 async function request(user,label,path,body,stats,expected=body?/^\/(invoices|journals|purchases|purchase-orders)\/\d+$/: 'read',signal) {
   let status=0,bytes=0,failed=true,error,location;const started=performance.now();
   try {
@@ -27,11 +44,11 @@ async function request(user,label,path,body,stats,expected=body?/^\/(invoices|jo
     status=response.status;location=response.headers.get('location');
     if(response.body)for await(const chunk of response.body)bytes+=chunk.byteLength;
     failed=!success(status,location,expected);
-    if(failed)error='unexpected_response';
+    if(failed)error=failureKind(status,location,expected)+':'+status;
   }catch(e){error=e.name;}
   const ms=performance.now()-started;
   if(stats){const key=(user?.role||'system')+'/'+label;if(!stats.has(key))stats.set(key,new Stats());stats.get(key).record(ms,status,bytes,failed,error);}
-  if(failed){const e=new Error('Benchmark request failed: '+label);e.details={label,status,error};throw e;}
+  if(failed){const e=new Error('Benchmark request failed: '+label);e.details={label,status,error,...(location?{location}:{})};throw e;}
   return {status,location,id:location?Number(new URL(location,base).pathname.split('/').pop()):null};
 }
 async function login(actor,password,stats,signal) {
