@@ -98,7 +98,40 @@ async function closeStore() {
   }
 }
 
-async function withPostgresTransaction(callback, { invalidate, inventoryExclusive = false } = {}) {
+// Postgres reports a deadlock (40P01) or a serialization failure (40001) when two transactions
+// take the same locks in different orders. The transaction has already been rolled back at that
+// point, so replaying the callback is safe; the lock ordering in stock posting removes the known
+// inversion, and this is the backstop for any other. Exhausted retries surface as 409, not 500,
+// because the correct client response is "try again", not "server error".
+const RETRYABLE_TRANSACTION_CODES = new Set(['40P01', '40001']);
+
+async function withPostgresTransaction(callback, options = {}) {
+  const attempts = transactionRetryAttempts();
+  let attempt = 0;
+  for (;;) {
+    attempt++;
+    try {
+      return await runPostgresTransaction(callback, options);
+    } catch (err) {
+      if (!err || !RETRYABLE_TRANSACTION_CODES.has(err.code)) throw err;
+      if (attempt >= attempts) {
+        err.status = 409;
+        err.code = 'transaction_conflict';
+        err.message = 'Another user changed this record at the same time. Please try again.';
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 15 * attempt + Math.floor(Math.random() * 25)));
+    }
+  }
+}
+
+function transactionRetryAttempts() {
+  const value = Number(process.env.POSTGRES_TX_RETRY_ATTEMPTS ?? 4);
+  if (!Number.isSafeInteger(value) || value < 1 || value > 20) return 4;
+  return value;
+}
+
+async function runPostgresTransaction(callback, { invalidate, inventoryExclusive = false } = {}) {
   const pool = getPostgresPool();
   const client = await postingStage('connection_wait', () => pool.connect());
   let releaseError;

@@ -834,8 +834,52 @@ async function syncStockEntryItems(client, stockEntryId, items) {
   await insertStockEntryItems(client, stockEntryId, newItems);
 }
 
+// Transfer lines move stock out of one warehouse and into another, and each leg locks that
+// warehouse's balance row. Two transfers in opposite directions (A->B and B->A) therefore take
+// the same two locks in opposite order and deadlock, which surfaced as HTTP 500s. Taking every
+// balance row this voucher touches up front, in one canonical order, removes the inversion:
+// after this, each movement's own UPSERT finds the row already locked by this transaction.
+async function prelockStockBalances(client, entryType, items) {
+  const transfer = STOCK_TRANSFER_TYPES.includes(entryType);
+  const pairs = new Map();
+  for (const item of items) {
+    const warehouses = transfer ? [item.warehouse, item.target_warehouse] : [item.warehouse];
+    for (const warehouse of warehouses) {
+      const code = String(item.item_code || '').trim();
+      const name = String(warehouse || '').trim();
+      if (!code || !name) continue;
+      pairs.set(code + '\u0000' + name, { item_code: code, warehouse: name, item_name: String(item.item_name || code).trim() });
+    }
+  }
+  if (!pairs.size) return;
+  const ordered = [...pairs.keys()].sort().map((key) => pairs.get(key));
+  const values = [];
+  const params = [];
+  for (const row of ordered) {
+    params.push(row.item_code, row.warehouse, row.item_name);
+    values.push(`($${params.length - 2}, $${params.length - 1}, $${params.length})`);
+  }
+  // Rows are inserted in canonical order, and a single statement resolves conflicts in the
+  // order written, so concurrent vouchers cannot invert each other here either.
+  await client.query(
+    `INSERT INTO app_stock_balances (item_code, warehouse, item_name) VALUES ${values.join(', ')}
+     ON CONFLICT (item_code, warehouse) DO NOTHING`,
+    params,
+  );
+  const codes = ordered.map((row) => row.item_code);
+  const names = ordered.map((row) => row.warehouse);
+  await client.query(
+    `SELECT 1 FROM app_stock_balances
+     WHERE (item_code, warehouse) IN (SELECT * FROM unnest($1::text[], $2::text[]))
+     ORDER BY item_code, warehouse
+     FOR UPDATE`,
+    [codes, names],
+  );
+}
+
 async function postStockEntryMovements(client, { id, entryNo, entryType, postingDate, postingTime, items }) {
   await beginInventoryPosting(client, `stock_${entryType}`, id, items.flatMap(item => STOCK_TRANSFER_TYPES.includes(entryType) ? [item.warehouse,item.target_warehouse] : [item.warehouse]));
+  await prelockStockBalances(client, entryType, items);
   for (const item of items) {
     if (STOCK_TRANSFER_TYPES.includes(entryType)) {
       const outgoing = await applyPostgresStockMovement(client, {
