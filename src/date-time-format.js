@@ -47,15 +47,35 @@ function formatDateTime(date, time, settings = DEFAULT_DATE_TIME_SETTINGS) {
   return [formatDate(date, settings), formatTime(time, settings)].filter(Boolean).join(' ');
 }
 
+// Formatter construction dominates this call, and it runs once per timestamp rendered in a list.
+// Cache one per time zone and read the parts without building an intermediate object.
+const TIMESTAMP_FORMATS = new Map();
+
+function timestampFormat(timeZone) {
+  let format = TIMESTAMP_FORMATS.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-GB', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    });
+    TIMESTAMP_FORMATS.set(timeZone, format);
+  }
+  return format;
+}
+
 function formatTimestamp(value, settings = DEFAULT_DATE_TIME_SETTINGS, timeZone = 'Africa/Kampala') {
   if (!value) return '';
   const instant = new Date(value);
   if (Number.isNaN(instant.getTime())) return '';
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(instant).map(({ type, value: part }) => [type, part]));
-  return formatDateTime(`${parts.year}-${parts.month}-${parts.day}`, `${parts.hour}:${parts.minute}`, settings);
+  let year = '', month = '', day = '', hour = '', minute = '';
+  for (const part of timestampFormat(timeZone).formatToParts(instant)) {
+    if (part.type === 'year') year = part.value;
+    else if (part.type === 'month') month = part.value;
+    else if (part.type === 'day') day = part.value;
+    else if (part.type === 'hour') hour = part.value;
+    else if (part.type === 'minute') minute = part.value;
+  }
+  return formatDateTime(`${year}-${month}-${day}`, `${hour}:${minute}`, settings);
 }
 
 module.exports = { DEFAULT_DATE_TIME_SETTINGS, DATE_FORMATS, TIME_FORMATS,

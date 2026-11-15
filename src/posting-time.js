@@ -1,15 +1,25 @@
+// Constructing an Intl.DateTimeFormat is expensive relative to formatting with it, and these run
+// on every request render and every voucher validation. Build them once.
+const POSTING_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Kampala', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+const POSTING_DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Kampala', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
 function currentPostingTime() {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Africa/Kampala', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).format(new Date());
+  return POSTING_TIME_FORMAT.format(new Date());
 }
 
 function currentPostingDate() {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Africa/Kampala', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
-  return `${values.year}-${values.month}-${values.day}`;
+  const parts = POSTING_DATE_FORMAT.formatToParts(new Date());
+  let year = '', month = '', day = '';
+  for (const part of parts) {
+    if (part.type === 'year') year = part.value;
+    else if (part.type === 'month') month = part.value;
+    else if (part.type === 'day') day = part.value;
+  }
+  return `${year}-${month}-${day}`;
 }
 
 function assertPostingDate(value) {
