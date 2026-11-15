@@ -12,7 +12,7 @@ services:
     cpus: ${BENCHMARK_DB_CPUS:-1.8}
     pids_limit: 128
     shm_size: 128m
-    command: [postgres, "-c", "shared_buffers=${BENCHMARK_DB_SHARED_BUFFERS:-512MB}", -c, work_mem=4MB, -c, maintenance_work_mem=96MB, -c, max_connections=30, -c, max_wal_size=8GB, -c, min_wal_size=1GB, -c, checkpoint_timeout=15min, -c, checkpoint_completion_target=0.9]
+    command: [postgres, "-c", "shared_buffers=${BENCHMARK_DB_SHARED_BUFFERS:-512MB}", -c, work_mem=4MB, -c, maintenance_work_mem=96MB, -c, max_connections=30, -c, max_wal_size=${BENCHMARK_MAX_WAL_SIZE:-8GB}, -c, min_wal_size=1GB, -c, checkpoint_timeout=15min, -c, checkpoint_completion_target=0.9]
     healthcheck:
       test: [CMD-SHELL, pg_isready -U benchmark_user -d work_master_erp_benchmark_hr_test]
       interval: 3s

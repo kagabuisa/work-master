@@ -916,24 +916,38 @@ async function applyPostgresStockMovement(client, movement) {
     throw err;
   }
 
-  // UPSERT acquires the row lock; RETURNING reads the locked current balance.
+  // Resolve the posting time before the lock: it decides whether the history scan can be skipped
+  // and it becomes this pair's recorded latest movement.
+  const postingTime = movement.is_reversal
+    ? (await client.query("SELECT date_trunc('minute',now() AT TIME ZONE 'Africa/Kampala')::time::text AS time")).rows[0].time
+    : movement.posting_time || '00:00:00';
+
+  // UPSERT acquires the row lock; RETURNING reads the locked current balance and reports whether
+  // this posting is at/after the pair's latest movement. If it is, no later rows exist, so both
+  // quantities the history scan computes collapse to this row's quantity and the scan — which
+  // joins three voucher tables across the pair's whole ledger — can be skipped.
+  // A NULL last_movement_at means the pair predates this column, so the scan still runs.
   const { rows } = await postingStage('stock_lock', () => client.query(`
     INSERT INTO app_stock_balances (item_code, warehouse, item_name)
     VALUES ($1, $2, $3)
     ON CONFLICT (item_code, warehouse) DO UPDATE SET item_name = EXCLUDED.item_name
-    RETURNING *`, [itemCode, warehouse, itemName]));
+    RETURNING *,
+      (last_movement_at IS NOT NULL
+        AND last_movement_at <= ($4::date + $5::time)) AS posting_covers_history`,
+    [itemCode, warehouse, itemName, movement.posting_date, postingTime]));
   const balance = rows[0];
   const previousQuantity = Number(balance.quantity || 0);
   const previousValue = Number(balance.stock_value || 0);
   const previousRate = Number(balance.valuation_rate || 0);
   if (hasTarget) qtyChange = Number((Number(movement.target_quantity) - previousQuantity).toFixed(3));
   if (qtyChange < 0) {
-    const postingTime = movement.is_reversal
-      ? (await client.query("SELECT date_trunc('minute',now() AT TIME ZONE 'Africa/Kampala')::time::text AS time")).rows[0].time
-      : movement.posting_time || '00:00:00';
-    // The balance lock above serializes this check with other stock postings.
-    const available = await transferStockAvailability(client, itemCode, warehouse,
-      movement.posting_date, postingTime);
+    // The balance lock above serializes this check with other stock postings. When the posting
+    // is at/after every movement on this pair there are no later rows to consider, so the
+    // scan's two quantities are both the locked balance.
+    const available = balance.posting_covers_history === true
+      ? { quantity: previousQuantity, available_quantity: previousQuantity }
+      : await transferStockAvailability(client, itemCode, warehouse,
+          movement.posting_date, postingTime);
     if (available.available_quantity + qtyChange < -0.0005) {
       const atTime = available.quantity + qtyChange < -0.0005;
       const error = new Error(atTime
@@ -1011,11 +1025,14 @@ async function applyPostgresStockMovement(client, movement) {
       quantity = $2,
       stock_value = $3,
       valuation_rate = $4,
+      last_movement_at = GREATEST(COALESCE(last_movement_at, TIMESTAMP '-infinity'),
+        ($7::date + $8::time)),
       updated_at = now()
     WHERE item_code = $5
       AND warehouse = $6
     `,
-    [itemName, newQuantity, newValue, newRate, itemCode, warehouse],
+    [itemName, newQuantity, newValue, newRate, itemCode, warehouse,
+      movement.posting_date, postingTime],
   );
   const ledgerResult = await client.query(
     `

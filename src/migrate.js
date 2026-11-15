@@ -6,7 +6,7 @@ const { initPostgresStore, initReconciliationAttachments } = require('./domain/s
 const { initAuth } = require('./auth');
 const { getPostgresPool } = require('./core');
 
-const SCHEMA_VERSION = 70;
+const SCHEMA_VERSION = 71;
 
 // Arbitrary but stable per-app advisory-lock key.
 const ADVISORY_LOCK_KEY = 1776342159;
@@ -302,6 +302,15 @@ const MIGRATIONS = [
   { version:70, name:'purchase_supplier_receipt_number',
     up:client=>client.query(
       'ALTER TABLE app_purchases ADD COLUMN IF NOT EXISTS supplier_receipt_no TEXT') },
+  {
+    version: 71,
+    name: 'stock_balance_last_movement',
+    // Records each pair's latest movement so a posting at or after it can skip the per-pair
+    // availability scan (which walks the pair's whole ledger and joins three voucher tables).
+    up: async (client) => {
+      await client.query('ALTER TABLE app_stock_balances ADD COLUMN IF NOT EXISTS last_movement_at TIMESTAMP');
+    },
+  },
 ];
 
 async function ensureSchema(pool) {
