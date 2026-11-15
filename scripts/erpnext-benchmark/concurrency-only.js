@@ -90,9 +90,9 @@ async function server() {
       `Users: ${process.env.BENCHMARK_USERS || '1,10,25,50'}`,
       `Sustained seconds: ${process.env.BENCHMARK_SUSTAINED_SECONDS || 'default'}`,
       `Pool: ${process.env.APP_POOL_MAX || '10'}   Read budget: ${process.env.EXPENSIVE_READ_CONNECTIONS || '4'}`,
-      '', '| Users | Phase | Transactions | Failed | Transactions/s |', '| --- | --- | ---: | ---: | ---: |',
+      '',
     ];
-    lines[lines.length - 1] = '| Users | Phase | Transactions | Failed | Attempted/s | Succeeded/s |';
+    lines.push('| Users | Phase | Transactions | Failed | Attempted/s | Succeeded/s |');
     lines.push('| --- | --- | ---: | ---: | ---: | ---: |');
     for (const r of workload.phases) {
       const ok = Math.max(0, r.transactions - r.failed_transactions);
@@ -106,7 +106,8 @@ async function server() {
     if (caveats.length) lines.push('', ...caveats);
     lines.push('', 'Seed and integrity verification were skipped by design; this measures HTTP concurrency only.',
       'Not comparable to a certified full run, which also verifies data integrity before and after.');
-    state.write('summary.md', lines.join('\n') + '\n');
+    // state.write() JSON-encodes its value, which mangles a markdown file; write it raw.
+    fs.writeFileSync(state.OUT + '/summary.md', lines.join('\n') + '\n', { mode: 0o600 });
     phase = 'complete';
     state.progress('complete', { passed: workload.passed });
     state.event({ event: 'job_complete', passed: workload.passed });
