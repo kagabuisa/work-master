@@ -184,10 +184,16 @@ async function run(p,ctx,signal) {
     return result;
   }
   const results=[];
-  for(const users of [1,10,25,50]){
+  // Measurement scope is configurable so a single concurrency level can be compared
+  // across hosts without rebuilding a full multi-day dataset. Defaults are unchanged.
+  const requestedLevels=String(process.env.BENCHMARK_USERS||'').split(',')
+    .map(Number).filter(n=>Number.isSafeInteger(n)&&n>0);
+  const levels=requestedLevels.length?requestedLevels:[1,10,25,50];
+  const sustainedOverride=Number(process.env.BENCHMARK_SUSTAINED_SECONDS)||0;
+  for(const users of levels){
     const pilot=p.mode==='pilot';
     results.push(await phase(p,ctx,users,'warmup',pilot?2:60,true,signal,false));
-    results.push(await phase(p,ctx,users,'sustained',pilot?8:users===1?300:users===50?1500:900,true,signal,false));
+    results.push(await phase(p,ctx,users,'sustained',sustainedOverride||(pilot?8:users===1?300:users===50?1500:900),true,signal,false));
     results.push(await phase(p,ctx,users,'burst-shared',pilot?4:180,false,signal,true));
   }
   const downloads=await exports(p,ctx,signal);

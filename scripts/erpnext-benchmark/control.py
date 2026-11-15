@@ -17,7 +17,7 @@ from contextlib import contextmanager
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / 'data/erp-benchmark'
 COMPOSE = ROOT / 'scripts/erpnext-benchmark/compose.yaml'
-VOLUME = Path('/mnt/HC_Volume_107155360')
+VOLUME = Path(os.environ.get('BENCHMARK_VOLUME') or '/mnt/HC_Volume_107155360')
 
 def run(args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
@@ -123,7 +123,7 @@ def isolation(meta):
 def start(mode, lane='stress'):
     if lane not in ('accuracy','stress'):
         raise RuntimeError('Benchmark lane must be accuracy or stress.')
-    if not VOLUME.is_mount():
+    if not VOLUME.is_mount() and not VOLUME.is_dir():
         raise RuntimeError('The dedicated attached volume must be mounted.')
     disk = os.statvfs(VOLUME)
     if disk.f_bavail * disk.f_frsize < (15 if mode == 'full' else 2) * 1024**3:

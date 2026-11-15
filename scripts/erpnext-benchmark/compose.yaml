@@ -8,11 +8,11 @@ services:
     volumes:
       - ${BENCHMARK_DIRECTORY:?Dedicated directory required}/db:/var/lib/postgresql/data
     networks: [benchmark]
-    mem_limit: 850m
-    cpus: 1.0
+    mem_limit: ${BENCHMARK_DB_MEMORY:-2g}
+    cpus: ${BENCHMARK_DB_CPUS:-1.8}
     pids_limit: 128
     shm_size: 128m
-    command: [postgres, -c, shared_buffers=128MB, -c, work_mem=4MB, -c, maintenance_work_mem=96MB, -c, max_connections=30, -c, max_wal_size=512MB, -c, min_wal_size=80MB]
+    command: [postgres, "-c", "shared_buffers=${BENCHMARK_DB_SHARED_BUFFERS:-512MB}", -c, work_mem=4MB, -c, maintenance_work_mem=96MB, -c, max_connections=30, -c, max_wal_size=512MB, -c, min_wal_size=80MB]
     healthcheck:
       test: [CMD-SHELL, pg_isready -U benchmark_user -d work_master_erp_benchmark_hr_test]
       interval: 3s
@@ -47,6 +47,16 @@ services:
       LEDGER_EXPORT_QUEUE_MAX: "10"
       LEDGER_EXPORT_HEAP_MB: "192"
       POSTGRES_POOL_METRICS_MS: "30000"
+      # Reported verbatim in summary.md so a throughput figure never travels without its limits.
+      BENCHMARK_DB_CPUS: ${BENCHMARK_DB_CPUS:-1.8}
+      BENCHMARK_DB_MEMORY: ${BENCHMARK_DB_MEMORY:-2g}
+      BENCHMARK_DB_SHARED_BUFFERS: ${BENCHMARK_DB_SHARED_BUFFERS:-512MB}
+      # Admission hygiene: a 1-deep report lane with ~1.5-3s service time must not
+      # make users wait 30s for a 503. Outer waits are short, queues are small.
+      HEAVY_REPORT_QUEUE_TIMEOUT_MS: "4000"
+      HEAVY_REPORT_QUEUE_MAX: "8"
+      EXPENSIVE_READ_QUEUE_TIMEOUT_MS: "3000"
+      EXPENSIVE_READ_QUEUE_MAX: "25"
     volumes:
       - ${BENCHMARK_DIRECTORY}/output:/output
     tmpfs: ["/app/data:mode=1777,size=64m", "/tmp:size=512m,mode=1777"]

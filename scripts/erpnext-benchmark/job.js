@@ -29,11 +29,23 @@ async function server(){
   throw new Error('Isolated benchmark app did not become ready.');
 }
 function markdown(summary){
+  const caps=require('./caps');
   const lines=['# ERPNext-matched benchmark', '',`Run: ${summary.run_id}`,`Mode: ${summary.mode}`,`HTTP/integrity result: ${summary.passed?'PASS':'FAIL'}`, '',
     `Lane: ${summary.lane}`, `Elapsed: ${summary.elapsed_seconds} seconds. Seeded through application lifecycle functions; source ERPNext was not contacted.`,
     `Invoice lengths: minimum ${summary.profile.invoice_lengths.minimum}, mean ${summary.profile.invoice_lengths.mean}, maximum ${summary.profile.invoice_lengths.maximum}.`, '',
-    '| Users | Phase | Transactions | Failed | Transactions/s |','| --- | --- | ---: | ---: | ---: |'];
-  for(const r of summary.workload?.phases||[])lines.push(`| ${r.users} | ${r.name} | ${r.transactions} | ${r.failed_transactions} | ${r.transactions_per_second} |`);
+    // Attempted and successful throughput are reported separately: a single column that counted
+    // failed requests overstated one run by 7.7x (22.82 reported vs 2.95 successful).
+    '| Users | Phase | Transactions | Failed | Attempted/s | Succeeded/s |',
+    '| --- | --- | ---: | ---: | ---: | ---: |'];
+  for(const r of summary.workload?.phases||[]){
+    const ok=Math.max(0,r.transactions-r.failed_transactions);
+    const succeeded=r.elapsed_seconds?Math.round((ok/r.elapsed_seconds)*100)/100:0;
+    lines.push(`| ${r.users} | ${r.name} | ${r.transactions} | ${r.failed_transactions} | ${r.transactions_per_second} | ${succeeded} |`);
+  }
+  lines.push('','`Attempted/s` counts every request; `Succeeded/s` excludes failures. Use the latter for capacity claims.','');
+  lines.push(...caps.lines());
+  const caveats=caps.caveats();
+  if(caveats.length)lines.push('',...caveats);
   lines.push('',`Database size: ${(summary.after.database_bytes/1024**3).toFixed(3)} GiB.`,
     `GL: ${summary.after.counts.app_gl_entries}; stock ledger: ${summary.after.counts.app_stock_ledger}.`,
     '', 'Operation p50/p95/p99, statuses and errors are in workload.json. Every phase uses distinct accounts; warmup is reported separately.',

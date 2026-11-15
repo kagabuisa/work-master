@@ -169,7 +169,10 @@ async function acquireReadLease() {
       timeoutMs:integer('HEAVY_REPORT_QUEUE_TIMEOUT_MS',30000,1),label:'Report connections'});
     freeReport=await lease(reportConnections);
   }
-  if (!readConnections) readConnections = createReportGate({limit: readBudget(), maxQueue: 1000,
+  // Queue depth is bounded by configuration: a 1000-deep queue against a ~2s service time
+  // just parks requests for the full timeout before telling them the pool is busy.
+  if (!readConnections) readConnections = createReportGate({limit: readBudget(),
+    maxQueue: integer('EXPENSIVE_READ_QUEUE_MAX', 100, 0),
     timeoutMs: integer('EXPENSIVE_READ_QUEUE_TIMEOUT_MS', 15000, 1), label: 'Read connections', code: 'READ_BUSY'});
   try {
     const freeRead=await lease(readConnections);
