@@ -347,8 +347,11 @@ async function createStockEntry(payload, { deliveryUser, sourceAccess = {} } = {
     throw err;
   }
 
+  // Master-data validation needs no transaction: resolve it first so the transaction below only
+  // performs writes and the reads it genuinely must serialise.
+  const costCenter = await validateCostCenter(getPostgresPool(), payload.cost_center);
+
   return withPostgresTransaction(async (client) => {
-    const costCenter = await validateCostCenter(client, payload.cost_center);
     const sourceEntry = await validateDdrSource(client, entryType, payload.source_stock_entry_id,
       { ...sourceAccess, entryTargetWarehouses: items.map((item) => item.target_warehouse) });
     const { rows } = await client.query(
@@ -690,8 +693,11 @@ async function updateStockEntry(id, payload, { deliveryUser, sharedWrite = false
     throw err;
   }
 
+  // Master-data validation needs no transaction: resolve it first so the transaction below only
+  // performs writes and the reads it genuinely must serialise.
+  const costCenter = await validateCostCenter(getPostgresPool(), payload.cost_center);
+
   return withPostgresTransaction(async (client) => {
-    const costCenter = await validateCostCenter(client, payload.cost_center);
     const sourceEntry = await validateDdrSource(client, entryType, payload.source_stock_entry_id, {
       ...sourceAccess,
       currentId: stockEntryId,
