@@ -273,7 +273,10 @@ test('named stock transfers preserve quantity and value, reject insufficient sto
       const restored = await balances();
       assert.equal(sum(restored, 'quantity'), sum(before, 'quantity'));
       assert.ok(Math.abs(sum(restored, 'stock_value') - sum(before, 'stock_value')) < 0.01);
-      assert.equal(restored.find(row => row.warehouse === 'Transfer Target').quantity, 0);
+      // The DDR source above already moved 1 unit into the target warehouse, so
+      // cancelling must restore that pre-transfer balance rather than empty it.
+      assert.equal(restored.find(row => row.warehouse === 'Transfer Target').quantity,
+        before.find(row => row.warehouse === 'Transfer Target').quantity);
       const failed = await store.createStockEntry({ ...payload, items: [{ ...payload.items[0], quantity: 999999 }] });
       const saved = await store.loadStockEntry(failed);
       await assert.rejects(store.updateStockEntry(failed, { ...payload, action: 'submit', items: saved.items }), error => error.code === 'INSUFFICIENT_STOCK');

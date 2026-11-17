@@ -55,6 +55,10 @@ async function seedGoldenTransactions() {
   const openingId = await store.createStockEntry({
     entry_type: 'opening',
     posting_date: date,
+    // Pin the time: an omitted posting_time defaults to "now", which made the
+    // seeded stock land after same-day backdated postings (and after 07:00 in
+    // tests that transfer at 07:00), so the suite only passed before that hour.
+    posting_time: '00:00',
     remarks: 'Golden opening stock',
     items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName, warehouse: FIXED.warehouse, quantity: 10, valuation_rate: 50 }],
   });
@@ -62,6 +66,7 @@ async function seedGoldenTransactions() {
   const purchaseId = await store.createStockEntry({
     entry_type: 'purchase',
     posting_date: date,
+    posting_time: '00:00',
     remarks: 'Golden purchase stock',
     supplier_name: FIXED.supplierName,
     supplier_reference: FIXED.supplierRef,
@@ -71,6 +76,7 @@ async function seedGoldenTransactions() {
   const adjustmentId = await store.createStockEntry({
     entry_type: 'adjustment',
     posting_date: date,
+    posting_time: '00:00',
     remarks: 'Golden adjustment to cancel',
     items: [{ item_code: FIXED.itemCode, item_name: FIXED.itemName, warehouse: FIXED.warehouse, quantity: 2, valuation_rate: 55 }],
   });

@@ -491,7 +491,8 @@
         "debit": 500,
         "credit": 0,
         "remarks": "Opening stock entry",
-        "running_balance": 500
+        "running_balance": 500,
+        "counterpart_accounts": "3000 — Opening Equity"
       },
       {
         "id": "2",
@@ -509,7 +510,8 @@
         "debit": 0,
         "credit": 500,
         "remarks": "Opening stock entry",
-        "running_balance": -500
+        "running_balance": -500,
+        "counterpart_accounts": "1200 — Inventory"
       },
       {
         "id": "3",
@@ -527,7 +529,8 @@
         "debit": 300,
         "credit": 0,
         "remarks": "Purchase stock entry",
-        "running_balance": 800
+        "running_balance": 800,
+        "counterpart_accounts": "2100 — Accounts Payable"
       },
       {
         "id": "4",
@@ -545,7 +548,8 @@
         "debit": 0,
         "credit": 300,
         "remarks": "Purchase stock entry",
-        "running_balance": -300
+        "running_balance": -300,
+        "counterpart_accounts": "1200 — Inventory"
       },
       {
         "id": "5",
@@ -563,7 +567,8 @@
         "debit": 110,
         "credit": 0,
         "remarks": "Adjustment stock entry",
-        "running_balance": 910
+        "running_balance": 910,
+        "counterpart_accounts": "4100 — Stock Adjustment Gain"
       },
       {
         "id": "6",
@@ -581,7 +586,8 @@
         "debit": 0,
         "credit": 110,
         "remarks": "Adjustment stock entry",
-        "running_balance": -110
+        "running_balance": -110,
+        "counterpart_accounts": "1200 — Inventory"
       },
       {
         "id": "7",
@@ -599,7 +605,8 @@
         "debit": 110,
         "credit": 0,
         "remarks": "Cancellation of STK-000003: Golden cancellation",
-        "running_balance": 110
+        "running_balance": 110,
+        "counterpart_accounts": "1200 — Inventory"
       },
       {
         "id": "8",
@@ -617,7 +624,8 @@
         "debit": 0,
         "credit": 110,
         "remarks": "Cancellation of STK-000003: Golden cancellation",
-        "running_balance": 800
+        "running_balance": 800,
+        "counterpart_accounts": "5100 — Stock Adjustment Loss"
       },
       {
         "id": "9",
@@ -635,7 +643,8 @@
         "debit": 594,
         "credit": 0,
         "remarks": "Sales invoice submission",
-        "running_balance": 594
+        "running_balance": 594,
+        "counterpart_accounts": "1200 — Inventory, 2200 — Tax Payable, 4000 — Sales Income"
       },
       {
         "id": "10",
@@ -653,7 +662,8 @@
         "debit": 0,
         "credit": 540,
         "remarks": "Sales invoice submission",
-        "running_balance": -540
+        "running_balance": -540,
+        "counterpart_accounts": "1100 — Accounts Receivable, 5000 — Cost of Goods Sold"
       },
       {
         "id": "11",
@@ -671,7 +681,8 @@
         "debit": 0,
         "credit": 54,
         "remarks": "Sales tax",
-        "running_balance": -54
+        "running_balance": -54,
+        "counterpart_accounts": "1100 — Accounts Receivable, 5000 — Cost of Goods Sold"
       },
       {
         "id": "12",
@@ -689,7 +700,8 @@
         "debit": 160,
         "credit": 0,
         "remarks": "Cost of goods sold",
-        "running_balance": 160
+        "running_balance": 160,
+        "counterpart_accounts": "1200 — Inventory, 2200 — Tax Payable, 4000 — Sales Income"
       },
       {
         "id": "13",
@@ -707,7 +719,8 @@
         "debit": 0,
         "credit": 160,
         "remarks": "Inventory sold",
-        "running_balance": 640
+        "running_balance": 640,
+        "counterpart_accounts": "1100 — Accounts Receivable, 5000 — Cost of Goods Sold"
       },
       {
         "id": "14",
@@ -725,7 +738,8 @@
         "debit": 200,
         "credit": 0,
         "remarks": "Golden partial payment",
-        "running_balance": 200
+        "running_balance": 200,
+        "counterpart_accounts": "1100 — Accounts Receivable"
       },
       {
         "id": "15",
@@ -743,7 +757,8 @@
         "debit": 0,
         "credit": 200,
         "remarks": "Golden partial payment",
-        "running_balance": 394
+        "running_balance": 394,
+        "counterpart_accounts": "1110 — Cash"
       },
       {
         "id": "16",
@@ -761,7 +776,8 @@
         "debit": 75,
         "credit": 0,
         "remarks": "Golden bank deposit",
-        "running_balance": 75
+        "running_balance": 75,
+        "counterpart_accounts": "3000 — Opening Equity"
       },
       {
         "id": "17",
@@ -779,23 +795,10 @@
         "debit": 0,
         "credit": 75,
         "remarks": "Golden owner contribution",
-        "running_balance": -575
+        "running_balance": -575,
+        "counterpart_accounts": "1120 — Bank"
       }
     ],
-    "pagination": {
-      "page": 1,
-      "limit": 50,
-      "offset": 0,
-      "total": 17,
-      "total_pages": 1,
-      "start": 1,
-      "end": 17
-    },
-    "summary": {
-      "debit": 2049,
-      "credit": 2049,
-      "balance": 0
-    },
     "opening_rows": [
       {
         "account_code": "1100",
@@ -852,7 +855,21 @@
         "account_name": "Stock Adjustment Loss",
         "running_balance": 0
       }
-    ]
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "offset": 0,
+      "total": 17,
+      "total_pages": 1,
+      "start": 1,
+      "end": 17
+    },
+    "summary": {
+      "debit": 2049,
+      "credit": 2049,
+      "balance": 0
+    }
   },
   "stockLedger": {
     "filters": {
