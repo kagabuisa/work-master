@@ -21,10 +21,16 @@ function rejectCrossOrigin(req, res, next) {
     return site === 'same-site' ? deny() : next();
   }
   try {
-    const expected = new URL(`${req.protocol}://${req.get('host')}`).origin;
-    if (new URL(origin).origin !== expected) return deny();
+    const expected = new URL(`${req.protocol}://${req.get('host')}`);
+    const actual = new URL(origin);
+    if (actual.origin === expected.origin) return next();
+    // One deployment may serve the same app on more than one hostname (e.g. wm.zenjji.com and
+    // its alias wmaster.zenjji.com). Allow only those configured siblings, never third parties.
+    const siblings = String(process.env.ALLOWED_ORIGIN_HOSTS || '')
+      .split(',').map(value => value.trim()).filter(Boolean);
+    if (siblings.includes(actual.host) && siblings.includes(expected.host)) return next();
   } catch { return deny(); }
-  return next();
+  return deny();
 }
 
 module.exports = { assertSecureTransportConfiguration, secureSessionCookie, rejectCrossOrigin };
