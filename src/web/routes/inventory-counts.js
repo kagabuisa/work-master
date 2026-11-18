@@ -136,7 +136,12 @@ router.post('/counts/:id/sheet',(req,res,next)=>sheetUpload(req,res,async upload
  if(uploadError||!req.file)throw Object.assign(new Error('Upload one Excel count sheet, no larger than 5 MB.'),{status:400});
  const {count,lines}=await loadCount(req.currentUser,req.params.id);
  const session={id:count.id,revision:count.revision,cutoff:count.cutoff.toISOString()};
- const imported=await require('../../stock-count-sheet').readCountSheet(req.file.buffer,count.warehouse,session);
+ const countSheet=require('../../stock-count-sheet');
+ const imported=await countSheet.readCountSheet(req.file.buffer,count.warehouse,session);
+ const known=await getPostgresPool().query('SELECT item_code FROM app_master_items WHERE item_code=ANY($1::text[])',[imported.map(i=>i.item_code)]);
+ const knownCodes=new Set(known.rows.map(row=>row.item_code));
+ const unknown=imported.filter(i=>!knownCodes.has(i.item_code));
+ if(unknown.length)throw countSheet.unknownCountItemsError(unknown);
  const byCode=new Map(lines.map(l=>[l.item_code,l]));
  await countAction(req.currentUser,'save',{id:count.id,revision:count.revision,sheet_import:true,lines:imported.map(i=>({item_code:i.item_code,counted_qty:i.quantity,valuation_rate:byCode.get(i.item_code)?.valuation_rate||0,explanation:byCode.get(i.item_code)?.explanation||''}))});
  res.redirect(303,`/stock/reconciliations/counts/${count.id}`);
