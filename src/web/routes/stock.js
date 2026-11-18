@@ -158,12 +158,14 @@ router.get('/reconciliations/count-sheet-template', async (req, res, next) => {
     const { warehouse, data } = await countSheetContext(req);
     const codes = (data?.items || []).map((item) => item.item_code);
     const { rows } = await getPostgresPool().query(`SELECT item.item_code, item.item_name,
-      COALESCE(balance.quantity, 0)::float AS quantity
+      COALESCE(balance.quantity, 0)::float AS quantity, COALESCE(balance.valuation_rate, 0)::float AS valuation_rate
       FROM app_master_items item
       LEFT JOIN app_stock_balances balance ON balance.item_code=item.item_code AND balance.warehouse=$1
       WHERE item.disabled=false AND (balance.quantity > 0 OR item.item_code=ANY($2::text[]))
       ORDER BY item.item_name, item.item_code`, [warehouse, codes]);
-    const workbook = await createCountSheet(warehouse, rows);
+    const existing = new Map((data?.items || []).map((item) => [item.item_code, item]));
+    const sheetItems = rows.map((row) => ({ ...row, valuation_rate: existing.get(row.item_code)?.valuation_rate ?? row.valuation_rate }));
+    const workbook = await createCountSheet(warehouse, sheetItems);
     res.set('Cache-Control', 'private, no-store');
     res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.attachment(countSheetFilename(data?.entry.entry_no, warehouse));

@@ -4,7 +4,7 @@ const MAX_COUNT_ROWS = 5000;
 const MAX_COUNT_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_REPORTED_DUPLICATES = 20;
 const MAX_REPORTED_DUPLICATE_ROWS = 12;
-const HEADERS = ['Warehouse', 'Item Code', 'Item Name', 'Book Qty', 'Counted Qty'];
+const HEADERS = ['Warehouse', 'Item Code', 'Item Name', 'Book Qty', 'Counted Qty', 'Valuation Rate'];
 
 function countSheetFilename(reconciliationNumber, warehouse) {
   const clean = (value, fallback) => String(value || '').normalize('NFC')
@@ -63,24 +63,25 @@ async function createCountSheet(warehouse, items, session = null) {
     views: [{ state: 'frozen', ySplit: 1 }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  sheet.columns = HEADERS.map((header, index) => ({ header, width: [28, 24, 45, 16, 18][index] }));
+  sheet.columns = HEADERS.map((header, index) => ({ header, width: [28, 24, 45, 16, 18, 18][index] }));
   sheet.getRow(1).height = 26;
   sheet.getRow(1).eachCell((cell) => {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF18342F' } };
   });
-  for (const item of items) sheet.addRow([warehouse, String(item.item_code), item.item_name || item.item_code, Number(item.quantity || 0), null]);
-  for (let index = 0; index < Math.min(20, MAX_COUNT_ROWS - items.length); index += 1) sheet.addRow([warehouse, '', '', null, null]);
+  for (const item of items) sheet.addRow([warehouse, String(item.item_code), item.item_name || item.item_code, Number(item.quantity || 0), null, Number(item.valuation_rate || 0)]);
+  for (let index = 0; index < Math.min(20, MAX_COUNT_ROWS - items.length); index += 1) sheet.addRow([warehouse, '', '', null, null, null]);
   sheet.getColumn(2).numFmt = '@';
   sheet.getColumn(4).numFmt = '0.###';
   sheet.getColumn(5).numFmt = '0.###';
+  sheet.getColumn(6).numFmt = '0.###';
   for (let index = 2; index <= sheet.rowCount; index += 1) {
     const cell = sheet.getRow(index).getCell(5);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4D6' } };
     cell.dataValidation = { type: 'decimal', operator: 'greaterThanOrEqual', allowBlank: true,
       formulae: [0], showErrorMessage: true, errorTitle: 'Invalid count', error: 'Enter a nonnegative quantity with up to three decimal places.' };
   }
-  sheet.autoFilter = { from: 'A1', to: `E${Math.max(1, items.length + 1)}` };
+  sheet.autoFilter = { from: 'A1', to: `${sheet.getColumn(HEADERS.length).letter}${Math.max(1, items.length + 1)}` };
   const instructions = workbook.addWorksheet('Instructions');
   instructions.getColumn(1).width = 110;
   const legacyInstructions = [
@@ -90,14 +91,15 @@ async function createCountSheet(warehouse, items, session = null) {
     'Add active item codes in the spare rows for items not listed. Keep one row per item and the same warehouse.',
     'Upload the .xlsx file on a new reconciliation or while editing a draft. Upload fills the form; it does not save or submit.',
     'Existing form rows omitted from the upload keep their current counts. Review differences, then Save draft or Submit reconciliation.',
-    'Book Qty and Item Name are for reference; current stock and master data are used when importing. Rates are not imported.',
+    'Book Qty, Valuation Rate and Item Name are for reference; current stock and master data are used when importing. Workbook rates are not imported.',
   ];
   const texts=session?[
     'Controlled warehouse count sheet',`Warehouse: ${warehouse}`,`Count: ${session.id}; revision: ${session.revision}; fixed cut-off: ${session.cutoff}`,
     'Physical movement and ordinary inventory posting are frozen. Book quantities are the frozen snapshot.',
     'Enter explicit quantities including zero. Blank cells remain incomplete. Keep warehouse and item codes unchanged.',
     'Import on this count session. Import saves a new count revision but never approves or submits.',
-    'After importing, explain discrepancies and review gain rates in the app. The app ignores edited book quantities.',
+    'Valuation Rate is the rate held for the count. It is for reference; edit gain rates in the app.',
+    'After importing, explain discrepancies and review gain rates in the app. The app ignores edited book quantities and valuation rates.',
     'A different authorized reviewer must approve the completed count. Stale sheets are rejected.'
   ]:legacyInstructions;
   for (const text of texts) instructions.addRow([text]);
