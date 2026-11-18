@@ -15,8 +15,8 @@ async function file(rows, headers = ['Warehouse', 'Item Code', 'Item Name', 'Boo
 
 test('Excel template preserves text codes and blank counts and round trips zero and decimal physical counts', async () => {
   const buffer = await createCountSheet('Main', [
-    { item_code: '00123', item_name: '=FORMULA()', quantity: 5 },
-    { item_code: 'OTHER', item_name: 'Other', quantity: 2.125 },
+    { item_code: '00123', item_name: '=FORMULA()', quantity: 5, valuation_rate: 32000 },
+    { item_code: 'OTHER', item_name: 'Other', quantity: 2.125, valuation_rate: 5000.5 },
   ]);
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
@@ -25,6 +25,9 @@ test('Excel template preserves text codes and blank counts and round trips zero 
   assert.equal(sheet.getCell('C2').value, '=FORMULA()');
   assert.equal(sheet.getCell('E2').value, null);
   assert.equal(sheet.getCell('E3').value, null);
+  assert.equal(sheet.getCell('F1').value, 'Valuation Rate');
+  assert.equal(sheet.getCell('F2').value, 32000);
+  assert.equal(sheet.getCell('F3').value, 5000.5);
   assert(workbook.getWorksheet('Instructions'));
   await assert.rejects(readCountSheet(buffer, 'Main'), /No counts found/);
   sheet.getCell('E2').value = 0;
@@ -126,7 +129,7 @@ test('count-sheet routes enforce warehouse, draft and item validation without sa
   store.getPostgresPool = () => ({ async query(sql) {
     queries.push(sql);
     if (sql.includes('app_master_warehouses')) return { rows: [{ valid: 1 }] };
-    if (sql.includes('app_master_items')) return { rows: [{ item_code: 'A', item_name: 'Actual Name', book: 5, rate: 10, quantity: 5 }] };
+    if (sql.includes('app_master_items')) return { rows: [{ item_code: 'A', item_name: 'Actual Name', book: 5, rate: 10, quantity: 5, valuation_rate: 10 }] };
     throw new Error('Unexpected write or query');
   } });
   store.loadStockEntry = async () => ({ entry: { id: 1, entry_no: 'REC-000001', entry_type: 'reconciliation', docstatus }, items: [{ id: 4, item_code: 'A', warehouse: 'Main', valuation_rate: 12 }] });
@@ -174,6 +177,7 @@ test('count-sheet routes enforce warehouse, draft and item validation without sa
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(Buffer.from(await downloaded.arrayBuffer()));
     assert.equal(workbook.getWorksheet('Count Sheet').getCell('D2').value, 5);
+    assert.equal(workbook.getWorksheet('Count Sheet').getCell('F2').value, 10);
     assert(queries.every((sql) => /^SELECT/.test(sql)));
   } finally {
     await new Promise((resolve) => server.close(resolve));
@@ -192,8 +196,9 @@ test('count sheet filenames include reconciliation number and safe warehouse nam
 
 test('controlled sheets bind to the frozen count revision and reject another session or revision',async()=>{
  const session={id:7,revision:2,cutoff:'2026-10-17T10:00:00.000Z'};
- const buffer=await createCountSheet('Main',[{item_code:'A',item_name:'Item A',quantity:10}],session);
+ const buffer=await createCountSheet('Main',[{item_code:'A',item_name:'Item A',quantity:10,valuation_rate:25}],session);
  const workbook=new (require('exceljs').Workbook)();await workbook.xlsx.load(buffer);
+ assert.equal(workbook.getWorksheet('Count Sheet').getCell('F2').value,25);
  workbook.getWorksheet('Count Sheet').getRow(2).getCell(5).value=8;
  const counted=Buffer.from(await workbook.xlsx.writeBuffer());
  assert.equal((await readCountSheet(counted,'Main',session))[0].quantity,8);
