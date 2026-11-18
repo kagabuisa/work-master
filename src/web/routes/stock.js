@@ -231,6 +231,7 @@ router.get('/reconciliations', async (req, res, next) => {
     const result = await listStockEntries({ ...req.query, entry_type: 'reconciliation',
       ownerId: voucherOwnerId(req.currentUser),
       ...warehouseAccessOptions(req.currentUser) });
+    res.set('Cache-Control', 'private, no-store');
     res.render('stock-reconciliations', { result, query: req.query });
   } catch (err) { next(err); }
 });
@@ -357,6 +358,7 @@ router.get('/reconciliations/:id/edit', async (req, res, next) => {
     if (data.entry.docstatus !== 'draft') {
       const err = new Error('Draft stock reconciliation not found.'); err.status = 404; throw err;
     }
+    res.set('Cache-Control', 'private, no-store');
     res.render('stock-reconciliation', { ...reconciliationView(data.entry, data.items),
       sharing: null, sharedAccessOnly: Boolean(req.voucherSharedRead),
       sharedWriteAccess: Boolean(req.voucherSharedWrite) });
@@ -403,6 +405,7 @@ router.get('/reconciliations/:id', async (req, res, next) => {
     if (linked.rows.length && !req.voucherSharedRead) return res.redirect(303, `/stock/reconciliations/counts/${linked.rows[0].id}`);
     const data = await loadReconciliation(req.params.id);
     const balances = data.entry.docstatus === 'draft' ? await reconciliationBalances(data.items) : [];
+    res.set('Cache-Control', 'private, no-store');
     res.render('stock-reconciliation', {
       ...reconciliationView(data.entry, data.items, req.query.error || null, '', balances), readOnly: true,
       ...await reconciliationShareView(req, data.entry),
