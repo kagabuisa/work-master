@@ -200,6 +200,7 @@ test('count and correction templates render their workflow states with shared su
  const count={id:1,entry_no:'REC-000001',warehouse:'Main',cutoff:'2026-10-17T10:00:00Z',state:'approved',revision:2,reconciliation_id:1,preparer:'Maker',reviewer:'Reviewer',readiness:'All prior documents posted.'};
  const html=await renderView(path.join(__dirname,'../views/inventory-count.ejs'),{...common,count,lines:[{item_code:'A',book_qty:10,book_value:500,book_rate:50,valuation_rate:50,counted_qty:8,explanation:'Missing units'}],audit:[]});
  assert.match(html,/Submit reconciliation and close history/);assert.match(html,/ui-table-scroll/);assert.match(html,/name="revision" value="2"/);
+ assert.match(html,/<th class="row-number">#<\/th>/);assert.match(html,/<td class="row-number">1<\/td>/);
  const corrections=await renderView(path.join(__dirname,'../views/inventory-corrections.ejs'),{...common,enabled:true,warehouses:[{warehouse:'Main'}],corrections:[],accounts:[]});
  assert.match(corrections,/Already absorbed in closed count/);assert.match(corrections,/Save for independent approval/);
 });
