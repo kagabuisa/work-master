@@ -143,7 +143,7 @@ router.post('/counts/:id/sheet',(req,res,next)=>sheetUpload(req,res,async upload
  const unknown=imported.filter(i=>!knownCodes.has(i.item_code));
  if(unknown.length)throw countSheet.unknownCountItemsError(unknown);
  const byCode=new Map(lines.map(l=>[l.item_code,l]));
- await countAction(req.currentUser,'save',{id:count.id,revision:count.revision,sheet_import:true,lines:imported.map(i=>({item_code:i.item_code,counted_qty:i.quantity,valuation_rate:byCode.get(i.item_code)?.valuation_rate||0,explanation:byCode.get(i.item_code)?.explanation||''}))});
+ await countAction(req.currentUser,'save',{id:count.id,revision:count.revision,sheet_import:true,lines:imported.map(i=>({item_code:i.item_code,counted_qty:i.quantity,valuation_rate:i.valuation_rate??byCode.get(i.item_code)?.valuation_rate??0,explanation:byCode.get(i.item_code)?.explanation||''}))});
  res.redirect(303,`/stock/reconciliations/counts/${count.id}`);
 }catch(error){if(error.status||error.code==='P0001')res.redirect(303,`/stock/reconciliations/counts/${req.params.id}?error=${encodeURIComponent(error.message)}`);else next(error);}}));
 router.get('/counts/:id',async(req,res,next)=>{try{res.render('inventory-count',{...await loadCount(req.currentUser,req.params.id),stamp,error:req.query.error||null});}catch(error){next(error);}});

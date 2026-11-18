@@ -33,7 +33,7 @@ test('Excel template preserves text codes and blank counts and round trips zero 
   sheet.getCell('E2').value = 0;
   sheet.getCell('E3').value = 1.001;
   const imported = await readCountSheet(Buffer.from(await workbook.xlsx.writeBuffer()), 'Main');
-  assert.deepEqual(imported.map((row) => [row.item_code, row.quantity]), [['00123', 0], ['OTHER', 1.001]]);
+  assert.deepEqual(imported.map((row) => [row.item_code, row.quantity, row.valuation_rate]), [['00123', 0, 32000], ['OTHER', 1.001, 5000.5]]);
 });
 
 test('count upload ignores blank counts and validates all counted rows before returning data', async () => {
@@ -53,6 +53,22 @@ test('count upload ignores blank counts and validates all counted rows before re
   await assert.rejects(readCountSheet(Buffer.alloc(MAX_COUNT_FILE_BYTES + 1), 'Main'), /5 MB/);
   await assert.rejects(createCountSheet('Main', Array(MAX_COUNT_ROWS + 1)), /item rows/);
   await assert.rejects(readCountSheet(await file(Array.from({ length: MAX_COUNT_ROWS + 1 }, () => ['Main', 'A', '', 0, null])), 'Main'), /item rows/);
+});
+
+test('count upload imports workbook valuation rates and validates them', async () => {
+  const headers = ['Warehouse', 'Item Code', 'Item Name', 'Book Qty', 'Counted Qty', 'Valuation Rate'];
+  const imported = await readCountSheet(await file([
+    ['Main', 'A', '', 5, 2, 32000],
+    ['Main', 'B', '', 0, 1, '5000.5'],
+    ['Main', 'C', '', 0, 0, ''],
+    ['Main', 'D', '', 0, 3, null],
+  ], headers), 'Main');
+  assert.deepEqual(imported.map((row) => [row.item_code, row.valuation_rate]), [['A', 32000], ['B', 5000.5], ['C', null], ['D', null]]);
+  const oldSheet = await readCountSheet(await file([['Main', 'A', '', 5, 2]]), 'Main');
+  assert.equal(oldSheet[0].valuation_rate, null);
+  for (const value of [-1, 1.0001, 'wrong', '1,200', { formula: '1+1', result: 2 }, true]) {
+    await assert.rejects(readCountSheet(await file([['Main', 'A', '', 0, 1, value]], headers), 'Main'), /Valuation Rate/);
+  }
 });
 
 test('count upload reports every duplicated item and every counted row in one response', async () => {
@@ -134,9 +150,10 @@ test('count-sheet routes enforce warehouse, draft and item validation without sa
   } });
   store.loadStockEntry = async () => ({ entry: { id: 1, entry_no: 'REC-000001', entry_type: 'reconciliation', docstatus }, items: [{ id: 4, item_code: 'A', warehouse: 'Main', valuation_rate: 12 }] });
   delete require.cache[routePath];
+  let role = 'staff';
   const app = express();
   app.use((req, res, next) => {
-    req.currentUser = { role: 'staff', permissions: ['vouchers.stock.create', 'vouchers.stock.edit'], scopes: { warehouses: { mode: 'selected', values: ['Main'] } } };
+    req.currentUser = { role, permissions: ['vouchers.stock.create', 'vouchers.stock.edit'], scopes: { warehouses: { mode: 'selected', values: ['Main'] } } };
     next();
   });
   app.use('/stock', require(routePath));
@@ -157,6 +174,15 @@ test('count-sheet routes enforce warehouse, draft and item validation without sa
     const imported = await upload(buffer, 'Main', '1');
     assert.equal(imported.status, 200);
     assert.deepEqual(imported.body.items[0], { code: 'A', name: 'Actual Name', book: 5, counted: 2, rate: 12, bookRate: 10 });
+    const rated = await file([['Main', 'A', '', 5, 2, 99]], ['Warehouse', 'Item Code', 'Item Name', 'Book Qty', 'Counted Qty', 'Valuation Rate']);
+    const staffRated = await upload(rated, 'Main', '1');
+    assert.equal(staffRated.status, 200);
+    assert.equal(staffRated.body.items[0].rate, 12);
+    role = 'admin';
+    const adminRated = await upload(rated, 'Main', '1');
+    assert.equal(adminRated.status, 200);
+    assert.equal(adminRated.body.items[0].rate, 99);
+    role = 'staff';
     assert.equal((await upload(buffer, 'Other')).status, 403);
     assert.equal((await upload(await file([['Main', 'UNKNOWN', '', 0, 1]]))).status, 400);
     const duplicates = await upload(await file([
