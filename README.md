@@ -528,9 +528,9 @@ step in `release:check` requires access to the npm registry.
 The GitHub Actions workflow runs on pushes to `main` and on pull requests only,
 cancels superseded runs, and times out after 20 minutes. Long-lived `fix/*` and
 `wmaster-live-*` branches are deployment snapshots and are not tested on push, so
-changes must be cut from `main` rather than from a live snapshot. `main` requires
-the workflow's `test` check and a pull request before merge; keep the branch up to
-date so the check runs against the code that will actually land.
+changes must be cut from `main` rather than from a live snapshot. Pull requests
+targeting `main` must pass the `test` check and stay up to date; direct commits to
+`main` remain allowed and still run the check on every push.
 
 When an intentional report change alters the golden master, regenerate the snapshot
 and commit it in the same change:
