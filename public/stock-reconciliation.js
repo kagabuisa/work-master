@@ -115,7 +115,7 @@ countFile?.addEventListener('change', async () => {
     const existing = new Map(rows.map((item) => [item.code, item]));
     for (const item of result.items) {
       const previous = existing.get(item.code);
-      if (previous) Object.assign(previous, item, { id: previous.id, rate: previous.rate });
+      if (previous) Object.assign(previous, item, { id: previous.id });
       else rows.push({ ...item, id: '' });
     }
     loadedWarehouse = warehouse;

@@ -32,7 +32,7 @@
 <div class="ui-toolbar"><span class="field-hint">Evidence and revisions</span><%- include('ui-helper',{helpLabel:'Evidence and revisions',helpText:'Changing supporting evidence advances the revision and invalidates approval. After an upload, reload the latest revision before saving counts or requesting review. Save unfinished count edits before uploading or importing.'}) %></div>
 <div class="ui-panel-grid" aria-label="Count sheets and supporting documents">
 <%- include('reconciliation-attachments',{saved:true,entry:{id:count.reconciliation_id},compactUploads:true,canManage:!['submitted','abandoned'].includes(count.state)&&can('inventory.count.save'),attachmentEndpoint:`/stock/reconciliations/counts/${count.id}/attachments`}) %>
-<section class="ui-surface ui-upload-card"><%- include('ui-section-heading',{heading:{title:'Excel count sheet',eyebrow:'Count quantities',help:'Download uses this frozen snapshot and revision. Import saves a new revision; blank quantities remain incomplete. Review explanations and rates afterward.'}}) %>
+<section class="ui-surface ui-upload-card"><%- include('ui-section-heading',{heading:{title:'Excel count sheet',eyebrow:'Count quantities',help:'Download uses this frozen snapshot and revision. Import saves a new revision; blank quantities remain incomplete and workbook valuation rates are imported. Review explanations afterward.'}}) %>
 <p class="ui-upload-intro">Fill the downloaded template, then upload your counted quantities.</p>
 <ol class="ui-upload-summary ui-upload-steps" aria-label="Excel count workflow"><li><span>1</span>Download</li><li><span>2</span>Enter counts</li><li><span>3</span>Upload</li></ol>
 <% const canImportCount=!['submitted','abandoned'].includes(count.state)&&can('inventory.count.save'); %>

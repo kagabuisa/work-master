@@ -69,7 +69,7 @@ async function createCountSheet(warehouse, items, session = null) {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF18342F' } };
   });
-  for (const item of items) sheet.addRow([warehouse, String(item.item_code), item.item_name || item.item_code, Number(item.quantity || 0), null, Number(item.valuation_rate || 0)]);
+  for (const item of items) sheet.addRow([warehouse, String(item.item_code), item.item_name || item.item_code, Number(item.quantity || 0), null, Math.round(Number(item.valuation_rate || 0) * 1000) / 1000]);
   for (let index = 0; index < Math.min(20, MAX_COUNT_ROWS - items.length); index += 1) sheet.addRow([warehouse, '', '', null, null, null]);
   sheet.getColumn(2).numFmt = '@';
   sheet.getColumn(4).numFmt = '0.###';
@@ -87,19 +87,19 @@ async function createCountSheet(warehouse, items, session = null) {
   const legacyInstructions = [
     'Work Master stock count sheet', `Warehouse: ${warehouse}`,
     'Enter physical quantities in Counted Qty. Use 0 for an item with no stock. Blank counts are ignored.',
-    'Use up to three decimal places. Enter numbers, not formulas. Keep Warehouse and Item Code unchanged.',
+    'Use up to three decimal places for quantities and rates. Enter numbers, not formulas. Keep Warehouse and Item Code unchanged.',
     'Add active item codes in the spare rows for items not listed. Keep one row per item and the same warehouse.',
     'Upload the .xlsx file on a new reconciliation or while editing a draft. Upload fills the form; it does not save or submit.',
     'Existing form rows omitted from the upload keep their current counts. Review differences, then Save draft or Submit reconciliation.',
-    'Book Qty, Valuation Rate and Item Name are for reference; current stock and master data are used when importing. Workbook rates are not imported.',
+    'Book Qty and Item Name are for reference; current stock and master data are used when importing. Valuation Rate is imported when you may set rates; blank rates keep the recorded rate.',
   ];
   const texts=session?[
     'Controlled warehouse count sheet',`Warehouse: ${warehouse}`,`Count: ${session.id}; revision: ${session.revision}; fixed cut-off: ${session.cutoff}`,
     'Physical movement and ordinary inventory posting are frozen. Book quantities are the frozen snapshot.',
     'Enter explicit quantities including zero. Blank cells remain incomplete. Keep warehouse and item codes unchanged.',
     'Import on this count session. Import saves a new count revision but never approves or submits.',
-    'Valuation Rate is the rate held for the count. It is for reference; edit gain rates in the app.',
-    'After importing, explain discrepancies and review gain rates in the app. The app ignores edited book quantities and valuation rates.',
+    'Valuation Rate is imported with the count; blank cells keep the current rate.',
+    'After importing, explain discrepancies and review gain rates in the app. The app ignores edited book quantities.',
     'A different authorized reviewer must approve the completed count. Stale sheets are rejected.'
   ]:legacyInstructions;
   for (const text of texts) instructions.addRow([text]);
@@ -135,6 +135,7 @@ async function readCountSheet(buffer, warehouse, session = null) {
   }
   const items = [];
   const rowsByCode = new Map();
+  const rateColumn = columns.get('valuation rate');
   for (let index = 2; index <= sheet.rowCount; index += 1) {
     const row = sheet.getRow(index);
     const value = row.getCell(columns.get('counted qty')).value;
@@ -155,7 +156,20 @@ async function readCountSheet(buffer, warehouse, session = null) {
     if (!Number.isFinite(count) || count < 0 || count > 99999999999.999 || Math.abs(count * 1000 - Math.round(count * 1000)) > 0.00001) {
       throw invalid(`Row ${index}: enter a nonnegative Counted Qty with up to three decimal places.`);
     }
-    items.push({ item_code: code, quantity: count, sheet_row: index });
+    let valuationRate = null;
+    if (rateColumn) {
+      const rateValue = row.getCell(rateColumn).value;
+      if (rateValue != null && !(typeof rateValue === 'string' && !rateValue.trim())) {
+        if (!['number', 'string'].includes(typeof rateValue) || typeof rateValue === 'string' && !/^\d+(?:\.\d{1,3})?$/.test(rateValue.trim())) {
+          throw invalid(`Row ${index}: Valuation Rate must be a number with up to three decimal places; formulas are not supported.`);
+        }
+        valuationRate = Number(rateValue);
+        if (!Number.isFinite(valuationRate) || valuationRate < 0 || valuationRate > 999999999999 || Math.abs(valuationRate * 1000 - Math.round(valuationRate * 1000)) > 0.00001) {
+          throw invalid(`Row ${index}: enter a nonnegative Valuation Rate with up to three decimal places.`);
+        }
+      }
+    }
+    items.push({ item_code: code, quantity: count, sheet_row: index, valuation_rate: valuationRate });
   }
   const duplicates = [...rowsByCode].filter(([, rows]) => rows.length > 1);
   if (duplicates.length) throw duplicateCountError(duplicates);

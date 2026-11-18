@@ -198,11 +198,14 @@ router.post('/reconciliations/count-sheet-upload', (req, res) => {
       const imported = counts.map((count) => {
         const item = byCode.get(count.item_code);
         if (!item) throw countSheetError(`Row ${count.sheet_row}: item ${count.item_code} is unknown or inactive.`);
-        return { code: item.item_code, name: item.item_name, book: item.book, counted: count.quantity,
-          rate: Number(existing.get(item.item_code)?.valuation_rate || item.rate), bookRate: item.rate };
+        return { item_code: item.item_code, item_name: item.item_name, book: item.book, quantity: count.quantity,
+          valuation_rate: count.valuation_rate ?? Number(existing.get(item.item_code)?.valuation_rate || item.rate), book_rate: item.rate };
       });
+      const allowed = applyReconciliationRatePolicy(imported, req.currentUser,
+        items.map((item) => ({ item_code: item.item_code, valuation_rate: item.rate })), data?.items || []);
       res.set('Cache-Control', 'private, no-store');
-      res.json({ warehouse, items: imported });
+      res.json({ warehouse, items: allowed.map((item) => ({ code: item.item_code, name: item.item_name, book: item.book,
+        counted: item.quantity, rate: Number(item.valuation_rate), bookRate: item.book_rate })) });
     } catch (error) {
       res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not import the count sheet. Try again.' });
     }
