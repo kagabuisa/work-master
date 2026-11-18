@@ -37,6 +37,24 @@ function duplicateCountError(duplicates) {
   return invalid(`Duplicate items: ${details.join('; ')}. Remove the extra counted rows, then upload the sheet again.`);
 }
 
+function unknownCountItemsError(items) {
+  const rowsByCode = new Map();
+  for (const item of items) {
+    if (!rowsByCode.has(item.item_code)) rowsByCode.set(item.item_code, []);
+    rowsByCode.get(item.item_code).push(item.sheet_row);
+  }
+  const groups = [...rowsByCode];
+  const shown = groups.slice(0, MAX_REPORTED_DUPLICATES);
+  const remaining = groups.length - shown.length;
+  if (groups.length === 1) {
+    const [[code, rows]] = groups;
+    return invalid(`Unknown item: ${code} on ${rows.length === 1 ? 'row' : 'rows'} ${formatCountRows(rows)}. Check the item code, then upload the sheet again.`);
+  }
+  const details = shown.map(([code, rows]) => `${code} on ${rows.length === 1 ? 'row' : 'rows'} ${formatCountRows(rows)}`);
+  if (remaining) details.push(`${remaining} more unknown item${remaining === 1 ? ' is' : 's are'} not listed`);
+  return invalid(`Unknown items: ${details.join('; ')}. Check the item codes, then upload the sheet again.`);
+}
+
 async function createCountSheet(warehouse, items, session = null) {
   if (items.length > MAX_COUNT_ROWS) throw invalid(`Count sheets support up to ${MAX_COUNT_ROWS} item rows.`);
   const workbook = new ExcelJS.Workbook();
@@ -143,4 +161,4 @@ async function readCountSheet(buffer, warehouse, session = null) {
   return items;
 }
 
-module.exports = { createCountSheet, readCountSheet, countSheetFilename, MAX_COUNT_ROWS, MAX_COUNT_FILE_BYTES };
+module.exports = { createCountSheet, readCountSheet, countSheetFilename, unknownCountItemsError, MAX_COUNT_ROWS, MAX_COUNT_FILE_BYTES };

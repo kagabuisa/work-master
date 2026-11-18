@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
-const { createCountSheet, readCountSheet, countSheetFilename, MAX_COUNT_FILE_BYTES, MAX_COUNT_ROWS } = require('../src/stock-count-sheet');
+const { createCountSheet, readCountSheet, countSheetFilename, unknownCountItemsError, MAX_COUNT_FILE_BYTES, MAX_COUNT_ROWS } = require('../src/stock-count-sheet');
 const { permissionCheck, scopeCheck } = require('../src/authorize');
 
 async function file(rows, headers = ['Warehouse', 'Item Code', 'Item Name', 'Book Qty', 'Counted Qty']) {
@@ -85,6 +85,19 @@ test('count upload summarises duplicate lists that exceed the report limits', as
     assert.doesNotMatch(error.message, /item D19/);
     return true;
   });
+});
+
+test('count upload reports unknown sheet items with their rows', () => {
+  const single = unknownCountItemsError([{ item_code: 'MISSING-1', sheet_row: 87 }]);
+  assert.equal(single.status, 400);
+  assert.equal(single.message, 'Unknown item: MISSING-1 on row 87. Check the item code, then upload the sheet again.');
+  const multiple = unknownCountItemsError([
+    { item_code: 'MISSING-1', sheet_row: 2 },
+    { item_code: 'MISSING-2', sheet_row: 6 },
+    { item_code: 'MISSING-1', sheet_row: 4 },
+  ]);
+  assert.equal(multiple.status, 400);
+  assert.equal(multiple.message, 'Unknown items: MISSING-1 on rows 2 and 4; MISSING-2 on row 6. Check the item codes, then upload the sheet again.');
 });
 
 test('count sheet actions require stock permissions and retain supplier restrictions without a multipart body', async () => {
