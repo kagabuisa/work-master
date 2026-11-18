@@ -241,7 +241,7 @@ test('completed reconciliation blocks all ordinary pre-cutoff documents, includi
 test('SQL movement payload cannot forge a newer date to bypass saved invoice history',options,async()=>{
  try{
  const {pool,maker}=await setup();
- await runWithAuditUser(maker,()=>store.createStockEntry({entry_type:'opening',posting_date:today(),items:[line(780)]}));
+ await runWithAuditUser(maker,()=>store.createStockEntry({entry_type:'opening',posting_date:today(),posting_time:'00:00',items:[line(780)]}));
  const id=await draft([100]);
  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='wm_history_test_runtime') THEN CREATE ROLE wm_history_test_runtime NOLOGIN NOINHERIT; END IF; END $$");
  await pool.query('GRANT USAGE ON SCHEMA public TO wm_history_test_runtime');

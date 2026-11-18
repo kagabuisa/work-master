@@ -113,7 +113,8 @@ test('stock cancellation ignores purchase and invoice reversals with the same nu
     `);
     const item = { item_code: 'COLLISION-ITEM', item_name: 'Item', warehouse: 'Collision Warehouse',
       quantity: 10, valuation_rate: 50, unit_price: 100 };
-    const stockId = await store.createStockEntry({ entry_type: 'opening', posting_date: FIXED.date, items: [item] });
+    const stockId = await store.createStockEntry({ entry_type: 'opening', posting_date: FIXED.date,
+      posting_time: '00:00', items: [item] });
     const purchases = require('../src/purchases');
     const purchaseId = await purchases.createPurchase({ posting_date: FIXED.date,
       supplier_id: 'COLLISION-SUP', price_list: 'Collision Buying', items: [item] });
@@ -210,7 +211,8 @@ test('reconciliation draft posts the counted difference and reverses cleanly', {
       WHERE item_code = 'COUNTED-MATCH-001' AND warehouse = $1`, [FIXED.warehouse])).rows[0].quantity, 5);
     assert.equal((await store.loadStockEntry(draftId)).items.length, 4);
     const unchangedId = await store.createStockEntry({ entry_type: 'reconciliation', action: 'submit',
-      posting_date: FIXED.date, items: submitted.items.slice(2).map((item) => ({ ...item, id: undefined })) });
+      posting_date: FIXED.date, posting_time: '23:59',
+      items: submitted.items.slice(2).map((item) => ({ ...item, id: undefined })) });
     const unchanged = await store.loadStockEntry(unchangedId);
     assert.equal(unchanged.entry.docstatus, 'submitted');
     assert.deepEqual(unchanged.items.map((item) => [item.quantity, item.quantity_change, item.value_change]), [[5, 0, 0], [0, 0, 0]]);

@@ -14,6 +14,7 @@
     "test:postgres": "node scripts/test-postgres.js",
     "test:hr": "node scripts/test-hr.js",
     "test:accounting": "node scripts/test-accounting.js",
+    "golden:update": "node scripts/capture-golden.js",
     "release:check": "npm audit --omit=dev && npm run test:postgres",
     "user:create": "node scripts/create-user.js",
     "user:reset": "node scripts/reset-user-password.js",

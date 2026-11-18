@@ -11,26 +11,16 @@ process.env.POSTGRES_PASSWORD = process.env.POSTGRES_PASSWORD || '';
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { seedGoldenData, normalizeGolden } = require('../tests/helpers/golden-seed');
+const { seedGoldenData } = require('../tests/helpers/golden-seed');
+const { captureGoldenReports } = require('../tests/helpers/golden-reports');
 const store = require('../src/store');
 
 async function main() {
   const summary = await seedGoldenData();
-  const reports = {
-    accounts: await store.accountingAccounts(),
-    journals: await store.journalEntries({}),
-    trialBalance: await store.trialBalanceReport({}),
-    profitAndLoss: await store.profitAndLossReport({}),
-    balanceSheet: await store.balanceSheetReport({}),
-    generalLedger: await store.generalLedgerReport({}),
-    stockLedger: await store.stockLedgerReport({}),
-    stockMovement: await store.stockMovementReport({}),
-    grossProfit: await store.grossProfitReport({}),
-    debtor: await store.debtorReport({ page_size: 200 }),
-  };
+  const reports = await captureGoldenReports();
   const dir = path.join(__dirname, '..', 'tests', 'fixtures');
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'golden-reports.json'), JSON.stringify(normalizeGolden(reports), null, 2));
+  fs.writeFileSync(path.join(dir, 'golden-reports.json'), JSON.stringify(reports, null, 2));
   console.log('captured golden-reports.json');
   console.log('seed summary:', JSON.stringify(summary));
   await store.closeStore();

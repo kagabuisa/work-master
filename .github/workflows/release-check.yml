@@ -1,12 +1,24 @@
 name: Release checks
 
 on:
+  # Only test code that can actually land: main itself and pull requests.
+  # Long-lived fix/live branches are deployment snapshots, not forks of main;
+  # testing every push to them produced duplicate and stale-base failures.
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: release-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -22,6 +34,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # Keep any local-time formatting deterministic regardless of runner region.
+      TZ: Africa/Kampala
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
       POSTGRES_DB: work_master_hr_test
@@ -40,6 +54,7 @@ jobs:
             --tmpfs /workspace/data:mode=1777 \
             -w /workspace \
             -e NODE_PATH=/app/node_modules \
+            -e TZ=Africa/Kampala \
             -e POSTGRES_HOST=127.0.0.1 \
             -e POSTGRES_PORT=5432 \
             -e POSTGRES_DB=work_master_hr_test \

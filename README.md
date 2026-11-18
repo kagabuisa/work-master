@@ -525,6 +525,25 @@ supplies isolated credentials. Use `npm run test:postgres` for offline database
 verification or `npm run test:accounting` for focused accounting checks. The audit
 step in `release:check` requires access to the npm registry.
 
+The GitHub Actions workflow runs on pushes to `main` and on pull requests only,
+cancels superseded runs, and times out after 20 minutes. Long-lived `fix/*` and
+`wmaster-live-*` branches are deployment snapshots and are not tested on push, so
+changes must be cut from `main` rather than from a live snapshot. `main` requires
+the workflow's `test` check and a pull request before merge; keep the branch up to
+date so the check runs against the code that will actually land.
+
+When an intentional report change alters the golden master, regenerate the snapshot
+and commit it in the same change:
+
+```bash
+POSTGRES_DB=work_master_golden npm run golden:update
+```
+
+The command defaults to a local `work_master_golden` database on port `55432`; set
+`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` for your
+isolated test database. It refuses to reset a database whose name does not end in
+`_golden` or `_test`. The golden test prints this command when the snapshot drifts.
+
 ExcelJS retains its current major version. Its `uuid` dependency is overridden to
 patched version 11.x, which preserves the CommonJS `v4` API used by ExcelJS.
 Re-run workbook import/export tests when changing that override.

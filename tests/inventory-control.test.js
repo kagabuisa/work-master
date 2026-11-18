@@ -151,7 +151,7 @@ test('count locks drain preceding postings, both transfer warehouses freeze, app
  await assert.rejects(countAction(maker,'submit',{id:count.id,revision:count.revision}),/revision_conflict/);
  const changed=await loadCount({...maker,role:'admin'},count.id);assert.equal(changed.count.state,'counting');assert.equal(changed.count.approved_by,null);
  await countAction(maker,'abandon',{id:count.id,revision:changed.count.revision,reason:'Count evidence changed; abandon and repeat physical count.'});
- const transferPayload={entry_type:'order',posting_date:FIXED.date,items:[{item_code:FIXED.itemCode,item_name:FIXED.itemName,warehouse:FIXED.warehouse,target_warehouse:'Count target',quantity:1,valuation_rate:50}]};
+ const transferPayload={entry_type:'order',posting_date:FIXED.date,posting_time:'12:00',items:[{item_code:FIXED.itemCode,item_name:FIXED.itemName,warehouse:FIXED.warehouse,target_warehouse:'Count target',quantity:1,valuation_rate:50}]};
  const transfer=await runWithAuditUser(maker,()=>store.createStockEntry({...transferPayload,action:'save_draft'}));
  await approveVoucher(pool,'stock',transfer,'Backdate',maker,maker);
  await runWithAuditUser(maker,()=>store.updateStockEntry(transfer,{...transferPayload,action:'submit'}));
