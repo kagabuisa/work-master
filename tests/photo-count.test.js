@@ -85,6 +85,7 @@ test('photo report uses escaped IDs, row uploads, and permission-based editors',
  const file=require('node:path').join(__dirname,'..','views','reconciliation-photo-count.ejs');
  const html=await renderView(file,{...locals,can:()=>true});
  assert.match(html,/Photo Count Rpt/);assert.match(html,/&lt;Photo &amp; ID&gt;/);assert.match(html,/enctype="multipart\/form-data"/);assert.match(html,/id="photo-count-0"/);
+ assert.match(html,/<th class="row-number">#<\/th>/);assert.match(html,/<td class="row-number">1<\/td>/);
  assert.match(html,/>Physical Qty<\/th>/);assert.doesNotMatch(html,/Auditor Qty|name="physical_qty"|name="auditor_qty"/);
  assert.match(html,/href="\/stock\/reconciliations\/1\/edit#reconciliation-form"/);
  assert.match(html,/data-save-all/);assert.doesNotMatch(html,/data-count-all/);

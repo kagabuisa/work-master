@@ -30,7 +30,7 @@ const physicalPath=controlledCount?reportPath+'#inventory-count-form':reportPath
     <% if(controlledCount&&['submitted','abandoned','approved','awaiting_review'].includes(count.state)) { %><p class="field-hint"><%= ['submitted','abandoned'].includes(count.state)?'This count is closed and read-only.':'Saving changes clears any approval.' %></p><% } %>
     <% if(canSavePhotoCount) { %><p class="ui-helper-text"><%= !isAdmin?'Choose a photo to upload it automatically. Enter quantities, then select Save all.':typeof aiConfigured!=='undefined'&&aiConfigured?'Upload photos → Count all photos → review quantities → Save all. All AI quantities are in pc.':'Photo uploads and manual quantities are available. AI counting is not configured.' %></p><% } %>
     <div class="ui-table-scroll" role="region" aria-label="Photo counts" tabindex="0"><table class="ui-table">
-      <thead><tr><th>Photo ID</th><th>Photo</th><th class="ui-amount">Inventory Qty</th><th class="ui-amount">Physical Qty</th><% if(isAdmin) { %><th class="ui-amount">AI Qty (pc)</th><% } %><th>Verified Qty</th></tr></thead><tbody>
+      <thead><tr><th class="row-number">#</th><th>Photo ID</th><th>Photo</th><th class="ui-amount">Inventory Qty</th><th class="ui-amount">Physical Qty</th><% if(isAdmin) { %><th class="ui-amount">AI Qty (pc)</th><% } %><th>Verified Qty</th></tr></thead><tbody>
       <% rows.forEach((row,index)=>{
         const formId='photo-count-'+index;
         const rowPhotos=photos.filter(p=>p.photo_id===row.photo_id);
@@ -42,7 +42,7 @@ const physicalPath=controlledCount?reportPath+'#inventory-count-form':reportPath
         const reviewed=ready&&row.ai_review?.result_id===ai.id;
         const verified=ready&&!reviewed?ai.count:row.verified_qty??'';
       %>
-        <tr data-photo-row data-photo-id="<%= row.photo_id %>"><td class="ui-id-cell"><strong><%= row.photo_id %></strong></td>
+        <tr data-photo-row data-photo-id="<%= row.photo_id %>"><td class="row-number"><%= index + 1 %></td><td class="ui-id-cell"><strong><%= row.photo_id %></strong></td>
           <td class="ui-photo-cell">
           <% if(canSavePhotoCount) { %><form method="post" action="<%= reportPath %>/photo-count" enctype="multipart/form-data" data-photo-upload-form class="ui-photo-stack">
             <input type="hidden" name="action" value="upload_photo"><input type="hidden" name="photo_id" value="<%= row.photo_id %>"><% if(controlledCount) { %><input type="hidden" name="revision" value="<%= count.revision %>"><% } %>
