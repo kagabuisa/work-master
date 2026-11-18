@@ -51,7 +51,7 @@ async function indexData(user,pool=getPostgresPool()){
  const visible=rows=>rows.filter(row=>warehouseAllowed(user,row.warehouse));
  return {enabled:Boolean(data.enabled),warehouses:visible(data.warehouses),counts:visible(data.counts),pending:visible(data.pending),stamp};
 }
-router.get('/counts',async(req,res,next)=>{try{res.render('inventory-counts',{...await indexData(req.currentUser),error:req.query.error||null});}catch(error){next(error);}});
+router.get('/counts',async(req,res,next)=>{try{res.set('Cache-Control','private, no-store');res.render('inventory-counts',{...await indexData(req.currentUser),error:req.query.error||null});}catch(error){next(error);}});
 router.post('/counts',async(req,res,next)=>{try{
  const count=await countAction(req.currentUser,'start',{warehouse:req.body.warehouse,readiness:req.body.readiness});res.redirect(303,`/stock/reconciliations/counts/${count.id}`);
 }catch(error){if(error.status||error.code==='P0001')res.status(error.status||409).render('inventory-counts',{...await indexData(req.currentUser),error:error.message});else next(error);}});
@@ -146,7 +146,7 @@ router.post('/counts/:id/sheet',(req,res,next)=>sheetUpload(req,res,async upload
  await countAction(req.currentUser,'save',{id:count.id,revision:count.revision,sheet_import:true,lines:imported.map(i=>({item_code:i.item_code,counted_qty:i.quantity,valuation_rate:i.valuation_rate??byCode.get(i.item_code)?.valuation_rate??0,explanation:byCode.get(i.item_code)?.explanation||''}))});
  res.redirect(303,`/stock/reconciliations/counts/${count.id}`);
 }catch(error){if(error.status||error.code==='P0001')res.redirect(303,`/stock/reconciliations/counts/${req.params.id}?error=${encodeURIComponent(error.message)}`);else next(error);}}));
-router.get('/counts/:id',async(req,res,next)=>{try{res.render('inventory-count',{...await loadCount(req.currentUser,req.params.id),stamp,error:req.query.error||null});}catch(error){next(error);}});
+router.get('/counts/:id',async(req,res,next)=>{try{res.set('Cache-Control','private, no-store');res.render('inventory-count',{...await loadCount(req.currentUser,req.params.id),stamp,error:req.query.error||null});}catch(error){next(error);}});
 router.post('/counts/:id/found-item',async(req,res,next)=>{try{
  const code=String(req.body.found_item||'').trim();
  const count=await countAction(req.currentUser,'save',{id:req.params.id,revision:Number(req.body.revision),addOnly:true,
@@ -179,6 +179,7 @@ router.get('/corrections',async(req,res,next)=>{try{
  }
 
  const accounts=(await getPostgresPool().query('SELECT id,account_code,account_name FROM app_accounts WHERE is_active AND NOT is_group ORDER BY account_code')).rows.filter(account=>accountAllowed(req.currentUser,account.id));
+ res.set('Cache-Control','private, no-store');
  res.render('inventory-corrections',{...data,corrections,accounts,error:req.query.error||null});
 }catch(error){next(error);}});
 router.post('/corrections',async(req,res,next)=>{try{
