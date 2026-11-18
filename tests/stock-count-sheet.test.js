@@ -36,7 +36,10 @@ test('Excel template preserves text codes and blank counts and round trips zero 
 test('count upload ignores blank counts and validates all counted rows before returning data', async () => {
   const rows = [ ['Main', 'A', 'A', 99, 0], ['Main', 'B', 'B', 100, '2.125'], ['Main', 'C', 'C', 10, ''] ];
   assert.deepEqual((await readCountSheet(await file(rows), 'Main')).map((row) => row.quantity), [0, 2.125]);
-  await assert.rejects(readCountSheet(await file([...rows, ['Main', 'A', '', 0, 2]]), 'Main'), /appears more than once/);
+  await assert.rejects(readCountSheet(await file([...rows, ['Main', 'A', '', 0, 2]]), 'Main'), (error) => {
+    assert.equal(error.message, 'Item A appears more than once on rows 2 and 5. Remove the extra counted rows, then upload the sheet again.');
+    return true;
+  });
   await assert.rejects(readCountSheet(await file([['Other', 'A', '', 0, 2]]), 'Main'), /warehouse must be Main/);
   for (const value of [-1, 1.0001, 'wrong', '1,200', { formula: '1+1', result: 2 }, true]) {
     await assert.rejects(readCountSheet(await file([['Main', 'A', '', 0, value]]), 'Main'), /Counted Qty/);
@@ -47,6 +50,41 @@ test('count upload ignores blank counts and validates all counted rows before re
   await assert.rejects(readCountSheet(Buffer.alloc(MAX_COUNT_FILE_BYTES + 1), 'Main'), /5 MB/);
   await assert.rejects(createCountSheet('Main', Array(MAX_COUNT_ROWS + 1)), /item rows/);
   await assert.rejects(readCountSheet(await file(Array.from({ length: MAX_COUNT_ROWS + 1 }, () => ['Main', 'A', '', 0, null])), 'Main'), /item rows/);
+});
+
+test('count upload reports every duplicated item and every counted row in one response', async () => {
+  const rows = [
+    ['Main', 'BRAKE SHOE TAFF(BLACK)-BM100', '', 10, 1],
+    ['Main', 'B', '', 10, 2],
+    ['Main', 'BRAKE SHOE TAFF(BLACK)-BM100', '', 10, 3],
+    ['Main', 'C', '', 10, 4],
+    ['Main', 'B', '', 10, 5],
+    ['Main', 'BRAKE SHOE TAFF(BLACK)-BM100', '', 10, 6],
+    ['Main', 'D', '', 10, ''],
+    ['Main', 'D', '', 10, ''],
+  ];
+  await assert.rejects(readCountSheet(await file(rows), 'Main'), (error) => {
+    assert.equal(error.status, 400);
+    assert.match(error.message, /^Duplicate items:/);
+    assert.match(error.message, /item BRAKE SHOE TAFF\(BLACK\)-BM100 appears more than once on rows 2, 4 and 7/);
+    assert.match(error.message, /item B appears more than once on rows 3 and 6/);
+    assert.doesNotMatch(error.message, /item C/);
+    assert.doesNotMatch(error.message, /item D/);
+    return true;
+  });
+});
+
+test('count upload summarises duplicate lists that exceed the report limits', async () => {
+  const rows = [];
+  for (let index = 0; index < 13; index += 1) rows.push(['Main', 'MANY', '', 0, index]);
+  for (let index = 0; index < 23; index += 1) rows.push(['Main', `D${index}`, '', 0, 1], ['Main', `D${index}`, '', 0, 2]);
+  await assert.rejects(readCountSheet(await file(rows), 'Main'), (error) => {
+    assert.match(error.message, /^Duplicate items:/);
+    assert.match(error.message, /item MANY appears more than once on rows 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 and 1 more row/);
+    assert.match(error.message, /4 more duplicated items are not listed/);
+    assert.doesNotMatch(error.message, /item D19/);
+    return true;
+  });
 });
 
 test('count sheet actions require stock permissions and retain supplier restrictions without a multipart body', async () => {
@@ -105,6 +143,12 @@ test('count-sheet routes enforce warehouse, draft and item validation without sa
     assert.deepEqual(imported.body.items[0], { code: 'A', name: 'Actual Name', book: 5, counted: 2, rate: 12, bookRate: 10 });
     assert.equal((await upload(buffer, 'Other')).status, 403);
     assert.equal((await upload(await file([['Main', 'UNKNOWN', '', 0, 1]]))).status, 400);
+    const duplicates = await upload(await file([
+      ['Main', 'A', '', 0, 1], ['Main', 'B', '', 0, 2], ['Main', 'A', '', 0, 3], ['Main', 'B', '', 0, 4],
+    ]));
+    assert.equal(duplicates.status, 400);
+    assert.match(duplicates.body.error, /item A appears more than once on rows 2 and 4/);
+    assert.match(duplicates.body.error, /item B appears more than once on rows 3 and 5/);
     docstatus = 'submitted';
     assert.equal((await upload(buffer, 'Main', '1')).status, 403);
     const downloaded = await fetch(root + '/count-sheet-template?warehouse=Main');

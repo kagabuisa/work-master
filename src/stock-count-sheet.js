@@ -2,6 +2,8 @@
 const ExcelJS = require('exceljs');
 const MAX_COUNT_ROWS = 5000;
 const MAX_COUNT_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_REPORTED_DUPLICATES = 20;
+const MAX_REPORTED_DUPLICATE_ROWS = 12;
 const HEADERS = ['Warehouse', 'Item Code', 'Item Name', 'Book Qty', 'Counted Qty'];
 
 function countSheetFilename(reconciliationNumber, warehouse) {
@@ -14,6 +16,25 @@ function invalid(message) {
   const error = new Error(message);
   error.status = 400;
   return error;
+}
+
+function formatCountRows(rows) {
+  const shown = rows.slice(0, MAX_REPORTED_DUPLICATE_ROWS);
+  const remaining = rows.length - shown.length;
+  if (remaining) return `${shown.join(', ')} and ${remaining} more row${remaining === 1 ? '' : 's'}`;
+  return `${shown.slice(0, -1).join(', ')}${shown.length > 1 ? ' and ' : ''}${shown[shown.length - 1]}`;
+}
+
+function duplicateCountError(duplicates) {
+  const shown = duplicates.slice(0, MAX_REPORTED_DUPLICATES);
+  const remaining = duplicates.length - shown.length;
+  if (duplicates.length === 1) {
+    const [[code, rows]] = duplicates;
+    return invalid(`Item ${code} appears more than once on rows ${formatCountRows(rows)}. Remove the extra counted rows, then upload the sheet again.`);
+  }
+  const details = shown.map(([code, rows]) => `item ${code} appears more than once on rows ${formatCountRows(rows)}`);
+  if (remaining) details.push(`${remaining} more duplicated item${remaining === 1 ? ' is' : 's are'} not listed`);
+  return invalid(`Duplicate items: ${details.join('; ')}. Remove the extra counted rows, then upload the sheet again.`);
 }
 
 async function createCountSheet(warehouse, items, session = null) {
@@ -93,7 +114,7 @@ async function readCountSheet(buffer, warehouse, session = null) {
     if (!columns.has(header.toLowerCase())) throw invalid(`Missing ${header} column. Download the count sheet template.`);
   }
   const items = [];
-  const codes = new Set();
+  const rowsByCode = new Map();
   for (let index = 2; index <= sheet.rowCount; index += 1) {
     const row = sheet.getRow(index);
     const value = row.getCell(columns.get('counted qty')).value;
@@ -102,7 +123,11 @@ async function readCountSheet(buffer, warehouse, session = null) {
     const rowWarehouse = cellText(row.getCell(columns.get('warehouse')).value, index, 'Warehouse');
     if (!code) throw invalid(`Row ${index}: enter an Item Code for this count.`);
     if (rowWarehouse !== warehouse) throw invalid(`Row ${index}: warehouse must be ${warehouse}.`);
-    if (codes.has(code)) throw invalid(`Row ${index}: item ${code} appears more than once.`);
+    if (rowsByCode.has(code)) {
+      rowsByCode.get(code).push(index);
+      continue;
+    }
+    rowsByCode.set(code, [index]);
     if (!['number', 'string'].includes(typeof value) || typeof value === 'string' && !/^\d+(?:\.\d{1,3})?$/.test(value.trim())) {
       throw invalid(`Row ${index}: Counted Qty must be a number with up to three decimal places; formulas are not supported.`);
     }
@@ -111,8 +136,9 @@ async function readCountSheet(buffer, warehouse, session = null) {
       throw invalid(`Row ${index}: enter a nonnegative Counted Qty with up to three decimal places.`);
     }
     items.push({ item_code: code, quantity: count, sheet_row: index });
-    codes.add(code);
   }
+  const duplicates = [...rowsByCode].filter(([, rows]) => rows.length > 1);
+  if (duplicates.length) throw duplicateCountError(duplicates);
   if (!items.length) throw invalid('No counts found. Fill Counted Qty for at least one item; use 0 for zero stock.');
   return items;
 }
